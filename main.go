@@ -26,6 +26,6 @@ func main() {
 	//} else {
 	//	os.Stdout.Write(body)
 	//}
-
-	zlib.Process(os.Stdout, 2, uint(zlib.NumProtocols))
+	c := zlib.MakeNewController()
+	zlib.Process(os.Stdout, c)
 }

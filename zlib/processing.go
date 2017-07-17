@@ -5,11 +5,12 @@ import (
 	//log "github.com/sirupsen/logrus"
 	//"fmt"
 	"io"
+	//"net"
 	"strconv"
 	"sync"
 )
 
-type Output struct {
+type Grab struct {
 	IP     string                 `json:"ip"`
 	Domain string                 `json:"domain"`
 	Data   map[string]interface{} `json:"data"`
@@ -20,13 +21,9 @@ type Demo struct {
 	Endpoint string `json:"endpoint'`
 }
 
-type Worker interface {
-	MakeHandler() Handler
-	Success() uint
-	Failure() uint
-	Total() uint
-	Done()
-	RunCount() uint
+type Demo1 struct {
+	Test string `json:"test"`
+	What string `json:"what"`
 }
 
 type Handler func(interface{}) interface{}
@@ -38,11 +35,15 @@ type protocolResponse struct {
 }
 
 // handler for demo purposes
-// handler will marshal and send a single protocol response to the controller
+// handler will marshal and send a single protocol response to the worker
 func handler(bufChan chan protocolResponse) {
 	r := protocolResponse{protocol: "http"}
 	t := Demo{Port: 22, Endpoint: "/"}
 	r.result = t
+	bufChan <- r
+	r = protocolResponse{protocol: "tls"}
+	v := Demo1{Test: "eff", What: "oh"}
+	r.result = v
 	bufChan <- r
 	r = protocolResponse{protocol: "ssh"}
 	t = Demo{Port: 80, Endpoint: "oops"}
@@ -50,17 +51,17 @@ func handler(bufChan chan protocolResponse) {
 	bufChan <- r
 }
 
-// Controller divides up input to each handler and then consolidates at end
-func Controller(input interface{}, numProtocols uint) []byte {
-	bufChan := make(chan protocolResponse, numProtocols)
+// GrabWorker divides up input and sends to each handler and then consolidates at end
+func GrabWorker(input interface{}) []byte {
+	bufChan := make(chan protocolResponse, NumProtocols)
 
 	protocolResult := make(map[string]interface{})
 
-	for i := 0; uint(i) < numProtocols; i++ {
+	for i := 0; i < NumProtocols; i++ {
 		go handler(bufChan)
 	}
 
-	for i := 0; uint(i) < numProtocols; i++ {
+	for i := 0; i < NumProtocols; i++ {
 		select {
 		case msg := <-bufChan:
 			//receive from bufChan
@@ -69,14 +70,15 @@ func Controller(input interface{}, numProtocols uint) []byte {
 	}
 
 	strInput, _ := input.(string)
-	a := Output{IP: strInput, Domain: strInput, Data: protocolResult}
+	a := Grab{IP: strInput, Domain: strInput, Data: protocolResult}
 	result, _ := json.Marshal(a)
 
 	return result
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers
-func Process(out io.Writer, workers uint, numProtocols uint) {
+func Process(out io.Writer, con Controller) {
+	workers := Options[0].Senders
 	processQueue := make(chan interface{}, workers*4)
 	outputQueue := make(chan []byte, workers*4) //what is the magic 4?
 
@@ -98,13 +100,12 @@ func Process(out io.Writer, workers uint, numProtocols uint) {
 		}
 		outputDone.Done()
 	}()
-
 	//Start all the workers
-	for i := uint(0); i < workers; i++ {
+	for i := 0; i < workers; i++ {
 		go func() {
 			for obj := range processQueue {
 				//divide up, run, consolidate
-				result := Controller(obj, numProtocols)
+				result := GrabWorker(obj)
 				outputQueue <- result
 			}
 			workerDone.Done()

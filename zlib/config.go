@@ -18,13 +18,18 @@ type Option struct {
 	Interface          string     `short:"f" long:"interface" description:"Network interface to send on" json:"inter"`
 	Timeout            int        `short:"t" long:"timeout" description:"Set connection timeout in seconds" json:"time"`
 	GOMAXPROCS         int        `short:"g" long:"gomaxprocs" default:"3" description:"Set GOMAXPROCS" json:"gomax"`
-	Senders            int        `short:"s" long:"senders" defaults:"1000" description:"Number of send coroutines to use" json:"sender"`
+	Senders            int        `short:"s" long:"senders" default:"1000" description:"Number of send coroutines to use" json:"sender"`
 	ConnectionsPerHost int        `short:"h" long:"connections-per-host" defaults:"1" description:"Number of times to connect to each host (results in more output)" json:"connect"`
 	Prometheus         string     `short:"a" long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled." json:"prom"`
 	TLS                TLSConfig  `command:"tls" json:"tls"`
 	HTTP               HTTPConfig `command:"http" json:"http"`
 	SSH                SSHConfig  `command:"ssh" json:"ssh"`
 	Mult               MultConfig `command:"mult" json:"mult"`
+}
+
+type Protocol interface {
+	GetName() string
+	GetBanner(Option) string
 }
 
 var Options [10]Option
