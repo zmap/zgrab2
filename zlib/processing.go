@@ -16,39 +16,12 @@ type Grab struct {
 	Data   map[string]interface{} `json:"data"`
 }
 
-type Demo struct {
-	Port     int    `json:"port"`
-	Endpoint string `json:"endpoint'`
-}
-
-type Demo1 struct {
-	Test string `json:"test"`
-	What string `json:"what"`
-}
-
 type Handler func(interface{}) interface{}
 
 // not good name, should change
 type protocolResponse struct {
 	protocol string
 	result   interface{}
-}
-
-// handler for demo purposes
-// handler will marshal and send a single protocol response to the worker
-func handler(bufChan chan protocolResponse) {
-	r := protocolResponse{protocol: "http"}
-	t := Demo{Port: 22, Endpoint: "/"}
-	r.result = t
-	bufChan <- r
-	r = protocolResponse{protocol: "tls"}
-	v := Demo1{Test: "eff", What: "oh"}
-	r.result = v
-	bufChan <- r
-	r = protocolResponse{protocol: "ssh"}
-	t = Demo{Port: 80, Endpoint: "oops"}
-	r.result = t
-	bufChan <- r
 }
 
 // GrabWorker divides up input and sends to each handler and then consolidates at end
@@ -58,7 +31,7 @@ func GrabWorker(input interface{}) []byte {
 	protocolResult := make(map[string]interface{})
 
 	for i := 0; i < NumProtocols; i++ {
-		go handler(bufChan)
+		go MakeHandler(bufChan, i)
 	}
 
 	for i := 0; i < NumProtocols; i++ {

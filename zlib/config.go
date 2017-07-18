@@ -63,6 +63,10 @@ type HTTPConfig struct {
 	HTTP HTTPOptions `json:"http"`
 }
 
+func (x HTTPConfig) GetBanner() {
+	fmt.Println("YAYYYY!!!!")
+}
+
 type HTTPOptions struct {
 	Method       string `long:"method" default:"GET" description:"Set HTTP request method type" json:"method"`
 	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint" json:"endpoint"`
@@ -105,24 +109,41 @@ func validateHighLevel() {
 func (x *TLSConfig) Execute(args []string) error {
 	validateHighLevel()
 
-	fmt.Println("tls scan")
 	return nil
+}
+
+func (x TLSConfig) GetPort() int {
+	return x.Port
+}
+
+func (x TLSConfig) GetBanner() {
+	fmt.Println("tls scan")
 }
 
 // Execute validates the options sent to HTTPConfig and then passes operation back to main
 func (x *HTTPConfig) Execute(args []string) error {
 	validateHighLevel()
 
-	fmt.Println("http scan")
 	return nil
+}
+
+func (x HTTPConfig) GetPort() int {
+	return x.Port
 }
 
 // Execute validates the options sent to SSHConfig and then passes operation back to main
 func (x *SSHConfig) Execute(args []string) error {
 	validateHighLevel()
 
-	fmt.Println("ssh scan")
 	return nil
+}
+
+func (x SSHConfig) GetPort() int {
+	return x.Port
+}
+
+func (x SSHConfig) GetBanner() {
+	fmt.Println("ssh scan")
 }
 
 func customParse() {
