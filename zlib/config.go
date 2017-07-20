@@ -2,7 +2,7 @@ package zlib
 
 import (
 	"bufio"
-	"fmt"
+	"encoding/gob"
 	"github.com/jessevdk/go-flags"
 	log "github.com/sirupsen/logrus"
 	"os"
@@ -27,62 +27,15 @@ type Option struct {
 	Mult               MultConfig `command:"mult" json:"mult"`
 }
 
-type Protocol interface {
-	GetName() string
-	GetBanner(Option) string
-}
-
 var Options [10]Option
 
 var inputFile *os.File
 
 var NumProtocols int
 
-type TLSConfig struct {
-	Port                 int         `short:"p" long:"port" default:"443" description:"Specify port to grab on" json:"port"`
-	Name                 string      `short:"n" long:"name" default:"" description:"Specify name for output json, only necessary if scanning multiple protocols"`
-	Heartbleed           bool        `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed" json:"heart"`
-	Version              int         `long:"version" description:"Max TLS version to use" json:"version"`
-	Verbose              bool        `long:"verbose" description:"Add extra TLS information to JSON output (client hello, client KEX, key material, etc)" json:"verbose"`
-	SessionTicket        bool        `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
-	ExtendedMasterSecret bool        `long:"extended-master-secret" description:"Offer RFC 7627 Extended Master Secret extension" json:"extended"`
-	ExtendedRandom       bool        `long:"extended-random" description:"Send TLS Extended Random Extension" json:"extran"`
-	NoSNI                bool        `long:"no-sni" description:"Do not send domain name in TLS Handshake regardless of whether known" json:"sni"`
-	SCTExt               bool        `long:"sct" description:"Request Signed Certificate Timestamps during TLS Handshake" json:"sct"`
-	HTTP                 HTTPOptions `json:"http"`
-}
-
 type MultConfig struct {
 	ConfigFileName string `short:"c" long:"config-file" default:"-" description:"Config filename, use - for stdin" json:"config"`
 	configFile     *os.File
-}
-
-type HTTPConfig struct {
-	Port int         `short:"p" long:"port" default:"80" description:"Specify port to grab on" json:"port"`
-	Name string      `short:"n" long:"name" default:"" description:"Specify name for output json, only necessary if scanning multiple protocols"`
-	HTTP HTTPOptions `json:"http"`
-}
-
-func (x HTTPConfig) GetBanner() {
-	fmt.Println("YAYYYY!!!!")
-}
-
-type HTTPOptions struct {
-	Method       string `long:"method" default:"GET" description:"Set HTTP request method type" json:"method"`
-	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint" json:"endpoint"`
-	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent" json:"useragent"`
-	ProxyDomain  string `long:"proxy-domain" description:"Send a CONNECT <domain> first" json:"proxydomain"`
-	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request" json:"maxsize"`
-	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow" json:"maxredirects"`
-}
-
-type SSHConfig struct {
-	Port              int    `short:"p" long:"port" default:"22" description:"Specify port to grab on" json:"port"`
-	Name              string `short:"n" long:"name" default:"" description:"Specify name for output json, only necessary if scanning multiple protocols"`
-	Client            string `long:"client" description:"Mimic behavior of a specific SSH client" json:"client"`
-	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms" json:"kex"`
-	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms" json:"hostkey"`
-	NegativeOne       bool   `long:"negative-one" description:"Set SSH DH kex value to -1 in the selected group" json:"negativeone"`
 }
 
 //validate all high level configuration options
@@ -103,47 +56,6 @@ func validateHighLevel() {
 	if Options[0].GOMAXPROCS < 1 {
 		log.Fatal("Invalid GOMAXPROCS (must be at least 1, given %d)", Options[0].GOMAXPROCS)
 	}
-}
-
-// Execute validates the options sent to TLSConfig and then passes operation back to main
-func (x *TLSConfig) Execute(args []string) error {
-	validateHighLevel()
-
-	return nil
-}
-
-func (x TLSConfig) GetPort() int {
-	return x.Port
-}
-
-func (x TLSConfig) GetBanner() {
-	fmt.Println("tls scan")
-}
-
-// Execute validates the options sent to HTTPConfig and then passes operation back to main
-func (x *HTTPConfig) Execute(args []string) error {
-	validateHighLevel()
-
-	return nil
-}
-
-func (x HTTPConfig) GetPort() int {
-	return x.Port
-}
-
-// Execute validates the options sent to SSHConfig and then passes operation back to main
-func (x *SSHConfig) Execute(args []string) error {
-	validateHighLevel()
-
-	return nil
-}
-
-func (x SSHConfig) GetPort() int {
-	return x.Port
-}
-
-func (x SSHConfig) GetBanner() {
-	fmt.Println("ssh scan")
 }
 
 func customParse() {
@@ -186,12 +98,12 @@ func customParse() {
 			default:
 				panic("unrecognized protocol")
 			}
+			NumProtocols++
 		}
-		NumProtocols++
 	}
 }
 
-// Execute validates the options sent to MultConfig parses and executes the protocols and then passes operation back to main
+// Execute validates the options sent to MultConfig runs customParse and then passes operation back to main
 func (x *MultConfig) Execute(args []string) error {
 	validateHighLevel()
 
@@ -203,12 +115,35 @@ func (x *MultConfig) Execute(args []string) error {
 		}
 		x.configFile = os.Stdin
 	default:
-		if x.configFile, err = os.Open(Options[NumProtocols].Mult.ConfigFileName); err != nil {
+		if x.configFile, err = os.Open(Options[0].Mult.ConfigFileName); err != nil {
 			log.Fatal(err)
 		}
 	}
 
+	deepCopyAll()
 	customParse()
 
 	return nil
+}
+
+// this is even more hacky
+func deepcopy(dst, src interface{}) error {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	enc := gob.NewEncoder(w)
+	err = enc.Encode(src)
+	if err != nil {
+		return err
+	}
+	dec := gob.NewDecoder(r)
+	return dec.Decode(dst)
+}
+
+// this is a super hacky method of ensuring that all options get defaults set
+func deepCopyAll() {
+	for i := 1; i < 10; i++ {
+		deepcopy(&Options[i], Options[0])
+	}
 }

@@ -87,7 +87,7 @@ func Process(out io.Writer, con Controller) {
 
 	// Read the input, send to workers
 	for {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 2; i++ {
 			processQueue <- strconv.Itoa(i)
 		}
 

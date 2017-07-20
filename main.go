@@ -1,8 +1,6 @@
 package main
 
 import (
-	//"encoding/json"
-	//"fmt"
 	"github.com/jessevdk/go-flags"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2/zlib"
@@ -20,12 +18,6 @@ func main() {
 		}
 	}
 
-	//Test output of a marshald options struct, works!
-	//if body, err := json.Marshal(zlib.Options[0]); err != nil {
-	//	fmt.Println("error: ", err)
-	//} else {
-	//	os.Stdout.Write(body)
-	//}
 	c := zlib.MakeNewController()
 	zlib.Process(os.Stdout, c)
 }
