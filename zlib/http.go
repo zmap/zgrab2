@@ -5,7 +5,8 @@ type HTTPConfig struct {
 	Name string      `short:"n" long:"name" default:"http" description:"Specify name for output json, only necessary if scanning multiple protocols" json:"-"`
 	HTTP HTTPOptions `json:"http"`
 
-	scan bool
+	BodyText string `json:"body"`
+	scan     bool
 }
 
 type HTTPOptions struct {
