@@ -7,12 +7,14 @@ type SSHConfig struct {
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms" json:"kex"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms" json:"hostkey"`
 	NegativeOne       bool   `long:"negative-one" description:"Set SSH DH kex value to -1 in the selected group" json:"negativeone"`
+
+	scan bool
 }
 
 // Execute validates the options sent to SSHConfig and then passes operation back to main
 func (x *SSHConfig) Execute(args []string) error {
 	validateHighLevel()
-
+	x.scan = true
 	return nil
 }
 
@@ -22,6 +24,10 @@ func (x SSHConfig) GetName() string {
 
 func (x SSHConfig) GetPort() int {
 	return x.Port
+}
+
+func (x SSHConfig) GetScan() bool {
+	return x.scan
 }
 
 func (x SSHConfig) GetBanner() SSHConfig {

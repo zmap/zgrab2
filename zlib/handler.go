@@ -20,8 +20,8 @@ func MakeHandler(response chan protocolResponse, opt int) {
 		switch v.Kind() {
 		case reflect.Struct:
 			if v.Type().String() != "zlib.MultConfig" {
-				if p := v.MethodByName("GetPort"); p.IsValid() {
-					if port := p.Call([]reflect.Value{})[0].Int(); port != -1 {
+				if s := v.MethodByName("GetScan"); s.IsValid() {
+					if shouldScan := s.Call([]reflect.Value{})[0].Bool(); shouldScan {
 						method := v.MethodByName("GetBanner")
 						name := v.MethodByName("GetName")
 						if method.IsValid() && name.IsValid() {

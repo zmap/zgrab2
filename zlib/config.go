@@ -20,7 +20,7 @@ type Option struct {
 	GOMAXPROCS         int        `short:"g" long:"gomaxprocs" default:"3" description:"Set GOMAXPROCS" json:"gomax"`
 	Senders            int        `short:"s" long:"senders" default:"1000" description:"Number of send coroutines to use" json:"sender"`
 	ConnectionsPerHost int        `short:"h" long:"connections-per-host" defaults:"1" description:"Number of times to connect to each host (results in more output)" json:"connect"`
-	Prometheus         string     `short:"a" long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled." json:"prom"`
+	Prometheus         string     `short:"a" long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled." json:"-"`
 	TLS                TLSConfig  `command:"tls" json:"tls"`
 	HTTP               HTTPConfig `command:"http" json:"http"`
 	SSH                SSHConfig  `command:"ssh" json:"ssh"`
@@ -56,6 +56,7 @@ func validateHighLevel() {
 	if Options[0].GOMAXPROCS < 1 {
 		log.Fatal("Invalid GOMAXPROCS (must be at least 1, given %d)", Options[0].GOMAXPROCS)
 	}
+	NumProtocols++ //trust me
 }
 
 func customParse() {
@@ -84,16 +85,10 @@ func customParse() {
 			}
 			switch scanner.Text()[:3] { //todo: remove this shit, fork goflags or recreate
 			case "htt":
-				Options[NumProtocols].SSH.Port = -1
-				Options[NumProtocols].TLS.Port = -1
 				Options[NumProtocols].HTTP.Execute([]string{})
 			case "ssh":
-				Options[NumProtocols].HTTP.Port = -1
-				Options[NumProtocols].TLS.Port = -1
 				Options[NumProtocols].SSH.Execute([]string{})
 			case "tls":
-				Options[NumProtocols].SSH.Port = -1
-				Options[NumProtocols].HTTP.Port = -1
 				Options[NumProtocols].TLS.Execute([]string{})
 			default:
 				panic("unrecognized protocol")
@@ -106,6 +101,7 @@ func customParse() {
 // Execute validates the options sent to MultConfig runs customParse and then passes operation back to main
 func (x *MultConfig) Execute(args []string) error {
 	validateHighLevel()
+	NumProtocols-- //trust me
 
 	var err error
 	switch x.ConfigFileName {
@@ -122,7 +118,6 @@ func (x *MultConfig) Execute(args []string) error {
 
 	deepCopyAll()
 	customParse()
-
 	return nil
 }
 

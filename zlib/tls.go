@@ -12,12 +12,14 @@ type TLSConfig struct {
 	NoSNI                bool        `long:"no-sni" description:"Do not send domain name in TLS Handshake regardless of whether known" json:"sni"`
 	SCTExt               bool        `long:"sct" description:"Request Signed Certificate Timestamps during TLS Handshake" json:"sct"`
 	HTTP                 HTTPOptions `json:"http"`
+
+	scan bool
 }
 
 // Execute validates the options sent to TLSConfig and then passes operation back to main
 func (x *TLSConfig) Execute(args []string) error {
 	validateHighLevel()
-
+	x.scan = true
 	return nil
 }
 
@@ -27,6 +29,10 @@ func (x TLSConfig) GetName() string {
 
 func (x TLSConfig) GetPort() int {
 	return x.Port
+}
+
+func (x TLSConfig) GetScan() bool {
+	return x.scan
 }
 
 func (x TLSConfig) GetBanner() TLSConfig {

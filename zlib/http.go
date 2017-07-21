@@ -4,6 +4,8 @@ type HTTPConfig struct {
 	Port int         `short:"p" long:"port" default:"80" description:"Specify port to grab on" json:"port"`
 	Name string      `short:"n" long:"name" default:"http" description:"Specify name for output json, only necessary if scanning multiple protocols" json:"-"`
 	HTTP HTTPOptions `json:"http"`
+
+	scan bool
 }
 
 type HTTPOptions struct {
@@ -18,7 +20,7 @@ type HTTPOptions struct {
 // Execute validates the options sent to HTTPConfig and then passes operation back to main
 func (x *HTTPConfig) Execute(args []string) error {
 	validateHighLevel()
-
+	x.scan = true
 	return nil
 }
 
@@ -28,6 +30,10 @@ func (x HTTPConfig) GetName() string {
 
 func (x HTTPConfig) GetPort() int {
 	return x.Port
+}
+
+func (x HTTPConfig) GetScan() bool {
+	return x.scan
 }
 
 func (x HTTPConfig) GetBanner() HTTPConfig {
