@@ -1,44 +1,36 @@
-package zlib
+package zgrab2
 
 import (
 	"encoding/json"
-	//log "github.com/sirupsen/logrus"
-	//"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
-	//"net"
 	"strconv"
 	"sync"
 )
 
 type Grab struct {
-	IP     string                 `json:"ip"`
-	Domain string                 `json:"domain"`
-	Data   map[string]interface{} `json:"data"`
+	IP     string                      `json:"ip"`
+	Domain string                      `json:"domain"`
+	Data   map[string]protocolResponse `json:"data"`
 }
 
 type Handler func(interface{}) interface{}
 
 // not good name, should change
 type protocolResponse struct {
-	protocol string
-	result   interface{}
+	result interface{}
+	err    error
 }
 
 // GrabWorker divides up input and sends to each handler and then consolidates at end
-func GrabWorker(input interface{}) []byte {
-	bufChan := make(chan protocolResponse, NumProtocols)
+func RunGrabWorker(input interface{}) []byte {
+	protocolResult := make(map[string]protocolResponse)
 
-	protocolResult := make(map[string]interface{})
-
-	for i := 0; i < NumProtocols; i++ {
-		go MakeHandler(bufChan, i)
-	}
-
-	for i := 0; i < NumProtocols; i++ {
-		select {
-		case msg := <-bufChan:
-			//receive from bufChan
-			protocolResult[msg.protocol] = msg.result
+	for _, action := range lookups {
+		name, res := makeHandler(action)
+		protocolResult[name] = res
+		if res.err != nil && !options.Mult.ContinueOnError {
+			break
 		}
 	}
 
@@ -50,8 +42,8 @@ func GrabWorker(input interface{}) []byte {
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers
-func Process(out io.Writer, con Controller) {
-	workers := Options[0].Senders
+func Process(out io.Writer, mon Monitor) {
+	workers := options.Senders
 	processQueue := make(chan interface{}, workers*4)
 	outputQueue := make(chan []byte, workers*4) //what is the magic 4?
 
@@ -65,10 +57,10 @@ func Process(out io.Writer, con Controller) {
 	go func() {
 		for result := range outputQueue {
 			if _, err := out.Write(result); err != nil {
-				panic(err.Error())
+				log.Fatal(err.Error())
 			}
 			if _, err := out.Write([]byte("\n")); err != nil {
-				panic(err.Error())
+				log.Fatal(err.Error())
 			}
 		}
 		outputDone.Done()
@@ -78,7 +70,7 @@ func Process(out io.Writer, con Controller) {
 		go func() {
 			for obj := range processQueue {
 				//divide up, run, consolidate
-				result := GrabWorker(obj)
+				result := RunGrabWorker(obj)
 				outputQueue <- result
 			}
 			workerDone.Done()
