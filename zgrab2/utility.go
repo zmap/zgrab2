@@ -2,6 +2,7 @@ package zgrab2
 
 import (
 	"net"
+	"strings"
 
 	"github.com/ajholland/zflags"
 )
@@ -22,30 +23,35 @@ func ParseFlags() ([]string, error) {
 
 // ParseInput takes input and parses it into either a list of IP addresses, domain name, or errors
 func ParseInput(s string) ([]net.IP, string, error) {
-	i := byteIndex(s, '/')
+	i := strings.IndexByte(s, '/')
 	if i < 0 {
 		//not cidr
 		if ip := net.ParseIP(s); ip != nil {
-			return [1]net.IP{ip}, nil, nil //single ip
+			return []net.IP{ip}, "", nil //single ip
 		} else {
 			return nil, s, nil //domain address
 		}
 	} else {
 		//is cidr
-        ip, ipnet, err := net.ParseCIDR(s)
-        if err != nil {
-            return nil, nil, err
-        }
-        
-        var ips []net.IP
-        for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-            ips = append(ips, ip)
-        }
+		ip, ipnet, err := net.ParseCIDR(s)
+		if err != nil {
+			return nil, "", err
+		}
 
-        return ips, nil, nil
+		var ips []net.IP
+		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
+			ips = append(ips, ip)
+		}
+
+		return ips, "", nil
 	}
 }
 
 func inc(ip net.IP) {
-    for j := 
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
 }
