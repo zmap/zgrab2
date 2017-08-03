@@ -20,7 +20,7 @@ type TLSConfig struct {
 
 func init() {
 	var tlsConfig TLSConfig
-	cmd, err := zgrab2.Parser.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", &tlsConfig)
+	cmd, err := zgrab2.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", &tlsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func init() {
 func (x *TLSConfig) Validate(args []string) error {
 	zgrab2.ValidateHighLevel()
 
-	zgrab2.RegisterLookup(x.Name, x)
+	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 

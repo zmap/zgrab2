@@ -19,12 +19,33 @@ type HTTPOptions struct {
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 }
 
+type HTTPRequest struct {
+	Method    string `json:"method,omitempty"`
+	Endpoint  string `json:"endpoint,omitempty"`
+	UserAgent string `json:"user_agent,omitempty"`
+	Body      string `json:"body,omitempty"`
+}
+
+type HTTPResponse struct {
+	VersionMajor int    `json:"version_major,omitempty"`
+	VersionMinor int    `json:"version_minor,omitempty"`
+	StatusCode   int    `json:"status_code,omitempty"`
+	StatusLine   string `json:"status_line,omitempty"`
+	//Headers      HTTPHeaders `json:"headers,omitempty"`
+	Body       string `json:"body,omitempty"`
+	BodySHA256 []byte `json:"body_sha256,omitempty"`
+}
+
 type HTTPResults struct {
+	ProxyRequest  *HTTPRequest  `json:"connect_request,omitempty"`
+	ProxyResponse *HTTPResponse `json:"connect_response,omitempty"`
+	//Response              *http.Response   `json:"response,omitempty"`
+	//RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
 }
 
 func init() {
 	var httpConfig HTTPConfig
-	cmd, err := zgrab2.Parser.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", &httpConfig)
+	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", &httpConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,10 +56,12 @@ func init() {
 func (x *HTTPConfig) Validate(args []string) error {
 	zgrab2.ValidateHighLevel()
 
-	zgrab2.RegisterLookup(x.Name, x)
+	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 
 func (x HTTPConfig) GetBanner() (interface{}, error) {
-	return x, nil
+	http := HTTPRequest{Method: "Get", Body: "testing"}
+	ret := HTTPResults{ProxyRequest: &http}
+	return ret, nil
 }

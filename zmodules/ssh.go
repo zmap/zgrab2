@@ -15,7 +15,7 @@ type SSHConfig struct {
 
 func init() {
 	var sshConfig SSHConfig
-	cmd, err := zgrab2.Parser.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", &sshConfig)
+	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", &sshConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func init() {
 func (x *SSHConfig) Validate(args []string) error {
 	zgrab2.ValidateHighLevel()
 
-	zgrab2.RegisterLookup(x.Name, x)
+	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 

@@ -35,7 +35,7 @@ func (m *Monitor) Done() {
 
 func MakeMonitor() Monitor {
 	m := new(Monitor)
-	m.statuses = make(chan status, options.Senders*4)
+	m.statuses = make(chan status, config.Senders*4)
 	/* you can uncomment this when you get your shit together
 	go func() {
 		for s := range m.statuses {

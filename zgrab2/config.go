@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-type Option struct {
+type Config struct {
 	OutputFileName     string     `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
 	InputFileName      string     `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName       string     `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stdout"`
@@ -22,26 +22,26 @@ type Option struct {
 }
 
 func init() {
-	options.Mult.ContinueOnError = true //set default for mult value
+	config.Mult.ContinueOnError = true //set default for mult value
 }
 
-var options Option
+var config Config
 
 //validate all high level configuration options
 func ValidateHighLevel() {
 	//Validate files
-	switch options.InputFileName {
+	switch config.InputFileName {
 	case "-":
-		options.inputFile = os.Stdin
+		config.inputFile = os.Stdin
 	default:
 		var err error
-		if options.inputFile, err = os.Open(options.InputFileName); err != nil {
+		if config.inputFile, err = os.Open(config.InputFileName); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	// Validate Go Runtime config
-	if options.GOMAXPROCS < 0 {
-		log.Fatal("invalid GOMAXPROCS (must be at least 1, given %d)", options.GOMAXPROCS)
+	if config.GOMAXPROCS < 0 {
+		log.Fatal("invalid GOMAXPROCS (must be at least 1, given %d)", config.GOMAXPROCS)
 	}
 }

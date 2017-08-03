@@ -1,9 +1,10 @@
 package zgrab2
 
 import (
-	"github.com/jessevdk/go-flags"
-	log "github.com/sirupsen/logrus"
 	"strconv"
+
+	"github.com/ajholland/zflags"
+	log "github.com/sirupsen/logrus"
 )
 
 type Protocol interface {
@@ -17,11 +18,11 @@ type BaseProtocol struct {
 	Name string `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple protocols" json:"-"`
 }
 
-func (b *BaseProtocol) GetPort() uint {
+func (b BaseProtocol) GetPort() uint {
 	return b.Port
 }
 
-func (b *BaseProtocol) GetName() string {
+func (b BaseProtocol) GetName() string {
 	return b.Name
 }
 

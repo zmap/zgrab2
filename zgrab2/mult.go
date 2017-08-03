@@ -1,9 +1,10 @@
 package zgrab2
 
 import (
-	"github.com/jessevdk/go-flags"
-	log "github.com/sirupsen/logrus"
 	"os"
+
+	"github.com/ajholland/zflags"
+	log "github.com/sirupsen/logrus"
 )
 
 type MultConfig struct {
@@ -18,7 +19,7 @@ func (x *MultConfig) Validate(args []string) error {
 	var err error
 	switch x.ConfigFileName {
 	case "-":
-		if options.InputFileName == "-" {
+		if config.InputFileName == "-" {
 			log.Fatal("Cannot read both config and input from stdin")
 		}
 		x.configFile = os.Stdin
@@ -33,8 +34,8 @@ func (x *MultConfig) Validate(args []string) error {
 }
 
 func customParse() {
-	foo := flags.NewIniParser(Parser)
-	if err := foo.ParseFile(options.Mult.ConfigFileName); err != nil {
+	foo := flags.NewIniParser(parser)
+	if err := foo.ParseFile(config.Mult.ConfigFileName); err != nil {
 		log.Fatal(err)
 	}
 }

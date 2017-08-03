@@ -2,34 +2,34 @@ package zgrab2
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"strconv"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Grab struct {
 	IP     string                      `json:"ip"`
-	Domain string                      `json:"domain"`
-	Data   map[string]protocolResponse `json:"data"`
+	Domain string                      `json:"domain,omitempty"`
+	Data   map[string]protocolResponse `json:"data,omitempty"`
 }
-
-type Handler func(interface{}) interface{}
 
 // not good name, should change
 type protocolResponse struct {
-	result interface{}
-	err    error
+	Result         interface{} `json:"result,omitempty"`
+	Error          *error      `json:"error,omitempty"`
+	ErrorComponent string      `json:"error_component,omitempty"`
 }
 
-// GrabWorker divides up input and sends to each handler and then consolidates at end
+// GrabWorker calls handler for each action
 func RunGrabWorker(input interface{}) []byte {
 	protocolResult := make(map[string]protocolResponse)
 
 	for _, action := range lookups {
 		name, res := makeHandler(action)
 		protocolResult[name] = res
-		if res.err != nil && !options.Mult.ContinueOnError {
+		if res.Error != nil && !config.Mult.ContinueOnError {
 			break
 		}
 	}
@@ -43,7 +43,7 @@ func RunGrabWorker(input interface{}) []byte {
 
 // Process sets up an output encoder, input reader, and starts grab workers
 func Process(out io.Writer, mon Monitor) {
-	workers := options.Senders
+	workers := config.Senders
 	processQueue := make(chan interface{}, workers*4)
 	outputQueue := make(chan []byte, workers*4) //what is the magic 4?
 
