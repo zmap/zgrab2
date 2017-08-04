@@ -1,8 +1,9 @@
 package zgrab2
 
 import (
-	log "github.com/sirupsen/logrus"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {

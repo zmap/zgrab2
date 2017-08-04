@@ -40,7 +40,7 @@ func ParseInput(s string) ([]net.IP, string, error) {
 
 		var ips []net.IP
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-			ips = append(ips, ip)
+			ips = append(ips, dupIP(ip))
 		}
 
 		return ips, "", nil
@@ -54,4 +54,11 @@ func inc(ip net.IP) {
 			break
 		}
 	}
+}
+
+// thanks golang
+func dupIP(ip net.IP) net.IP {
+	dup := make(net.IP, len(ip))
+	copy(dup, ip)
+	return dup
 }

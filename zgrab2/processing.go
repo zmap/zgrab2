@@ -1,18 +1,24 @@
 package zgrab2
 
 import (
+	"bufio"
 	"encoding/json"
 	"io"
-	"strconv"
+	"net"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type Grab struct {
-	IP     string                      `json:"ip"`
+	IP     *string                     `json:"ip,omitempty"`
 	Domain string                      `json:"domain,omitempty"`
 	Data   map[string]protocolResponse `json:"data,omitempty"`
+}
+
+type grabTarget struct {
+	IP     net.IP
+	Domain string
 }
 
 // not good name, should change
@@ -23,7 +29,7 @@ type protocolResponse struct {
 }
 
 // GrabWorker calls handler for each action
-func RunGrabWorker(input interface{}) []byte {
+func RunGrabWorker(input grabTarget) []byte {
 	protocolResult := make(map[string]protocolResponse)
 
 	for _, action := range lookups {
@@ -34,9 +40,19 @@ func RunGrabWorker(input interface{}) []byte {
 		}
 	}
 
-	strInput, _ := input.(string)
-	a := Grab{IP: strInput, Domain: strInput, Data: protocolResult}
-	result, _ := json.Marshal(a)
+	var ipstr *string
+	if input.IP.String() == "<nil>" {
+		ipstr = nil
+	} else {
+		s := input.IP.String()
+		ipstr = &s
+	}
+
+	a := Grab{IP: ipstr, Domain: input.Domain, Data: protocolResult}
+	result, err := json.Marshal(a)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	return result
 }
@@ -44,7 +60,7 @@ func RunGrabWorker(input interface{}) []byte {
 // Process sets up an output encoder, input reader, and starts grab workers
 func Process(out io.Writer, mon Monitor) {
 	workers := config.Senders
-	processQueue := make(chan interface{}, workers*4)
+	processQueue := make(chan grabTarget, workers*4)
 	outputQueue := make(chan []byte, workers*4) //what is the magic 4?
 
 	//Create wait groups
@@ -78,13 +94,27 @@ func Process(out io.Writer, mon Monitor) {
 	}
 
 	// Read the input, send to workers
+	input := bufio.NewReader(config.inputFile)
 	for {
-		for i := 0; i < 2; i++ {
-			processQueue <- strconv.Itoa(i)
+		obj, err := input.ReadBytes('\n')
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.Error(err)
 		}
-
-		break
-
+		st := string(obj)
+		ipnet, domain, err := ParseInput(st[:len(st)-1]) //remove newline
+		if err != nil {
+			log.Error(err)
+		} else {
+			if domain == "" {
+				for _, ip := range ipnet {
+					processQueue <- grabTarget{IP: ip}
+				}
+			} else {
+				processQueue <- grabTarget{Domain: domain}
+			}
+		}
 	}
 
 	close(processQueue)
