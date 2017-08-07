@@ -27,6 +27,11 @@ func init() {
 	tlsConfig.SetDefaultPortAndName(cmd, uint(443), "ssh")
 }
 
+// per module per routine initialization call
+func (x TLSConfig) Initialize() {
+
+}
+
 // Execute validates the options sent to TLSConfig and then passes operation back to main
 func (x *TLSConfig) Validate(args []string) error {
 	zgrab2.ValidateHighLevel()

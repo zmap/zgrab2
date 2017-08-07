@@ -5,9 +5,6 @@ type Monitor struct {
 	successes uint
 	failures  uint
 	statuses  chan status
-
-	//need to put config here...but options struct is in main
-	//do we need a config? don't need if runCount is only use
 }
 
 type status uint

@@ -9,6 +9,7 @@ import (
 
 type Protocol interface {
 	GetBanner() (interface{}, error)
+	Initialize()
 	GetPort() uint
 	GetName() string
 }

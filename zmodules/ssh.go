@@ -22,6 +22,11 @@ func init() {
 	sshConfig.SetDefaultPortAndName(cmd, uint(22), "ssh")
 }
 
+// per module per routine initialization call
+func (x SSHConfig) Initialize() {
+
+}
+
 // Execute validates the options sent to SSHConfig and then passes operation back to main
 func (x *SSHConfig) Validate(args []string) error {
 	zgrab2.ValidateHighLevel()

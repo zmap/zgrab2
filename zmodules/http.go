@@ -54,7 +54,7 @@ func init() {
 }
 
 // Per module per goroutine initialization call
-func (x *HTTPConfig) Initialize() {
+func (x HTTPConfig) Initialize() {
 
 }
 
