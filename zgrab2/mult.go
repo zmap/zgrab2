@@ -13,7 +13,7 @@ type MultConfig struct {
 	configFile      *os.File
 }
 
-// Execute validates the options sent to MultConfig runs customParse and then passes operation back to main
+// Validates the options sent to MultConfig runs iniParse and then passes operation back to main
 func (x *MultConfig) Validate(args []string) error {
 	ValidateHighLevel()
 	var err error
@@ -29,13 +29,9 @@ func (x *MultConfig) Validate(args []string) error {
 		}
 	}
 
-	customParse()
-	return nil
-}
-
-func customParse() {
 	foo := flags.NewIniParser(parser)
 	if err := foo.ParseFile(config.Mult.ConfigFileName); err != nil {
 		log.Fatal(err)
 	}
+	return nil
 }

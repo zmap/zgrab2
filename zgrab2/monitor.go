@@ -17,11 +17,11 @@ const (
 	status_failure status = iota
 )
 
-func (m *Monitor) Success() uint {
+func (m *Monitor) Successes() uint {
 	return m.successes
 }
 
-func (m *Monitor) Failure() uint {
+func (m *Monitor) Failures() uint {
 	return m.failures
 }
 
@@ -33,10 +33,9 @@ func (m *Monitor) Done() {
 	close(m.statuses)
 }
 
-func MakeMonitor() Monitor {
+func MakeMonitor() *Monitor {
 	m := new(Monitor)
 	m.statuses = make(chan status, config.Senders*4)
-	/* you can uncomment this when you get your shit together
 	go func() {
 		for s := range m.statuses {
 			switch s {
@@ -48,6 +47,6 @@ func MakeMonitor() Monitor {
 				continue
 			}
 		}
-	}() */
-	return *m
+	}()
+	return m
 }

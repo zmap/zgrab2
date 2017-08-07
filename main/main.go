@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ajholland/zflags"
@@ -15,6 +16,8 @@ func main() {
 			// If flag parsed and flag is Help type, exit 0
 			if flagsErr.Type == flags.ErrHelp {
 				os.Exit(0)
+			} else {
+				log.Fatal(err.Error())
 			}
 		} else {
 			log.Fatal(err.Error())
@@ -22,5 +25,6 @@ func main() {
 	}
 
 	m := zgrab2.MakeMonitor()
-	zgrab2.Process(os.Stdout, m)
+	zgrab2.Process(os.Stdout, *m)
+	fmt.Println(m.Successes(), m.Failures(), m.Total()) //this will change, placeholder for monitor
 }

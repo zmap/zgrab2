@@ -43,6 +43,7 @@ type HTTPResults struct {
 	//RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
 }
 
+// Per module initialization call
 func init() {
 	var httpConfig HTTPConfig
 	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", &httpConfig)
@@ -50,6 +51,11 @@ func init() {
 		log.Fatal(err)
 	}
 	httpConfig.SetDefaultPortAndName(cmd, uint(80), "http")
+}
+
+// Per module per goroutine initialization call
+func (x *HTTPConfig) Initialize() {
+
 }
 
 // Validates the options sent to HTTPConfig, registers the config module, and then passes operation back to main

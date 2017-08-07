@@ -19,7 +19,10 @@ type Config struct {
 	Prometheus         string     `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	Mult               MultConfig `command:"mult" description:"Multiple banner grabs"`
 
-	inputFile *os.File
+	inputFile  *os.File
+	outputFile *os.File
+	metaFile   *os.File
+	logFile    *os.File
 }
 
 func init() {
@@ -31,12 +34,40 @@ var config Config
 //validate all high level configuration options
 func ValidateHighLevel() {
 	//Validate files
+	if config.LogFileName != "-" {
+		var err error
+		if config.logFile, err = os.Open(config.LogFileName); err != nil {
+			log.Fatal(err)
+		}
+		log.SetOutput(config.logFile)
+	}
+
 	switch config.InputFileName {
 	case "-":
 		config.inputFile = os.Stdin
 	default:
 		var err error
 		if config.inputFile, err = os.Open(config.InputFileName); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	switch config.OutputFileName {
+	case "-":
+		config.outputFile = os.Stdout
+	default:
+		var err error
+		if config.outputFile, err = os.Open(config.OutputFileName); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	switch config.MetaFileName {
+	case "-":
+		config.metaFile = os.Stdout
+	default:
+		var err error
+		if config.metaFile, err = os.Open(config.MetaFileName); err != nil {
 			log.Fatal(err)
 		}
 	}

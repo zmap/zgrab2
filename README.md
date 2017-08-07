@@ -53,11 +53,33 @@ port=22
 ```
 ./zgrab2 mult -c mult.ini
 ```
-If the same module is to be used multiple times then `name` must be specified and unique. The default name for each module is the command name. `Application Options` must be the initial section. Other section names should correspond exactly to the relevant zgrab2 module. 
+`Application Options` must be the initial section name. Other section names should correspond exactly to the relevant zgrab2 module. The default name for each module is the command name. If the same module is to be used multiple times then `name` must be specified and unique. 
 
 ## Contributing
 
-Add file to zproto/ yo
+Add file to zproto/ that contains a struct that satisfies the following interface:
+```
+type Protocol interface {
+    Validate(args []string) error
+    GetBanner() (interface{}, error)
+    Initialize()
+}
+```
+
+The struct must embed zgrab2.BaseProtocol. In the files `init()` function the following must be included. 
+
+```
+func init() {
+    var configStruct ConfigStruct
+    cmd, err := zgrab2.AddCommand("module", "short description", "long description of module", &configStruct)
+    if err != nil {
+        log.Fatal(err)
+    }
+    configStruct.SetDefaultPortAndName(cmd, uint(00), "module")
+}
+```
+
+The `Validate()` function should first make a call to `zgrab2.ValidateHighLevel()` and lastly call `zgrab2.RegisterLookup()`.
 
 ## License
 Zgrab is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.

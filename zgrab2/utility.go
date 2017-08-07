@@ -56,7 +56,6 @@ func inc(ip net.IP) {
 	}
 }
 
-// thanks golang
 func dupIP(ip net.IP) net.IP {
 	dup := make(net.IP, len(ip))
 	copy(dup, ip)

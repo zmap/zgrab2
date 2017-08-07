@@ -29,11 +29,11 @@ type protocolResponse struct {
 }
 
 // GrabWorker calls handler for each action
-func RunGrabWorker(input grabTarget) []byte {
+func RunGrabWorker(input grabTarget, m Monitor) []byte {
 	protocolResult := make(map[string]protocolResponse)
 
 	for _, action := range lookups {
-		name, res := makeHandler(action)
+		name, res := makeHandler(action, m)
 		protocolResult[name] = res
 		if res.Error != nil && !config.Mult.ContinueOnError {
 			break
@@ -86,7 +86,7 @@ func Process(out io.Writer, mon Monitor) {
 		go func() {
 			for obj := range processQueue {
 				//divide up, run, consolidate
-				result := RunGrabWorker(obj)
+				result := RunGrabWorker(obj, mon)
 				outputQueue <- result
 			}
 			workerDone.Done()
