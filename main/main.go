@@ -25,6 +25,6 @@ func main() {
 	}
 
 	m := zgrab2.MakeMonitor()
-	zgrab2.Process(os.Stdout, *m)
+	zgrab2.Process(*m)
 	fmt.Println(m.Successes(), m.Failures(), m.Total()) //this will change, placeholder for monitor
 }

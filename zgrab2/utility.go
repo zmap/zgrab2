@@ -18,7 +18,11 @@ func AddCommand(command string, shortDescription string, longDescription string,
 }
 
 func ParseFlags() ([]string, error) {
-	return parser.Parse()
+	r, err := parser.Parse()
+	if err == nil {
+		validateFrameworkConfiguration()
+	}
+	return r, err
 }
 
 // ParseInput takes input and parses it into either a list of IP addresses, domain name, or errors
@@ -39,15 +43,15 @@ func ParseInput(s string) ([]net.IP, string, error) {
 		}
 
 		var ips []net.IP
-		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-			ips = append(ips, dupIP(ip))
+		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
+			ips = append(ips, duplicateIP(ip))
 		}
 
 		return ips, "", nil
 	}
 }
 
-func inc(ip net.IP) {
+func incrementIP(ip net.IP) {
 	for j := len(ip) - 1; j >= 0; j-- {
 		ip[j]++
 		if ip[j] > 0 {
@@ -56,7 +60,7 @@ func inc(ip net.IP) {
 	}
 }
 
-func dupIP(ip net.IP) net.IP {
+func duplicateIP(ip net.IP) net.IP {
 	dup := make(net.IP, len(ip))
 	copy(dup, ip)
 	return dup

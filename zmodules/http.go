@@ -54,19 +54,17 @@ func init() {
 }
 
 // Per module per goroutine initialization call
-func (x HTTPConfig) Initialize() {
+func (x HTTPConfig) PerRoutineInitialize() {
 
 }
 
 // Validates the options sent to HTTPConfig, registers the config module, and then passes operation back to main
 func (x *HTTPConfig) Validate(args []string) error {
-	zgrab2.ValidateHighLevel()
-
 	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 
-func (x HTTPConfig) GetBanner() (interface{}, error) {
+func (x HTTPConfig) Scan() (interface{}, error) {
 	http := HTTPRequest{Method: "Get", Body: "testing"}
 	ret := HTTPResults{ProxyRequest: &http}
 	return ret, nil

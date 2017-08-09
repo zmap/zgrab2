@@ -32,10 +32,10 @@ Module specific options must be included after the module. Application specific 
 
 ## Multiple Module Usage
 
-To run a scan with multiple modules, a `.ini` file must be used with the `mult` module. Below is an example `.ini` file with the corresponding zgrab2 command. 
+To run a scan with multiple modules, a `.ini` file must be used with the `multiple` module. Below is an example `.ini` file with the corresponding zgrab2 command. 
 
 ```
-***mult.ini***
+***multiple.ini***
 [Application Options]
 output-file="output.txt"
 input-file="input.txt"
@@ -51,11 +51,11 @@ endpoint="/"
 port=22
 ```
 ```
-./zgrab2 mult -c mult.ini
+./zgrab2 multiple -c multiple.ini
 ```
 `Application Options` must be the initial section name. Other section names should correspond exactly to the relevant zgrab2 module. The default name for each module is the command name. If the same module is to be used multiple times then `name` must be specified and unique. 
 
-## Contributing
+## Adding New Protocols 
 
 Add file to zproto/ that contains a struct that satisfies the following interface:
 ```

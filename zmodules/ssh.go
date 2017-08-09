@@ -23,18 +23,16 @@ func init() {
 }
 
 // per module per routine initialization call
-func (x SSHConfig) Initialize() {
+func (x SSHConfig) PerRoutineInitialize() {
 
 }
 
 // Execute validates the options sent to SSHConfig and then passes operation back to main
 func (x *SSHConfig) Validate(args []string) error {
-	zgrab2.ValidateHighLevel()
-
 	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 
-func (x SSHConfig) GetBanner() (interface{}, error) {
+func (x SSHConfig) Scan() (interface{}, error) {
 	return x, nil
 }

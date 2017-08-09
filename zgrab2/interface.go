@@ -8,8 +8,8 @@ import (
 )
 
 type Protocol interface {
-	GetBanner() (interface{}, error)
-	Initialize()
+	Scan() (interface{}, error)
+	PerRoutineInitialize()
 	GetPort() uint
 	GetName() string
 }

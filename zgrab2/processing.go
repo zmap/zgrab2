@@ -35,7 +35,7 @@ func RunGrabWorker(input grabTarget, m Monitor) []byte {
 	for _, action := range lookups {
 		name, res := makeHandler(action, m)
 		protocolResult[name] = res
-		if res.Error != nil && !config.Mult.ContinueOnError {
+		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
 		}
 	}
@@ -58,7 +58,7 @@ func RunGrabWorker(input grabTarget, m Monitor) []byte {
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers
-func Process(out io.Writer, mon Monitor) {
+func Process(mon Monitor) {
 	workers := config.Senders
 	processQueue := make(chan grabTarget, workers*4)
 	outputQueue := make(chan []byte, workers*4) //what is the magic 4?
@@ -69,14 +69,15 @@ func Process(out io.Writer, mon Monitor) {
 	workerDone.Add(int(workers))
 	outputDone.Add(1)
 
+	out := bufio.NewWriter(config.outputFile)
 	// Start the output encoder
 	go func() {
 		for result := range outputQueue {
 			if _, err := out.Write(result); err != nil {
-				log.Fatal(err.Error())
+				log.Fatal(err)
 			}
 			if _, err := out.Write([]byte("\n")); err != nil {
-				log.Fatal(err.Error())
+				log.Fatal(err)
 			}
 		}
 		outputDone.Done()
@@ -85,7 +86,6 @@ func Process(out io.Writer, mon Monitor) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			for obj := range processQueue {
-				//divide up, run, consolidate
 				result := RunGrabWorker(obj, mon)
 				outputQueue <- result
 			}
@@ -106,15 +106,16 @@ func Process(out io.Writer, mon Monitor) {
 		ipnet, domain, err := ParseInput(st[:len(st)-1]) //remove newline
 		if err != nil {
 			log.Error(err)
-		} else {
-			if domain == "" {
-				for _, ip := range ipnet {
-					processQueue <- grabTarget{IP: ip}
-				}
-			} else {
-				processQueue <- grabTarget{Domain: domain}
-			}
+			continue
 		}
+		if domain == "" {
+			for _, ip := range ipnet {
+				processQueue <- grabTarget{IP: ip}
+			}
+		} else {
+			processQueue <- grabTarget{Domain: domain}
+		}
+
 	}
 
 	close(processQueue)
