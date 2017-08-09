@@ -6,7 +6,7 @@ import (
 )
 
 type TLSConfig struct {
-	zgrab2.BaseProtocol
+	zgrab2.BaseModule
 	Heartbleed           bool        `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
 	Version              int         `long:"version" description:"Max TLS version to use"`
 	Verbose              bool        `long:"verbose" description:"Add extra TLS information to JSON output (client hello, client KEX, key material, etc)" json:"verbose"`

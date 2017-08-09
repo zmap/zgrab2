@@ -11,9 +11,9 @@ import (
 )
 
 type Grab struct {
-	IP     *string                     `json:"ip,omitempty"`
-	Domain string                      `json:"domain,omitempty"`
-	Data   map[string]protocolResponse `json:"data,omitempty"`
+	IP     *string                   `json:"ip,omitempty"`
+	Domain string                    `json:"domain,omitempty"`
+	Data   map[string]moduleResponse `json:"data,omitempty"`
 }
 
 type grabTarget struct {
@@ -21,8 +21,7 @@ type grabTarget struct {
 	Domain string
 }
 
-// not good name, should change
-type protocolResponse struct {
+type moduleResponse struct {
 	Result         interface{} `json:"result,omitempty"`
 	Error          *error      `json:"error,omitempty"`
 	ErrorComponent string      `json:"error_component,omitempty"`
@@ -30,11 +29,11 @@ type protocolResponse struct {
 
 // GrabWorker calls handler for each action
 func RunGrabWorker(input grabTarget, m Monitor) []byte {
-	protocolResult := make(map[string]protocolResponse)
+	moduleResult := make(map[string]moduleResponse)
 
 	for _, action := range lookups {
 		name, res := makeHandler(action, m)
-		protocolResult[name] = res
+		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
 		}
@@ -48,7 +47,7 @@ func RunGrabWorker(input grabTarget, m Monitor) []byte {
 		ipstr = &s
 	}
 
-	a := Grab{IP: ipstr, Domain: input.Domain, Data: protocolResult}
+	a := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
 	result, err := json.Marshal(a)
 	if err != nil {
 		log.Fatal(err)

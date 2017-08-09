@@ -6,7 +6,7 @@ import (
 )
 
 type SSHConfig struct {
-	zgrab2.BaseProtocol
+	zgrab2.BaseModule
 	Client            string `long:"client" description:"Mimic behavior of a specific SSH client"`
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`

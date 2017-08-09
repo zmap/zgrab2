@@ -6,7 +6,7 @@ import (
 )
 
 type HTTPConfig struct {
-	zgrab2.BaseProtocol
+	zgrab2.BaseModule
 	HTTP HTTPOptions `json:"http"`
 }
 
