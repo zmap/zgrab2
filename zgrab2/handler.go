@@ -1,6 +1,6 @@
 package zgrab2
 
-// makeHandler will call GetBanner and respond with a protocol response, data unmarshalled, to the worker
+// makeHandler will call perRoutineInitialize, Scan, and respond with a protocol response, data unmarshalled, to the worker
 func makeHandler(module Module, mon Monitor) (string, moduleResponse) {
 	module.PerRoutineInitialize()
 	res, e := module.Scan()
