@@ -5,7 +5,7 @@ import (
 	"github.com/zmap/zgrab2/zgrab2"
 )
 
-type TLSConfig struct {
+type TLSModule struct {
 	zgrab2.BaseModule
 	Heartbleed           bool        `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
 	Version              int         `long:"version" description:"Max TLS version to use"`
@@ -19,24 +19,24 @@ type TLSConfig struct {
 }
 
 func init() {
-	var tlsConfig TLSConfig
-	cmd, err := zgrab2.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", &tlsConfig)
+	var tlsModule TLSModule
+	cmd, err := zgrab2.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", &tlsModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	tlsConfig.SetDefaultPortAndName(cmd, uint(443), "ssh")
+	tlsModule.SetDefaultPortAndName(cmd, uint(443), "ssh")
 }
 
-func (x TLSConfig) PerRoutineInitialize() {
+func (x TLSModule) PerRoutineInitialize() {
 
 }
 
-// Execute validates the options sent to TLSConfig and then passes operation back to main
-func (x *TLSConfig) Validate(args []string) error {
+// Execute validates the options sent to TLSModule and then passes operation back to main
+func (x *TLSModule) Validate(args []string) error {
 	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 
-func (x TLSConfig) Scan() (interface{}, error) {
+func (x TLSModule) Scan() (interface{}, error) {
 	return x, nil
 }

@@ -5,7 +5,7 @@ import (
 	"github.com/zmap/zgrab2/zgrab2"
 )
 
-type SSHConfig struct {
+type SSHModule struct {
 	zgrab2.BaseModule
 	Client            string `long:"client" description:"Mimic behavior of a specific SSH client"`
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
@@ -14,25 +14,25 @@ type SSHConfig struct {
 }
 
 func init() {
-	var sshConfig SSHConfig
-	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", &sshConfig)
+	var sshModule SSHModule
+	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	sshConfig.SetDefaultPortAndName(cmd, uint(22), "ssh")
+	sshModule.SetDefaultPortAndName(cmd, uint(22), "ssh")
 }
 
 // per module per routine initialization call
-func (x SSHConfig) PerRoutineInitialize() {
+func (x SSHModule) PerRoutineInitialize() {
 
 }
 
-// Execute validates the options sent to SSHConfig and then passes operation back to main
-func (x *SSHConfig) Validate(args []string) error {
+// Execute validates the options sent to SSHModule and then passes operation back to main
+func (x *SSHModule) Validate(args []string) error {
 	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 
-func (x SSHConfig) Scan() (interface{}, error) {
+func (x SSHModule) Scan() (interface{}, error) {
 	return x, nil
 }

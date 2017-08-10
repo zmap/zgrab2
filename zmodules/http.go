@@ -5,7 +5,7 @@ import (
 	"github.com/zmap/zgrab2/zgrab2"
 )
 
-type HTTPConfig struct {
+type HTTPModule struct {
 	zgrab2.BaseModule
 	HTTP HTTPOptions `json:"http"`
 }
@@ -45,26 +45,26 @@ type HTTPResults struct {
 
 // Per module initialization call
 func init() {
-	var httpConfig HTTPConfig
-	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", &httpConfig)
+	var httpModule HTTPModule
+	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", &httpModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	httpConfig.SetDefaultPortAndName(cmd, uint(80), "http")
+	httpModule.SetDefaultPortAndName(cmd, uint(80), "http")
 }
 
 // Per module per goroutine initialization call
-func (x HTTPConfig) PerRoutineInitialize() {
+func (x HTTPModule) PerRoutineInitialize() {
 
 }
 
 // Validates the options sent to HTTPConfig, registers the config module, and then passes operation back to main
-func (x *HTTPConfig) Validate(args []string) error {
+func (x *HTTPModule) Validate(args []string) error {
 	zgrab2.RegisterLookup(x.Name, *x)
 	return nil
 }
 
-func (x HTTPConfig) Scan() (interface{}, error) {
+func (x HTTPModule) Scan() (interface{}, error) {
 	http := HTTPRequest{Method: "Get", Body: "testing"}
 	ret := HTTPResults{ProxyRequest: &http}
 	return ret, nil
