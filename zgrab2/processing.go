@@ -68,9 +68,10 @@ func Process(mon Monitor) {
 	workerDone.Add(int(workers))
 	outputDone.Add(1)
 
-	out := bufio.NewWriter(config.outputFile)
 	// Start the output encoder
 	go func() {
+		out := bufio.NewWriter(config.outputFile)
+		defer out.Flush()
 		for result := range outputQueue {
 			if _, err := out.Write(result); err != nil {
 				log.Fatal(err)
@@ -107,9 +108,10 @@ func Process(mon Monitor) {
 			log.Error(err)
 			continue
 		}
-		if domain == "" {
+
+		if ipnet != nil {
 			for _, ip := range ipnet {
-				processQueue <- grabTarget{IP: ip}
+				processQueue <- grabTarget{IP: ip, Domain: domain}
 			}
 		} else {
 			processQueue <- grabTarget{Domain: domain}

@@ -27,28 +27,42 @@ func ParseFlags() ([]string, error) {
 
 // ParseInput takes input and parses it into either a list of IP addresses, domain name, or errors
 func ParseInput(s string) ([]net.IP, string, error) {
-	i := strings.IndexByte(s, '/')
-	if i < 0 {
-		//not cidr
+	i := strings.IndexByte(s, ',')
+	j := strings.IndexByte(s, '/')
+
+	switch {
+	case i == -1 && j == -1:
+		//just ip or domain
 		if ip := net.ParseIP(s); ip != nil {
-			return []net.IP{ip}, "", nil //single ip
+			return []net.IP{ip}, "", nil
 		} else {
-			return nil, s, nil //domain address
+			return nil, s, nil
 		}
-	} else {
-		//is cidr
+	case i == -1:
+		//cidr block
 		ip, ipnet, err := net.ParseCIDR(s)
 		if err != nil {
 			return nil, "", err
 		}
-
 		var ips []net.IP
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
 			ips = append(ips, duplicateIP(ip))
 		}
 
 		return ips, "", nil
+
+	case j == -1:
+		//ip,domain
+		str := strings.Split(s, ",")
+		if len(str) != 2 {
+			//error input
+		}
+		if ip := net.ParseIP(str[0]); ip != nil {
+			return []net.IP{ip}, str[1], nil
+		}
+		return nil, str[1], nil
 	}
+	return nil, "", nil
 }
 
 func incrementIP(ip net.IP) {
