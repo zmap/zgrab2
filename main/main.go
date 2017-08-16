@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/ajholland/zflags"
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2/zgrab2"
+	"github.com/zmap/zgrab2"
 	_ "github.com/zmap/zgrab2/zmodules"
 )
 
@@ -23,8 +22,19 @@ func main() {
 			log.Fatal(err.Error())
 		}
 	}
-
 	m := zgrab2.MakeMonitor()
-	zgrab2.Process(*m)
-	fmt.Println(m.Successes(), m.Failures(), m.Total()) //this will change, placeholder for monitor
+	//start := time.Now()
+	zgrab2.Process(m)
+	zgrab2.PrintLookup()
+	/*end := time.Now()
+	s := Summary{
+		StatusesPerModule: m.GetStatuses(),
+		StartTime:         start,
+		EndTime:           end,
+		Duration:          end.Sub(start),
+	}
+	//enc := json.NewEncoder(metadataFile)
+	if err := enc.Encode(&s); err != nil {
+		log.Fatalf("unable to write summary: %s", err.Error())
+	}*/
 }

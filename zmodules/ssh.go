@@ -2,7 +2,7 @@ package zmodules
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2/zgrab2"
+	"github.com/zmap/zgrab2"
 )
 
 type SSHModule struct {
@@ -23,16 +23,16 @@ func init() {
 }
 
 // per module per routine initialization call
-func (x SSHModule) PerRoutineInitialize() {
+func (x *SSHModule) PerRoutineInitialize() {
 
 }
 
 // Execute validates the options sent to SSHModule and then passes operation back to main
 func (x *SSHModule) Validate(args []string) error {
-	zgrab2.RegisterLookup(x.Name, *x)
+	zgrab2.RegisterLookup(x.Name, x)
 	return nil
 }
 
-func (x SSHModule) Scan() (interface{}, error) {
+func (x *SSHModule) Scan() (interface{}, error) {
 	return x, nil
 }

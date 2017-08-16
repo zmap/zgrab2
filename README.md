@@ -79,7 +79,7 @@ func init() {
 }
 ```
 
-The `Validate()` function should first make a call to `zgrab2.ValidateHighLevel()` and lastly call `zgrab2.RegisterLookup()`.
+The `Validate()` function should make a call to `zgrab2.RegisterLookup()`.
 
 ## License
 Zgrab is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.

@@ -2,7 +2,7 @@ package zmodules
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2/zgrab2"
+	"github.com/zmap/zgrab2"
 )
 
 type HTTPModule struct {
@@ -54,17 +54,17 @@ func init() {
 }
 
 // Per module per goroutine initialization call
-func (x HTTPModule) PerRoutineInitialize() {
+func (x *HTTPModule) PerRoutineInitialize() {
 
 }
 
 // Validates the options sent to HTTPConfig, registers the config module, and then passes operation back to main
 func (x *HTTPModule) Validate(args []string) error {
-	zgrab2.RegisterLookup(x.Name, *x)
+	zgrab2.RegisterLookup(x.Name, x)
 	return nil
 }
 
-func (x HTTPModule) Scan() (interface{}, error) {
+func (x *HTTPModule) Scan() (interface{}, error) {
 	http := HTTPRequest{Method: "Get", Body: "testing"}
 	ret := HTTPResults{ProxyRequest: &http}
 	return ret, nil

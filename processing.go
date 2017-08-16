@@ -28,11 +28,11 @@ type moduleResponse struct {
 }
 
 // GrabWorker calls handler for each action
-func RunGrabWorker(input grabTarget, m Monitor) []byte {
+func RunGrabWorker(input grabTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]moduleResponse)
 
 	for _, action := range lookups {
-		name, res := makeHandler(action, m)
+		name, res := makeHandler(*action, m)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
@@ -57,10 +57,10 @@ func RunGrabWorker(input grabTarget, m Monitor) []byte {
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers
-func Process(mon Monitor) {
+func Process(mon *Monitor) {
 	workers := config.Senders
 	processQueue := make(chan grabTarget, workers*4)
-	outputQueue := make(chan []byte, workers*4) //what is the magic 4?
+	outputQueue := make(chan []byte, workers*4)
 
 	//Create wait groups
 	var workerDone sync.WaitGroup

@@ -2,7 +2,7 @@ package zmodules
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2/zgrab2"
+	"github.com/zmap/zgrab2"
 )
 
 type TLSModule struct {
@@ -27,16 +27,16 @@ func init() {
 	tlsModule.SetDefaultPortAndName(cmd, uint(443), "ssh")
 }
 
-func (x TLSModule) PerRoutineInitialize() {
+func (x *TLSModule) PerRoutineInitialize() {
 
 }
 
 // Execute validates the options sent to TLSModule and then passes operation back to main
 func (x *TLSModule) Validate(args []string) error {
-	zgrab2.RegisterLookup(x.Name, *x)
+	zgrab2.RegisterLookup(x.Name, x)
 	return nil
 }
 
-func (x TLSModule) Scan() (interface{}, error) {
+func (x *TLSModule) Scan() (interface{}, error) {
 	return x, nil
 }
