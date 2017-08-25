@@ -27,6 +27,10 @@ func init() {
 	tlsModule.SetDefaultPortAndName(cmd, uint(443), "ssh")
 }
 
+func (x *TLSModule) New() interface{} {
+	return new(TLSModule)
+}
+
 func (x *TLSModule) PerRoutineInitialize() {
 
 }

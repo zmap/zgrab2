@@ -22,6 +22,10 @@ func init() {
 	sshModule.SetDefaultPortAndName(cmd, uint(22), "ssh")
 }
 
+func (x *SSHModule) New() interface{} {
+	return new(SSHModule)
+}
+
 // per module per routine initialization call
 func (x *SSHModule) PerRoutineInitialize() {
 

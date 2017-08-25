@@ -1,11 +1,10 @@
 package zgrab2
 
 import (
-	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/ajholland/zflags"
-	log "github.com/sirupsen/logrus"
 )
 
 type Module interface {
@@ -13,6 +12,8 @@ type Module interface {
 	PerRoutineInitialize()
 	GetPort() uint
 	GetName() string
+	New() interface{}
+	Validate(args []string) error
 }
 
 type BaseModule struct {
@@ -45,10 +46,4 @@ func RegisterLookup(name string, m Module) {
 	}
 
 	lookups[name] = &m
-}
-
-func PrintLookup() {
-	for k, v := range lookups {
-		fmt.Println(k, *v)
-	}
 }

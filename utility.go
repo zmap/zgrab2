@@ -13,8 +13,8 @@ func init() {
 	parser = flags.NewParser(&config, flags.Default)
 }
 
-func AddCommand(command string, shortDescription string, longDescription string, data interface{}) (*flags.Command, error) {
-	return parser.AddCommand(command, shortDescription, longDescription, data)
+func AddCommand(command string, shortDescription string, longDescription string, m Module) (*flags.Command, error) {
+	return parser.AddCommand(command, shortDescription, longDescription, m)
 }
 
 func ParseFlags() ([]string, error) {

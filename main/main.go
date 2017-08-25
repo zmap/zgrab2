@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
+	"time"
 
 	"github.com/ajholland/zflags"
 	log "github.com/sirupsen/logrus"
@@ -23,18 +25,17 @@ func main() {
 		}
 	}
 	m := zgrab2.MakeMonitor()
-	//start := time.Now()
+	start := time.Now()
 	zgrab2.Process(m)
-	zgrab2.PrintLookup()
-	/*end := time.Now()
+	end := time.Now()
 	s := Summary{
 		StatusesPerModule: m.GetStatuses(),
-		StartTime:         start,
-		EndTime:           end,
-		Duration:          end.Sub(start),
+		StartTime:         start.String(),
+		EndTime:           end.String(),
+		Duration:          end.Sub(start).String(),
 	}
-	//enc := json.NewEncoder(metadataFile)
+	enc := json.NewEncoder(zgrab2.GetMetaFile())
 	if err := enc.Encode(&s); err != nil {
 		log.Fatalf("unable to write summary: %s", err.Error())
-	}*/
+	}
 }

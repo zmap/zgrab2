@@ -53,6 +53,10 @@ func init() {
 	httpModule.SetDefaultPortAndName(cmd, uint(80), "http")
 }
 
+func (x *HTTPModule) New() interface{} {
+	return new(HTTPModule)
+}
+
 // Per module per goroutine initialization call
 func (x *HTTPModule) PerRoutineInitialize() {
 

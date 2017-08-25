@@ -80,3 +80,7 @@ func validateFrameworkConfiguration() {
 		log.Fatal("invalid GOMAXPROCS (must be at least 1, given %d)", config.GOMAXPROCS)
 	}
 }
+
+func GetMetaFile() *os.File {
+	return config.metaFile
+}
