@@ -23,6 +23,7 @@ type grabTarget struct {
 
 type moduleResponse struct {
 	Result         interface{} `json:"result,omitempty"`
+	Time           string      `json:"time,omitempty"`
 	Error          *error      `json:"error,omitempty"`
 	ErrorComponent string      `json:"error_component,omitempty"`
 }
@@ -32,7 +33,7 @@ func RunGrabWorker(input grabTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]moduleResponse)
 
 	for _, action := range lookups {
-		name, res := makeHandler(*action, m)
+		name, res := runHandler(*action, m)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break

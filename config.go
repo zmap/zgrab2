@@ -12,7 +12,6 @@ type Config struct {
 	MetaFileName       string         `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stdout"`
 	LogFileName        string         `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stdout"`
 	Interface          string         `short:"i" long:"interface" description:"Network interface to send on"`
-	Timeout            int            `short:"t" long:"timeout" description:"Set connection timeout in seconds"`
 	Senders            int            `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	GOMAXPROCS         int            `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int            `long:"connections-per-host" defaults:"1" description:"Number of times to connect to each host (results in more output)"`

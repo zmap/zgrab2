@@ -19,6 +19,7 @@ type Module interface {
 type BaseModule struct {
 	Port uint   `short:"p" long:"port" description:"Specify port to grab on"`
 	Name string `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
+    Timeout int `short:"t" long:"timeout" description:"Set connection timeout in seconds"
 }
 
 func (b *BaseModule) GetPort() uint {
