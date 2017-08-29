@@ -1,6 +1,8 @@
 package zmodules
 
 import (
+	"net"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -41,6 +43,6 @@ func (x *TLSModule) Validate(args []string) error {
 	return nil
 }
 
-func (x *TLSModule) Scan() (interface{}, error) {
+func (x *TLSModule) Scan(ip net.IP) (interface{}, error) {
 	return x, nil
 }

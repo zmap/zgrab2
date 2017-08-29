@@ -2,13 +2,14 @@ package zgrab2
 
 import (
 	"log"
+	"net"
 	"strconv"
 
 	"github.com/ajholland/zflags"
 )
 
 type Module interface {
-	Scan() (interface{}, error)
+	Scan(ip net.IP) (interface{}, error)
 	PerRoutineInitialize()
 	GetPort() uint
 	GetName() string
@@ -17,9 +18,9 @@ type Module interface {
 }
 
 type BaseModule struct {
-	Port uint   `short:"p" long:"port" description:"Specify port to grab on"`
-	Name string `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
-    Timeout int `short:"t" long:"timeout" description:"Set connection timeout in seconds"
+	Port    uint   `short:"p" long:"port" description:"Specify port to grab on"`
+	Name    string `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
+	Timeout int    `short:"t" long:"timeout" description:"Set connection timeout in seconds"`
 }
 
 func (b *BaseModule) GetPort() uint {

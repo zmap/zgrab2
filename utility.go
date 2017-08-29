@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"errors"
 	"net"
 	"strings"
 
@@ -36,7 +37,11 @@ func ParseInput(s string) ([]net.IP, string, error) {
 		if ip := net.ParseIP(s); ip != nil {
 			return []net.IP{ip}, "", nil
 		} else {
-			return nil, s, nil
+			ips, err := net.LookupIP(s)
+			if err != nil {
+				return nil, "", err
+			}
+			return ips, s, nil
 		}
 	case i == -1:
 		//cidr block
@@ -55,7 +60,7 @@ func ParseInput(s string) ([]net.IP, string, error) {
 		//ip,domain
 		str := strings.Split(s, ",")
 		if len(str) != 2 {
-			//error input
+			return nil, "", errors.New("malformed input")
 		}
 		if ip := net.ParseIP(str[0]); ip != nil {
 			return []net.IP{ip}, str[1], nil

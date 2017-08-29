@@ -33,7 +33,7 @@ func RunGrabWorker(input grabTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]moduleResponse)
 
 	for _, action := range lookups {
-		name, res := runHandler(*action, m)
+		name, res := runHandler(*action, m, input.IP)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break

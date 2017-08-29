@@ -1,12 +1,15 @@
 package zgrab2
 
-import "time"
+import (
+	"net"
+	"time"
+)
 
 // runHandler will call perRoutineInitialize, Scan, and respond with a protocol response, data unmarshalled, to the worker
-func runHandler(module Module, mon *Monitor) (string, moduleResponse) {
+func runHandler(module Module, mon *Monitor, ip net.IP) (string, moduleResponse) {
 	t := time.Now()
 	module.PerRoutineInitialize()
-	res, e := module.Scan()
+	res, e := module.Scan(ip)
 	var err *error //nil pointers are null in golang, which is not nil and not empty
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: module.GetName(), st: status_success}

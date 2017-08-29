@@ -1,8 +1,13 @@
 package zmodules
 
 import (
+	"net"
+	"strconv"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/zimports/ssh"
 )
 
 type SSHModule struct {
@@ -37,6 +42,28 @@ func (x *SSHModule) Validate(args []string) error {
 	return nil
 }
 
-func (x *SSHModule) Scan() (interface{}, error) {
-	return x, nil
+func (x *SSHModule) makeSSHGrabber(hlog *ssh.HandshakeLog) func(string) error {
+	return func(netAddr string) error {
+		sshConfig := ssh.MakeSSHConfig()
+		sshConfig.Timeout = time.Duration(x.Timeout) * time.Second
+		sshConfig.ConnLog = hlog
+		_, err := ssh.Dial("tcp", netAddr, sshConfig)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+}
+
+func (x *SSHModule) Scan(ip net.IP) (interface{}, error) {
+	data := new(ssh.HandshakeLog)
+	sshGrabber := x.makeSSHGrabber(data)
+
+	port := strconv.FormatUint(uint64(x.Port), 10)
+	rhost := net.JoinHostPort(ip.String(), port)
+
+	err := sshGrabber(rhost)
+
+	return data, err
 }

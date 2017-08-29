@@ -1,6 +1,8 @@
 package zmodules
 
 import (
+	"net"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -68,7 +70,7 @@ func (x *HTTPModule) Validate(args []string) error {
 	return nil
 }
 
-func (x *HTTPModule) Scan() (interface{}, error) {
+func (x *HTTPModule) Scan(ip net.IP) (interface{}, error) {
 	http := HTTPRequest{Method: "Get", Body: "testing"}
 	ret := HTTPResults{ProxyRequest: &http}
 	return ret, nil
