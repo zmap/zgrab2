@@ -1,8 +1,11 @@
 package zgrab2
 
 import (
+	"net/http"
 	"os"
+	"runtime"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -14,7 +17,7 @@ type Config struct {
 	Interface          string         `short:"i" long:"interface" description:"Network interface to send on"`
 	Senders            int            `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	GOMAXPROCS         int            `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
-	ConnectionsPerHost int            `long:"connections-per-host" defaults:"1" description:"Number of times to connect to each host (results in more output)"`
+	ConnectionsPerHost int            `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	Prometheus         string         `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	Multiple           MultipleConfig `command:"multiple" description:"Multiple module actions"`
 
@@ -76,7 +79,28 @@ func validateFrameworkConfiguration() {
 
 	// Validate Go Runtime config
 	if config.GOMAXPROCS < 0 {
-		log.Fatal("invalid GOMAXPROCS (must be at least 1, given %d)", config.GOMAXPROCS)
+		log.Fatal("invalid GOMAXPROCS (must be positive, given %d)", config.GOMAXPROCS)
+	}
+	runtime.GOMAXPROCS(config.GOMAXPROCS)
+
+	//validate/start prometheus
+	if config.Prometheus != "" {
+		go func() {
+			http.Handle("metrics", promhttp.Handler())
+			if err := http.ListenAndServe(config.Prometheus, nil); err != nil {
+				log.Fatalf("could not run prometheus server: %s", err.Error())
+			}
+		}()
+	}
+
+	//validate senders
+	if config.Senders <= 0 {
+		log.Fatalf("need at least one sender, given %d", config.Senders)
+	}
+
+	// Stop the lowliest idiot from using this to DoS people
+	if config.ConnectionsPerHost > 50 || config.ConnectionsPerHost < 1 {
+		log.Fatalf("connectionsPerHost must be in the range [0,50]")
 	}
 }
 

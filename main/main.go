@@ -26,12 +26,14 @@ func main() {
 	}
 	m := zgrab2.MakeMonitor()
 	start := time.Now()
+	log.Infof("started grab at %s", start.Format(time.RFC3339))
 	zgrab2.Process(m)
 	end := time.Now()
+	log.Infof("finished grab at %s", end.Format(time.RFC3339))
 	s := Summary{
 		StatusesPerModule: m.GetStatuses(),
-		StartTime:         start.String(),
-		EndTime:           end.String(),
+		StartTime:         start.Format(time.RFC3339),
+		EndTime:           end.Format(time.RFC3339),
 		Duration:          end.Sub(start).String(),
 	}
 	enc := json.NewEncoder(zgrab2.GetMetaFile())
