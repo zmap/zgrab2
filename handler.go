@@ -18,6 +18,6 @@ func runHandler(module Module, mon *Monitor, ip net.IP) (string, moduleResponse)
 		mon.statusesChan <- moduleStatus{name: module.GetName(), st: status_failure}
 		err = &e
 	}
-	resp := moduleResponse{Result: res, Error: err, Time: t.String()}
+	resp := moduleResponse{Result: res, Error: err, Time: t.Format(time.RFC3339)}
 	return module.GetName(), resp
 }
