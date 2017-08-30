@@ -32,7 +32,8 @@ type ModuleResponse struct {
 func grabTarget(input target, m *Monitor) []byte {
 	moduleResult := make(map[string]ModuleResponse)
 
-	for _, action := range modules {
+	for _, moduleName := range orderedModules {
+		action := modules[moduleName]
 		name, res := runHandler(*action, m, input.IP)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {

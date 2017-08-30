@@ -37,6 +37,7 @@ func (b *BaseModule) SetDefaultPortAndName(cmd *flags.Command, port uint, name s
 }
 
 var modules map[string]*Module
+var orderedModules []string
 
 func init() {
 	modules = make(map[string]*Module)
@@ -47,6 +48,6 @@ func RegisterModule(name string, m Module) {
 	if modules[name] != nil {
 		log.Fatal("name already used")
 	}
-
+	orderedModules = append(orderedModules, name)
 	modules[name] = &m
 }
