@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ajholland/zflags"
+	flags "github.com/ajholland/zflags"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	_ "github.com/zmap/zgrab2/zmodules"
@@ -13,16 +13,14 @@ import (
 
 func main() {
 	if _, err := zgrab2.ParseFlags(); err != nil {
-		if flagsErr, ok := err.(*flags.Error); ok {
-			// If flag parsed and flag is Help type, exit 0
-			if flagsErr.Type == flags.ErrHelp {
-				os.Exit(0)
-			} else {
-				log.Fatal(err.Error())
-			}
-		} else {
-			log.Fatal(err.Error())
+		// Outputting help is returned as an error. Exit successfuly on help output.
+		flagsErr, ok := err.(*flags.Error)
+		if ok && flagsErr.Type == flags.ErrHelp {
+			os.Exit(0)
 		}
+
+		// Didn't output help. Unknown parsing error.
+		log.Fatalf("could not parse flags: %s", err)
 	}
 	m := zgrab2.MakeMonitor()
 	start := time.Now()
