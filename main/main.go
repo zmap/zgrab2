@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"os"
 	"time"
 
 	flags "github.com/ajholland/zflags"
@@ -16,12 +15,13 @@ func main() {
 		// Outputting help is returned as an error. Exit successfuly on help output.
 		flagsErr, ok := err.(*flags.Error)
 		if ok && flagsErr.Type == flags.ErrHelp {
-			os.Exit(0)
+			return
 		}
 
 		// Didn't output help. Unknown parsing error.
 		log.Fatalf("could not parse flags: %s", err)
 	}
+
 	m := zgrab2.MakeMonitor()
 	start := time.Now()
 	log.Infof("started grab at %s", start.Format(time.RFC3339))
