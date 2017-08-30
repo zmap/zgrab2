@@ -19,7 +19,7 @@ type Config struct {
 	GOMAXPROCS         int            `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int            `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	Prometheus         string         `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
-	Multiple           MultipleConfig `command:"multiple" description:"Multiple module actions"`
+	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
 
 	inputFile  *os.File
 	outputFile *os.File
