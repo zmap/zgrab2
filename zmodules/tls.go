@@ -39,7 +39,7 @@ func (x *TLSModule) PerRoutineInitialize() {
 
 // Execute validates the options sent to TLSModule and then passes operation back to main
 func (x *TLSModule) Validate(args []string) error {
-	zgrab2.RegisterLookup(x.Name, x)
+	zgrab2.RegisterModule(x.Name, x)
 	return nil
 }
 

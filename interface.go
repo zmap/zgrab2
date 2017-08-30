@@ -36,16 +36,17 @@ func (b *BaseModule) SetDefaultPortAndName(cmd *flags.Command, port uint, name s
 	cmd.FindOptionByLongName("name").Default = []string{name}
 }
 
-var lookups map[string]*Module
+var modules map[string]*Module
 
-func RegisterLookup(name string, m Module) {
-	if lookups == nil {
-		lookups = make(map[string]*Module, 10)
-	}
+func init() {
+	modules = make(map[string]*Module)
+}
+
+func RegisterModule(name string, m Module) {
 	//add to list and map
-	if lookups[name] != nil {
+	if modules[name] != nil {
 		log.Fatal("name already used")
 	}
 
-	lookups[name] = &m
+	modules[name] = &m
 }

@@ -12,7 +12,7 @@ import (
 
 type SSHModule struct {
 	zgrab2.BaseModule
-	Client            string `long:"client" description:"Mimic behavior of a specific SSH client"`
+	ClientID          string `long:"client" description:"Specify the client ID string to use" default:"SSH-2.0-Go"`
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`
 	NegativeOne       bool   `long:"negative-one" description:"Set SSH DH kex value to -1 in the selected group"`
@@ -38,7 +38,7 @@ func (x *SSHModule) PerRoutineInitialize() {
 
 // Execute validates the options sent to SSHModule and then passes operation back to main
 func (x *SSHModule) Validate(args []string) error {
-	zgrab2.RegisterLookup(x.Name, x)
+	zgrab2.RegisterModule(x.Name, x)
 	return nil
 }
 

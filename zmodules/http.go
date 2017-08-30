@@ -66,7 +66,7 @@ func (x *HTTPModule) PerRoutineInitialize() {
 
 // Validates the options sent to HTTPConfig, registers the config module, and then passes operation back to main
 func (x *HTTPModule) Validate(args []string) error {
-	zgrab2.RegisterLookup(x.Name, x)
+	zgrab2.RegisterModule(x.Name, x)
 	return nil
 }
 

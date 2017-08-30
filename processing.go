@@ -11,28 +11,28 @@ import (
 )
 
 type Grab struct {
-	IP     *string                   `json:"ip,omitempty"`
+	IP     string                    `json:"ip,omitempty"`
 	Domain string                    `json:"domain,omitempty"`
-	Data   map[string]moduleResponse `json:"data,omitempty"`
+	Data   map[string]ModuleResponse `json:"data,omitempty"`
 }
 
-type grabTarget struct {
+type target struct {
 	IP     net.IP
 	Domain string
 }
 
-type moduleResponse struct {
+type ModuleResponse struct {
 	Result         interface{} `json:"result,omitempty"`
 	Time           string      `json:"time,omitempty"`
 	Error          *error      `json:"error,omitempty"`
 	ErrorComponent string      `json:"error_component,omitempty"`
 }
 
-// GrabWorker calls handler for each action
-func RunGrabWorker(input grabTarget, m *Monitor) []byte {
-	moduleResult := make(map[string]moduleResponse)
+// grabTarget calls handler for each action
+func grabTarget(input target, m *Monitor) []byte {
+	moduleResult := make(map[string]ModuleResponse)
 
-	for _, action := range lookups {
+	for _, action := range modules {
 		name, res := runHandler(*action, m, input.IP)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
@@ -40,18 +40,18 @@ func RunGrabWorker(input grabTarget, m *Monitor) []byte {
 		}
 	}
 
-	var ipstr *string
-	if input.IP.String() == "<nil>" {
-		ipstr = nil
+	var ipstr string
+	if input.IP == nil {
+		ipstr = ""
 	} else {
 		s := input.IP.String()
-		ipstr = &s
+		ipstr = s
 	}
 
 	a := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
 	result, err := json.Marshal(a)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("unable to marshal data: %s", err)
 	}
 
 	return result
@@ -60,7 +60,7 @@ func RunGrabWorker(input grabTarget, m *Monitor) []byte {
 // Process sets up an output encoder, input reader, and starts grab workers
 func Process(mon *Monitor) {
 	workers := config.Senders
-	processQueue := make(chan grabTarget, workers*4)
+	processQueue := make(chan target, workers*4)
 	outputQueue := make(chan []byte, workers*4)
 
 	//Create wait groups
@@ -87,7 +87,7 @@ func Process(mon *Monitor) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			for obj := range processQueue {
-				result := RunGrabWorker(obj, mon)
+				result := grabTarget(obj, mon)
 				outputQueue <- result
 			}
 			workerDone.Done()
@@ -112,10 +112,10 @@ func Process(mon *Monitor) {
 
 		if ipnet != nil {
 			for _, ip := range ipnet {
-				processQueue <- grabTarget{IP: ip, Domain: domain}
+				processQueue <- target{IP: ip, Domain: domain}
 			}
 		} else {
-			processQueue <- grabTarget{Domain: domain}
+			processQueue <- target{Domain: domain}
 		}
 
 	}
