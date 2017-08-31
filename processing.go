@@ -33,8 +33,8 @@ func grabTarget(input target, m *Monitor) []byte {
 	moduleResult := make(map[string]ModuleResponse)
 
 	for _, moduleName := range orderedModules {
-		action := modules[moduleName]
-		name, res := runHandler(*action, m, input.IP)
+		module := modules[moduleName]
+		name, res := RunModule(*module, m, input.IP)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
@@ -73,16 +73,16 @@ func Process(mon *Monitor) {
 	// Start the output encoder
 	go func() {
 		out := bufio.NewWriter(config.outputFile)
+		defer outputDone.Done()
 		defer out.Flush()
 		for result := range outputQueue {
 			if _, err := out.Write(result); err != nil {
 				log.Fatal(err)
 			}
-			if _, err := out.Write([]byte("\n")); err != nil {
+			if err := out.WriteByte('\n'); err != nil {
 				log.Fatal(err)
 			}
 		}
-		outputDone.Done()
 	}()
 	//Start all the workers
 	for i := 0; i < workers; i++ {
@@ -112,7 +112,7 @@ func Process(mon *Monitor) {
 		}
 
 		if ipnet != nil {
-			for _, ip := range ipnet {
+			for ip := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
 				processQueue <- target{IP: ip, Domain: domain}
 			}
 		} else {

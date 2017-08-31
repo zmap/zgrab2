@@ -8,7 +8,7 @@ import (
 )
 
 type HTTPModule struct {
-	zgrab2.BaseModule
+	zgrab2.BaseScanModule
 	HTTP HTTPOptions `json:"http"`
 }
 

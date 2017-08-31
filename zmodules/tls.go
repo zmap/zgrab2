@@ -8,7 +8,7 @@ import (
 )
 
 type TLSModule struct {
-	zgrab2.BaseModule
+	zgrab2.BaseScanModule
 	Heartbleed           bool        `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
 	Version              int         `long:"version" description:"Max TLS version to use"`
 	Verbose              bool        `long:"verbose" description:"Add extra TLS information to JSON output (client hello, client KEX, key material, etc)" json:"verbose"`
