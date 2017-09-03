@@ -110,15 +110,18 @@ func Process(mon *Monitor) {
 			log.Error(err)
 			continue
 		}
-
+		var ip net.IP
 		if ipnet != nil {
-			for ip := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
-				processQueue <- target{IP: ip, Domain: domain}
+			if ipnet.Mask != nil {
+				for ip = ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
+					processQueue <- target{IP: duplicateIP(ip), Domain: domain}
+				}
+				continue
+			} else {
+				ip = ipnet.IP
 			}
-		} else {
-			processQueue <- target{Domain: domain}
 		}
-
+		processQueue <- target{IP: ip, Domain: domain}
 	}
 
 	close(processQueue)

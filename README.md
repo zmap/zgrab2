@@ -1,7 +1,7 @@
 Zgrab 2.0
 =========
 
-This framework contains the new ZGrab framework, and will eventually replace https://github.com/zmap/zgrab.
+This repo contains the new ZGrab framework, and will eventually replace https://github.com/zmap/zgrab.
 
 ## Building
 
@@ -53,16 +53,17 @@ port=22
 ```
 ./zgrab2 multiple -c multiple.ini
 ```
-`Application Options` must be the initial section name. Other section names should correspond exactly to the relevant zgrab2 module. The default name for each module is the command name. If the same module is to be used multiple times then `name` must be specified and unique. 
+`Application Options` must be the initial section name. Other section names should correspond exactly to the relevant zgrab2 module name. The default name for each module is the command name. If the same module is to be used multiple times then `name` must be specified and unique. 
 
 ## Adding New Protocols 
 
-Add file to zproto/ that contains a struct that satisfies the following interface:
+Add module to zmodules/ that satisfies the following interface:
 ```
 type Protocol interface {
+    Scan(ip net.IP) (interface{}, error)
     Validate(args []string) error
-    GetBanner() (interface{}, error)
-    Initialize()
+    PerRoutineInitialize()
+    New() interface{}
 }
 ```
 
