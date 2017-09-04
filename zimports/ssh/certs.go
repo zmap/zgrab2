@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sort"
 	"strconv"
@@ -36,6 +37,10 @@ const (
 	UserCert = 1
 	HostCert = 2
 )
+
+const goUnixTimeOffset = 62135596800
+const goMaxUnixTime = math.MaxInt64 - goUnixTimeOffset
+const goMaxUnixTimeWithTZOffset = goMaxUnixTime - 60*60*24
 
 // Signature represents a cryptographic signature.
 type Signature struct {
@@ -66,9 +71,9 @@ type Certificate struct {
 }
 
 type JsonValidity struct {
-	ValidAfter  time.Time `json:"valid_after"`
-	ValidBefore time.Time `json:"valid_before"`
-	Length      uint64    `json:"length"`
+	ValidAfter  *time.Time `json:"valid_after,omitempty"`
+	ValidBefore *time.Time `json:"valid_before,omitempty"`
+	Length      int64      `json:"length,omitempty"`
 }
 
 type JsonCertType struct {
@@ -145,15 +150,24 @@ func (c *Certificate) MarshalJSON() ([]byte, error) {
 		break
 	}
 
-	var validityLength uint64 = 0
-	if c.ValidBefore > c.ValidAfter {
-		validityLength = c.ValidBefore - c.ValidAfter
+	// We have to coerce length to be a signed int64 from a uint64. Only output
+	// representable values.
+	temp.Validity = new(JsonValidity)
+	if c.ValidAfter < goMaxUnixTimeWithTZOffset {
+		validAfter := time.Unix(int64(c.ValidAfter), 0).UTC()
+		temp.Validity.ValidAfter = &validAfter
 	}
 
-	temp.Validity = &JsonValidity{
-		ValidAfter:  time.Unix(int64(c.ValidAfter), 0).UTC(),
-		ValidBefore: time.Unix(int64(c.ValidBefore), 0).UTC(),
-		Length:      validityLength,
+	if c.ValidBefore < goMaxUnixTimeWithTZOffset {
+		validBefore := time.Unix(int64(c.ValidBefore), 0).UTC()
+		temp.Validity.ValidBefore = &validBefore
+	}
+
+	if c.ValidBefore > c.ValidAfter {
+		unsignedLength := c.ValidBefore - c.ValidAfter
+		if unsignedLength <= math.MaxInt64 {
+			temp.Validity.Length = int64(unsignedLength)
+		}
 	}
 
 	temp.SignatureKey = new(JsonPubKeyWrapper)
