@@ -88,7 +88,7 @@ func Process(mon *Monitor) {
 	for i := 0; i < workers; i++ {
 		go func() {
 			for obj := range processQueue {
-				for run := uint(0); run < config.ConnectionsPerHost; run++ {
+				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
 					result := grabTarget(obj, mon)
 					outputQueue <- result
 				}
