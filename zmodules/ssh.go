@@ -58,9 +58,15 @@ func (x *SSHModule) makeSSHGrabber(hlog *ssh.HandshakeLog) func(string) error {
 		sshConfig.Timeout = time.Duration(x.Timeout) * time.Second
 		sshConfig.ConnLog = hlog
 		sshConfig.ClientVersion = x.ClientID
-		sshConfig.HostKeyAlgorithms = strings.Split(x.HostKeyAlgorithms, ",")
-		sshConfig.KeyExchanges = strings.Split(x.KexAlgorithms, ",")
-		sshConfig.Ciphers = strings.Split(x.Ciphers, ",")
+		if err := sshConfig.SetHostKeyAlgorithms(x.HostKeyAlgorithms); err != nil {
+			log.Fatal(err)
+		}
+		if err := sshConfig.SetKexAlgorithms(x.KexAlgorithms); err != nil {
+			log.Fatal(err)
+		}
+		if err := sshConfig.SetCiphers(x.Ciphers); err != nil {
+			log.Fatal(err)
+		}
 		sshConfig.Verbose = x.Verbose
 		sshConfig.DontAuthenticate = x.CollectUserAuth
 		sshConfig.GexMinBits = x.GexMinBits
