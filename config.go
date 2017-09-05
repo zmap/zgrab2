@@ -109,6 +109,8 @@ func validateFrameworkConfiguration() {
 	}
 }
 
+// GetMetaFile returns the file that metadata will be output to.
+// If no metadata file is specified on the command line it returns stdOut.
 func GetMetaFile() *os.File {
 	return config.metaFile
 }

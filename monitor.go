@@ -1,14 +1,18 @@
 package zgrab2
 
 // Monitor
-type Monitor struct {
+type monitor struct {
 	states       map[string]*State
 	statusesChan chan moduleStatus
 }
 
+// State contains the number of successes and failures for a given module
 type State struct {
+	// Successes is the number of hosts that had successful grabs
 	Successes uint `json:"successes"`
-	Failures  uint `json:"failures"`
+
+	// Failures is the number of hosts that had errors
+	Failures uint `json:"failures"`
 }
 
 type moduleStatus struct {
@@ -19,16 +23,19 @@ type moduleStatus struct {
 type status uint
 
 const (
-	status_success status = iota
-	status_failure status = iota
+	statusSuccess status = iota
+	statusFailure status = iota
 )
 
-func (m *Monitor) GetStatuses() map[string]*State {
+// GetStatuses returns a map from module name to State of that module
+func (m *monitor) GetStatuses() map[string]*State {
 	return m.states
 }
 
-func MakeMonitor() *Monitor {
-	m := new(Monitor)
+// MakeMonitor creates and returns the monitor that will track the number
+// of successes and failures for each module
+func MakeMonitor() *monitor {
+	m := new(monitor)
 	m.statusesChan = make(chan moduleStatus, config.Senders*4)
 	m.states = make(map[string]*State, 10)
 	go func() {
@@ -37,9 +44,9 @@ func MakeMonitor() *Monitor {
 				m.states[s.name] = new(State)
 			}
 			switch s.st {
-			case status_success:
+			case statusSuccess:
 				m.states[s.name].Successes++
-			case status_failure:
+			case statusFailure:
 				m.states[s.name].Failures++
 			default:
 				continue

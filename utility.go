@@ -28,7 +28,8 @@ func ParseFlags() ([]string, error) {
 	return r, err
 }
 
-// ParseInput takes input as a string and parses it into either an IPNet (may have empty mask and just contain IP) , domain name, or errors, may return both IPNet and domain name
+// ParseInput takes a string representation of either an IP, domain name, or cidr block and parses it into a corresponding IPNet, domain name, or error.
+// IPNet may be partial and only contain an IP.
 func ParseInput(s string) (*net.IPNet, string, error) {
 	i := strings.IndexByte(s, ',')
 	j := strings.IndexByte(s, '/')

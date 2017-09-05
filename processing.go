@@ -10,10 +10,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Grab is a type representing the result of all grabs for a single host
 type Grab struct {
-	IP     string                    `json:"ip,omitempty"`
-	Domain string                    `json:"domain,omitempty"`
-	Data   map[string]ModuleResponse `json:"data,omitempty"`
+	// The IP of the host
+	IP string `json:"ip,omitempty"`
+
+	// The domain of the host
+	Domain string `json:"domain,omitempty"`
+
+	// A map of names for each module with response data as the corresponding values
+	Data map[string]ModuleResponse `json:"data,omitempty"`
 }
 
 type target struct {
@@ -29,7 +35,7 @@ type ModuleResponse struct {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input target, m *Monitor) []byte {
+func grabTarget(input target, m *monitor) []byte {
 	moduleResult := make(map[string]ModuleResponse)
 
 	for _, moduleName := range orderedModules {
@@ -59,7 +65,7 @@ func grabTarget(input target, m *Monitor) []byte {
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers
-func Process(mon *Monitor) {
+func Process(mon *monitor) {
 	workers := config.Senders
 	processQueue := make(chan target, workers*4)
 	outputQueue := make(chan []byte, workers*4)
