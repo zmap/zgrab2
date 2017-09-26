@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"strings"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -106,8 +107,8 @@ func Process(mon *Monitor) {
 		} else if err != nil {
 			log.Error(err)
 		}
-		st := string(obj)
-		ipnet, domain, err := ParseInput(st[:len(st)-1]) //remove newline
+		st := strings.TrimSpace(string(obj))
+		ipnet, domain, err := ParseTarget(st)
 		if err != nil {
 			log.Error(err)
 			continue

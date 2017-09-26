@@ -15,7 +15,8 @@ func init() {
 	parser = flags.NewParser(&config, flags.Default)
 }
 
-// AddCommand adds a module to the parser and returns a pointer to a flags.command object or an error
+// AddCommand adds a module to the parser and returns a pointer to
+// a flags.command object or an error
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
 	cmd, err := parser.AddCommand(command, shortDescription, longDescription, m)
 	if err != nil {
@@ -26,7 +27,8 @@ func AddCommand(command string, shortDescription string, longDescription string,
 	return cmd, nil
 }
 
-// ParseFlags abstracts away the parser and validates the framework configuration (global options) immediately after parsing
+// ParseFlags abstracts away the parser and validates the framework
+// configuration (global options) immediately after parsing
 func ParseFlags() ([]string, error) {
 	r, err := parser.Parse()
 	if err == nil {
@@ -35,14 +37,16 @@ func ParseFlags() ([]string, error) {
 	return r, err
 }
 
-// ParseInput takes input as a string and parses it into either an IPNet (may have empty mask and just contain IP) , domain name, or errors, may return both IPNet and domain name
-func ParseInput(s string) (*net.IPNet, string, error) {
+// ParseTarget takes input as a string and parses it into either an IPNet
+// (may have empty mask and just contain IP , domain name, or errors, may
+// return both IPNet and domain name
+func ParseTarget(s string) (*net.IPNet, string, error) {
 	i := strings.IndexByte(s, ',')
 	j := strings.IndexByte(s, '/')
 
 	switch {
 	case i == -1 && j == -1:
-		//just ip or domain
+		// just ip or domain
 		if ip := net.ParseIP(s); ip != nil {
 			return &net.IPNet{IP: ip}, "", nil
 		} else {
@@ -50,25 +54,26 @@ func ParseInput(s string) (*net.IPNet, string, error) {
 			if err != nil {
 				return nil, "", err
 			}
-			return &net.IPNet{IP: ips[0]}, s, nil //only return first IP after a lookup
+			return &net.IPNet{IP: ips[0]}, s, nil // only return first IP after a lookup
 		}
 	case i == -1:
-		//cidr block
+		// cidr block
 		_, ipnet, err := net.ParseCIDR(s)
 		if err != nil {
 			return nil, "", err
 		}
 		return ipnet, "", nil
 	case j == -1:
-		//ip,domain
+		// ip,domain
 		str := strings.Split(s, ",")
 		if len(str) != 2 {
 			return nil, "", errors.New("malformed input")
 		}
+		d := strings.TrimSpace(str[1])
 		if ip := net.ParseIP(str[0]); ip != nil {
-			return &net.IPNet{IP: ip}, str[1], nil
+			return &net.IPNet{IP: ip}, d, nil
 		}
-		return nil, str[1], nil
+		return nil, d, nil
 	}
 	return nil, "", nil
 }
