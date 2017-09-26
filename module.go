@@ -1,71 +1,89 @@
 package zgrab2
 
 import (
+	"fmt"
 	"log"
-	"net"
-	"strconv"
 	"time"
-
-	"github.com/ajholland/zflags"
 )
 
-type ScanModule interface {
-	Scan(ip net.IP) (interface{}, error)
-	PerRoutineInitialize()
-	GetPort() uint
+type Scanner interface {
+	// Init runs once for this module at library init time. It is passed the parsed command-line flags
+	Init(name string, flags ScanFlags) error
+
+	// InitPerSender runs once per Goroutine. A single Goroutine will scan some non-deterministics
+	// subset of the input scan targets
+	InitPerSender(senderID int) error
+
+	// Returns the name passed at init
 	GetName() string
-	New() interface{}
+
+	// Scan connects to a host. The result should be JSON-serializable
+	Scan(t ScanTarget, port uint) (interface{}, error)
+}
+
+type ScanModule interface {
+	// Called by the framework to pass to the argument parser. The parsed flags will be passed
+	// to the scanner created by NewScanner().
+	NewFlags() interface{}
+
+	// Called by the framework for each time an individual scan is specified in the config or on
+	// the command-line. The framework will then call scanner.Init(name, flags).
+	NewScanner() interface{}
+}
+
+type ScanFlags interface {
+	// Help optionally returns any additional help text, e.g. specifying what empty defaults
+	// are interpreted as.
+	Help() string
+
+	// Validate enforces all command-line flags and positional arguments have valid values.
 	Validate(args []string) error
 }
 
-type BaseScanModule struct {
+type BaseFlags struct {
 	Port    uint   `short:"p" long:"port" description:"Specify port to grab on"`
 	Name    string `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
-	Timeout int    `short:"t" long:"timeout" description:"Set connection timeout in seconds"`
+	Timeout uint   `short:"t" long:"timeout" description:"Set connection timeout in seconds"`
 }
 
-func (b *BaseScanModule) GetPort() uint {
-	return b.Port
-}
-
-func (b *BaseScanModule) GetName() string {
+func (b *BaseFlags) GetName() string {
 	return b.Name
 }
 
-func (b *BaseScanModule) SetDefaultPortAndName(cmd *flags.Command, port uint, name string) {
-	cmd.FindOptionByLongName("port").Default = []string{strconv.FormatUint(uint64(port), 10)}
-	cmd.FindOptionByLongName("name").Default = []string{name}
-}
-
-var modules map[string]*ScanModule
-var orderedModules []string
+var scanners map[string]*Scanner
+var orderedScanners []string
 
 func init() {
-	modules = make(map[string]*ScanModule)
+	scanners = make(map[string]*Scanner)
 }
 
-func RegisterModule(name string, m ScanModule) {
+func RegisterScanner(name string, s Scanner) {
 	//add to list and map
-	if modules[name] != nil {
+	if scanners[name] != nil {
 		log.Fatal("name already used")
 	}
-	orderedModules = append(orderedModules, name)
-	modules[name] = &m
+	orderedScanners = append(orderedScanners, name)
+	scanners[name] = &s
+	fmt.Println("Registered: ", name, s)
 }
 
-// runHandler will call perRoutineInitialize, Scan, and respond with a protocol response, data unmarshalled, to the worker
-func RunModule(module ScanModule, mon *Monitor, ip net.IP) (string, ModuleResponse) {
+func PrintScanners() {
+	for k, v := range scanners {
+		fmt.Println(k, v)
+	}
+}
+
+func RunModule(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	module.PerRoutineInitialize()
-	res, e := module.Scan(ip)
+	res, e := s.Scan(target, uint(22))
 	var err *error //nil pointers are null in golang, which is not nil and not empty
 	if e == nil {
-		mon.statusesChan <- moduleStatus{name: module.GetName(), st: status_success}
+		mon.statusesChan <- moduleStatus{name: s.GetName(), st: status_success}
 		err = nil
 	} else {
-		mon.statusesChan <- moduleStatus{name: module.GetName(), st: status_failure}
+		mon.statusesChan <- moduleStatus{name: s.GetName(), st: status_failure}
 		err = &e
 	}
-	resp := ModuleResponse{Result: res, Error: err, Time: t.Format(time.RFC3339)}
-	return module.GetName(), resp
+	resp := ScanResponse{Result: res, Error: err, Time: t.Format(time.RFC3339)}
+	return s.GetName(), resp
 }

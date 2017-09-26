@@ -1,14 +1,12 @@
 package zmodules
 
 import (
-	"net"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
 
-type HTTPModule struct {
-	zgrab2.BaseScanModule
+type HTTPFlags struct {
+	zgrab2.BaseFlags
 	HTTP HTTPOptions `json:"http"`
 }
 
@@ -45,32 +43,52 @@ type HTTPResults struct {
 	//RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
 }
 
-// Per module initialization call
+type HTTPModule struct {
+}
+
+type HTTPScanner struct {
+}
+
 func init() {
 	var httpModule HTTPModule
-	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", &httpModule)
+	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", 80, &httpModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	httpModule.SetDefaultPortAndName(cmd, uint(80), "http")
 }
 
-func (x *HTTPModule) New() interface{} {
-	return new(HTTPModule)
+func (m *HTTPModule) NewFlags() ScanFlags {
+	return new(HTTPFlags)
 }
 
-// Per module per goroutine initialization call
-func (x *HTTPModule) PerRoutineInitialize() {
-
+func (m *HTTPModule) NewScanner() Scanner {
+	return new(HTTPScanner)
 }
 
-// Validates the options sent to HTTPConfig, registers the config module, and then passes operation back to main
-func (x *HTTPModule) Validate(args []string) error {
-	zgrab2.RegisterModule(x.Name, x)
+func (f *HTTPFlags) Validate(args []string) error {
 	return nil
 }
 
-func (x *HTTPModule) Scan(ip net.IP) (interface{}, error) {
+func (f *HTTPFlags) Help() string {
+	return ""
+}
+
+func (s *HTTPScanner) Init(name string, flags zgrab2.ScanFlags) error {
+	//httpFlags := flags.(*HTTPFlags)
+
+	zgrab2.RegisterScanner(name, s)
+	return nil
+}
+
+func (s *HTTPScanner) InitPerSender(senderID int) error {
+	return nil
+}
+
+func (s *HTTPScanner) GetName() string {
+	return ""
+}
+
+func (s *HTTPScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
 	http := HTTPRequest{Method: "Get", Body: "testing"}
 	ret := HTTPResults{ProxyRequest: &http}
 	return ret, nil

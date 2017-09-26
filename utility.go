@@ -3,6 +3,7 @@ package zgrab2
 import (
 	"errors"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/ajholland/zflags"
@@ -15,8 +16,14 @@ func init() {
 }
 
 // AddCommand adds a module to the parser and returns a pointer to a flags.command object or an error
-func AddCommand(command string, shortDescription string, longDescription string, m ScanModule) (*flags.Command, error) {
-	return parser.AddCommand(command, shortDescription, longDescription, m)
+func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
+	cmd, err := parser.AddCommand(command, shortDescription, longDescription, m)
+	if err != nil {
+		return nil, err
+	}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.FormatUint(uint64(port), 10)}
+	cmd.FindOptionByLongName("name").Default = []string{command}
+	return cmd, nil
 }
 
 // ParseFlags abstracts away the parser and validates the framework configuration (global options) immediately after parsing

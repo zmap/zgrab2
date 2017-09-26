@@ -1,69 +1,63 @@
 package zmodules
 
 import (
-	"net"
-	"strconv"
-	"time"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"github.com/zmap/zgrab2/zimports/ssh"
 )
 
-type SSHModule struct {
-	zgrab2.BaseModule
+type SSHFlags struct {
+	zgrab2.BaseFlags
 	ClientID          string `long:"client" description:"Specify the client ID string to use" default:"SSH-2.0-Go"`
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`
 	NegativeOne       bool   `long:"negative-one" description:"Set SSH DH kex value to -1 in the selected group"`
 }
 
+type SSHModule struct {
+}
+
+type SSHScanner struct {
+	SSHFlags
+}
+
 func init() {
 	var sshModule SSHModule
-	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", &sshModule)
+	_, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	sshModule.SetDefaultPortAndName(cmd, uint(22), "ssh")
 }
 
-func (x *SSHModule) New() interface{} {
-	return new(SSHModule)
+func (m *SSHModule) NewFlags() ScanFlags {
+	return new(SSHFlags)
 }
 
-// per module per routine initialization call
-func (x *SSHModule) PerRoutineInitialize() {
-
+func (m *SSHModule) NewScanner() Scanner {
+	return new(SSHScanner)
 }
 
-// Execute validates the options sent to SSHModule and then passes operation back to main
-func (x *SSHModule) Validate(args []string) error {
-	zgrab2.RegisterModule(x.Name, x)
+func (f *SSHFlags) Validate(args []string) error {
 	return nil
 }
 
-func (x *SSHModule) makeSSHGrabber(hlog *ssh.HandshakeLog) func(string) error {
-	return func(netAddr string) error {
-		sshConfig := ssh.MakeSSHConfig()
-		sshConfig.Timeout = time.Duration(x.Timeout) * time.Second
-		sshConfig.ConnLog = hlog
-		_, err := ssh.Dial("tcp", netAddr, sshConfig)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
+func (f *SSHFlags) Help() string {
+	return ""
 }
 
-func (x *SSHModule) Scan(ip net.IP) (interface{}, error) {
-	data := new(ssh.HandshakeLog)
-	sshGrabber := x.makeSSHGrabber(data)
+func (s *SSHScanner) Init(name string, flags interface{}) error {
+	sshFlags := flags.(*SSHFlags)
+	// set vars based on flags
+	zgrab2.RegisterScanner(name, s)
+	return nil
+}
 
-	port := strconv.FormatUint(uint64(x.Port), 10)
-	rhost := net.JoinHostPort(ip.String(), port)
+func (s *SSHScanner) InitPerSender(senderID int) error {
+	return nil
+}
 
-	err := sshGrabber(rhost)
-
-	return data, err
+func (s *SSHScanner) GetName() string {
+	return ""
+}
+func (s *SSHScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
+	return nil, nil
 }

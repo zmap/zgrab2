@@ -1,14 +1,12 @@
 package zmodules
 
 import (
-	"net"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
 
-type TLSModule struct {
-	zgrab2.BaseScanModule
+type TLSFlags struct {
+	zgrab2.BaseFlags
 	Heartbleed           bool        `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
 	Version              int         `long:"version" description:"Max TLS version to use"`
 	Verbose              bool        `long:"verbose" description:"Add extra TLS information to JSON output (client hello, client KEX, key material, etc)" json:"verbose"`
@@ -20,29 +18,52 @@ type TLSModule struct {
 	HTTP                 HTTPOptions `json:"http"`
 }
 
+type TLSModule struct {
+}
+
+type TLSScanner struct {
+	TLSFlags
+}
+
 func init() {
 	var tlsModule TLSModule
-	cmd, err := zgrab2.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", &tlsModule)
+	_, err := zgrab2.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", 443, &tlsModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	tlsModule.SetDefaultPortAndName(cmd, uint(443), "ssh")
 }
 
-func (x *TLSModule) New() interface{} {
-	return new(TLSModule)
+func (m *TLSModule) NewFlags() interface{} {
+	return new(TLSFlags)
 }
 
-func (x *TLSModule) PerRoutineInitialize() {
-
+func (m *TLSModule) NewScanner() interface{} {
+	return new(TLSScanner)
 }
 
-// Execute validates the options sent to TLSModule and then passes operation back to main
-func (x *TLSModule) Validate(args []string) error {
-	zgrab2.RegisterModule(x.Name, x)
+func (f *TLSFlags) Validate(args []string) error {
 	return nil
 }
 
-func (x *TLSModule) Scan(ip net.IP) (interface{}, error) {
-	return x, nil
+func (f *TLSFlags) Help() string {
+	return ""
+}
+
+func (s *TLSScanner) Init(name string, flags zgrab2.ScanFlags) error {
+	//tlsFlags := flags.(*TLSFlags)
+
+	zgrab2.RegisterScanner(name, s)
+	return nil
+}
+
+func (s *TLSScanner) GetName() string {
+	return ""
+}
+
+func (s *TLSScanner) InitPerSender(senderID int) error {
+	return nil
+}
+
+func (s *TLSScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
+	return s, nil
 }

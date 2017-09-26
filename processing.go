@@ -11,17 +11,17 @@ import (
 )
 
 type Grab struct {
-	IP     string                    `json:"ip,omitempty"`
-	Domain string                    `json:"domain,omitempty"`
-	Data   map[string]ModuleResponse `json:"data,omitempty"`
+	IP     string                  `json:"ip,omitempty"`
+	Domain string                  `json:"domain,omitempty"`
+	Data   map[string]ScanResponse `json:"data,omitempty"`
 }
 
-type target struct {
+type ScanTarget struct {
 	IP     net.IP
 	Domain string
 }
 
-type ModuleResponse struct {
+type ScanResponse struct {
 	Result         interface{} `json:"result,omitempty"`
 	Time           string      `json:"time,omitempty"`
 	Error          *error      `json:"error,omitempty"`
@@ -29,12 +29,12 @@ type ModuleResponse struct {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input target, m *Monitor) []byte {
-	moduleResult := make(map[string]ModuleResponse)
+func grabTarget(input ScanTarget, m *Monitor) []byte {
+	moduleResult := make(map[string]ScanResponse)
 
-	for _, moduleName := range orderedModules {
-		module := modules[moduleName]
-		name, res := RunModule(*module, m, input.IP)
+	for _, scannerName := range orderedScanners {
+		scanner := scanners[scannerName]
+		name, res := RunModule(*scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
@@ -61,7 +61,7 @@ func grabTarget(input target, m *Monitor) []byte {
 // Process sets up an output encoder, input reader, and starts grab workers
 func Process(mon *Monitor) {
 	workers := config.Senders
-	processQueue := make(chan target, workers*4)
+	processQueue := make(chan ScanTarget, workers*4)
 	outputQueue := make(chan []byte, workers*4)
 
 	//Create wait groups
@@ -116,14 +116,14 @@ func Process(mon *Monitor) {
 		if ipnet != nil {
 			if ipnet.Mask != nil {
 				for ip = ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
-					processQueue <- target{IP: duplicateIP(ip), Domain: domain}
+					processQueue <- ScanTarget{IP: duplicateIP(ip), Domain: domain}
 				}
 				continue
 			} else {
 				ip = ipnet.IP
 			}
 		}
-		processQueue <- target{IP: ip, Domain: domain}
+		processQueue <- ScanTarget{IP: ip, Domain: domain}
 	}
 
 	close(processQueue)

@@ -22,6 +22,7 @@ func main() {
 		log.Fatalf("could not parse flags: %s", err)
 	}
 
+	zgrab2.PrintScanners()
 	m := zgrab2.MakeMonitor()
 	start := time.Now()
 	log.Infof("started grab at %s", start.Format(time.RFC3339))
