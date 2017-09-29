@@ -17,7 +17,7 @@ type SSHModule struct {
 }
 
 type SSHScanner struct {
-	SSHFlags
+	config *SSHFlags
 }
 
 func init() {
@@ -28,11 +28,11 @@ func init() {
 	}
 }
 
-func (m *SSHModule) NewFlags() ScanFlags {
+func (m *SSHModule) NewFlags() interface{} {
 	return new(SSHFlags)
 }
 
-func (m *SSHModule) NewScanner() Scanner {
+func (m *SSHModule) NewScanner() zgrab2.Scanner {
 	return new(SSHScanner)
 }
 
@@ -44,10 +44,9 @@ func (f *SSHFlags) Help() string {
 	return ""
 }
 
-func (s *SSHScanner) Init(name string, flags interface{}) error {
-	sshFlags := flags.(*SSHFlags)
-	// set vars based on flags
-	zgrab2.RegisterScanner(name, s)
+func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
+	f, _ := flags.(*SSHFlags)
+	s.config = f
 	return nil
 }
 

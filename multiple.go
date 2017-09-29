@@ -1,11 +1,6 @@
 package zgrab2
 
-import (
-	"errors"
-	"os"
-
-	"github.com/ajholland/zflags"
-)
+import "errors"
 
 type MultipleCommand struct {
 	ConfigFileName  string `short:"c" long:"config-file" default:"-" description:"Config filename, use - for stdin"`
@@ -18,14 +13,9 @@ func (x *MultipleCommand) Validate(args []string) error {
 		return errors.New("cannot receive config file and input file from same source")
 	}
 
-	var err error
-	parse := flags.NewIniParser(parser)
-	switch x.ConfigFileName {
-	case "-":
-		err = parse.Parse(os.Stdin)
-	default:
-		err = parse.ParseFile(x.ConfigFileName)
-	}
+	return nil
+}
 
-	return err
+func (x *MultipleCommand) Help() string {
+	return ""
 }

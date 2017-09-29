@@ -15,6 +15,10 @@ func init() {
 	parser = flags.NewParser(&config, flags.Default)
 }
 
+func NewIniParser() *flags.IniParser {
+	return flags.NewIniParser(parser)
+}
+
 // AddCommand adds a module to the parser and returns a pointer to
 // a flags.command object or an error
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
@@ -24,17 +28,20 @@ func AddCommand(command string, shortDescription string, longDescription string,
 	}
 	cmd.FindOptionByLongName("port").Default = []string{strconv.FormatUint(uint64(port), 10)}
 	cmd.FindOptionByLongName("name").Default = []string{command}
+	modules[command] = &m
 	return cmd, nil
 }
 
-// ParseFlags abstracts away the parser and validates the framework
-// configuration (global options) immediately after parsing
-func ParseFlags() ([]string, error) {
-	r, err := parser.Parse()
+// ParseFlags parses the commands given on the command line
+// and validates the framework configuration (global options)
+// immediately after parsing
+func ParseCommandLine(flags []string) ([]string, string, ScanFlags, error) {
+	posArgs, moduleType, f, err := parser.ParseCommandLine(flags)
 	if err == nil {
 		validateFrameworkConfiguration()
 	}
-	return r, err
+	sf, _ := f.(ScanFlags)
+	return posArgs, moduleType, sf, err
 }
 
 // ParseTarget takes input as a string and parses it into either an IPNet

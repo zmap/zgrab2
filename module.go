@@ -7,8 +7,8 @@ import (
 )
 
 type Scanner interface {
-	// Init runs once for this module at library init time. It is passed the parsed command-line flags
-	Init(name string, flags ScanFlags) error
+	// Init runs once for this module at library init time
+	Init(flags ScanFlags) error
 
 	// InitPerSender runs once per Goroutine. A single Goroutine will scan some non-deterministics
 	// subset of the input scan targets
@@ -28,7 +28,7 @@ type ScanModule interface {
 
 	// Called by the framework for each time an individual scan is specified in the config or on
 	// the command-line. The framework will then call scanner.Init(name, flags).
-	NewScanner() interface{}
+	NewScanner() Scanner
 }
 
 type ScanFlags interface {
@@ -50,14 +50,20 @@ func (b *BaseFlags) GetName() string {
 	return b.Name
 }
 
+func GetModule(name string) *ScanModule {
+	return modules[name]
+}
+
+var modules map[string]*ScanModule
 var scanners map[string]*Scanner
 var orderedScanners []string
 
 func init() {
 	scanners = make(map[string]*Scanner)
+	modules = make(map[string]*ScanModule)
 }
 
-func RegisterScanner(name string, s Scanner) {
+func RegisterScan(name string, s Scanner) {
 	//add to list and map
 	if scanners[name] != nil {
 		log.Fatal("name already used")

@@ -22,7 +22,7 @@ type TLSModule struct {
 }
 
 type TLSScanner struct {
-	TLSFlags
+	config *TLSFlags
 }
 
 func init() {
@@ -37,7 +37,7 @@ func (m *TLSModule) NewFlags() interface{} {
 	return new(TLSFlags)
 }
 
-func (m *TLSModule) NewScanner() interface{} {
+func (m *TLSModule) NewScanner() zgrab2.Scanner {
 	return new(TLSScanner)
 }
 
@@ -49,10 +49,9 @@ func (f *TLSFlags) Help() string {
 	return ""
 }
 
-func (s *TLSScanner) Init(name string, flags zgrab2.ScanFlags) error {
-	//tlsFlags := flags.(*TLSFlags)
-
-	zgrab2.RegisterScanner(name, s)
+func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
+	f, _ := flags.(*TLSFlags)
+	s.config = f
 	return nil
 }
 

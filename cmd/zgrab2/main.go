@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"time"
 
 	flags "github.com/ajholland/zflags"
@@ -11,7 +12,8 @@ import (
 )
 
 func main() {
-	if _, err := zgrab2.ParseFlags(); err != nil {
+	_, modType, fl, err := zgrab2.ParseCommandLine(os.Args[1:])
+	if err != nil { //blanked arg is positional arguments
 		// Outputting help is returned as an error. Exit successfuly on help output.
 		flagsErr, ok := err.(*flags.Error)
 		if ok && flagsErr.Type == flags.ErrHelp {
@@ -22,6 +24,24 @@ func main() {
 		log.Fatalf("could not parse flags: %s", err)
 	}
 
+	if modType == "multiple" {
+		iniParser := zgrab2.NewIniParser()
+		m, _ := fl.(*zgrab2.MultipleCommand)
+		if m.ConfigFileName == "-" {
+			err = iniParser.Parse(os.Stdin)
+		} else {
+			err = iniParser.ParseFile(m.ConfigFileName)
+		}
+		if err != nil {
+			log.Fatalf("could not parse multiple: %s", err)
+		}
+	} else {
+		f, _ := fl.(zgrab2.ScanFlags)
+		mod := *zgrab2.GetModule(modType)
+		s := mod.NewScanner()
+		s.Init(f)
+		zgrab2.RegisterScan(modType, s)
+	}
 	zgrab2.PrintScanners()
 	m := zgrab2.MakeMonitor()
 	start := time.Now()

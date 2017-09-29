@@ -47,6 +47,7 @@ type HTTPModule struct {
 }
 
 type HTTPScanner struct {
+	config *HTTPFlags
 }
 
 func init() {
@@ -57,11 +58,11 @@ func init() {
 	}
 }
 
-func (m *HTTPModule) NewFlags() ScanFlags {
+func (m *HTTPModule) NewFlags() interface{} {
 	return new(HTTPFlags)
 }
 
-func (m *HTTPModule) NewScanner() Scanner {
+func (m *HTTPModule) NewScanner() zgrab2.Scanner {
 	return new(HTTPScanner)
 }
 
@@ -73,10 +74,9 @@ func (f *HTTPFlags) Help() string {
 	return ""
 }
 
-func (s *HTTPScanner) Init(name string, flags zgrab2.ScanFlags) error {
-	//httpFlags := flags.(*HTTPFlags)
-
-	zgrab2.RegisterScanner(name, s)
+func (s *HTTPScanner) Init(flags zgrab2.ScanFlags) error {
+	fl, _ := flags.(*HTTPFlags)
+	s.config = fl
 	return nil
 }
 
