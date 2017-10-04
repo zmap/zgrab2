@@ -38,7 +38,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
-		name, res := RunModule(*scanner, m, input)
+		name, res := RunScanner(*scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break

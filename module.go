@@ -1,11 +1,5 @@
 package zgrab2
 
-import (
-	"fmt"
-	"log"
-	"time"
-)
-
 // Scanner is an interface that represents all functions necessary to run a scan
 type Scanner interface {
 	// Init runs once for this module at library init time
@@ -64,43 +58,7 @@ func GetModule(name string) *ScanModule {
 }
 
 var modules map[string]*ScanModule
-var scanners map[string]*Scanner
-var orderedScanners []string
 
 func init() {
-	scanners = make(map[string]*Scanner)
 	modules = make(map[string]*ScanModule)
-}
-
-// RegisterScan registers each individual scanner to be ran by the framework
-func RegisterScan(name string, s Scanner) {
-	//add to list and map
-	if scanners[name] != nil {
-		log.Fatalf("name: %s already used", name)
-	}
-	orderedScanners = append(orderedScanners, name)
-	scanners[name] = &s
-}
-
-// PrintScanners prints all registered scanners
-func PrintScanners() {
-	for k, v := range scanners {
-		fmt.Println(k, v)
-	}
-}
-
-// this should be renamed?
-func RunModule(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
-	t := time.Now()
-	res, e := s.Scan(target, uint(22))
-	var err *error //nil pointers are null in golang, which is not nil and not empty
-	if e == nil {
-		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}
-		err = nil
-	} else {
-		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusFailure}
-		err = &e
-	}
-	resp := ScanResponse{Result: res, Error: err, Time: t.Format(time.RFC3339)}
-	return s.GetName(), resp
 }
