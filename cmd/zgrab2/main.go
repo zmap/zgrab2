@@ -12,8 +12,8 @@ import (
 )
 
 func main() {
-	_, modType, fl, err := zgrab2.ParseCommandLine(os.Args[1:])
-	if err != nil { //blanked arg is positional arguments
+	_, modType, fl, err := zgrab2.ParseCommandLine(os.Args[1:]) // Blanked arg is positional arguments
+	if err != nil {
 		// Outputting help is returned as an error. Exit successfuly on help output.
 		flagsErr, ok := err.(*flags.Error)
 		if ok && flagsErr.Type == flags.ErrHelp {
@@ -27,13 +27,25 @@ func main() {
 	if modType == "multiple" {
 		iniParser := zgrab2.NewIniParser()
 		m, _ := fl.(*zgrab2.MultipleCommand)
+		var modTypes []string
+		var flagsReturned []interface{}
 		if m.ConfigFileName == "-" {
-			err = iniParser.Parse(os.Stdin)
+			modTypes, flagsReturned, err = iniParser.Parse(os.Stdin)
 		} else {
-			err = iniParser.ParseFile(m.ConfigFileName)
+			modTypes, flagsReturned, err = iniParser.ParseFile(m.ConfigFileName)
 		}
 		if err != nil {
 			log.Fatalf("could not parse multiple: %s", err)
+		}
+		if len(modTypes) != len(flagsReturned) {
+			log.Fatalf("error parsing flags")
+		}
+		for i, flag := range flagsReturned {
+			f, _ := flag.(zgrab2.ScanFlags)
+			mod := *zgrab2.GetModule(modTypes[i])
+			s := mod.NewScanner()
+			s.Init(f)
+			zgrab2.RegisterScan(s.GetName(), s)
 		}
 	} else {
 		f, _ := fl.(zgrab2.ScanFlags)
@@ -42,7 +54,6 @@ func main() {
 		s.Init(f)
 		zgrab2.RegisterScan(modType, s)
 	}
-	zgrab2.PrintScanners()
 	m := zgrab2.MakeMonitor()
 	start := time.Now()
 	log.Infof("started grab at %s", start.Format(time.RFC3339))

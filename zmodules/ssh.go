@@ -55,7 +55,7 @@ func (s *SSHScanner) InitPerSender(senderID int) error {
 }
 
 func (s *SSHScanner) GetName() string {
-	return ""
+	return s.config.Name
 }
 func (s *SSHScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
 	return nil, nil

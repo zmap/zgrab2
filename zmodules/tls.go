@@ -56,7 +56,7 @@ func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
 }
 
 func (s *TLSScanner) GetName() string {
-	return ""
+	return s.config.Name
 }
 
 func (s *TLSScanner) InitPerSender(senderID int) error {

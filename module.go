@@ -66,7 +66,7 @@ func init() {
 func RegisterScan(name string, s Scanner) {
 	//add to list and map
 	if scanners[name] != nil {
-		log.Fatal("name already used")
+		log.Fatalf("name: %s already used", name)
 	}
 	orderedScanners = append(orderedScanners, name)
 	scanners[name] = &s

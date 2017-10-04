@@ -85,7 +85,7 @@ func (s *HTTPScanner) InitPerSender(senderID int) error {
 }
 
 func (s *HTTPScanner) GetName() string {
-	return ""
+	return s.config.Name
 }
 
 func (s *HTTPScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
