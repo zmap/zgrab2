@@ -1,11 +1,14 @@
 package zgrab2
 
-// Monitor
+// Monitor is a collection of states per scans and a channel to communicate
+// those scans to the monitor
 type Monitor struct {
 	states       map[string]*State
 	statusesChan chan moduleStatus
 }
 
+// State contains the respective number of successes and failures
+// for a given scan
 type State struct {
 	Successes uint `json:"successes"`
 	Failures  uint `json:"failures"`
@@ -19,14 +22,18 @@ type moduleStatus struct {
 type status uint
 
 const (
-	status_success status = iota
-	status_failure status = iota
+	statusSuccess status = iota
+	statusFailure status = iota
 )
 
+// GetStatuses returns a mapping from scanner names to the current number
+// of successes and failures for that scanner
 func (m *Monitor) GetStatuses() map[string]*State {
 	return m.states
 }
 
+// MakeMonitor returns a Monitor object that can be used to collect and send
+// the status of a running scan
 func MakeMonitor() *Monitor {
 	m := new(Monitor)
 	m.statusesChan = make(chan moduleStatus, config.Senders*4)
@@ -37,9 +44,9 @@ func MakeMonitor() *Monitor {
 				m.states[s.name] = new(State)
 			}
 			switch s.st {
-			case status_success:
+			case statusSuccess:
 				m.states[s.name].Successes++
-			case status_failure:
+			case statusFailure:
 				m.states[s.name].Failures++
 			default:
 				continue

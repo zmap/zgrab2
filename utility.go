@@ -15,6 +15,8 @@ func init() {
 	parser = flags.NewParser(&config, flags.Default)
 }
 
+// NewIniParser creates and returns a ini parser initialized
+// with the default parser
 func NewIniParser() *flags.IniParser {
 	return flags.NewIniParser(parser)
 }
@@ -32,7 +34,7 @@ func AddCommand(command string, shortDescription string, longDescription string,
 	return cmd, nil
 }
 
-// ParseFlags parses the commands given on the command line
+// ParseCommandLine parses the commands given on the command line
 // and validates the framework configuration (global options)
 // immediately after parsing
 func ParseCommandLine(flags []string) ([]string, string, ScanFlags, error) {
@@ -56,13 +58,12 @@ func ParseTarget(s string) (*net.IPNet, string, error) {
 		// just ip or domain
 		if ip := net.ParseIP(s); ip != nil {
 			return &net.IPNet{IP: ip}, "", nil
-		} else {
-			ips, err := net.LookupIP(s)
-			if err != nil {
-				return nil, "", err
-			}
-			return &net.IPNet{IP: ips[0]}, s, nil // only return first IP after a lookup
 		}
+		ips, err := net.LookupIP(s)
+		if err != nil {
+			return nil, "", err
+		}
+		return &net.IPNet{IP: ips[0]}, s, nil // only return first IP after a lookup
 	case i == -1:
 		// cidr block
 		_, ipnet, err := net.ParseCIDR(s)

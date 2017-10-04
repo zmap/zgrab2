@@ -11,17 +11,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Grab contains all scan responses for a single host
 type Grab struct {
 	IP     string                  `json:"ip,omitempty"`
 	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
 }
 
+// ScanTarget is the host that will be scanned
 type ScanTarget struct {
 	IP     net.IP
 	Domain string
 }
 
+// ScanResponse is the result of a scan on a single host
 type ScanResponse struct {
 	Result         interface{} `json:"result,omitempty"`
 	Time           string      `json:"time,omitempty"`
