@@ -1,4 +1,4 @@
-package zmodules
+package modules
 
 import (
 	log "github.com/sirupsen/logrus"

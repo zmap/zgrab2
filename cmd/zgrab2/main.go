@@ -8,7 +8,7 @@ import (
 	flags "github.com/ajholland/zflags"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	_ "github.com/zmap/zgrab2/zmodules"
+	_ "github.com/zmap/zgrab2/modules"
 )
 
 func main() {
@@ -53,14 +53,14 @@ func main() {
 		s.Init(flag)
 		zgrab2.RegisterScan(moduleType, s)
 	}
-	m := zgrab2.MakeMonitor()
+	monitor := zgrab2.MakeMonitor()
 	start := time.Now()
 	log.Infof("started grab at %s", start.Format(time.RFC3339))
-	zgrab2.Process(m)
+	zgrab2.Process(monitor)
 	end := time.Now()
 	log.Infof("finished grab at %s", end.Format(time.RFC3339))
 	s := Summary{
-		StatusesPerModule: m.GetStatuses(),
+		StatusesPerModule: monitor.GetStatuses(),
 		StartTime:         start.Format(time.RFC3339),
 		EndTime:           end.Format(time.RFC3339),
 		Duration:          end.Sub(start).String(),

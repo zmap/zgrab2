@@ -1,4 +1,4 @@
-Zgrab 2.0
+ZGrab 2.0
 =========
 
 This repo contains the new ZGrab framework, and will eventually replace https://github.com/zmap/zgrab.
@@ -22,7 +22,7 @@ $ make
 
 ## Single Module Usage 
 
-Zgrab2 supports modules. For example, to run the ssh module use
+ZGrab2 supports modules. For example, to run the ssh module use
 
 ```
 ./zgrab2 ssh
@@ -57,30 +57,19 @@ port=22
 
 ## Adding New Protocols 
 
-Add module to zmodules/ that satisfies the following interface:
-```
-type Protocol interface {
-    Scan(ip net.IP) (interface{}, error)
-    Validate(args []string) error
-    PerRoutineInitialize()
-    New() interface{}
-}
-```
+Add module to modules/ that satisfies the following interfaces: `Scanner`, `ScanModule`, `ScanFlags`.
 
-The struct must embed zgrab2.BaseProtocol. In the files `init()` function the following must be included. 
+The flags struct must embed zgrab2.BaseFlags. In the modules `init()` function the following must be included. 
 
 ```
 func init() {
-    var configStruct ConfigStruct
-    cmd, err := zgrab2.AddCommand("module", "short description", "long description of module", &configStruct)
+    var newModule NewModule
+    _, err := zgrab2.AddCommand("module", "short description", "long description of module", portNumber, &newModule)
     if err != nil {
         log.Fatal(err)
     }
-    configStruct.SetDefaultPortAndName(cmd, uint(00), "module")
 }
 ```
 
-The `Validate()` function should make a call to `zgrab2.RegisterLookup()`.
-
 ## License
-Zgrab is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.
+ZGrab2.0 is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.
