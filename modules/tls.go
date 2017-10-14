@@ -63,6 +63,6 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *TLSScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
+func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
 	return s, nil
 }
