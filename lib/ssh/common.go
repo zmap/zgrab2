@@ -225,6 +225,14 @@ type Config struct {
 
 	// A pointer to the handshake log IOT allow incremental building
 	ConnLog *HandshakeLog
+
+	// Whether or not the package should operate in verbose mode
+	// (save more output)
+	Verbose bool
+
+	GexMinBits       uint
+	GexMaxBits       uint
+	GexPreferredBits uint
 }
 
 // SetDefaults sets sensible values for unset fields in config. This is

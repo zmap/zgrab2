@@ -1,8 +1,13 @@
 package modules
 
 import (
+	"net"
+	"strconv"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/ssh"
 )
 
 type SSHFlags struct {
@@ -11,6 +16,11 @@ type SSHFlags struct {
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`
 	NegativeOne       bool   `long:"negative-one" description:"Set SSH DH kex value to -1 in the selected group"`
+	Ciphers           string `long:"ciphers" description:"A comma-separated list of which ciphers to offer."`
+	CollectUserAuth   bool   `long:"userauth" description:"Use the 'none' authentication request to see what userauth methods are allowed"`
+	GexMinBits        uint   `long:"gex-min-bits" description:"The minimum number of bits for the DH GEX prime." default:"1024"`
+	GexMaxBits        uint   `long:"gex-max-bits" description:"The maximum number of bits for the DH GEX prime." default:"8192"`
+	GexPreferredBits  uint   `long:"gex-preferred-bits" description:"The preferred number of bits for the DH GEX prime." default:"2048"`
 }
 
 type SSHModule struct {
@@ -57,6 +67,44 @@ func (s *SSHScanner) InitPerSender(senderID int) error {
 func (s *SSHScanner) GetName() string {
 	return s.config.Name
 }
-func (s *SSHScanner) Scan(t zgrab2.ScanTarget, port uint) (interface{}, error) {
-	return nil, nil
+
+func (s *SSHScanner) makeSSHGrabber(hlog *ssh.HandshakeLog) func(string) error {
+	return func(netAddr string) error {
+		sshConfig := ssh.MakeSSHConfig()
+		sshConfig.Timeout = time.Duration(s.config.Timeout) * time.Second
+		sshConfig.ConnLog = hlog
+		sshConfig.ClientVersion = s.ClientID
+		if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {
+			log.Fatal(err)
+		}
+		if err := sshConfig.SetKexAlgorithms(s.config.KexAlgorithms); err != nil {
+			log.Fatal(err)
+		}
+		if err := sshConfig.SetCiphers(s.config.Ciphers); err != nil {
+			log.Fatal(err)
+		}
+		sshConfig.Verbose = s.config.Verbose
+		sshConfig.DontAuthenticate = s.config.CollectUserAuth
+		sshConfig.GexMinBits = s.config.GexMinBits
+		sshConfig.GexMaxBits = s.config.GexMaxBits
+		sshConfig.GexPreferredBits = s.config.GexPreferredBits
+		_, err := ssh.Dial("tcp", netAddr, sshConfig)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
+	data := new(ssh.HandshakeLog)
+	sshGrabber := s.makeSSHGrabber(data)
+
+	//TODO: domain name?
+	port := strconv.FormatUint(uint64(s.config.Port), 10)
+	rhost := net.JoinHostPort(t.IP.String(), port)
+
+	err := sshGrabber(rhost)
+
+	return data, err
 }

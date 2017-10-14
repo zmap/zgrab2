@@ -145,11 +145,11 @@ func LogServerHostKey(sshRawKey []byte) *ServerHostKeyJsonLog {
 type kexAlgorithm interface {
 	// Server runs server-side key agreement, signing the result
 	// with a hostkey.
-	Server(p packetConn, rand io.Reader, magics *handshakeMagics, s Signer) (*kexResult, error)
+	Server(p packetConn, rand io.Reader, magics *handshakeMagics, s Signer, c *Config) (*kexResult, error)
 
 	// Client runs the client-side key agreement. Caller is
 	// responsible for verifying the host key signature.
-	Client(p packetConn, rand io.Reader, magics *handshakeMagics) (*kexResult, error)
+	Client(p packetConn, rand io.Reader, magics *handshakeMagics, c *Config) (*kexResult, error)
 
 	// Create a JSON object for the kexAlgorithm group
 	MarshalJSON() ([]byte, error)
@@ -276,7 +276,7 @@ func (group *dhGroup) Client(c packetConn, randSource io.Reader, magics *handsha
 	}, nil
 }
 
-func (group *dhGroup) Server(c packetConn, randSource io.Reader, magics *handshakeMagics, priv Signer) (result *kexResult, err error) {
+func (group *dhGroup) Server(c packetConn, randSource io.Reader, magics *handshakeMagics, priv Signer, config *Config) (result *kexResult, err error) {
 	hashFunc := crypto.SHA1
 	packet, err := c.readPacket()
 	if err != nil {
@@ -381,10 +381,10 @@ func (kex *ecdh) GetNew(keyType string) kexAlgorithm {
 	return ret
 }
 
-func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics) (*kexResult, error) {
+func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics, config *Config) (*kexResult, error) {
 	kex.JsonLog.Parameters = new(ztoolsKeys.ECDHParams)
 	kex.JsonLog.Parameters.ServerPublic = new(ztoolsKeys.ECPoint)
-	if pkgConfig.Verbose {
+	if config.Verbose {
 		kex.JsonLog.Parameters.ClientPublic = new(ztoolsKeys.ECPoint)
 		kex.JsonLog.Parameters.ClientPrivate = new(ztoolsKeys.ECDHPrivateParams)
 	}
@@ -394,7 +394,7 @@ func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics) (
 		return nil, err
 	}
 
-	if pkgConfig.Verbose {
+	if config.Verbose {
 		kex.JsonLog.Parameters.ClientPublic.X = ephKey.PublicKey.X
 		kex.JsonLog.Parameters.ClientPublic.Y = ephKey.PublicKey.Y
 		kex.JsonLog.Parameters.ClientPrivate.Value = ephKey.D.Bytes()
@@ -494,7 +494,7 @@ func validateECPublicKey(curve elliptic.Curve, x, y *big.Int) bool {
 	return true
 }
 
-func (kex *ecdh) Server(c packetConn, rand io.Reader, magics *handshakeMagics, priv Signer) (result *kexResult, err error) {
+func (kex *ecdh) Server(c packetConn, rand io.Reader, magics *handshakeMagics, priv Signer, config *Config) (result *kexResult, err error) {
 	packet, err := c.readPacket()
 	if err != nil {
 		return nil, err
@@ -639,13 +639,13 @@ func (kp *curve25519KeyPair) generate(rand io.Reader) error {
 // wrong order.
 var curve25519Zeros [32]byte
 
-func (kex *curve25519sha256) Client(c packetConn, rand io.Reader, magics *handshakeMagics) (*kexResult, error) {
+func (kex *curve25519sha256) Client(c packetConn, rand io.Reader, magics *handshakeMagics, config *Config) (*kexResult, error) {
 	var kp curve25519KeyPair
 	if err := kp.generate(rand); err != nil {
 		return nil, err
 	}
 
-	if pkgConfig.Verbose {
+	if config.Verbose {
 		kex.JsonLog.Parameters.ClientPublic = kp.pub[:]
 		kex.JsonLog.Parameters.ClientPrivate = kp.priv[:]
 	}
@@ -700,7 +700,7 @@ func (kex *curve25519sha256) Client(c packetConn, rand io.Reader, magics *handsh
 	}, nil
 }
 
-func (kex *curve25519sha256) Server(c packetConn, rand io.Reader, magics *handshakeMagics, priv Signer) (result *kexResult, err error) {
+func (kex *curve25519sha256) Server(c packetConn, rand io.Reader, magics *handshakeMagics, priv Signer, config *Config) (result *kexResult, err error) {
 	packet, err := c.readPacket()
 	if err != nil {
 		return

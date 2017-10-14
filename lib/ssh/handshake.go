@@ -343,7 +343,7 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 		return err
 	}
 
-	if pkgConfig.Verbose {
+	if t.config.Verbose {
 		if t.config.ConnLog != nil {
 			t.config.ConnLog.ClientKex = myInit
 		}
@@ -417,7 +417,7 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 	} else {
 		result, err = t.client(kex, algs, &magics)
 	}
-	if pkgConfig.Verbose {
+	if t.config.Verbose {
 		if t.config.ConnLog != nil {
 			t.config.ConnLog.Crypto = result
 		}
@@ -452,12 +452,12 @@ func (t *handshakeTransport) server(kex kexAlgorithm, algs *algorithms, magics *
 		}
 	}
 
-	r, err := kex.Server(t.conn, t.config.Rand, magics, hostKey)
+	r, err := kex.Server(t.conn, t.config.Rand, magics, hostKey, t.config)
 	return r, err
 }
 
 func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, error) {
-	result, err := kex.Client(t.conn, t.config.Rand, magics)
+	result, err := kex.Client(t.conn, t.config.Rand, magics, t.config)
 	if err != nil {
 		return nil, err
 	}
