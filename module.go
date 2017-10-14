@@ -13,7 +13,7 @@ type Scanner interface {
 	GetName() string
 
 	// Scan connects to a host. The result should be JSON-serializable
-	Scan(t ScanTarget, port uint) (interface{}, error)
+	Scan(t ScanTarget) (interface{}, error)
 }
 
 // ScanModule is an interface which represents a module that the framework can
