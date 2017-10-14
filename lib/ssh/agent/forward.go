@@ -10,13 +10,13 @@ import (
 	"net"
 	"sync"
 
-	"github.com/zmap/zgrab/ztools/xssh"
+	"github.com/zmap/zgrab2/lib/ssh"
 )
 
 // RequestAgentForwarding sets up agent forwarding for the session.
 // ForwardToAgent or ForwardToRemote should be called to route
 // the authentication requests.
-func RequestAgentForwarding(session *xssh.Session) error {
+func RequestAgentForwarding(session *ssh.Session) error {
 	ok, err := session.SendRequest("auth-agent-req@openssh.com", true, nil)
 	if err != nil {
 		return err
@@ -28,7 +28,7 @@ func RequestAgentForwarding(session *xssh.Session) error {
 }
 
 // ForwardToAgent routes authentication requests to the given keyring.
-func ForwardToAgent(client *xssh.Client, keyring Agent) error {
+func ForwardToAgent(client *ssh.Client, keyring Agent) error {
 	channels := client.HandleChannelOpen(channelType)
 	if channels == nil {
 		return errors.New("agent: already have handler for " + channelType)
@@ -40,7 +40,7 @@ func ForwardToAgent(client *xssh.Client, keyring Agent) error {
 			if err != nil {
 				continue
 			}
-			go xssh.DiscardRequests(reqs)
+			go ssh.DiscardRequests(reqs)
 			go func() {
 				ServeAgent(keyring, channel)
 				channel.Close()
@@ -54,7 +54,7 @@ const channelType = "auth-agent@openssh.com"
 
 // ForwardToRemote routes authentication requests to the ssh-agent
 // process serving on the given unix socket.
-func ForwardToRemote(client *xssh.Client, addr string) error {
+func ForwardToRemote(client *ssh.Client, addr string) error {
 	channels := client.HandleChannelOpen(channelType)
 	if channels == nil {
 		return errors.New("agent: already have handler for " + channelType)
@@ -71,14 +71,14 @@ func ForwardToRemote(client *xssh.Client, addr string) error {
 			if err != nil {
 				continue
 			}
-			go xssh.DiscardRequests(reqs)
+			go ssh.DiscardRequests(reqs)
 			go forwardUnixSocket(channel, addr)
 		}
 	}()
 	return nil
 }
 
-func forwardUnixSocket(channel xssh.Channel, addr string) {
+func forwardUnixSocket(channel ssh.Channel, addr string) {
 	conn, err := net.Dial("unix", addr)
 	if err != nil {
 		return

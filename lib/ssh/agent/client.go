@@ -9,7 +9,7 @@
 //
 // References:
 //  [PROTOCOL.agent]:    http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent?rev=HEAD
-package agent // import "github.com/zmap/zgrab/ztools/xssh/agent"
+package agent // import "github.com/zmap/zgrab2/lib/agent"
 
 import (
 	"bytes"
@@ -25,7 +25,7 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/zmap/zgrab/ztools/xssh"
+	"github.com/zmap/zgrab2/lib/ssh"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -36,13 +36,13 @@ type Agent interface {
 
 	// Sign has the agent sign the data using a protocol 2 key as defined
 	// in [PROTOCOL.agent] section 2.6.2.
-	Sign(key xssh.PublicKey, data []byte) (*xssh.Signature, error)
+	Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error)
 
 	// Add adds a private key to the agent.
 	Add(key AddedKey) error
 
 	// Remove removes all identities with the given public key.
-	Remove(key xssh.PublicKey) error
+	Remove(key ssh.PublicKey) error
 
 	// RemoveAll removes all identities.
 	RemoveAll() error
@@ -54,7 +54,7 @@ type Agent interface {
 	Unlock(passphrase []byte) error
 
 	// Signers returns signers for all the known keys.
-	Signers() ([]xssh.Signer, error)
+	Signers() ([]ssh.Signer, error)
 }
 
 // AddedKey describes an SSH key to be added to an Agent.
@@ -64,7 +64,7 @@ type AddedKey struct {
 	PrivateKey interface{}
 	// Certificate, if not nil, is communicated to the agent and will be
 	// stored with the key.
-	Certificate *xssh.Certificate
+	Certificate *ssh.Certificate
 	// Comment is an optional, free-form string.
 	Comment string
 	// LifetimeSecs, if not zero, is the number of seconds that the
@@ -103,7 +103,7 @@ const (
 const maxAgentResponseBytes = 16 << 20
 
 // Agent messages:
-// These structures mirror the wire format of the corresponding xssh agent
+// These structures mirror the wire format of the corresponding ssh agent
 // messages found in [PROTOCOL.agent].
 
 // 3.4 Generic replies from agent to client
@@ -190,8 +190,8 @@ func (k *Key) Marshal() []byte {
 }
 
 // Verify satisfies the ssh.PublicKey interface.
-func (k *Key) Verify(data []byte, sig *xssh.Signature) error {
-	pubKey, err := xssh.ParsePublicKey(k.Blob)
+func (k *Key) Verify(data []byte, sig *ssh.Signature) error {
+	pubKey, err := ssh.ParsePublicKey(k.Blob)
 	if err != nil {
 		return fmt.Errorf("agent: bad public key: %v", err)
 	}
@@ -210,12 +210,12 @@ func parseKey(in []byte) (out *Key, rest []byte, err error) {
 		Rest    []byte `ssh:"rest"`
 	}
 
-	if err := xssh.Unmarshal(in, &record); err != nil {
+	if err := ssh.Unmarshal(in, &record); err != nil {
 		return nil, nil, err
 	}
 
 	var wk wireKey
-	if err := xssh.Unmarshal(record.Blob, &wk); err != nil {
+	if err := ssh.Unmarshal(record.Blob, &wk); err != nil {
 		return nil, nil, err
 	}
 
@@ -289,22 +289,22 @@ func (c *client) RemoveAll() error {
 	return c.simpleCall([]byte{agentRemoveAllIdentities})
 }
 
-func (c *client) Remove(key xssh.PublicKey) error {
-	req := xssh.Marshal(&agentRemoveIdentityMsg{
+func (c *client) Remove(key ssh.PublicKey) error {
+	req := ssh.Marshal(&agentRemoveIdentityMsg{
 		KeyBlob: key.Marshal(),
 	})
 	return c.simpleCall(req)
 }
 
 func (c *client) Lock(passphrase []byte) error {
-	req := xssh.Marshal(&agentLockMsg{
+	req := ssh.Marshal(&agentLockMsg{
 		Passphrase: passphrase,
 	})
 	return c.simpleCall(req)
 }
 
 func (c *client) Unlock(passphrase []byte) error {
-	req := xssh.Marshal(&agentUnlockMsg{
+	req := ssh.Marshal(&agentUnlockMsg{
 		Passphrase: passphrase,
 	})
 	return c.simpleCall(req)
@@ -344,8 +344,8 @@ func (c *client) List() ([]*Key, error) {
 
 // Sign has the agent sign the data using a protocol 2 key as defined
 // in [PROTOCOL.agent] section 2.6.2.
-func (c *client) Sign(key xssh.PublicKey, data []byte) (*xssh.Signature, error) {
-	req := xssh.Marshal(signRequestAgentMsg{
+func (c *client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
+	req := ssh.Marshal(signRequestAgentMsg{
 		KeyBlob: key.Marshal(),
 		Data:    data,
 	})
@@ -357,8 +357,8 @@ func (c *client) Sign(key xssh.PublicKey, data []byte) (*xssh.Signature, error) 
 
 	switch msg := msg.(type) {
 	case *signResponseAgentMsg:
-		var sig xssh.Signature
-		if err := xssh.Unmarshal(msg.SigBlob, &sig); err != nil {
+		var sig ssh.Signature
+		if err := ssh.Unmarshal(msg.SigBlob, &sig); err != nil {
 			return nil, err
 		}
 
@@ -390,7 +390,7 @@ func unmarshal(packet []byte) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("agent: unknown type tag %d", packet[0])
 	}
-	if err := xssh.Unmarshal(packet, msg); err != nil {
+	if err := ssh.Unmarshal(packet, msg); err != nil {
 		return nil, err
 	}
 	return msg, nil
@@ -445,8 +445,8 @@ func (c *client) insertKey(s interface{}, comment string, constraints []byte) er
 			return fmt.Errorf("agent: unsupported RSA key with %d primes", len(k.Primes))
 		}
 		k.Precompute()
-		req = xssh.Marshal(rsaKeyMsg{
-			Type:        xssh.KeyAlgoRSA,
+		req = ssh.Marshal(rsaKeyMsg{
+			Type:        ssh.KeyAlgoRSA,
 			N:           k.N,
 			E:           big.NewInt(int64(k.E)),
 			D:           k.D,
@@ -457,8 +457,8 @@ func (c *client) insertKey(s interface{}, comment string, constraints []byte) er
 			Constraints: constraints,
 		})
 	case *dsa.PrivateKey:
-		req = xssh.Marshal(dsaKeyMsg{
-			Type:        xssh.KeyAlgoDSA,
+		req = ssh.Marshal(dsaKeyMsg{
+			Type:        ssh.KeyAlgoDSA,
 			P:           k.P,
 			Q:           k.Q,
 			G:           k.G,
@@ -469,7 +469,7 @@ func (c *client) insertKey(s interface{}, comment string, constraints []byte) er
 		})
 	case *ecdsa.PrivateKey:
 		nistID := fmt.Sprintf("nistp%d", k.Params().BitSize)
-		req = xssh.Marshal(ecdsaKeyMsg{
+		req = ssh.Marshal(ecdsaKeyMsg{
 			Type:        "ecdsa-sha2-" + nistID,
 			Curve:       nistID,
 			KeyBytes:    elliptic.Marshal(k.Curve, k.X, k.Y),
@@ -478,8 +478,8 @@ func (c *client) insertKey(s interface{}, comment string, constraints []byte) er
 			Constraints: constraints,
 		})
 	case *ed25519.PrivateKey:
-		req = xssh.Marshal(ed25519KeyMsg{
-			Type:        xssh.KeyAlgoED25519,
+		req = ssh.Marshal(ed25519KeyMsg{
+			Type:        ssh.KeyAlgoED25519,
 			Pub:         []byte(*k)[32:],
 			Priv:        []byte(*k),
 			Comments:    comment,
@@ -564,7 +564,7 @@ func (c *client) Add(key AddedKey) error {
 	}
 }
 
-func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment string, constraints []byte) error {
+func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:
@@ -572,7 +572,7 @@ func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment strin
 			return fmt.Errorf("agent: unsupported RSA key with %d primes", len(k.Primes))
 		}
 		k.Precompute()
-		req = xssh.Marshal(rsaCertMsg{
+		req = ssh.Marshal(rsaCertMsg{
 			Type:        cert.Type(),
 			CertBytes:   cert.Marshal(),
 			D:           k.D,
@@ -583,7 +583,7 @@ func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment strin
 			Constraints: constraints,
 		})
 	case *dsa.PrivateKey:
-		req = xssh.Marshal(dsaCertMsg{
+		req = ssh.Marshal(dsaCertMsg{
 			Type:        cert.Type(),
 			CertBytes:   cert.Marshal(),
 			X:           k.X,
@@ -591,7 +591,7 @@ func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment strin
 			Constraints: constraints,
 		})
 	case *ecdsa.PrivateKey:
-		req = xssh.Marshal(ecdsaCertMsg{
+		req = ssh.Marshal(ecdsaCertMsg{
 			Type:        cert.Type(),
 			CertBytes:   cert.Marshal(),
 			D:           k.D,
@@ -599,7 +599,7 @@ func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment strin
 			Constraints: constraints,
 		})
 	case *ed25519.PrivateKey:
-		req = xssh.Marshal(ed25519CertMsg{
+		req = ssh.Marshal(ed25519CertMsg{
 			Type:        cert.Type(),
 			CertBytes:   cert.Marshal(),
 			Pub:         []byte(*k)[32:],
@@ -616,7 +616,7 @@ func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment strin
 		req[0] = agentAddIdConstrained
 	}
 
-	signer, err := xssh.NewSignerFromKey(s)
+	signer, err := ssh.NewSignerFromKey(s)
 	if err != nil {
 		return err
 	}
@@ -635,13 +635,13 @@ func (c *client) insertCert(s interface{}, cert *xssh.Certificate, comment strin
 }
 
 // Signers provides a callback for client authentication.
-func (c *client) Signers() ([]xssh.Signer, error) {
+func (c *client) Signers() ([]ssh.Signer, error) {
 	keys, err := c.List()
 	if err != nil {
 		return nil, err
 	}
 
-	var result []xssh.Signer
+	var result []ssh.Signer
 	for _, k := range keys {
 		result = append(result, &agentKeyringSigner{c, k})
 	}
@@ -650,14 +650,14 @@ func (c *client) Signers() ([]xssh.Signer, error) {
 
 type agentKeyringSigner struct {
 	agent *client
-	pub   xssh.PublicKey
+	pub   ssh.PublicKey
 }
 
-func (s *agentKeyringSigner) PublicKey() xssh.PublicKey {
+func (s *agentKeyringSigner) PublicKey() ssh.PublicKey {
 	return s.pub
 }
 
-func (s *agentKeyringSigner) Sign(rand io.Reader, data []byte) (*xssh.Signature, error) {
+func (s *agentKeyringSigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
 	// The agent has its own entropy source, so the rand argument is ignored.
 	return s.agent.Sign(s.pub, data)
 }

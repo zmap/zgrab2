@@ -10,7 +10,7 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/zmap/zgrab/ztools/xssh"
+	"github.com/zmap/zgrab/ztools/ssh"
 )
 
 func DISABLED_TestCertLogin(t *testing.T) {
@@ -20,25 +20,25 @@ func DISABLED_TestCertLogin(t *testing.T) {
 	// Use a key different from the default.
 	clientKey := testSigners["dsa"]
 	caAuthKey := testSigners["ecdsa"]
-	cert := &xssh.Certificate{
+	cert := &ssh.Certificate{
 		Key:             clientKey.PublicKey(),
 		ValidPrincipals: []string{username()},
-		CertType:        xssh.UserCert,
-		ValidBefore:     xssh.CertTimeInfinity,
+		CertType:        ssh.UserCert,
+		ValidBefore:     ssh.CertTimeInfinity,
 	}
 	if err := cert.SignCert(rand.Reader, caAuthKey); err != nil {
 		t.Fatalf("SetSignature: %v", err)
 	}
 
-	certSigner, err := xssh.NewCertSigner(cert, clientKey)
+	certSigner, err := ssh.NewCertSigner(cert, clientKey)
 	if err != nil {
 		t.Fatalf("NewCertSigner: %v", err)
 	}
 
-	conf := &xssh.ClientConfig{
+	conf := &ssh.ClientConfig{
 		User: username(),
 	}
-	conf.Auth = append(conf.Auth, xssh.PublicKeys(certSigner))
+	conf.Auth = append(conf.Auth, ssh.PublicKeys(certSigner))
 	client, err := s.TryDial(conf)
 	if err != nil {
 		t.Fatalf("TryDial: %v", err)

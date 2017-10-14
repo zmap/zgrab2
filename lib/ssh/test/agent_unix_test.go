@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/zmap/zgrab/ztools/xssh"
-	"github.com/zmap/zgrab/ztools/xssh/agent"
+	"github.com/zmap/zgrab/ztools/ssh"
+	"github.com/zmap/zgrab/ztools/ssh/agent"
 )
 
 func DISABLED_TestAgentForward(t *testing.T) {
@@ -48,12 +48,12 @@ func DISABLED_TestAgentForward(t *testing.T) {
 	if err != nil {
 		t.Fatalf("running ssh-add: %v, out %s", err, out)
 	}
-	key, _, _, _, err := xssh.ParseAuthorizedKey(out)
+	key, _, _, _, err := ssh.ParseAuthorizedKey(out)
 	if err != nil {
 		t.Fatalf("ParseAuthorizedKey(%q): %v", out, err)
 	}
 
 	if !bytes.Equal(key.Marshal(), pub.Marshal()) {
-		t.Fatalf("got key %s, want %s", xssh.MarshalAuthorizedKey(key), xssh.MarshalAuthorizedKey(pub))
+		t.Fatalf("got key %s, want %s", ssh.MarshalAuthorizedKey(key), ssh.MarshalAuthorizedKey(pub))
 	}
 }

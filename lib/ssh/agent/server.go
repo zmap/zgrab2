@@ -16,7 +16,7 @@ import (
 	"log"
 	"math/big"
 
-	"github.com/zmap/zgrab/ztools/xssh"
+	"github.com/zmap/zgrab2/lib/ssh"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -40,7 +40,7 @@ func (s *server) processRequestBytes(reqData []byte) []byte {
 		return []byte{agentSuccess}
 	}
 
-	return xssh.Marshal(rep)
+	return ssh.Marshal(rep)
 }
 
 func marshalKey(k *Key) []byte {
@@ -51,7 +51,7 @@ func marshalKey(k *Key) []byte {
 	record.Blob = k.Marshal()
 	record.Comment = k.Comment
 
-	return xssh.Marshal(&record)
+	return ssh.Marshal(&record)
 }
 
 // See [PROTOCOL.agent], section 2.5.1.
@@ -83,12 +83,12 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 
 	case agentRemoveIdentity:
 		var req agentRemoveIdentityMsg
-		if err := xssh.Unmarshal(data, &req); err != nil {
+		if err := ssh.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
 
 		var wk wireKey
-		if err := xssh.Unmarshal(req.KeyBlob, &wk); err != nil {
+		if err := ssh.Unmarshal(req.KeyBlob, &wk); err != nil {
 			return nil, err
 		}
 
@@ -99,7 +99,7 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 
 	case agentLock:
 		var req agentLockMsg
-		if err := xssh.Unmarshal(data, &req); err != nil {
+		if err := ssh.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
 
@@ -107,19 +107,19 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 
 	case agentUnlock:
 		var req agentLockMsg
-		if err := xssh.Unmarshal(data, &req); err != nil {
+		if err := ssh.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
 		return nil, s.agent.Unlock(req.Passphrase)
 
 	case agentSignRequest:
 		var req signRequestAgentMsg
-		if err := xssh.Unmarshal(data, &req); err != nil {
+		if err := ssh.Unmarshal(data, &req); err != nil {
 			return nil, err
 		}
 
 		var wk wireKey
-		if err := xssh.Unmarshal(req.KeyBlob, &wk); err != nil {
+		if err := ssh.Unmarshal(req.KeyBlob, &wk); err != nil {
 			return nil, err
 		}
 
@@ -132,7 +132,7 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &signResponseAgentMsg{SigBlob: xssh.Marshal(sig)}, nil
+		return &signResponseAgentMsg{SigBlob: ssh.Marshal(sig)}, nil
 
 	case agentRequestIdentities:
 		keys, err := s.agent.List()
@@ -157,7 +157,7 @@ func (s *server) processRequest(data []byte) (interface{}, error) {
 
 func parseRSAKey(req []byte) (*AddedKey, error) {
 	var k rsaKeyMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 	if k.E.BitLen() > 30 {
@@ -178,7 +178,7 @@ func parseRSAKey(req []byte) (*AddedKey, error) {
 
 func parseEd25519Key(req []byte) (*AddedKey, error) {
 	var k ed25519KeyMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 	priv := ed25519.PrivateKey(k.Priv)
@@ -187,7 +187,7 @@ func parseEd25519Key(req []byte) (*AddedKey, error) {
 
 func parseDSAKey(req []byte) (*AddedKey, error) {
 	var k dsaKeyMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 	priv := &dsa.PrivateKey{
@@ -231,15 +231,15 @@ func unmarshalECDSA(curveName string, keyBytes []byte, privScalar *big.Int) (pri
 
 func parseEd25519Cert(req []byte) (*AddedKey, error) {
 	var k ed25519CertMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
-	pubKey, err := xssh.ParsePublicKey(k.CertBytes)
+	pubKey, err := ssh.ParsePublicKey(k.CertBytes)
 	if err != nil {
 		return nil, err
 	}
 	priv := ed25519.PrivateKey(k.Priv)
-	cert, ok := pubKey.(*xssh.Certificate)
+	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
 		return nil, errors.New("agent: bad ED25519 certificate")
 	}
@@ -248,7 +248,7 @@ func parseEd25519Cert(req []byte) (*AddedKey, error) {
 
 func parseECDSAKey(req []byte) (*AddedKey, error) {
 	var k ecdsaKeyMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 
@@ -262,16 +262,16 @@ func parseECDSAKey(req []byte) (*AddedKey, error) {
 
 func parseRSACert(req []byte) (*AddedKey, error) {
 	var k rsaCertMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 
-	pubKey, err := xssh.ParsePublicKey(k.CertBytes)
+	pubKey, err := ssh.ParsePublicKey(k.CertBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	cert, ok := pubKey.(*xssh.Certificate)
+	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
 		return nil, errors.New("agent: bad RSA certificate")
 	}
@@ -282,7 +282,7 @@ func parseRSACert(req []byte) (*AddedKey, error) {
 		E    *big.Int
 		N    *big.Int
 	}
-	if err := xssh.Unmarshal(cert.Key.Marshal(), &rsaPub); err != nil {
+	if err := ssh.Unmarshal(cert.Key.Marshal(), &rsaPub); err != nil {
 		return nil, fmt.Errorf("agent: Unmarshal failed to parse public key: %v", err)
 	}
 
@@ -305,14 +305,14 @@ func parseRSACert(req []byte) (*AddedKey, error) {
 
 func parseDSACert(req []byte) (*AddedKey, error) {
 	var k dsaCertMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
-	pubKey, err := xssh.ParsePublicKey(k.CertBytes)
+	pubKey, err := ssh.ParsePublicKey(k.CertBytes)
 	if err != nil {
 		return nil, err
 	}
-	cert, ok := pubKey.(*xssh.Certificate)
+	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
 		return nil, errors.New("agent: bad DSA certificate")
 	}
@@ -322,7 +322,7 @@ func parseDSACert(req []byte) (*AddedKey, error) {
 		Name       string
 		P, Q, G, Y *big.Int
 	}
-	if err := xssh.Unmarshal(cert.Key.Marshal(), &w); err != nil {
+	if err := ssh.Unmarshal(cert.Key.Marshal(), &w); err != nil {
 		return nil, fmt.Errorf("agent: Unmarshal failed to parse public key: %v", err)
 	}
 
@@ -343,15 +343,15 @@ func parseDSACert(req []byte) (*AddedKey, error) {
 
 func parseECDSACert(req []byte) (*AddedKey, error) {
 	var k ecdsaCertMsg
-	if err := xssh.Unmarshal(req, &k); err != nil {
+	if err := ssh.Unmarshal(req, &k); err != nil {
 		return nil, err
 	}
 
-	pubKey, err := xssh.ParsePublicKey(k.CertBytes)
+	pubKey, err := ssh.ParsePublicKey(k.CertBytes)
 	if err != nil {
 		return nil, err
 	}
-	cert, ok := pubKey.(*xssh.Certificate)
+	cert, ok := pubKey.(*ssh.Certificate)
 	if !ok {
 		return nil, errors.New("agent: bad ECDSA certificate")
 	}
@@ -362,7 +362,7 @@ func parseECDSACert(req []byte) (*AddedKey, error) {
 		ID   string
 		Key  []byte
 	}
-	if err := xssh.Unmarshal(cert.Key.Marshal(), &ecdsaPub); err != nil {
+	if err := ssh.Unmarshal(cert.Key.Marshal(), &ecdsaPub); err != nil {
 		return nil, err
 	}
 
@@ -380,7 +380,7 @@ func (s *server) insertIdentity(req []byte) error {
 		Rest []byte `ssh:"rest"`
 	}
 
-	if err := xssh.Unmarshal(req, &record); err != nil {
+	if err := ssh.Unmarshal(req, &record); err != nil {
 		return err
 	}
 
@@ -388,21 +388,21 @@ func (s *server) insertIdentity(req []byte) error {
 	var err error
 
 	switch record.Type {
-	case xssh.KeyAlgoRSA:
+	case ssh.KeyAlgoRSA:
 		addedKey, err = parseRSAKey(req)
-	case xssh.KeyAlgoDSA:
+	case ssh.KeyAlgoDSA:
 		addedKey, err = parseDSAKey(req)
-	case xssh.KeyAlgoECDSA256, xssh.KeyAlgoECDSA384, xssh.KeyAlgoECDSA521:
+	case ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521:
 		addedKey, err = parseECDSAKey(req)
-	case xssh.KeyAlgoED25519:
+	case ssh.KeyAlgoED25519:
 		addedKey, err = parseEd25519Key(req)
-	case xssh.CertAlgoRSAv01:
+	case ssh.CertAlgoRSAv01:
 		addedKey, err = parseRSACert(req)
-	case xssh.CertAlgoDSAv01:
+	case ssh.CertAlgoDSAv01:
 		addedKey, err = parseDSACert(req)
-	case xssh.CertAlgoECDSA256v01, xssh.CertAlgoECDSA384v01, xssh.CertAlgoECDSA521v01:
+	case ssh.CertAlgoECDSA256v01, ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01:
 		addedKey, err = parseECDSACert(req)
-	case xssh.CertAlgoED25519v01:
+	case ssh.CertAlgoED25519v01:
 		addedKey, err = parseEd25519Cert(req)
 	default:
 		return fmt.Errorf("agent: not implemented: %q", record.Type)

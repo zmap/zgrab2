@@ -3,6 +3,6 @@
 // license that can be found in the LICENSE file.
 
 // This package contains test data shared between the various subpackages of
-// the github.com/zmap/zgrab/ztools/xssh package. Under no circumstance should
+// the github.com/zmap/zgrab2/lib package. Under no circumstance should
 // this data be used for production code.
-package testdata // import "github.com/zmap/zgrab/ztools/xssh/testdata"
+package testdata // import "github.com/zmap/zgrab2/lib/testdata"

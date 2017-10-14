@@ -1,4 +1,4 @@
-package xssh
+package ssh
 
 import (
 	"crypto"

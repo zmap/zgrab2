@@ -21,8 +21,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/zmap/zgrab/ztools/xssh"
-	"github.com/zmap/zgrab/ztools/xssh/testdata"
+	"github.com/zmap/zgrab/ztools/ssh"
+	"github.com/zmap/zgrab/ztools/ssh/testdata"
 )
 
 const sshd_config = `
@@ -87,14 +87,14 @@ type storedHostKey struct {
 	checkCount int
 }
 
-func (k *storedHostKey) Add(key xssh.PublicKey) {
+func (k *storedHostKey) Add(key ssh.PublicKey) {
 	if k.keys == nil {
 		k.keys = map[string][]byte{}
 	}
 	k.keys[key.Type()] = key.Marshal()
 }
 
-func (k *storedHostKey) Check(addr string, remote net.Addr, key xssh.PublicKey) error {
+func (k *storedHostKey) Check(addr string, remote net.Addr, key ssh.PublicKey) error {
 	k.checkCount++
 	algo := key.Type()
 
@@ -112,11 +112,11 @@ func hostKeyDB() *storedHostKey {
 	return keyChecker
 }
 
-func clientConfig() *xssh.ClientConfig {
-	config := &xssh.ClientConfig{
+func clientConfig() *ssh.ClientConfig {
+	config := &ssh.ClientConfig{
 		User: username(),
-		Auth: []xssh.AuthMethod{
-			xssh.PublicKeys(testSigners["user"]),
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(testSigners["user"]),
 		},
 		HostKeyCallback: hostKeyDB().Check,
 	}
@@ -153,7 +153,7 @@ func unixConnection() (*net.UnixConn, *net.UnixConn, error) {
 	return c1.(*net.UnixConn), c2.(*net.UnixConn), nil
 }
 
-func (s *server) TryDial(config *xssh.ClientConfig) (*xssh.Client, error) {
+func (s *server) TryDial(config *ssh.ClientConfig) (*ssh.Client, error) {
 	sshd, err := exec.LookPath("sshd")
 	if err != nil {
 		s.t.Skipf("skipping test: %v", err)
@@ -179,19 +179,19 @@ func (s *server) TryDial(config *xssh.ClientConfig) (*xssh.Client, error) {
 		s.t.Fatalf("s.cmd.Start: %v", err)
 	}
 	s.clientConn = c1
-	conn, chans, reqs, err := xssh.NewClientConn(c1, "", config)
+	conn, chans, reqs, err := ssh.NewClientConn(c1, "", config)
 	if err != nil {
 		return nil, err
 	}
-	return xssh.NewClient(conn, chans, reqs), nil
+	return ssh.NewClient(conn, chans, reqs), nil
 }
 
-func (s *server) Dial(config *xssh.ClientConfig) *xssh.Client {
+func (s *server) Dial(config *ssh.ClientConfig) *ssh.Client {
 	conn, err := s.TryDial(config)
 	if err != nil {
 		s.t.Fail()
 		s.Shutdown()
-		s.t.Fatalf("xssh.Client: %v", err)
+		s.t.Fatalf("ssh.Client: %v", err)
 	}
 	return conn
 }
@@ -247,12 +247,12 @@ func newServer(t *testing.T) *server {
 	for k, v := range testdata.PEMBytes {
 		filename := "id_" + k
 		writeFile(filepath.Join(dir, filename), v)
-		writeFile(filepath.Join(dir, filename+".pub"), xssh.MarshalAuthorizedKey(testPublicKeys[k]))
+		writeFile(filepath.Join(dir, filename+".pub"), ssh.MarshalAuthorizedKey(testPublicKeys[k]))
 	}
 
 	var authkeys bytes.Buffer
 	for k := range testdata.PEMBytes {
-		authkeys.Write(xssh.MarshalAuthorizedKey(testPublicKeys[k]))
+		authkeys.Write(ssh.MarshalAuthorizedKey(testPublicKeys[k]))
 	}
 	writeFile(filepath.Join(dir, "authorized_keys"), authkeys.Bytes())
 

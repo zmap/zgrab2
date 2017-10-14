@@ -9,8 +9,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/zmap/zgrab/ztools/xssh"
-	"github.com/zmap/zgrab/ztools/xssh/agent"
+	"github.com/zmap/zgrab2/lib/agent"
+	"github.com/zmap/zgrab2/lib/ssh"
 )
 
 func ExampleClientAgent() {
@@ -21,17 +21,17 @@ func ExampleClientAgent() {
 		log.Fatalf("net.Dial: %v", err)
 	}
 	agentClient := agent.NewClient(conn)
-	config := &xssh.ClientConfig{
+	config := &ssh.ClientConfig{
 		User: "username",
-		Auth: []xssh.AuthMethod{
+		Auth: []ssh.AuthMethod{
 			// Use a callback rather than PublicKeys
 			// so we only consult the agent once the remote server
 			// wants it.
-			xssh.PublicKeysCallback(agentClient.Signers),
+			ssh.PublicKeysCallback(agentClient.Signers),
 		},
 	}
 
-	sshc, err := xssh.Dial("tcp", "localhost:22", config)
+	sshc, err := ssh.Dial("tcp", "localhost:22", config)
 	if err != nil {
 		log.Fatalf("Dial: %v", err)
 	}

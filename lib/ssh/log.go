@@ -12,7 +12,7 @@
  * permissions and limitations under the License.
  */
 
-package xssh
+package ssh
 
 // HandshakeLog contains detailed information about each step of the
 // SSH handshake, and can be encoded to JSON.

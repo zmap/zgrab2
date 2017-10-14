@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package xssh
+package ssh
 
 // Session tests.
 
@@ -16,7 +16,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/zmap/zgrab/ztools/xssh/terminal"
+	"github.com/zmap/zgrab2/lib/terminal"
 )
 
 type serverType func(Channel, <-chan *Request, *testing.T)

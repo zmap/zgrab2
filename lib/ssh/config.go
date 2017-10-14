@@ -1,4 +1,4 @@
-package xssh
+package ssh
 
 func MakeXSSHConfig() *ClientConfig {
 	ret := new(ClientConfig)

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package xssh
+package ssh
 
 import (
 	"errors"
@@ -116,7 +116,7 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 			}
 		}
 	}
-	if pkgConfig.Verbose {
+	if config.Verbose {
 		if config.ConnLog != nil {
 			//config.ConnLog.ClientIDString = string(c.clientVersion)
 		}

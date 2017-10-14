@@ -6,13 +6,13 @@
 // ssh/, ssh/agent, and ssh/test/. It should be kept in sync across all three
 // instances.
 
-package xssh
+package ssh
 
 import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/zmap/zgrab/ztools/xssh/testdata"
+	"github.com/zmap/zgrab2/lib/testdata"
 )
 
 var (

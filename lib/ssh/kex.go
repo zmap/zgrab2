@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package xssh
+package ssh
 
 import (
 	"crypto"
@@ -205,7 +205,7 @@ func (group *dhGroup) diffieHellman(theirPublic, myPrivate *big.Int) (*big.Int, 
 	return new(big.Int).Exp(theirPublic, myPrivate, group.p), nil
 }
 
-func (group *dhGroup) Client(c packetConn, randSource io.Reader, magics *handshakeMagics) (*kexResult, error) {
+func (group *dhGroup) Client(c packetConn, randSource io.Reader, magics *handshakeMagics, config *Config) (*kexResult, error) {
 	group.JsonLog.Parameters = new(ztoolsKeys.DHParams)
 	hashFunc := crypto.SHA1
 
@@ -220,13 +220,13 @@ func (group *dhGroup) Client(c packetConn, randSource io.Reader, magics *handsha
 		}
 	}
 
-	if pkgConfig.Verbose {
+	if config.Verbose {
 		group.JsonLog.Parameters.ClientPrivate = x
 	}
 
 	X := new(big.Int).Exp(group.g, x, group.p)
 
-	if pkgConfig.Verbose {
+	if config.Verbose {
 		group.JsonLog.Parameters.ClientPublic = X
 	}
 

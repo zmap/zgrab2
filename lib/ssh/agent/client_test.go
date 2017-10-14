@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zmap/zgrab/ztools/xssh"
+	"github.com/zmap/zgrab2/lib/ssh"
 )
 
 // startAgent executes ssh-agent, and returns a Agent interface to it.
@@ -79,20 +79,20 @@ func startAgent(t *testing.T) (client Agent, socket string, cleanup func()) {
 	}
 }
 
-func testAgent(t *testing.T, key interface{}, cert *xssh.Certificate, lifetimeSecs uint32) {
+func testAgent(t *testing.T, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
 	agent, _, cleanup := startAgent(t)
 	defer cleanup()
 
 	testAgentInterface(t, agent, key, cert, lifetimeSecs)
 }
 
-func testKeyring(t *testing.T, key interface{}, cert *xssh.Certificate, lifetimeSecs uint32) {
+func testKeyring(t *testing.T, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
 	a := NewKeyring()
 	testAgentInterface(t, a, key, cert, lifetimeSecs)
 }
 
-func testAgentInterface(t *testing.T, agent Agent, key interface{}, cert *xssh.Certificate, lifetimeSecs uint32) {
-	signer, err := xssh.NewSignerFromKey(key)
+func testAgentInterface(t *testing.T, agent Agent, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
+	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
 		t.Fatalf("NewSignerFromKey(%T): %v", key, err)
 	}
@@ -104,7 +104,7 @@ func testAgentInterface(t *testing.T, agent Agent, key interface{}, cert *xssh.C
 	}
 
 	// Attempt to insert the key, with certificate if specified.
-	var pubKey xssh.PublicKey
+	var pubKey ssh.PublicKey
 	if cert != nil {
 		err = agent.Add(AddedKey{
 			PrivateKey:   key,
@@ -165,10 +165,10 @@ func DISABLED_TestAgent(t *testing.T) {
 }
 
 func TestCert(t *testing.T) {
-	cert := &xssh.Certificate{
+	cert := &ssh.Certificate{
 		Key:         testPublicKeys["rsa"],
-		ValidBefore: xssh.CertTimeInfinity,
-		CertType:    xssh.UserCert,
+		ValidBefore: ssh.CertTimeInfinity,
+		CertType:    ssh.UserCert,
 	}
 	cert.SignCert(rand.Reader, testSigners["ecdsa"])
 
@@ -215,9 +215,9 @@ func TestAuth(t *testing.T) {
 		t.Errorf("Add: %v", err)
 	}
 
-	serverConf := xssh.ServerConfig{}
+	serverConf := ssh.ServerConfig{}
 	serverConf.AddHostKey(testSigners["rsa"])
-	serverConf.PublicKeyCallback = func(c xssh.ConnMetadata, key xssh.PublicKey) (*xssh.Permissions, error) {
+	serverConf.PublicKeyCallback = func(c ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 		if bytes.Equal(key.Marshal(), testPublicKeys["rsa"].Marshal()) {
 			return nil, nil
 		}
@@ -226,16 +226,16 @@ func TestAuth(t *testing.T) {
 	}
 
 	go func() {
-		conn, _, _, err := xssh.NewServerConn(a, &serverConf)
+		conn, _, _, err := ssh.NewServerConn(a, &serverConf)
 		if err != nil {
 			t.Fatalf("Server: %v", err)
 		}
 		conn.Close()
 	}()
 
-	conf := xssh.ClientConfig{}
-	conf.Auth = append(conf.Auth, xssh.PublicKeysCallback(agent.Signers))
-	conn, _, _, err := xssh.NewClientConn(b, "", &conf)
+	conf := ssh.ClientConfig{}
+	conf.Auth = append(conf.Auth, ssh.PublicKeysCallback(agent.Signers))
+	conn, _, _, err := ssh.NewClientConn(b, "", &conf)
 	if err != nil {
 		t.Fatalf("NewClientConn: %v", err)
 	}
@@ -272,7 +272,7 @@ func testLockAgent(agent Agent, t *testing.T) {
 		t.Errorf("Want 0 keys, got %v", keys)
 	}
 
-	signer, _ := xssh.NewSignerFromKey(testPrivateKeys["rsa"])
+	signer, _ := ssh.NewSignerFromKey(testPrivateKeys["rsa"])
 	if _, err := agent.Sign(signer.PublicKey(), []byte("hello")); err == nil {
 		t.Fatalf("Sign did not fail")
 	}
@@ -318,10 +318,10 @@ func TestAgentLifetime(t *testing.T) {
 			t.Fatalf("add: %v", err)
 		}
 		// Add certs to the agent.
-		cert := &xssh.Certificate{
+		cert := &ssh.Certificate{
 			Key:         testPublicKeys[keyType],
-			ValidBefore: xssh.CertTimeInfinity,
-			CertType:    xssh.UserCert,
+			ValidBefore: ssh.CertTimeInfinity,
+			CertType:    ssh.UserCert,
 		}
 		cert.SignCert(rand.Reader, testSigners[keyType])
 		err = agent.Add(AddedKey{
