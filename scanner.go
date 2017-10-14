@@ -29,7 +29,7 @@ func PrintScanners() {
 // RunScanner runs a single scan on a target and returns the resulting data
 func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	res, e := s.Scan(target, uint(22))
+	res, e := s.Scan(target)
 	var err *error //nil pointers are null in golang, which is not nil and not empty
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}
