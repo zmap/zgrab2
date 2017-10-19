@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func MakeXSSHConfig() *ClientConfig {
+func MakeSSHConfig() *ClientConfig {
 	ret := new(ClientConfig)
 	ret.DontAuthenticate = true // IOT scan ethically, never attempt to authenticate
 	ret.HostKeyAlgorithms = supportedHostKeyAlgos

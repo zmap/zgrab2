@@ -3,6 +3,7 @@ package modules
 import (
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -21,6 +22,7 @@ type SSHFlags struct {
 	GexMinBits        uint   `long:"gex-min-bits" description:"The minimum number of bits for the DH GEX prime." default:"1024"`
 	GexMaxBits        uint   `long:"gex-max-bits" description:"The maximum number of bits for the DH GEX prime." default:"8192"`
 	GexPreferredBits  uint   `long:"gex-preferred-bits" description:"The preferred number of bits for the DH GEX prime." default:"2048"`
+	Verbose           bool   `long:"verbose" description:"Output additional information, including SSH client properties from the SSH handshake."`
 }
 
 type SSHModule struct {
@@ -32,10 +34,14 @@ type SSHScanner struct {
 
 func init() {
 	var sshModule SSHModule
-	_, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", 22, &sshModule)
+	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
+	s := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
+	cmd.FindOptionByLongName("host-key-algorithms").Default = []string{strings.Join(s.HostKeyAlgorithms, ",")}
+	cmd.FindOptionByLongName("kex-algorithms").Default = []string{strings.Join(s.KeyExchanges, ",")}
+	cmd.FindOptionByLongName("ciphers").Default = []string{strings.Join(s.Ciphers, ",")}
 }
 
 func (m *SSHModule) NewFlags() interface{} {
@@ -73,7 +79,7 @@ func (s *SSHScanner) makeSSHGrabber(hlog *ssh.HandshakeLog) func(string) error {
 		sshConfig := ssh.MakeSSHConfig()
 		sshConfig.Timeout = time.Duration(s.config.Timeout) * time.Second
 		sshConfig.ConnLog = hlog
-		sshConfig.ClientVersion = s.ClientID
+		sshConfig.ClientVersion = s.config.ClientID
 		if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {
 			log.Fatal(err)
 		}
