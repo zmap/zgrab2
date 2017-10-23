@@ -28,7 +28,7 @@ type ScanTarget struct {
 type ScanResponse struct {
 	Result         interface{} `json:"result,omitempty"`
 	Time           string      `json:"time,omitempty"`
-	Error          *error      `json:"error,omitempty"`
+	Error          *string     `json:"error,omitempty"`
 	ErrorComponent string      `json:"error_component,omitempty"`
 }
 
