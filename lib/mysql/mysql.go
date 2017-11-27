@@ -1,0 +1,651 @@
+/**
+ * @TODO @FIXME: copyright info
+ */
+package mysql
+
+import (
+	"bufio"
+
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"net"
+	"strings"
+	"time"
+
+	"github.com/zmap/zcrypto/tls"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// Start state
+	STATE_NOT_CONNECTED = "NOT_CONNECTED"
+
+	// After the TCP connection is completed
+	STATE_CONNECTED = "CONNECTED"
+
+	// After reading a Handshake_Packet with SSL capabilities, before sending the SSL_Request packet
+	STATE_SSL_REQUEST = "SSL_REQUEST"
+
+	// After sending an SSL_Request packet, before peforming an SSL handshake
+	STATE_SSL_HANDSHAKE = "SSL_HANDSHAKE"
+
+	// After connection has been negotiated (from either CONNECTED or SSL_HANDSHAKE)
+	STATE_FINISHED = "STATE_FINISHED"
+)
+
+type ConnectionState string
+
+const (
+	PACKET_TYPE_OK          = "OK"
+	PACKET_TYPE_ERROR       = "ERROR"
+	PACKET_TYPE_HANDSHAKE   = "HANDSHAKE"
+	PACKET_TYPE_EOF         = "EOF"
+	PACKET_TYPE_SSL_REQUEST = "SSL_REQUEST"
+)
+
+type PacketType string
+
+// Capability flags
+const (
+	CLIENT_LONG_PASSWORD uint32 = (1 << iota)
+	CLIENT_FOUND_ROWS
+	CLIENT_LONG_FLAG
+	CLIENT_CONNECT_WITH_DB
+	CLIENT_NO_SCHEMA
+	CLIENT_COMPRESS
+	CLIENT_ODBC
+	CLIENT_LOCAL_FILES
+	CLIENT_IGNORE_SPACE
+	CLIENT_PROTOCOL_41
+	CLIENT_INTERACTIVE
+	// CLIENT_SSL = (1<<11)
+	CLIENT_SSL
+	CLIENT_IGNORE_SIGPIPE
+	CLIENT_TRANSACTIONS
+	CLIENT_RESERVED
+	// CLIENT_SECURE_CONNECTION = (1 << 15)
+	CLIENT_SECURE_CONNECTION
+	CLIENT_MULTI_STATEMENTS
+	CLIENT_MULTI_RESULTS
+	CLIENT_PS_MULTI_RESULTS
+	// CLIENT_PLUGIN_AUTH = ( 1 << 19 )
+	CLIENT_PLUGIN_AUTH
+	CLIENT_CONNECT_ATTRS
+	CLIENT_PLUGIN_AUTH_LEN_ENC_CLIENT_DATA
+	CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
+	CLIENT_SESSION_TRACK
+	CLIENT_DEPRECATED_EOF
+)
+
+// Config defaults
+const (
+	DEFAULT_TIMEOUT_SECS        = 3
+	DEFAULT_PORT                = 3306
+	DEFAULT_CLIENT_CAPABILITIES = CLIENT_SSL
+	DEFAULT_RESERVED_DATA_HEX   = "0000000000000000000000000000000000000000000000"
+)
+
+type Config struct {
+	// @TODO: Does it make sense to make Host/Port connection fields, so that Config can be shared across connections?
+	Host string
+	Port uint16
+
+	TLSConfig          *tls.Config
+	Timeout            time.Duration
+	ClientCapabilities uint32
+	MaxPacketSize      uint32
+	CharSet            byte
+	ReservedData       []byte
+}
+
+// Fill in a (possibly newly-created) Config instance with the default values
+func NewConfig(base *Config) *Config {
+	if base == nil {
+		base = &Config{}
+	}
+	if base.TLSConfig == nil {
+		// @TODO @FIXME Can this be pulled from a global zgrab config module?
+		base.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	if base.Port == 0 {
+		base.Port = DEFAULT_PORT
+	}
+	if base.Timeout == 0 {
+		base.Timeout = DEFAULT_TIMEOUT_SECS * time.Second
+	}
+	if base.ClientCapabilities == 0 {
+		base.ClientCapabilities = DEFAULT_CLIENT_CAPABILITIES
+	}
+	if base.ReservedData == nil {
+		bin, err := hex.DecodeString(DEFAULT_RESERVED_DATA_HEX)
+		if err != nil {
+			log.Fatalf("Invalid constant")
+		}
+		base.ReservedData = bin
+	}
+	return base
+}
+
+// Struct holding state for a single connection
+type Connection struct {
+	// Configuration for this connection
+	Config *Config
+
+	// Enum to track connection status
+	State ConnectionState
+	// TCP or TLS-wrapped Connection pointer (IsSecure will tell which)
+	Connection *net.Conn
+	// The sequence number used with the server to number packets
+	SequenceNumber uint8
+	// The "Handshake" packet sent by the server, holding flags used in future calls
+	Handshake *Handshake_Packet
+
+	// If this is true, the Connection is a TLS connection object and there should be a TLSHandshake log.
+	IsSecure bool
+
+	// List of MySQL packets received/sent
+	PacketLog []*PacketLogEntry
+	// The zgrab TLS handshake logs
+	TLSHandshake *tls.ServerHandshake
+}
+
+// Constructor, filling in defaults where needed
+func NewConnection(config *Config) *Connection {
+	return &Connection{
+		Config:         NewConfig(config),
+		State:          STATE_NOT_CONNECTED,
+		PacketLog:      nil,
+		Connection:     nil,
+		SequenceNumber: 0}
+}
+
+// Top-level interface for all packets
+type PacketInfo interface {
+	GetType() PacketType
+	GetDescription() string
+}
+
+// Most packets are read from the server; for packets that need to be sent, they need an encoding function
+type WritablePacket interface {
+	PacketInfo
+	EncodeBody() []byte
+}
+
+// Entry in the PacketLog. Raw is the base64-encoded body, Parsed is the parsed packet.
+// Either may be nil if there was an error reading/decoding the packet.
+type PacketLogEntry struct {
+	Length         uint32     `json:"length"`
+	SequenceNumber uint8      `json:"sequence_number"`
+	Raw            string     `json:"raw"`
+	Parsed         PacketInfo `json:"parsed,omitempty"`
+}
+
+// Handshake_Packet defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
+// @TODO @FIXME: This is protocol version 10; handle previous / future versions
+type Handshake_Packet struct {
+	// protocol_version: int<1>
+	ProtocolVersion byte `json:"protocol_version"`
+	// server_version: string<NUL>
+	ServerVersion string `json:"server_version"`
+	// connection_id: int<4>
+	ConnectionID uint32 `json:"connection_id"` // [4]
+	// auth_plugin_data_part_1: string<8>
+	AuthPluginData1 string `json:"auth_plugin_data_part_1"`
+	// fillter_1: byte<1>
+	Filler1 byte `json:"filler_1,omitempty"`
+	// capability_flag_1: int<2> -- Stored as lower 16 bits of capability_flags
+	// character_set: int<1> (optional?)
+	CharacterSet byte `json:"character_set"`
+
+	// Synthetic field: if true, none of the following fields are present.
+	ShortHandshake bool `json:"short_handshake"`
+
+	// status_flags: int<> (optional?)
+	StatusFlags uint16 `json:"status_flags"`
+	// capability_flag_2: int<2> -- Stored as upper 16 bits of capability_flags
+
+	// auth_plugin_data_len: int<1>
+	AuthPluginDataLen byte `json:"auth_plugin_data_len"`
+	// if (capabilities & CLIENT_SECURE_CONNECTION) {
+	// reserved:  string<10> all 0
+	Reserved []byte `json:"reserved,omitempty"`
+	// auth_plugin_data_part_2: string<MAX(13, auth_plugin_data_len - 8)>
+	AuthPluginData2 string `json:"auth_plugin_data_part_2,omitempty"`
+	// auth_plugin_name: string<NUL>, but old versions lacked null terminator, so returning string<EOF>
+	AuthPluginName string `json:"auth_plugin_name,omitempty"`
+	// }
+	// Synthetic field buily from capability_flags_1 || capability_flags_2 << 16
+	CapabilityFlags uint32 `json:"capability_flags"`
+}
+
+func (p *Handshake_Packet) GetDescription() string {
+	jsonStr, err := json.Marshal(p)
+	if err != nil {
+		return string(jsonStr)
+	}
+	return fmt.Sprintf("Error getting description: %s", err.Error())
+}
+
+func (p *Handshake_Packet) GetType() PacketType {
+	return PACKET_TYPE_HANDSHAKE
+}
+
+func (c *Connection) read_Handshake_Packet(body []byte) (*Handshake_Packet, error) {
+	var rest []byte
+	ret := new(Handshake_Packet)
+	ret.ProtocolVersion = body[0]
+	ret.ServerVersion, rest = readNulString(body[1:])
+	ret.ConnectionID = binary.LittleEndian.Uint32(rest[0:4])
+	ret.AuthPluginData1 = string(rest[4:12])
+	ret.Filler1 = rest[12]
+	ret.CapabilityFlags = uint32(binary.LittleEndian.Uint16(rest[13:15]))
+
+	// Unlike the ERR_Packet case, the docs explicitly say to go by the body length here
+	if len(body) > 8 {
+		ret.ShortHandshake = false
+		ret.CharacterSet = rest[15]
+		ret.StatusFlags = binary.LittleEndian.Uint16(rest[16:18])
+		ret.CapabilityFlags |= (uint32(binary.LittleEndian.Uint16(rest[18:20])) << 16)
+		ret.AuthPluginDataLen = rest[20]
+		if (ret.CapabilityFlags & CLIENT_PLUGIN_AUTH) != 0 {
+			ret.Reserved = rest[21:31]
+			part2Len := ret.AuthPluginDataLen - 8
+			// part-2-len = MAX(13, auth_plugin_data_len - 8)
+			if part2Len < 13 {
+				part2Len = 13
+			}
+			ret.AuthPluginData2 = string(rest[31 : 31+part2Len])
+			if ret.CapabilityFlags&CLIENT_SECURE_CONNECTION != 0 {
+				ret.AuthPluginName = string(rest[31+part2Len:])
+			}
+		}
+	} else {
+		ret.ShortHandshake = true
+	}
+	return ret, nil
+}
+
+type OK_Packet struct {
+	// header: 0xfe or 0x00
+	Header byte `json:"header"`
+	// affected_rows: int<lenenc>
+	AffectedRows uint64 `json:"affected_rows"`
+	// last_insert_rowid: int<lenenc>
+	LastInsertId uint64 `json:"last_insert_id"`
+	// if (CLIENT_PROTOCOL_41 || CLIENT_TRANSACTIONS) {
+	// status_flags: int<2>
+	StatusFlags uint16 `json:"status_flags"`
+	// if CLIENT_PROTOCOL_41 {
+	// warning_flags: int<2>
+	WarningFlags uint16 `json:"warning_flags"`
+	// warnings: int<2>
+	Warnings uint16 `json:"warnings"`
+	// }
+	// }
+	// info: string<lenenc> || string<EOF>
+	Info string `json:"info"`
+	// if CLIENT_SESSION_TRACK && status_flags && SERVER_SESSION_STATE_CHANGED {
+	// session_state_changes: string<lenenc>
+	SessionStateChanges string `json:"session_state_changes"`
+	// }
+}
+
+func (p *OK_Packet) GetDescription() string {
+	jsonStr, err := json.Marshal(p)
+	if err != nil {
+		return string(jsonStr)
+	}
+	return fmt.Sprintf("Error getting description: %s", err.Error())
+}
+
+func (p *OK_Packet) GetType() PacketType {
+	return PACKET_TYPE_OK
+}
+
+func (c *Connection) read_OK_Packet(body []byte) (*OK_Packet, error) {
+	var rest []byte
+	var err error
+	ret := new(OK_Packet)
+	ret.Header = body[0]
+	ret.AffectedRows, rest, err = readLenInt(body[1:])
+	if err != nil {
+		return nil, fmt.Errorf("Error reading OK_Packet.AffectedRows: %s", err)
+	}
+	ret.LastInsertId, rest, err = readLenInt(rest)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading OK_Packet.LastInsertId: %s", err)
+	}
+	flags := uint32(0)
+	if c.Handshake != nil {
+		flags = c.Handshake.CapabilityFlags
+	} else {
+		log.Warnf("read_OK_Packet: Received OK_Packet before Handshake")
+	}
+	if flags&(CLIENT_PROTOCOL_41|CLIENT_TRANSACTIONS) != 0 {
+		log.Debugf("read_OK_Packet: CapabilityFlags = 0x%x, so reading status flags", flags)
+		ret.StatusFlags = binary.LittleEndian.Uint16(rest[0:2])
+		rest = rest[2:]
+		if flags&CLIENT_PROTOCOL_41 != 0 {
+			log.Debugf("read_OK_Packet: CapabilityFlags = 0x%x, so reading WarningFlags / Warnings")
+			ret.WarningFlags = binary.LittleEndian.Uint16(rest[0:2])
+			ret.Warnings = binary.LittleEndian.Uint16(rest[2:4])
+			rest = rest[4:]
+		}
+	}
+	ret.Info, rest, err = readLenString(rest[:])
+	if err != nil {
+		return nil, fmt.Errorf("Error reading OK_Packet.Info: %s", err)
+	}
+	if len(rest) > 0 {
+		log.Debugf("read_OK_Packet: %d bytes left after Info, reading SessionStateChanges", len(rest))
+		ret.SessionStateChanges, rest, err = readLenString(rest)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading OK_Packet.SessionStateChanges: %s", err)
+		}
+	}
+	if len(rest) > 0 {
+		log.Debugf("read_OK_Packet: decode failure: body = %s", base64.StdEncoding.EncodeToString(body))
+		return nil, fmt.Errorf("Error reading OK_Packet: %d bytes left in body (CapabilityFlags = 0x%x)", len(rest), flags)
+	}
+	return ret, nil
+}
+
+// ERR_Packet defined at https://web.archive.org/web/20160316124241/https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
+type ERR_Packet struct {
+	// header: int<1>
+	Header byte `json:"header"`
+	// error_code: int<2>
+	ErrorCode uint16 `json:"error_code"`
+	// if CLIENT_PROTOCOL_41 {
+	// sql_state_marker string<1>
+	SQLStateMarker string `json:"sql_state_marker"`
+	// sql_state string<5>
+	SQLState string `json:"sql_state"`
+	// }
+	// error_messagestring<eof>
+	ErrorMessage string `json:"error_message"`
+}
+
+func (p *ERR_Packet) GetDescription() string {
+	return fmt.Sprintf("ERR_Packet: error_code = 0x%x, error_message = %s", p.ErrorCode, p.ErrorMessage)
+}
+
+func (p *ERR_Packet) GetType() PacketType {
+	return PACKET_TYPE_ERROR
+}
+
+func (c *Connection) read_ERR_Packet(body []byte) (*ERR_Packet, error) {
+	ret := new(ERR_Packet)
+	ret.Header = body[0]
+	ret.ErrorCode = binary.LittleEndian.Uint16(body[1:3])
+	rest := body[3:]
+	flags := uint32(0)
+	if c.Handshake != nil {
+		flags = c.Handshake.CapabilityFlags
+	} else {
+		// This is a valid case -- e.g. client hostname not allowed
+	}
+	if flags&CLIENT_PROTOCOL_41 != 0 {
+		ret.SQLStateMarker = string(rest[0:1])
+		ret.SQLState = string(rest[1:6])
+		rest = rest[6:]
+	}
+	ret.ErrorMessage = string(rest[:])
+	return ret, nil
+}
+
+// SSL_Request packet type defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
+type SSL_Request_Packet struct {
+	// capability_flags int<4>: Would be weird to not set CLIENT_SSL (0x0800) in your SSL_Request packet
+	CapabilityFlags uint32 `json:"capability_flags"`
+	// max_packet_size int<4>
+	MaxPacketSize uint32 `json:"max_packet_size"`
+	// character_set int<1>
+	CharacterSet byte `json:"character_set"`
+	// reserved string<23>: all \x00
+	Reserved []byte `json:"reserved"`
+}
+
+func (p *SSL_Request_Packet) EncodeBody() []byte {
+	var ret [32]byte
+	binary.LittleEndian.PutUint32(ret[0:], p.CapabilityFlags)
+	binary.LittleEndian.PutUint32(ret[4:], p.MaxPacketSize)
+	ret[8] = p.CharacterSet
+	// @FIXME seems pedantic to actually require the caller to supply all 23 null bytes, but it's always possible different implementations/versions could respond to nonzero reserved data differently
+	copy(ret[9:32], p.Reserved[0:23])
+	return ret[:]
+}
+
+func (p *SSL_Request_Packet) GetDescription() string {
+	jsonStr, err := json.Marshal(p)
+	if err != nil {
+		return string(jsonStr)
+	}
+	return fmt.Sprintf("Error getting description: %s", err.Error())
+}
+
+func (p *SSL_Request_Packet) GetType() PacketType {
+	return PACKET_TYPE_SSL_REQUEST
+}
+
+// Get the next sequence number for this connection, and increment the internal counter.
+func (c *Connection) getNextSequenceNumber() byte {
+	ret := c.SequenceNumber
+	c.SequenceNumber = c.SequenceNumber + 1
+	return ret
+}
+
+// Given a WritablePacket, prefix it with the length+sequence number header and send it to the server.
+func (c *Connection) sendPacket(packet WritablePacket) error {
+	body := packet.EncodeBody()
+	if len(body) > 0xffffff {
+		log.Fatalf("Body longer than 24 bits (0x%x bytes)", len(body))
+	}
+	toSend := make([]byte, len(body)+4)
+	binary.LittleEndian.PutUint32(toSend[0:], uint32(len(body))) // The fourth (high) byte will be overwritten by the sequence number.
+	seq := c.getNextSequenceNumber()
+	toSend[3] = seq
+	copy(toSend[4:], body)
+
+	logPacket := PacketLogEntry{
+		Length:         uint32(len(body)),
+		SequenceNumber: seq,
+		Raw:            base64.StdEncoding.EncodeToString(body),
+		Parsed:         packet}
+
+	c.pushToPacketLog(&logPacket)
+	// @TODO: Buffered send?
+	_, err := (*c.Connection).Write(toSend)
+	return err
+}
+
+// Log a packet
+func (c *Connection) pushToPacketLog(packet *PacketLogEntry) {
+	c.PacketLog = append(c.PacketLog, packet)
+}
+
+// Decode a packet from the pre-separated body
+func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
+	header := body[0]
+	switch header {
+	case 0xff:
+		return c.read_ERR_Packet(body)
+	case 0x0a:
+		return c.read_Handshake_Packet(body)
+	case 0x00:
+		return c.read_OK_Packet(body)
+	case 0xfe:
+		return c.read_OK_Packet(body)
+	default:
+		return nil, fmt.Errorf("Unrecognized packet type 0x%02x", header)
+	}
+}
+
+// Read a packet and sequence identifier off of the given connection
+func (c *Connection) readPacket() (PacketInfo, error) {
+	// @TODO @FIXME Find/use conventional buffered packet-reading functions, handle timeouts / connection reset / etc
+	conn := *c.Connection
+	reader := bufio.NewReader(conn)
+	if terr := conn.SetReadDeadline(time.Now().Add(c.Config.Timeout)); terr != nil {
+		return nil, fmt.Errorf("Error calling SetReadTimeout(): %s", terr)
+	}
+	var header [4]byte
+	n, err := reader.Read(header[:])
+	if err != nil {
+		return nil, fmt.Errorf("Error reading packet header (timeout=%s): %s", err, c.Config.Timeout)
+	}
+	if n != 4 {
+		return nil, fmt.Errorf("Wrong number of bytes returned (got %d, expected 4)", n)
+	}
+	seq := header[3]
+	// length is actually Uint24; clear the bogus MSB before decoding
+	header[3] = 0
+	len := binary.LittleEndian.Uint32(header[:])
+	packet := PacketLogEntry{
+		Length:         len,
+		SequenceNumber: seq}
+
+	// If we fail, we will still have the Length / Sequence Number logged
+	c.pushToPacketLog(&packet)
+	var body = make([]byte, len, len)
+	n, err = reader.Read(body)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading %d bytes: %s", len, err)
+	}
+	// Log the raw body, even if the parsing fails
+	packet.Raw = base64.StdEncoding.EncodeToString(body)
+
+	if seq != c.SequenceNumber {
+		log.Warnf("Sequence number mismatch: got 0x%x, expected 0x%x", seq, c.SequenceNumber+1)
+	}
+	// Update sequence number
+	c.SequenceNumber = seq + 1
+	ret, err := c.decodePacket(body)
+	if err != nil {
+		return nil, fmt.Errorf("Error decoding packet body (length = %d, sequence number = %d): %s", len, seq, err)
+	}
+	packet.Parsed = ret
+
+	return ret, nil
+}
+
+// Perform a TLS handshake using the configured TLSConfig on the current connection
+func (c *Connection) StartTLS() error {
+	client := tls.Client(*c.Connection, c.Config.TLSConfig)
+	err := client.Handshake()
+	if err != nil {
+		return fmt.Errorf("TLS Handshake error: %s", err)
+	}
+	*(c.Connection) = client
+	return nil
+}
+
+// Connect to the configured server and perform the initial handshake
+func (c *Connection) Connect() error {
+	// @TODO @FIXME -- Break this into Connect/Scan/Disconnect?
+	// Allow Scan on pre-connected / user-supplied connections?
+	dialer := net.Dialer{Timeout: c.Config.Timeout}
+	conn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", c.Config.Host, c.Config.Port))
+	if err != nil {
+		return fmt.Errorf("Connect error: %s", err)
+	}
+	c.Connection = &conn
+	c.State = STATE_CONNECTED
+
+	packet, err := c.readPacket()
+	if err != nil {
+		return fmt.Errorf("Error reading server handshake packet: %s", err)
+	}
+
+	switch packet.GetType() {
+	case PACKET_TYPE_HANDSHAKE:
+		// OK
+	case PACKET_TYPE_ERROR:
+		return fmt.Errorf("Server returned error after connecting: %s", packet.GetDescription())
+	default:
+		return fmt.Errorf("Server returned unexpected packet type %s after connecting: %s", packet.GetType(), packet.GetDescription())
+	}
+	handshakePacket := packet.(*Handshake_Packet)
+	c.Handshake = handshakePacket
+
+	// How to handle mismatched reserved? It will be available in the output, but should it trigger a 'failure'?
+	// if hex.EncodeToString(parsed.reserved) != "00000000000000000000" { ... }
+
+	c.IsSecure = false
+	if (handshakePacket.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0 {
+		c.State = STATE_SSL_REQUEST
+		sslRequest := SSL_Request_Packet{
+			CapabilityFlags: c.Config.ClientCapabilities,
+			MaxPacketSize:   c.Config.MaxPacketSize,
+			CharacterSet:    c.Config.CharSet,
+			Reserved:        c.Config.ReservedData}
+		if c.sendPacket(&sslRequest) != nil {
+			return fmt.Errorf("Error sending SSL_Request packet: %s", err)
+		}
+		c.State = STATE_SSL_HANDSHAKE
+
+		if c.StartTLS() != nil {
+			return fmt.Errorf("Error performing TLS handshake: %s", err)
+		}
+		c.TLSHandshake = (*c.Connection).(*tls.Conn).GetHandshakeLog()
+		c.IsSecure = true
+	}
+	c.State = STATE_FINISHED
+	return nil
+}
+
+// Close the connection.
+func (c *Connection) Disconnect() error {
+	if c.Connection == nil {
+		return nil
+	}
+	c.State = STATE_NOT_CONNECTED
+	// Change state even if close fails
+	return (*c.Connection).Close()
+}
+
+// NUL STRING type from https://web.archive.org/web/20160316113745/https://dev.mysql.com/doc/internals/en/string.html
+func readNulString(body []byte) (string, []byte) {
+	nul := strings.Index(string(body), "\x00")
+	return string(body[:nul]), body[nul+1:]
+}
+
+// LEN INT type from https://web.archive.org/web/20160316122921/https://dev.mysql.com/doc/internals/en/integer.html
+func readLenInt(body []byte) (uint64, []byte, error) {
+	v := body[0]
+	if v < 0xfb {
+		return uint64(v), body[1:], nil
+	}
+	switch v {
+	case 0xfb:
+		// single byte greater than 0xFA
+		return 0, body[1:], nil
+	case 0xfc:
+		// two little-endian bytes
+		return uint64(binary.LittleEndian.Uint16(body[1:3])), body[3:], nil
+	case 0xfd:
+		// three little-endian bytes (ignore fourth) @TODO @FIXME check that there is actually a fourth byte!
+		return uint64(binary.LittleEndian.Uint32(body[1:5]) & 0x00ffffff), body[4:], nil
+	case 0xfe:
+		// eight little-endian bytes
+		return binary.LittleEndian.Uint64(body[1:9]), body[9:], nil
+	default:
+		return 0, nil, fmt.Errorf("Invalid length field for variable-length integer 0x%x", v)
+	}
+}
+
+// Read LEN STRING type from https://web.archive.org/web/20160316113745/https://dev.mysql.com/doc/internals/en/string.html
+func readLenString(body []byte) (string, []byte, error) {
+	length, rest, err := readLenInt(body)
+	if err != nil {
+		return "", nil, fmt.Errorf("Error reading string length: %s", err)
+	}
+	if uint64(len(rest)) < length {
+		return "", nil, fmt.Errorf("String length 0x%x longer than remaining body size 0x%x", length, len(rest))
+	}
+	return string(rest[:length]), rest[length+1:], nil
+}
