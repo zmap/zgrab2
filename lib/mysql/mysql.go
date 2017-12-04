@@ -49,7 +49,7 @@ const (
 
 type PacketType string
 
-// Capability flags
+// Capability flags: See https://dev.mysql.com/doc/dev/mysql-server/8.0.1/group__group__cs__capabilities__flags.html
 const (
 	CLIENT_LONG_PASSWORD uint32 = (1 << iota)
 	CLIENT_FOUND_ROWS
