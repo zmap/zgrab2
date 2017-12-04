@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -45,8 +46,6 @@ const (
 	PACKET_TYPE_EOF         = "EOF"
 	PACKET_TYPE_SSL_REQUEST = "SSL_REQUEST"
 )
-
-type PacketType string
 
 // Capability flags: See https://dev.mysql.com/doc/dev/mysql-server/8.0.1/group__group__cs__capabilities__flags.html
 const (
@@ -161,7 +160,6 @@ func NewConnection(config *Config) *Connection {
 
 // Top-level interface for all packets
 type PacketInfo interface {
-	GetType() PacketType
 }
 
 // Most packets are read from the server; for packets that need to be sent, they need an encoding function
@@ -216,10 +214,6 @@ type HandshakePacket struct {
 	// }
 	// Synthetic field built from capability_flags_1 || capability_flags_2 << 16
 	CapabilityFlags uint32 `json:"capability_flags"`
-}
-
-func (p *HandshakePacket) GetType() PacketType {
-	return PACKET_TYPE_HANDSHAKE
 }
 
 func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) {
@@ -280,10 +274,6 @@ type OKPacket struct {
 	// session_state_changes: string<lenenc>
 	SessionStateChanges string `json:"session_state_changes"`
 	// }
-}
-
-func (p *OKPacket) GetType() PacketType {
-	return PACKET_TYPE_OK
 }
 
 func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
@@ -350,10 +340,6 @@ type ERRPacket struct {
 	ErrorMessage string `json:"error_message"`
 }
 
-func (p *ERRPacket) GetType() PacketType {
-	return PACKET_TYPE_ERROR
-}
-
 func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 	ret := new(ERRPacket)
 	ret.Header = body[0]
@@ -394,10 +380,6 @@ func (p *SSLRequestPacket) EncodeBody() []byte {
 	// @FIXME seems pedantic to actually require the caller to supply all 23 null bytes, but it's always possible different implementations/versions could respond to nonzero reserved data differently
 	copy(ret[9:32], p.Reserved[0:23])
 	return ret[:]
-}
-
-func (p *SSLRequestPacket) GetType() PacketType {
-	return PACKET_TYPE_SSL_REQUEST
 }
 
 // Get the next sequence number for this connection, and increment the internal counter.
@@ -537,15 +519,19 @@ func (c *Connection) Connect() error {
 		return fmt.Errorf("Error reading server handshake packet: %s", err)
 	}
 
-	switch packet.GetType() {
-	case PACKET_TYPE_HANDSHAKE:
-		// OK
-	case PACKET_TYPE_ERROR:
-		errPacket := packet.(*ERRPacket)
-		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", errPacket.ErrorCode, errPacket.ErrorMessage)
+	switch p := packet.(type) {
+	case HandshakePacket:
+		// OK -- nothing to do
+	case ERRPacket:
+		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", p.ErrorCode, p.ErrorMessage)
 	default:
-		return fmt.Errorf("Server returned unexpected packet type %s after connecting: %s", packet.GetType())
+		jsonStr, err := json.Marshal(p)
+		if err != nil {
+			return fmt.Errorf("Server returned unexpected packet type, failed to marshal paclet: %s", err)
+		}
+		return fmt.Errorf("Server returned unexpected packet type after connecting: %s", jsonStr)
 	}
+
 	handshakePacket := packet.(*HandshakePacket)
 	c.Handshake = handshakePacket
 
