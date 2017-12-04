@@ -73,14 +73,15 @@ func (s *MySQLScanner) GetPort() uint {
 func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
 	sql := mysql.NewConnection(&mysql.Config{
 		Host: t.IP.String(),
-		Port: uint16(s.config.Port)})
+		Port: uint16(s.config.Port),
+	})
 	err := sql.Connect()
 	defer sql.Disconnect()
 	if err != nil {
 		return nil, err
 	}
 	ret := MySQLScanResults{PacketLog: sql.PacketLog}
-	if sql.IsSecure {
+	if sql.IsSecure() {
 		ret.TLSHandshake = sql.TLSHandshake
 	}
 

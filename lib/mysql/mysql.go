@@ -9,7 +9,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
@@ -137,15 +136,12 @@ type Connection struct {
 
 	// Enum to track connection status
 	State ConnectionState
-	// TCP or TLS-wrapped Connection pointer (IsSecure will tell which)
+	// TCP or TLS-wrapped Connection pointer (IsSecure() will tell which)
 	Connection *net.Conn
 	// The sequence number used with the server to number packets
 	SequenceNumber uint8
 	// The "Handshake" packet sent by the server, holding flags used in future calls
 	Handshake *HandshakePacket
-
-	// If this is true, the Connection is a TLS connection object and there should be a TLSHandshake log.
-	IsSecure bool
 
 	// List of MySQL packets received/sent
 	PacketLog []*PacketLogEntry
@@ -166,7 +162,6 @@ func NewConnection(config *Config) *Connection {
 // Top-level interface for all packets
 type PacketInfo interface {
 	GetType() PacketType
-	GetDescription() string
 }
 
 // Most packets are read from the server; for packets that need to be sent, they need an encoding function
@@ -185,7 +180,8 @@ type PacketLogEntry struct {
 }
 
 // HandshakePacket defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
-// @TODO @FIXME: This is protocol version 10; handle previous / future versions
+// @TODO @FIXME: This is protocol version 10 handle previous / future versions
+// Protocol version 9 was 3.22 and prior (1998?).
 type HandshakePacket struct {
 	// protocol_version: int<1>
 	ProtocolVersion byte `json:"protocol_version"`
@@ -218,16 +214,8 @@ type HandshakePacket struct {
 	// auth_plugin_name: string<NUL>, but old versions lacked null terminator, so returning string<EOF>
 	AuthPluginName string `json:"auth_plugin_name,omitempty"`
 	// }
-	// Synthetic field buily from capability_flags_1 || capability_flags_2 << 16
+	// Synthetic field built from capability_flags_1 || capability_flags_2 << 16
 	CapabilityFlags uint32 `json:"capability_flags"`
-}
-
-func (p *HandshakePacket) GetDescription() string {
-	jsonStr, err := json.Marshal(p)
-	if err != nil {
-		return string(jsonStr)
-	}
-	return fmt.Sprintf("Error getting description: %s", err.Error())
 }
 
 func (p *HandshakePacket) GetType() PacketType {
@@ -292,14 +280,6 @@ type OKPacket struct {
 	// session_state_changes: string<lenenc>
 	SessionStateChanges string `json:"session_state_changes"`
 	// }
-}
-
-func (p *OKPacket) GetDescription() string {
-	jsonStr, err := json.Marshal(p)
-	if err != nil {
-		return string(jsonStr)
-	}
-	return fmt.Sprintf("Error getting description: %s", err.Error())
 }
 
 func (p *OKPacket) GetType() PacketType {
@@ -370,10 +350,6 @@ type ERRPacket struct {
 	ErrorMessage string `json:"error_message"`
 }
 
-func (p *ERRPacket) GetDescription() string {
-	return fmt.Sprintf("ERRPacket: error_code = 0x%x, error_message = %s", p.ErrorCode, p.ErrorMessage)
-}
-
 func (p *ERRPacket) GetType() PacketType {
 	return PACKET_TYPE_ERROR
 }
@@ -420,14 +396,6 @@ func (p *SSLRequestPacket) EncodeBody() []byte {
 	return ret[:]
 }
 
-func (p *SSLRequestPacket) GetDescription() string {
-	jsonStr, err := json.Marshal(p)
-	if err != nil {
-		return string(jsonStr)
-	}
-	return fmt.Sprintf("Error getting description: %s", err.Error())
-}
-
 func (p *SSLRequestPacket) GetType() PacketType {
 	return PACKET_TYPE_SSL_REQUEST
 }
@@ -455,7 +423,8 @@ func (c *Connection) sendPacket(packet WritablePacket) error {
 		Length:         uint32(len(body)),
 		SequenceNumber: seq,
 		Raw:            base64.StdEncoding.EncodeToString(body),
-		Parsed:         packet}
+		Parsed:         packet,
+	}
 
 	c.pushToPacketLog(&logPacket)
 	// @TODO: Buffered send?
@@ -507,7 +476,8 @@ func (c *Connection) readPacket() (PacketInfo, error) {
 	len := binary.LittleEndian.Uint32(header[:])
 	packet := PacketLogEntry{
 		Length:         len,
-		SequenceNumber: seq}
+		SequenceNumber: seq,
+	}
 
 	// If we fail, we will still have the Length / Sequence Number logged
 	c.pushToPacketLog(&packet)
@@ -544,6 +514,11 @@ func (c *Connection) StartTLS() error {
 	return nil
 }
 
+// Check if the connection has been upgraded to TLS
+func (c *Connection) IsSecure() bool {
+	return c.TLSHandshake != nil
+}
+
 // Connect to the configured server and perform the initial handshake
 func (c *Connection) Connect() error {
 	// @TODO @FIXME -- Break this into Connect/Scan/Disconnect?
@@ -555,6 +530,7 @@ func (c *Connection) Connect() error {
 	}
 	c.Connection = &conn
 	c.State = STATE_CONNECTED
+	c.TLSHandshake = nil
 
 	packet, err := c.readPacket()
 	if err != nil {
@@ -565,9 +541,10 @@ func (c *Connection) Connect() error {
 	case PACKET_TYPE_HANDSHAKE:
 		// OK
 	case PACKET_TYPE_ERROR:
-		return fmt.Errorf("Server returned error after connecting: %s", packet.GetDescription())
+		errPacket := packet.(*ERRPacket)
+		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", errPacket.ErrorCode, errPacket.ErrorMessage)
 	default:
-		return fmt.Errorf("Server returned unexpected packet type %s after connecting: %s", packet.GetType(), packet.GetDescription())
+		return fmt.Errorf("Server returned unexpected packet type %s after connecting: %s", packet.GetType())
 	}
 	handshakePacket := packet.(*HandshakePacket)
 	c.Handshake = handshakePacket
@@ -575,14 +552,14 @@ func (c *Connection) Connect() error {
 	// How to handle mismatched reserved? It will be available in the output, but should it trigger a 'failure'?
 	// if hex.EncodeToString(parsed.reserved) != "00000000000000000000" { ... }
 
-	c.IsSecure = false
 	if (handshakePacket.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0 {
 		c.State = STATE_SSL_REQUEST
 		sslRequest := SSLRequestPacket{
 			CapabilityFlags: c.Config.ClientCapabilities,
 			MaxPacketSize:   c.Config.MaxPacketSize,
 			CharacterSet:    c.Config.CharSet,
-			Reserved:        c.Config.ReservedData}
+			Reserved:        c.Config.ReservedData,
+		}
 		if c.sendPacket(&sslRequest) != nil {
 			return fmt.Errorf("Error sending SSLRequest packet: %s", err)
 		}
@@ -592,7 +569,6 @@ func (c *Connection) Connect() error {
 			return fmt.Errorf("Error performing TLS handshake: %s", err)
 		}
 		c.TLSHandshake = (*c.Connection).(*tls.Conn).GetHandshakeLog()
-		c.IsSecure = true
 	}
 	c.State = STATE_FINISHED
 	return nil
