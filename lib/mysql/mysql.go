@@ -1,5 +1,15 @@
 /**
  * @TODO @FIXME: copyright info
+ * Very basic MySQL connection library.
+ * Usage:
+ *	var sql *mysql.Connection := mysql.NewConnection(&mysql.Config{
+ *		Host: targetHost,
+ *		Port: targetPort,
+ *	})
+ *	err := sql.Connect()
+ *	defer sql.Disconnect()
+ * The Connection exports the connection details via the PacketLog and, if
+ * the connection.IsSecure(), the TLSHandshake.
  */
 package mysql
 
