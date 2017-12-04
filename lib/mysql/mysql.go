@@ -27,10 +27,10 @@ const (
 	// After the TCP connection is completed
 	STATE_CONNECTED = "CONNECTED"
 
-	// After reading a Handshake_Packet with SSL capabilities, before sending the SSL_Request packet
+	// After reading a HandshakePacket with SSL capabilities, before sending the SSLRequest packet
 	STATE_SSL_REQUEST = "SSL_REQUEST"
 
-	// After sending an SSL_Request packet, before peforming an SSL handshake
+	// After sending an SSLRequest packet, before peforming an SSL handshake
 	STATE_SSL_HANDSHAKE = "SSL_HANDSHAKE"
 
 	// After connection has been negotiated (from either CONNECTED or SSL_HANDSHAKE)
@@ -142,7 +142,7 @@ type Connection struct {
 	// The sequence number used with the server to number packets
 	SequenceNumber uint8
 	// The "Handshake" packet sent by the server, holding flags used in future calls
-	Handshake *Handshake_Packet
+	Handshake *HandshakePacket
 
 	// If this is true, the Connection is a TLS connection object and there should be a TLSHandshake log.
 	IsSecure bool
@@ -184,9 +184,9 @@ type PacketLogEntry struct {
 	Parsed         PacketInfo `json:"parsed,omitempty"`
 }
 
-// Handshake_Packet defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
+// HandshakePacket defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
 // @TODO @FIXME: This is protocol version 10; handle previous / future versions
-type Handshake_Packet struct {
+type HandshakePacket struct {
 	// protocol_version: int<1>
 	ProtocolVersion byte `json:"protocol_version"`
 	// server_version: string<NUL>
@@ -222,7 +222,7 @@ type Handshake_Packet struct {
 	CapabilityFlags uint32 `json:"capability_flags"`
 }
 
-func (p *Handshake_Packet) GetDescription() string {
+func (p *HandshakePacket) GetDescription() string {
 	jsonStr, err := json.Marshal(p)
 	if err != nil {
 		return string(jsonStr)
@@ -230,13 +230,13 @@ func (p *Handshake_Packet) GetDescription() string {
 	return fmt.Sprintf("Error getting description: %s", err.Error())
 }
 
-func (p *Handshake_Packet) GetType() PacketType {
+func (p *HandshakePacket) GetType() PacketType {
 	return PACKET_TYPE_HANDSHAKE
 }
 
-func (c *Connection) read_Handshake_Packet(body []byte) (*Handshake_Packet, error) {
+func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) {
 	var rest []byte
-	ret := new(Handshake_Packet)
+	ret := new(HandshakePacket)
 	ret.ProtocolVersion = body[0]
 	ret.ServerVersion, rest = readNulString(body[1:])
 	ret.ConnectionID = binary.LittleEndian.Uint32(rest[0:4])
@@ -244,7 +244,7 @@ func (c *Connection) read_Handshake_Packet(body []byte) (*Handshake_Packet, erro
 	ret.Filler1 = rest[12]
 	ret.CapabilityFlags = uint32(binary.LittleEndian.Uint16(rest[13:15]))
 
-	// Unlike the ERR_Packet case, the docs explicitly say to go by the body length here
+	// Unlike the ERRPacket case, the docs explicitly say to go by the body length here
 	if len(body) > 8 {
 		ret.ShortHandshake = false
 		ret.CharacterSet = rest[15]
@@ -269,7 +269,7 @@ func (c *Connection) read_Handshake_Packet(body []byte) (*Handshake_Packet, erro
 	return ret, nil
 }
 
-type OK_Packet struct {
+type OKPacket struct {
 	// header: 0xfe or 0x00
 	Header byte `json:"header"`
 	// affected_rows: int<lenenc>
@@ -294,7 +294,7 @@ type OK_Packet struct {
 	// }
 }
 
-func (p *OK_Packet) GetDescription() string {
+func (p *OKPacket) GetDescription() string {
 	jsonStr, err := json.Marshal(p)
 	if err != nil {
 		return string(jsonStr)
@@ -302,35 +302,35 @@ func (p *OK_Packet) GetDescription() string {
 	return fmt.Sprintf("Error getting description: %s", err.Error())
 }
 
-func (p *OK_Packet) GetType() PacketType {
+func (p *OKPacket) GetType() PacketType {
 	return PACKET_TYPE_OK
 }
 
-func (c *Connection) read_OK_Packet(body []byte) (*OK_Packet, error) {
+func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 	var rest []byte
 	var err error
-	ret := new(OK_Packet)
+	ret := new(OKPacket)
 	ret.Header = body[0]
 	ret.AffectedRows, rest, err = readLenInt(body[1:])
 	if err != nil {
-		return nil, fmt.Errorf("Error reading OK_Packet.AffectedRows: %s", err)
+		return nil, fmt.Errorf("Error reading OKPacket.AffectedRows: %s", err)
 	}
 	ret.LastInsertId, rest, err = readLenInt(rest)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading OK_Packet.LastInsertId: %s", err)
+		return nil, fmt.Errorf("Error reading OKPacket.LastInsertId: %s", err)
 	}
 	flags := uint32(0)
 	if c.Handshake != nil {
 		flags = c.Handshake.CapabilityFlags
 	} else {
-		log.Warnf("read_OK_Packet: Received OK_Packet before Handshake")
+		log.Warnf("readOKPacket: Received OKPacket before Handshake")
 	}
 	if flags&(CLIENT_PROTOCOL_41|CLIENT_TRANSACTIONS) != 0 {
-		log.Debugf("read_OK_Packet: CapabilityFlags = 0x%x, so reading status flags", flags)
+		log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading status flags", flags)
 		ret.StatusFlags = binary.LittleEndian.Uint16(rest[0:2])
 		rest = rest[2:]
 		if flags&CLIENT_PROTOCOL_41 != 0 {
-			log.Debugf("read_OK_Packet: CapabilityFlags = 0x%x, so reading WarningFlags / Warnings")
+			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading WarningFlags / Warnings")
 			ret.WarningFlags = binary.LittleEndian.Uint16(rest[0:2])
 			ret.Warnings = binary.LittleEndian.Uint16(rest[2:4])
 			rest = rest[4:]
@@ -338,24 +338,24 @@ func (c *Connection) read_OK_Packet(body []byte) (*OK_Packet, error) {
 	}
 	ret.Info, rest, err = readLenString(rest[:])
 	if err != nil {
-		return nil, fmt.Errorf("Error reading OK_Packet.Info: %s", err)
+		return nil, fmt.Errorf("Error reading OKPacket.Info: %s", err)
 	}
 	if len(rest) > 0 {
-		log.Debugf("read_OK_Packet: %d bytes left after Info, reading SessionStateChanges", len(rest))
+		log.Debugf("readOKPacket: %d bytes left after Info, reading SessionStateChanges", len(rest))
 		ret.SessionStateChanges, rest, err = readLenString(rest)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading OK_Packet.SessionStateChanges: %s", err)
+			return nil, fmt.Errorf("Error reading OKPacket.SessionStateChanges: %s", err)
 		}
 	}
 	if len(rest) > 0 {
-		log.Debugf("read_OK_Packet: decode failure: body = %s", base64.StdEncoding.EncodeToString(body))
-		return nil, fmt.Errorf("Error reading OK_Packet: %d bytes left in body (CapabilityFlags = 0x%x)", len(rest), flags)
+		log.Debugf("readOKPacket: decode failure: body = %s", base64.StdEncoding.EncodeToString(body))
+		return nil, fmt.Errorf("Error reading OKPacket: %d bytes left in body (CapabilityFlags = 0x%x)", len(rest), flags)
 	}
 	return ret, nil
 }
 
-// ERR_Packet defined at https://web.archive.org/web/20160316124241/https://dev.mysql.com/doc/internals/en/packet-ERR_Packet.html
-type ERR_Packet struct {
+// ERRPacket defined at https://web.archive.org/web/20160316124241/https://dev.mysql.com/doc/internals/en/packet-ERRPacket.html
+type ERRPacket struct {
 	// header: int<1>
 	Header byte `json:"header"`
 	// error_code: int<2>
@@ -370,16 +370,16 @@ type ERR_Packet struct {
 	ErrorMessage string `json:"error_message"`
 }
 
-func (p *ERR_Packet) GetDescription() string {
-	return fmt.Sprintf("ERR_Packet: error_code = 0x%x, error_message = %s", p.ErrorCode, p.ErrorMessage)
+func (p *ERRPacket) GetDescription() string {
+	return fmt.Sprintf("ERRPacket: error_code = 0x%x, error_message = %s", p.ErrorCode, p.ErrorMessage)
 }
 
-func (p *ERR_Packet) GetType() PacketType {
+func (p *ERRPacket) GetType() PacketType {
 	return PACKET_TYPE_ERROR
 }
 
-func (c *Connection) read_ERR_Packet(body []byte) (*ERR_Packet, error) {
-	ret := new(ERR_Packet)
+func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
+	ret := new(ERRPacket)
 	ret.Header = body[0]
 	ret.ErrorCode = binary.LittleEndian.Uint16(body[1:3])
 	rest := body[3:]
@@ -398,9 +398,9 @@ func (c *Connection) read_ERR_Packet(body []byte) (*ERR_Packet, error) {
 	return ret, nil
 }
 
-// SSL_Request packet type defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
-type SSL_Request_Packet struct {
-	// capability_flags int<4>: Would be weird to not set CLIENT_SSL (0x0800) in your SSL_Request packet
+// SSLRequest packet type defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
+type SSLRequestPacket struct {
+	// capability_flags int<4>: Would be weird to not set CLIENT_SSL (0x0800) in your SSLRequest packet
 	CapabilityFlags uint32 `json:"capability_flags"`
 	// max_packet_size int<4>
 	MaxPacketSize uint32 `json:"max_packet_size"`
@@ -410,7 +410,7 @@ type SSL_Request_Packet struct {
 	Reserved []byte `json:"reserved"`
 }
 
-func (p *SSL_Request_Packet) EncodeBody() []byte {
+func (p *SSLRequestPacket) EncodeBody() []byte {
 	var ret [32]byte
 	binary.LittleEndian.PutUint32(ret[0:], p.CapabilityFlags)
 	binary.LittleEndian.PutUint32(ret[4:], p.MaxPacketSize)
@@ -420,7 +420,7 @@ func (p *SSL_Request_Packet) EncodeBody() []byte {
 	return ret[:]
 }
 
-func (p *SSL_Request_Packet) GetDescription() string {
+func (p *SSLRequestPacket) GetDescription() string {
 	jsonStr, err := json.Marshal(p)
 	if err != nil {
 		return string(jsonStr)
@@ -428,7 +428,7 @@ func (p *SSL_Request_Packet) GetDescription() string {
 	return fmt.Sprintf("Error getting description: %s", err.Error())
 }
 
-func (p *SSL_Request_Packet) GetType() PacketType {
+func (p *SSLRequestPacket) GetType() PacketType {
 	return PACKET_TYPE_SSL_REQUEST
 }
 
@@ -473,13 +473,13 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 	header := body[0]
 	switch header {
 	case 0xff:
-		return c.read_ERR_Packet(body)
+		return c.readERRPacket(body)
 	case 0x0a:
-		return c.read_Handshake_Packet(body)
+		return c.readHandshakePacket(body)
 	case 0x00:
-		return c.read_OK_Packet(body)
+		return c.readOKPacket(body)
 	case 0xfe:
-		return c.read_OK_Packet(body)
+		return c.readOKPacket(body)
 	default:
 		return nil, fmt.Errorf("Unrecognized packet type 0x%02x", header)
 	}
@@ -569,7 +569,7 @@ func (c *Connection) Connect() error {
 	default:
 		return fmt.Errorf("Server returned unexpected packet type %s after connecting: %s", packet.GetType(), packet.GetDescription())
 	}
-	handshakePacket := packet.(*Handshake_Packet)
+	handshakePacket := packet.(*HandshakePacket)
 	c.Handshake = handshakePacket
 
 	// How to handle mismatched reserved? It will be available in the output, but should it trigger a 'failure'?
@@ -578,13 +578,13 @@ func (c *Connection) Connect() error {
 	c.IsSecure = false
 	if (handshakePacket.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0 {
 		c.State = STATE_SSL_REQUEST
-		sslRequest := SSL_Request_Packet{
+		sslRequest := SSLRequestPacket{
 			CapabilityFlags: c.Config.ClientCapabilities,
 			MaxPacketSize:   c.Config.MaxPacketSize,
 			CharacterSet:    c.Config.CharSet,
 			Reserved:        c.Config.ReservedData}
 		if c.sendPacket(&sslRequest) != nil {
-			return fmt.Errorf("Error sending SSL_Request packet: %s", err)
+			return fmt.Errorf("Error sending SSLRequest packet: %s", err)
 		}
 		c.State = STATE_SSL_HANDSHAKE
 
