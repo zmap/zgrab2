@@ -103,7 +103,7 @@ type Config struct {
 }
 
 // Fill in a (possibly newly-created) Config instance with the default values
-func NewConfig(base *Config) *Config {
+func InitConfig(base *Config) *Config {
 	if base == nil {
 		base = &Config{}
 	}
@@ -156,7 +156,7 @@ type Connection struct {
 // Constructor, filling in defaults where needed
 func NewConnection(config *Config) *Connection {
 	return &Connection{
-		Config:         NewConfig(config),
+		Config:         InitConfig(config),
 		State:          STATE_NOT_CONNECTED,
 		PacketLog:      nil,
 		Connection:     nil,
