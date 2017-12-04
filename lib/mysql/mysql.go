@@ -216,6 +216,23 @@ type HandshakePacket struct {
 	CapabilityFlags uint32 `json:"capability_flags"`
 }
 
+// Omit reserved from encoded packet if it is the default value (ten bytes of 0s)
+func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
+	reserved := p.Reserved
+	if base64.StdEncoding.EncodeToString(reserved) == "AAAAAAAAAAAAAA==" {
+		reserved = []byte{}
+	}
+	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
+	type Alias HandshakePacket
+	return json.Marshal(&struct {
+		ReservedOmitted []byte `json:"reserved,omitempty"`
+		*Alias
+	}{
+		ReservedOmitted: reserved,
+		Alias:           (*Alias)(p),
+	})
+}
+
 func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) {
 	var rest []byte
 	ret := new(HandshakePacket)
@@ -520,9 +537,9 @@ func (c *Connection) Connect() error {
 	}
 
 	switch p := packet.(type) {
-	case HandshakePacket:
+	case *HandshakePacket:
 		// OK -- nothing to do
-	case ERRPacket:
+	case *ERRPacket:
 		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", p.ErrorCode, p.ErrorMessage)
 	default:
 		jsonStr, err := json.Marshal(p)
