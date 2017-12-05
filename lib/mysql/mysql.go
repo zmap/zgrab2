@@ -1,5 +1,14 @@
 /**
  * @TODO @FIXME: copyright info
+ * Very basic MySQL connection library.
+ * Usage:
+ *	var sql *mysql.Connection := mysql.NewConnection(&mysql.Config{
+ *		Host: targetHost,
+ *		Port: targetPort,
+ *	})
+ *	err := sql.Connect()
+ *	defer sql.Disconnect()
+ * The Connection exports the connection details via the ConnectionLog.
  */
 package mysql
 
@@ -128,6 +137,13 @@ func InitConfig(base *Config) *Config {
 	return base
 }
 
+// Log of the packets sent/received during the connection.
+type ConnectionLog struct {
+	Handshake  *ConnectionLogEntry `json:"handshake,omitempty"`
+	Error      *ConnectionLogEntry `json:"error,omitempty"`
+	SSLRequest *ConnectionLogEntry `json:"ssl_request,omitempty"`
+}
+
 // Struct holding state for a single connection
 type Connection struct {
 	// Configuration for this connection
@@ -139,13 +155,9 @@ type Connection struct {
 	Connection *net.Conn
 	// The sequence number used with the server to number packets
 	SequenceNumber uint8
-	// The "Handshake" packet sent by the server, holding flags used in future calls
-	Handshake *HandshakePacket
 
-	// List of MySQL packets received/sent
-	PacketLog []*PacketLogEntry
-	// The zgrab TLS handshake logs
-	TLSHandshake *tls.ServerHandshake
+	// Log of MySQL packets received/sent
+	ConnectionLog ConnectionLog
 }
 
 // Constructor, filling in defaults where needed
@@ -153,7 +165,6 @@ func NewConnection(config *Config) *Connection {
 	return &Connection{
 		Config:         InitConfig(config),
 		State:          STATE_NOT_CONNECTED,
-		PacketLog:      nil,
 		Connection:     nil,
 		SequenceNumber: 0}
 }
@@ -168,9 +179,9 @@ type WritablePacket interface {
 	EncodeBody() []byte
 }
 
-// Entry in the PacketLog. Raw is the base64-encoded body, Parsed is the parsed packet.
+// Entry in the ConnectionLog. Raw is the base64-encoded body, Parsed is the parsed packet.
 // Either may be nil if there was an error reading/decoding the packet.
-type PacketLogEntry struct {
+type ConnectionLogEntry struct {
 	Length         uint32     `json:"length"`
 	SequenceNumber uint8      `json:"sequence_number"`
 	Raw            string     `json:"raw"`
@@ -307,8 +318,8 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 		return nil, fmt.Errorf("Error reading OKPacket.LastInsertId: %s", err)
 	}
 	flags := uint32(0)
-	if c.Handshake != nil {
-		flags = c.Handshake.CapabilityFlags
+	if handshake := c.GetHandshake(); handshake != nil {
+		flags = handshake.CapabilityFlags
 	} else {
 		log.Warnf("readOKPacket: Received OKPacket before Handshake")
 	}
@@ -363,8 +374,8 @@ func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 	ret.ErrorCode = binary.LittleEndian.Uint16(body[1:3])
 	rest := body[3:]
 	flags := uint32(0)
-	if c.Handshake != nil {
-		flags = c.Handshake.CapabilityFlags
+	if handshake := c.GetHandshake(); handshake != nil {
+		flags = handshake.CapabilityFlags
 	} else {
 		// This is a valid case -- e.g. client hostname not allowed
 	}
@@ -407,7 +418,7 @@ func (c *Connection) getNextSequenceNumber() byte {
 }
 
 // Given a WritablePacket, prefix it with the length+sequence number header and send it to the server.
-func (c *Connection) sendPacket(packet WritablePacket) error {
+func (c *Connection) sendPacket(packet WritablePacket) (*ConnectionLogEntry, error) {
 	body := packet.EncodeBody()
 	if len(body) > 0xffffff {
 		log.Fatalf("Body longer than 24 bits (0x%x bytes)", len(body))
@@ -418,22 +429,16 @@ func (c *Connection) sendPacket(packet WritablePacket) error {
 	toSend[3] = seq
 	copy(toSend[4:], body)
 
-	logPacket := PacketLogEntry{
+	logPacket := ConnectionLogEntry{
 		Length:         uint32(len(body)),
 		SequenceNumber: seq,
 		Raw:            base64.StdEncoding.EncodeToString(body),
 		Parsed:         packet,
 	}
 
-	c.pushToPacketLog(&logPacket)
 	// @TODO: Buffered send?
 	_, err := (*c.Connection).Write(toSend)
-	return err
-}
-
-// Log a packet
-func (c *Connection) pushToPacketLog(packet *PacketLogEntry) {
-	c.PacketLog = append(c.PacketLog, packet)
+	return &logPacket, err
 }
 
 // Decode a packet from the pre-separated body
@@ -454,7 +459,7 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 }
 
 // Read a packet and sequence identifier off of the given connection
-func (c *Connection) readPacket() (PacketInfo, error) {
+func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	// @TODO @FIXME Find/use conventional buffered packet-reading functions, handle timeouts / connection reset / etc
 	conn := *c.Connection
 	reader := bufio.NewReader(conn)
@@ -473,13 +478,11 @@ func (c *Connection) readPacket() (PacketInfo, error) {
 	// length is actually Uint24; clear the bogus MSB before decoding
 	header[3] = 0
 	len := binary.LittleEndian.Uint32(header[:])
-	packet := PacketLogEntry{
+	packet := ConnectionLogEntry{
 		Length:         len,
 		SequenceNumber: seq,
 	}
 
-	// If we fail, we will still have the Length / Sequence Number logged
-	c.pushToPacketLog(&packet)
 	var body = make([]byte, len, len)
 	n, err = reader.Read(body)
 	if err != nil {
@@ -499,7 +502,15 @@ func (c *Connection) readPacket() (PacketInfo, error) {
 	}
 	packet.Parsed = ret
 
-	return ret, nil
+	return &packet, nil
+}
+
+// Get the server HandshakePacket if present, or otherwise, nil
+func (c *Connection) GetHandshake() *HandshakePacket {
+	if entry := c.ConnectionLog.Handshake; entry != nil {
+		return entry.Parsed.(*HandshakePacket)
+	}
+	return nil
 }
 
 // Perform a TLS handshake using the configured TLSConfig on the current connection
@@ -514,18 +525,13 @@ func (c *Connection) StartTLS() error {
 	return nil
 }
 
-// Check if the connection has been upgraded to TLS
-func (c *Connection) IsSecure() bool {
-	return c.TLSHandshake != nil
-}
-
 // Check if both the input client flags and the server capability flags support TLS
 func (c *Connection) SupportsTLS() bool {
-	if c.State != STATE_CONNECTED {
-		// Vacuously false if you are not connected
-		return false
+	if handshake := c.GetHandshake(); handshake != nil {
+		return (handshake.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0
 	}
-	return (c.Handshake.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0
+	// Vacuously false if you are not connected
+	return false
 }
 
 // Send the SSL_REQUEST packet (the client should begin the TLS handshake immediately after this returns successfully)
@@ -537,9 +543,12 @@ func (c *Connection) NegotiateTLS() error {
 		CharacterSet:    c.Config.CharSet,
 		Reserved:        c.Config.ReservedData,
 	}
-	if err := c.sendPacket(&sslRequest); err != nil {
+	sentPacket, err := c.sendPacket(&sslRequest)
+	if err != nil {
 		return fmt.Errorf("Error sending SSLRequest packet: %s", err)
 	}
+	c.ConnectionLog.SSLRequest = sentPacket
+
 	c.State = STATE_SSL_HANDSHAKE
 	return nil
 }
@@ -556,8 +565,11 @@ func (c *Connection) Connect() error {
 	}
 	c.Connection = &conn
 	c.State = STATE_CONNECTED
-	c.Handshake = nil
-	c.TLSHandshake = nil
+	c.ConnectionLog = ConnectionLog{
+		Handshake:  nil,
+		SSLRequest: nil,
+		Error:      nil,
+	}
 
 	packet, err := c.readPacket()
 	if err != nil {
@@ -565,23 +577,22 @@ func (c *Connection) Connect() error {
 		return fmt.Errorf("Error reading server handshake packet: %s", err)
 	}
 
-	switch p := packet.(type) {
+	switch p := packet.Parsed.(type) {
 	case *HandshakePacket:
-		// OK -- nothing to do
+		c.ConnectionLog.Handshake = packet
 	case *ERRPacket:
+		c.ConnectionLog.Error = packet
 		log.Debugf("Got error packet: 0x%x / %s", p.ErrorCode, p.ErrorMessage)
 		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", p.ErrorCode, p.ErrorMessage)
 	default:
-		log.Debugf("Unexpected response: %v", p)
+		// Drop unrecgnized packets -- including those with packet.Parsed == nil -- into the "Error" slot
+		c.ConnectionLog.Error = packet
 		jsonStr, err := json.Marshal(p)
 		if err != nil {
 			return fmt.Errorf("Server returned unexpected packet type, failed to marshal paclet: %s", err)
 		}
 		return fmt.Errorf("Server returned unexpected packet type after connecting: %s", jsonStr)
 	}
-
-	handshakePacket := packet.(*HandshakePacket)
-	c.Handshake = handshakePacket
 	return nil
 }
 
