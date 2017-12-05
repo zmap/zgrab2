@@ -2,17 +2,13 @@ package modules
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
 )
 
 // HandshakeLog contains detailed information about each step of the
 // MySQL handshake, and can be encoded to JSON.
-type MySQLScanResults struct {
-	PacketLog    []*mysql.PacketLogEntry `json:"packet_log"`
-	TLSHandshake *tls.ServerHandshake    `json:"tls_handshake,omitempty"`
-}
+type MySQLScanResults mysql.ConnectionLog
 
 type MySQLFlags struct {
 	zgrab2.BaseFlags
@@ -80,10 +76,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := MySQLScanResults{PacketLog: sql.PacketLog}
-	if sql.IsSecure() {
-		ret.TLSHandshake = sql.TLSHandshake
-	}
+	ret := sql.ConnectionLog
 
 	return ret, nil
 }
