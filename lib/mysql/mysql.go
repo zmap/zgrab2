@@ -203,14 +203,14 @@ type HandshakePacket struct {
 	// fillter_1: byte<1>
 	Filler1 byte `json:"filler_1,omitempty"`
 	// capability_flag_1: int<2> -- Stored as lower 16 bits of capability_flags
-	// character_set: int<1> (optional?)
+	// character_set: int<1> (optional? 0 is a valid value, so omitempty doesn't seem like an option)
 	CharacterSet byte `json:"character_set"`
 
 	// Synthetic field: if true, none of the following fields are present.
 	ShortHandshake bool `json:"short_handshake"`
 
-	// status_flags: int<> (optional?)
-	StatusFlags uint16 `json:"status_flags"`
+	// status_flags: int<> (optional? doing omitempty since no flags would be interpreted as all 0s)
+	StatusFlags uint16 `json:"status_flags,omitempty"`
 	// capability_flag_2: int<2> -- Stored as upper 16 bits of capability_flags
 
 	// auth_plugin_data_len: int<1>
@@ -288,19 +288,19 @@ type OKPacket struct {
 	LastInsertId uint64 `json:"last_insert_id"`
 	// if (CLIENT_PROTOCOL_41 || CLIENT_TRANSACTIONS) {
 	// status_flags: int<2>
-	StatusFlags uint16 `json:"status_flags"`
+	StatusFlags uint16 `json:"status_flags,omitempty"`
 	// if CLIENT_PROTOCOL_41 {
 	// warning_flags: int<2>
-	WarningFlags uint16 `json:"warning_flags"`
+	WarningFlags uint16 `json:"warning_flags,omitempty"`
 	// warnings: int<2>
-	Warnings uint16 `json:"warnings"`
+	Warnings uint16 `json:"warnings,omitempty"`
 	// }
 	// }
 	// info: string<lenenc> || string<EOF>
-	Info string `json:"info"`
+	Info string `json:"info,omitempty"`
 	// if CLIENT_SESSION_TRACK && status_flags && SERVER_SESSION_STATE_CHANGED {
 	// session_state_changes: string<lenenc>
-	SessionStateChanges string `json:"session_state_changes"`
+	SessionStateChanges string `json:"session_state_changes,omitempty"`
 	// }
 }
 
@@ -360,12 +360,12 @@ type ERRPacket struct {
 	ErrorCode uint16 `json:"error_code"`
 	// if CLIENT_PROTOCOL_41 {
 	// sql_state_marker string<1>
-	SQLStateMarker string `json:"sql_state_marker"`
+	SQLStateMarker string `json:"sql_state_marker,omitempty"`
 	// sql_state string<5>
-	SQLState string `json:"sql_state"`
+	SQLState string `json:"sql_state,omitempty"`
 	// }
-	// error_messagestring<eof>
-	ErrorMessage string `json:"error_message"`
+	// error_messagestring<eof> (in the packet encoding, an absent value and an empty string have the same encoding)
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
@@ -397,7 +397,7 @@ type SSLRequestPacket struct {
 	// character_set int<1>
 	CharacterSet byte `json:"character_set"`
 	// reserved string<23>: all \x00
-	Reserved []byte `json:"reserved"`
+	Reserved []byte `json:"reserved,omitempty"`
 }
 
 func (p *SSLRequestPacket) EncodeBody() []byte {
