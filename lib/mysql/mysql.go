@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"time"
@@ -109,6 +110,72 @@ type Config struct {
 	ReservedData       []byte
 }
 
+// flagsToList() converts an integer flags variable to a list of consts corresponding to each bit.
+// The [i]th entry of consts corresponds to the [i]th bit in flags.
+// Example: flagsToList(0x11, { "a", "b", "c", "d", "e" }) returns { "a", "e" }.
+func flagsToList(flags uint64, consts []string) (ret []string) {
+	for i := range consts {
+		v := uint64(math.Pow(2, float64(i)))
+		if uint64(flags)&v == v {
+			ret = append(ret, consts[i])
+		}
+	}
+	return ret
+}
+
+// Get the constants corresponding to the given server status flags
+func getServerStatusFlags(flags uint16) []string {
+	consts := []string{
+		"SERVER_STATUS_IN_TRANS",
+		"SERVER_STATUS_AUTOCOMMIT",
+		"SERVER_MORE_RESULTS_EXISTS",
+		"SERVER_QUERY_NO_GOOD_INDEX_USED",
+		"SERVER_QUERY_NO_INDEX_USED",
+		"SERVER_STATUS_CURSOR_EXISTS",
+		"SERVER_STATUS_LAST_ROW_SENT",
+		"SERVER_STATUS_DB_DROPPED",
+		"SERVER_STATUS_NO_BACKSLASH_ESCAPES",
+		"SERVER_STATUS_METADATA_CHANGED",
+		"SERVER_QUERY_WAS_SLOW",
+		"SERVER_PS_OUT_PARAMS",
+		"SERVER_STATUS_IN_TRANS_READONLY",
+		"SERVER_SESSION_STATE_CHANGED",
+	}
+	return flagsToList(uint64(flags), consts)
+}
+
+// Get the constants corresponding to th egiven client capability flags
+func getClientCapabilityFlags(flags uint32) []string {
+	consts := []string{
+		"CLIENT_LONG_PASSWORD",
+		"CLIENT_FOUND_ROWS",
+		"CLIENT_LONG_FLAG",
+		"CLIENT_CONNECT_WITH_DB",
+		"CLIENT_NO_SCHEMA",
+		"CLIENT_COMPRESS",
+		"CLIENT_ODBC",
+		"CLIENT_LOCAL_FILES",
+		"CLIENT_IGNORE_SPACE",
+		"CLIENT_PROTOCOL_41",
+		"CLIENT_INTERACTIVE",
+		"CLIENT_SSL",
+		"CLIENT_IGNORE_SIGPIPE",
+		"CLIENT_TRANSACTIONS",
+		"CLIENT_RESERVED",
+		"CLIENT_SECURE_CONNECTION",
+		"CLIENT_MULTI_STATEMENTS",
+		"CLIENT_MULTI_RESULTS",
+		"CLIENT_PS_MULTI_RESULTS",
+		"CLIENT_PLUGIN_AUTH",
+		"CLIENT_CONNECT_ATTRS",
+		"CLIENT_PLUGIN_AUTH_LEN_ENC_CLIENT_DATA",
+		"CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS",
+		"CLIENT_SESSION_TRACK",
+		"CLIENT_DEPRECATED_EOF",
+	}
+	return flagsToList(uint64(flags), consts)
+}
+
 // Fill in a (possibly newly-created) Config instance with the default values
 func InitConfig(base *Config) *Config {
 	if base == nil {
@@ -182,9 +249,9 @@ type WritablePacket interface {
 // Entry in the ConnectionLog. Raw is the base64-encoded body, Parsed is the parsed packet.
 // Either may be nil if there was an error reading/decoding the packet.
 type ConnectionLogEntry struct {
-	Length         uint32     `json:"length"`
-	SequenceNumber uint8      `json:"sequence_number"`
-	Raw            string     `json:"raw"`
+	Length         uint32     `zgrab:"debug" json:"length"`
+	SequenceNumber uint8      `zgrab:"debug" json:"sequence_number"`
+	Raw            string     `zgrab:"debug" json:"raw"`
 	Parsed         PacketInfo `json:"parsed,omitempty"`
 }
 
@@ -197,31 +264,31 @@ type HandshakePacket struct {
 	// server_version: string<NUL>
 	ServerVersion string `json:"server_version"`
 	// connection_id: int<4>
-	ConnectionID uint32 `json:"connection_id"` // [4]
+	ConnectionID uint32 `zgrab:"debug" json:"connection_id"` // [4]
 	// auth_plugin_data_part_1: string<8>
-	AuthPluginData1 string `json:"auth_plugin_data_part_1"`
+	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1"`
 	// fillter_1: byte<1>
-	Filler1 byte `json:"filler_1,omitempty"`
+	Filler1 byte `zgrab:"debug" json:"filler_1,omitempty"`
 	// capability_flag_1: int<2> -- Stored as lower 16 bits of capability_flags
 	// character_set: int<1> (optional? 0 is a valid value, so omitempty doesn't seem like an option)
-	CharacterSet byte `json:"character_set"`
+	CharacterSet byte `zgrab:"debug" json:"character_set"`
 
 	// Synthetic field: if true, none of the following fields are present.
-	ShortHandshake bool `json:"short_handshake"`
+	ShortHandshake bool `zgrab:"debug" json:"short_handshake"`
 
 	// status_flags: int<> (optional? doing omitempty since no flags would be interpreted as all 0s)
 	StatusFlags uint16 `json:"status_flags,omitempty"`
 	// capability_flag_2: int<2> -- Stored as upper 16 bits of capability_flags
 
 	// auth_plugin_data_len: int<1>
-	AuthPluginDataLen byte `json:"auth_plugin_data_len"`
+	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
 	// if (capabilities & CLIENT_SECURE_CONNECTION) {
 	// reserved:  string<10> all 0: custom marshaler will omit this if it is all \x00s.
-	Reserved []byte `json:"reserved,omitempty"`
+	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
 	// auth_plugin_data_part_2: string<MAX(13, auth_plugin_data_len - 8)>
-	AuthPluginData2 string `json:"auth_plugin_data_part_2,omitempty"`
+	AuthPluginData2 []byte `zgrab:"debug" json:"auth_plugin_data_part_2,omitempty"`
 	// auth_plugin_name: string<NUL>, but old versions lacked null terminator, so returning string<EOF>
-	AuthPluginName string `json:"auth_plugin_name,omitempty"`
+	AuthPluginName string `zgrab:"debug" json:"auth_plugin_name,omitempty"`
 	// }
 	// Synthetic field built from capability_flags_1 || capability_flags_2 << 16
 	CapabilityFlags uint32 `json:"capability_flags"`
@@ -236,10 +303,14 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias HandshakePacket
 	return json.Marshal(&struct {
-		ReservedOmitted []byte `json:"reserved,omitempty"`
+		ReservedOmitted []byte   `zgrab:"debug" json:"reserved,omitempty"`
+		CapabilityFlags []string `json:"capability_flags"`
+		StatusFlags     []string `json:"status_flags"`
 		*Alias
 	}{
 		ReservedOmitted: reserved,
+		CapabilityFlags: getClientCapabilityFlags(p.CapabilityFlags),
+		StatusFlags:     getServerStatusFlags(p.StatusFlags),
 		Alias:           (*Alias)(p),
 	})
 }
@@ -250,7 +321,7 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 	ret.ProtocolVersion = body[0]
 	ret.ServerVersion, rest = readNulString(body[1:])
 	ret.ConnectionID = binary.LittleEndian.Uint32(rest[0:4])
-	ret.AuthPluginData1 = string(rest[4:12])
+	ret.AuthPluginData1 = rest[4:12]
 	ret.Filler1 = rest[12]
 	ret.CapabilityFlags = uint32(binary.LittleEndian.Uint16(rest[13:15]))
 
@@ -268,9 +339,10 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 			if part2Len < 13 {
 				part2Len = 13
 			}
-			ret.AuthPluginData2 = string(rest[31 : 31+part2Len])
+			ret.AuthPluginData2 = rest[31 : 31+part2Len]
 			if ret.CapabilityFlags&CLIENT_SECURE_CONNECTION != 0 {
-				ret.AuthPluginName = string(rest[31+part2Len:])
+				// If AuthPluginName does include a NUL terminator, strip it.
+				ret.AuthPluginName = strings.Trim(string(rest[31+part2Len:]), "\u0000")
 			}
 		}
 	} else {
@@ -281,17 +353,15 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 
 type OKPacket struct {
 	// header: 0xfe or 0x00
-	Header byte `json:"header"`
+	Header byte `zgrab:"debug" json:"header"`
 	// affected_rows: int<lenenc>
-	AffectedRows uint64 `json:"affected_rows"`
+	AffectedRows uint64 `zgrab:"debug" json:"affected_rows"`
 	// last_insert_rowid: int<lenenc>
 	LastInsertId uint64 `json:"last_insert_id"`
 	// if (CLIENT_PROTOCOL_41 || CLIENT_TRANSACTIONS) {
 	// status_flags: int<2>
 	StatusFlags uint16 `json:"status_flags,omitempty"`
 	// if CLIENT_PROTOCOL_41 {
-	// warning_flags: int<2>
-	WarningFlags uint16 `json:"warning_flags,omitempty"`
 	// warnings: int<2>
 	Warnings uint16 `json:"warnings,omitempty"`
 	// }
@@ -300,8 +370,21 @@ type OKPacket struct {
 	Info string `json:"info,omitempty"`
 	// if CLIENT_SESSION_TRACK && status_flags && SERVER_SESSION_STATE_CHANGED {
 	// session_state_changes: string<lenenc>
-	SessionStateChanges string `json:"session_state_changes,omitempty"`
+	SessionStateChanges string `zgrab:"debug" json:"session_state_changes,omitempty"`
 	// }
+}
+
+// Convert the StatusFlags to an array of consts
+func (p *OKPacket) MarshalJSON() ([]byte, error) {
+	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
+	type Alias OKPacket
+	return json.Marshal(&struct {
+		StatusFlags []string `json:"status_flags"`
+		*Alias
+	}{
+		StatusFlags: getServerStatusFlags(p.StatusFlags),
+		Alias:       (*Alias)(p),
+	})
 }
 
 func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
@@ -328,10 +411,9 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 		ret.StatusFlags = binary.LittleEndian.Uint16(rest[0:2])
 		rest = rest[2:]
 		if flags&CLIENT_PROTOCOL_41 != 0 {
-			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading WarningFlags / Warnings")
-			ret.WarningFlags = binary.LittleEndian.Uint16(rest[0:2])
-			ret.Warnings = binary.LittleEndian.Uint16(rest[2:4])
-			rest = rest[4:]
+			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading Warnings")
+			ret.Warnings = binary.LittleEndian.Uint16(rest[0:2])
+			rest = rest[2:]
 		}
 	}
 	ret.Info, rest, err = readLenString(rest[:])
@@ -355,14 +437,14 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 // ERRPacket defined at https://web.archive.org/web/20160316124241/https://dev.mysql.com/doc/internals/en/packet-ERRPacket.html
 type ERRPacket struct {
 	// header: int<1>
-	Header byte `json:"header"`
+	Header byte `zgrab:"debug" json:"header"`
 	// error_code: int<2>
 	ErrorCode uint16 `json:"error_code"`
 	// if CLIENT_PROTOCOL_41 {
 	// sql_state_marker string<1>
-	SQLStateMarker string `json:"sql_state_marker,omitempty"`
+	SQLStateMarker string `zgrab:"debug" json:"sql_state_marker,omitempty"`
 	// sql_state string<5>
-	SQLState string `json:"sql_state,omitempty"`
+	SQLState string `zgrab:"debug" json:"sql_state,omitempty"`
 	// }
 	// error_messagestring<eof> (in the packet encoding, an absent value and an empty string have the same encoding)
 	ErrorMessage string `json:"error_message,omitempty"`
@@ -393,11 +475,30 @@ type SSLRequestPacket struct {
 	// capability_flags int<4>: Would be weird to not set CLIENT_SSL (0x0800) in your SSLRequest packet
 	CapabilityFlags uint32 `json:"capability_flags"`
 	// max_packet_size int<4>
-	MaxPacketSize uint32 `json:"max_packet_size"`
+	MaxPacketSize uint32 `zgrab:"debug" json:"max_packet_size"`
 	// character_set int<1>
-	CharacterSet byte `json:"character_set"`
+	CharacterSet byte `zgrab:"debug" json:"character_set"`
 	// reserved string<23>: all \x00
-	Reserved []byte `json:"reserved,omitempty"`
+	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
+}
+
+// Omit reserved from encoded packet if it is the default value (ten bytes of 0s)
+func (p *SSLRequestPacket) MarshalJSON() ([]byte, error) {
+	reserved := p.Reserved
+	if base64.StdEncoding.EncodeToString(reserved) == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" {
+		reserved = []byte{}
+	}
+	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
+	type Alias SSLRequestPacket
+	return json.Marshal(&struct {
+		ReservedOmitted []byte   `zgrab:"debug" json:"reserved,omitempty"`
+		CapabilityFlags []string `json:"capability_flags"`
+		*Alias
+	}{
+		ReservedOmitted: reserved,
+		CapabilityFlags: getClientCapabilityFlags(p.CapabilityFlags),
+		Alias:           (*Alias)(p),
+	})
 }
 
 func (p *SSLRequestPacket) EncodeBody() []byte {
