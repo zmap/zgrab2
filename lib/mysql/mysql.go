@@ -267,7 +267,7 @@ type HandshakePacket struct {
 	// connection_id: int<4>
 	ConnectionID uint32 `zgrab:"debug" json:"connection_id"` // [4]
 	// auth_plugin_data_part_1: string<8>
-	AuthPluginData1 string `zgrab:"debug" json:"auth_plugin_data_part_1"`
+	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1"`
 	// fillter_1: byte<1>
 	Filler1 byte `zgrab:"debug" json:"filler_1,omitempty"`
 	// capability_flag_1: int<2> -- Stored as lower 16 bits of capability_flags
@@ -287,7 +287,7 @@ type HandshakePacket struct {
 	// reserved:  string<10> all 0
 	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
 	// auth_plugin_data_part_2: string<MAX(13, auth_plugin_data_len - 8)>
-	AuthPluginData2 string `zgrab:"debug" json:"auth_plugin_data_part_2,omitempty"`
+	AuthPluginData2 []byte `zgrab:"debug" json:"auth_plugin_data_part_2,omitempty"`
 	// auth_plugin_name: string<NUL>, but old versions lacked null terminator, so returning string<EOF>
 	AuthPluginName string `zgrab:"debug" json:"auth_plugin_name,omitempty"`
 	// }
@@ -304,7 +304,7 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias HandshakePacket
 	return json.Marshal(&struct {
-		ReservedOmitted []byte   `zgrab:"debug", json:"reserved,omitempty"`
+		ReservedOmitted []byte   `zgrab:"debug" json:"reserved,omitempty"`
 		CapabilityFlags []string `json:"capability_flags"`
 		StatusFlags     []string `json:"status_flags"`
 		*Alias
@@ -322,7 +322,7 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 	ret.ProtocolVersion = body[0]
 	ret.ServerVersion, rest = readNulString(body[1:])
 	ret.ConnectionID = binary.LittleEndian.Uint32(rest[0:4])
-	ret.AuthPluginData1 = string(rest[4:12])
+	ret.AuthPluginData1 = rest[4:12]
 	ret.Filler1 = rest[12]
 	ret.CapabilityFlags = uint32(binary.LittleEndian.Uint16(rest[13:15]))
 
@@ -340,9 +340,10 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 			if part2Len < 13 {
 				part2Len = 13
 			}
-			ret.AuthPluginData2 = string(rest[31 : 31+part2Len])
+			ret.AuthPluginData2 = rest[31 : 31+part2Len]
 			if ret.CapabilityFlags&CLIENT_SECURE_CONNECTION != 0 {
-				ret.AuthPluginName = string(rest[31+part2Len:])
+				// If AuthPluginName does include a NUL terminator, strip it.
+				ret.AuthPluginName = strings.Trim(string(rest[31+part2Len:]), "\u0000")
 			}
 		}
 	} else {
@@ -491,7 +492,7 @@ func (p *SSLRequestPacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias SSLRequestPacket
 	return json.Marshal(&struct {
-		ReservedOmitted []byte   `zgrab:"debug", json:"reserved,omitempty"`
+		ReservedOmitted []byte   `zgrab:"debug" json:"reserved,omitempty"`
 		CapabilityFlags []string `json:"capability_flags"`
 		*Alias
 	}{
