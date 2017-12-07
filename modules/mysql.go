@@ -3,16 +3,18 @@ package modules
 import (
 	"net"
 
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
 )
+
+var logger *logrus.Logger
 
 // HandshakeLog contains detailed information about each step of the
 // MySQL handshake, and can be encoded to JSON.
 type MySQLScanResults struct {
 	mysql.ConnectionLog
-	TLSHandshake *zgrab2.ZGrabHandshakeLog `json:"tls_handshake,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 type MySQLFlags struct {
@@ -29,10 +31,11 @@ type MySQLScanner struct {
 }
 
 func init() {
+	logger = logrus.New()
 	var module MySQLModule
 	_, err := zgrab2.AddCommand("mysql", "MySQL", "Grab a MySQL handshake", 3306, &module)
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 }
 
@@ -55,12 +58,14 @@ func (f *MySQLFlags) Help() string {
 func (s *MySQLScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*MySQLFlags)
 	s.config = f
+	if f.Verbose {
+		logger.SetLevel(logrus.DebugLevel)
+	}
 	return nil
 }
 
 func (s *MySQLScanner) InitPerSender(senderID int) error {
 	// @TODO @FIXME: This is never called..?
-	log.WithFields(log.Fields{"scanner": s}).Info("InitPerSender", senderID)
 	return nil
 }
 
@@ -84,7 +89,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (_result interface{}, thrown er
 		recovered := recover()
 		if recovered != nil {
 			// Don't clobber an explicitly-thrown error message just bcause there was no panic()
-			log.Infof("Got error scanning %s: %v", s.GetName(), recovered)
+			logger.Debugf("Got error scanning %s: %v", s.GetName(), recovered)
 			thrown = recovered.(error)
 		}
 		result.ConnectionLog = sql.ConnectionLog
@@ -98,8 +103,8 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (_result interface{}, thrown er
 		if nerr := sql.NegotiateTLS(); nerr != nil {
 			panic(nerr)
 		}
-		var conn *zgrab2.ZGrabConnection
-		if conn, thrown = s.config.TLSFlags.GetZGrabTLSConnection(sql.Connection); thrown != nil {
+		var conn *zgrab2.TLSConnection
+		if conn, thrown = s.config.TLSFlags.GetTLSConnection(sql.Connection); thrown != nil {
 			panic(thrown)
 		}
 		if herr := conn.Handshake(); herr != nil {
@@ -117,7 +122,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (_result interface{}, thrown er
 		//  sql.Connection = conn.Conn // (cannot use conn.Conn (type tls.Conn) as type *net.Conn)
 		//  sql.Connection = &conn.Conn // (cannot use &conn.Conn (type *tls.Conn) as type *net.Conn)
 		//	sql.Connection = &(conn.Conn.conn) // (cannot refer to unexported field or method conn)
-		result.TLSHandshake = conn.GetHandshakeLog()
+		result.TLSLog = conn.GetLog()
 	}
 	return _result, thrown
 }
