@@ -237,7 +237,8 @@ func (z *TLSConnection) GetLog() *TLSLog {
 	return &TLSLog{
 		HandshakeLog:         temp,
 		HeartbleedChecked:    z.HeartbleedChecked,
-		HeartbleedVulnerable: z.HeartbleedVulnerable}
+		HeartbleedVulnerable: z.HeartbleedVulnerable,
+	}
 }
 
 func (z *TLSConnection) Handshake() error {
