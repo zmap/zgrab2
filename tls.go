@@ -214,30 +214,32 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 
 type TLSConnection struct {
 	tls.Conn
-	HeartbleedChecked    bool
-	HeartbleedVulnerable bool
-	flags                *TLSFlags
+	flags *TLSFlags
 }
 
 type TLSLog struct {
 	// TODO include TLSFlags?
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
-	// TODO Move to Heartbleed object
-	HeartbleedVulnerable bool `json:"heartbleed_vulnerable"`
-	HeartbleedChecked    bool `json:"heartbleed_checked"`
+	// This will be nil if heartbleed is not checked because of client configuration flags
+	HeartbleedLog *tls.Heartbleed `json:"heartbleed_log,omitempty"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
-	temp := z.Conn.GetHandshakeLog()
+	handshake := z.Conn.GetHandshakeLog()
 	if !z.flags.KeepClientLogs {
-		temp.ClientHello = nil
-		temp.ClientKeyExchange = nil
-		temp.ClientFinished = nil
+		handshake.ClientHello = nil
+		handshake.ClientKeyExchange = nil
+		handshake.ClientFinished = nil
+	}
+	var heartbleed *tls.Heartbleed
+	if z.flags.Heartbleed {
+		heartbleed = z.Conn.GetHeartbleedLog()
+	} else {
+		heartbleed = nil
 	}
 	return &TLSLog{
-		HandshakeLog:         temp,
-		HeartbleedChecked:    z.HeartbleedChecked,
-		HeartbleedVulnerable: z.HeartbleedVulnerable,
+		HandshakeLog:  handshake,
+		HeartbleedLog: heartbleed,
 	}
 }
 
@@ -245,15 +247,8 @@ func (z *TLSConnection) Handshake() error {
 	if z.flags.Heartbleed {
 		buf := make([]byte, 256)
 		_, err := z.CheckHeartbleed(buf)
-		z.HeartbleedChecked = true
-		z.GetHeartbleedLog()
-		if err != nil {
-			z.HeartbleedVulnerable = true
-		}
 		return err
 	} else {
-		z.HeartbleedVulnerable = false
-		z.HeartbleedChecked = false
 		return z.Conn.Handshake()
 	}
 }
@@ -265,9 +260,8 @@ func (t *TLSFlags) GetTLSConnection(conn *net.Conn) (*TLSConnection, error) {
 	}
 	tlsClient := tls.Client(*conn, cfg)
 	wrappedClient := TLSConnection{
-		Conn:              *tlsClient,
-		HeartbleedChecked: false,
-		flags:             t,
+		Conn:  *tlsClient,
+		flags: t,
 	}
 	return &wrappedClient, nil
 }
