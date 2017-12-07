@@ -12,7 +12,7 @@ before_install:
 before_script:
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
-- cd zgrab2/cmd/zgrab2 && go build && cd ../../..
+- cd cmd/zgrab2 && go build && cd ../..
 script:
 - "./integration_tests.py"
 notifications:
