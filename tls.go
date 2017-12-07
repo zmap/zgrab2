@@ -55,11 +55,6 @@ type TLSFlags struct {
 	SignatureAlgorithms string `long:"signature-algorithms" description:"Signature and hash algorithms that are acceptable"`
 	HeartbeatEnabled    bool   `long:"heartbeat-enabled" description:"If set, include the heartbeat extension"`
 	DSAEnabled          bool   `long:"dsa-enabled" description:"Accept server DSA keys"`
-	//ExtendedRandom       bool   `long:"extended-random" description:"Use extended random"`
-	// ForceSesionTicket -> SessionTicket
-	//ForceSessionTicket   bool   `long:"force-session-ticket" description:"Force Client Hello to send TLS Session Ticket extension"`
-	//ExtendedMasterSecret bool   `long:"extended-master-secret" description:"Enable Extended Master Secret extension"`
-	// SignedCertificateTimestampExt -> SCTExt
 	// TODO: format?
 	ClientRandom string `long:"client-random" description:"Set an explicit Client Random (base64 encoded)"`
 	// TODO: format?
@@ -89,7 +84,8 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 		"firefox-only":    tls.FirefoxCiphers,
 		"firefox-no-dhe":  tls.FirefoxNoDHECiphers,
 		"safari-only":     tls.SafariCiphers,
-		"safari-no-dhe":   tls.SafariNoDHECiphers}
+		"safari-no-dhe":   tls.SafariNoDHECiphers,
+	}
 
 	ret := tls.Config{}
 
