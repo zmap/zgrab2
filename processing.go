@@ -24,14 +24,6 @@ type ScanTarget struct {
 	Domain string
 }
 
-// ScanResponse is the result of a scan on a single host
-type ScanResponse struct {
-	Result         interface{} `json:"result,omitempty"`
-	Time           string      `json:"time,omitempty"`
-	Error          *string     `json:"error,omitempty"`
-	ErrorComponent string      `json:"error_component,omitempty"`
-}
-
 // grabTarget calls handler for each action
 func grabTarget(input ScanTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]ScanResponse)
