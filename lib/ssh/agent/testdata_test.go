@@ -13,7 +13,7 @@ import (
 	"fmt"
 
 	"github.com/zmap/zgrab2/lib/ssh"
-	"github.com/zmap/zgrab2/lib/testdata"
+	"github.com/zmap/zgrab2/lib/ssh/testdata"
 )
 
 var (
