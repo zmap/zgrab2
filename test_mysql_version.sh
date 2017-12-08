@@ -1,5 +1,5 @@
 #!/bin/bash
-if [ "$#" -ne 1 ]; then
+if [ "$#" -lt 1 ]; then
   echo "Usage:"
   echo ""
   echo "    $0 [version]"
@@ -16,6 +16,8 @@ fi
 SQL_VERSION="$1"
 CONTAINER_NAME="testmysql-$SQL_VERSION"
 OUTPUT_FILE="out-$SQL_VERSION.json"
+
+shift
 
 echo "Starting the mysql $SQL_VERSION container (forwarding localhost:3306 -> container:3306)..."
 set -x
