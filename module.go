@@ -5,7 +5,7 @@ type Scanner interface {
 	// Init runs once for this module at library init time
 	Init(flags ScanFlags) error
 
-	// InitPerSender runs once per Goroutine. A single Goroutine will scan some non-deterministics
+	// InitPerSender runs once per Goroutine. A single Goroutine will scan some non-deterministic
 	// subset of the input scan targets
 	InitPerSender(senderID int) error
 
