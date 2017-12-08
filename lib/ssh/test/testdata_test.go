@@ -12,8 +12,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/zmap/zgrab/ztools/ssh"
-	"github.com/zmap/zgrab/ztools/ssh/testdata"
+	"github.com/zmap/zgrab2/lib/ssh"
+	"github.com/zmap/zgrab2/lib/ssh/testdata"
 )
 
 var (
