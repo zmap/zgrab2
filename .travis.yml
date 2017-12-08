@@ -3,6 +3,7 @@ go:
 - 1.7.4
 before_install:
 - go get ./...
+- go get -t ./...
 before_script:
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
