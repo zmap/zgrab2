@@ -110,21 +110,22 @@ type Config struct {
 	ReservedData       []byte
 }
 
-// flagsToList() converts an integer flags variable to a list of consts corresponding to each bit.
-// The [i]th entry of consts corresponds to the [i]th bit in flags.
-// Example: flagsToList(0x11, { "a", "b", "c", "d", "e" }) returns { "a", "e" }.
-func flagsToList(flags uint64, consts []string) (ret []string) {
-	for i := range consts {
+// flagsToSet() converts an integer flags variable to a set of consts corresponding to each bit.
+// The result is a map from the labels to bool (true).
+// Example: flagsToSet(0x12, { "a", "b", "c", "d", "e" }) returns { "b": true, "e": true }.
+func flagsToSet(flags uint64, consts []string) (ret map[string]bool) {
+	ret = make(map[string]bool)
+	for i, label := range consts {
 		v := uint64(math.Pow(2, float64(i)))
 		if uint64(flags)&v == v {
-			ret = append(ret, consts[i])
+			ret[label] = true
 		}
 	}
 	return ret
 }
 
 // Get the constants corresponding to the given server status flags
-func getServerStatusFlags(flags uint16) []string {
+func getServerStatusFlags(flags uint16) map[string]bool {
 	consts := []string{
 		"SERVER_STATUS_IN_TRANS",
 		"SERVER_STATUS_AUTOCOMMIT",
@@ -141,11 +142,11 @@ func getServerStatusFlags(flags uint16) []string {
 		"SERVER_STATUS_IN_TRANS_READONLY",
 		"SERVER_SESSION_STATE_CHANGED",
 	}
-	return flagsToList(uint64(flags), consts)
+	return flagsToSet(uint64(flags), consts)
 }
 
 // Get the constants corresponding to th egiven client capability flags
-func getClientCapabilityFlags(flags uint32) []string {
+func getClientCapabilityFlags(flags uint32) map[string]bool {
 	consts := []string{
 		"CLIENT_LONG_PASSWORD",
 		"CLIENT_FOUND_ROWS",
@@ -173,7 +174,7 @@ func getClientCapabilityFlags(flags uint32) []string {
 		"CLIENT_SESSION_TRACK",
 		"CLIENT_DEPRECATED_EOF",
 	}
-	return flagsToList(uint64(flags), consts)
+	return flagsToSet(uint64(flags), consts)
 }
 
 // Fill in a (possibly newly-created) Config instance with the default values
@@ -304,9 +305,9 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias HandshakePacket
 	return json.Marshal(&struct {
-		ReservedOmitted []byte   `zgrab:"debug" json:"reserved,omitempty"`
-		CapabilityFlags []string `json:"capability_flags"`
-		StatusFlags     []string `json:"status_flags"`
+		ReservedOmitted []byte          `zgrab:"debug" json:"reserved,omitempty"`
+		CapabilityFlags map[string]bool `json:"capability_flags"`
+		StatusFlags     map[string]bool `json:"status_flags"`
 		*Alias
 	}{
 		ReservedOmitted: reserved,
@@ -380,7 +381,7 @@ func (p *OKPacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias OKPacket
 	return json.Marshal(&struct {
-		StatusFlags []string `json:"status_flags"`
+		StatusFlags map[string]bool `json:"status_flags"`
 		*Alias
 	}{
 		StatusFlags: getServerStatusFlags(p.StatusFlags),
@@ -492,8 +493,8 @@ func (p *SSLRequestPacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias SSLRequestPacket
 	return json.Marshal(&struct {
-		ReservedOmitted []byte   `zgrab:"debug" json:"reserved,omitempty"`
-		CapabilityFlags []string `json:"capability_flags"`
+		ReservedOmitted []byte          `zgrab:"debug" json:"reserved,omitempty"`
+		CapabilityFlags map[string]bool `json:"capability_flags"`
 		*Alias
 	}{
 		ReservedOmitted: reserved,
