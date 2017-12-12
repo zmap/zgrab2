@@ -2,18 +2,20 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-from schemas.zcrypto import *
-from schemas.zgrab2 import *
+import schemas.zcrypto as zcrypto
+import schemas.zgrab2 as zgrab2
+
+from schemas.zgrab2 import DebugOnly
 
 # zgrab2/lib/mysql/mysql.go: ConnectionLogEntry
-zgrab2_mysql_packet = SubRecord({
+mysql_packet = SubRecord({
     "length": DebugOnly(Unsigned32BitInteger()),
     "sequence_number": DebugOnly(Unsigned8BitInteger()),
     "raw": DebugOnly(String()),
     "parsed": SubRecord({})
 })
 
-zgrab2_mysql_server_status_flags = {
+mysql_server_status_flags = {
 		"SERVER_STATUS_IN_TRANS": Boolean(),
 		"SERVER_STATUS_AUTOCOMMIT": Boolean(),
 		"SERVER_MORE_RESULTS_EXISTS": Boolean(),
@@ -30,7 +32,7 @@ zgrab2_mysql_server_status_flags = {
 		"SERVER_SESSION_STATE_CHANGED": Boolean()
 }
 
-zgrab2_mysql_capability_flags = {
+mysql_capability_flags = {
 		"CLIENT_LONG_PASSWORD": Boolean(),
 		"CLIENT_FOUND_ROWS": Boolean(),
 		"CLIENT_LONG_FLAG": Boolean(),
@@ -59,38 +61,38 @@ zgrab2_mysql_capability_flags = {
 }
 
 # zgrab2/lib/mysql/mysql.go: HandshakePacket
-zgrab2_mysql_handshake = SubRecord({
+mysql_handshake = SubRecord({
     "parsed": SubRecord({
         "protocol_version": Unsigned8BitInteger(required = True),
         "server_version": String(required = True),
         "connection_id": DebugOnly(Unsigned32BitInteger()),
         "auth_plugin_data_part_1": DebugOnly(Binary()),
-        "capability_flags": SubRecord(zgrab2_mysql_capability_flags, required = True),
+        "capability_flags": SubRecord(mysql_capability_flags, required = True),
         "character_set": DebugOnly(Unsigned8BitInteger()),
         "short_handshake": DebugOnly(Boolean()),
-        "status_flags": SubRecord(zgrab2_mysql_server_status_flags, required = False),
+        "status_flags": SubRecord(mysql_server_status_flags, required = False),
         "auth_plugin_data_len": DebugOnly(Unsigned8BitInteger()),
         "reserved": DebugOnly(Binary()),
         "auth_plugin_data_part_2": DebugOnly(Binary()),
         "auth_plugin_name": DebugOnly(String())
     })
-}, extends = zgrab2_mysql_packet)
+}, extends = mysql_packet)
 
 # zgrab2/lib/mysql/mysql.go: OKPacket
-zgrab2_mysql_ok = SubRecord({
+mysql_ok = SubRecord({
     "parsed": SubRecord({
         "header": DebugOnly(Unsigned8BitInteger()),
         "affected_rows": DebugOnly(Signed64BitInteger()), # FIXME: Unsigned 64-bit integers not supported...? 
         "last_insert_id": Signed64BitInteger(),
-        "status_flags": SubRecord(zgrab2_mysql_server_status_flags, required = False),
+        "status_flags": SubRecord(mysql_server_status_flags, required = False),
         "warnings": Unsigned16BitInteger(),
         "info": String(),
         "session_state_changes": DebugOnly(String())
     })
-}, extends = zgrab2_mysql_packet)
+}, extends = mysql_packet)
 
 # zgrab2/lib/mysql/mysql.go: ERRPacket
-zgrab2_mysql_error = SubRecord({
+mysql_error = SubRecord({
     "parsed": SubRecord({
         "header": DebugOnly(Unsigned8BitInteger()),
         "error_code": Unsigned16BitInteger(),
@@ -98,36 +100,29 @@ zgrab2_mysql_error = SubRecord({
         "sql_state": DebugOnly(String()),
         "error_message": String()
     })
-}, extends = zgrab2_mysql_packet)
+}, extends = mysql_packet)
 
 # zgrab2/lib/mysql/mysql.go: SSLRequestPacket
-zgrab2_mysql_ssl_request = SubRecord({
+mysql_ssl_request = SubRecord({
     "parsed": SubRecord({
-        "capability_flags": SubRecord(zgrab2_mysql_capability_flags, required = True),
+        "capability_flags": SubRecord(mysql_capability_flags, required = True),
         "max_packet_size": DebugOnly(Unsigned32BitInteger()),
         "character_set": DebugOnly(Unsigned8BitInteger()),
         "reserved": DebugOnly(Binary())
     })
-}, extends = zgrab2_mysql_packet)
+}, extends = mysql_packet)
 
 # zgrab2/modules/mysql.go: MySQLScanResults
-zgrab2_mysql = SubRecord({
+mysql_scan_response = SubRecord({
     "result": SubRecord({
-        "tls": zgrab2_tls_log,
-        "handshake": zgrab2_mysql_handshake,
-        "error": zgrab2_mysql_error,
-        "ssl_request": zgrab2_mysql_ssl_request
+        "tls": zgrab2.tls_log,
+        "handshake": mysql_handshake,
+        "error": mysql_error,
+        "ssl_request": mysql_ssl_request
     })
-}, extends = zgrab2_protocol_base)
+}, extends = zgrab2.base_scan_response)
 
-zschema.registry.register_schema("zgrab-mysql", zgrab2_mysql)
+zschema.registry.register_schema("zgrab2-mysql", mysql_scan_response)
 
-register_result_type('mysql', zgrab2_mysql)
+zgrab2.register_scan_response_type('mysql', mysql_scan_response)
 
-if __name__ == '__main__':
-    from subprocess import call
-    schema_types = ['bigquery', 'elasticsearch', 'json', 'text', 'flat']
-    for name in zschema.registry.all_schemas():
-        for schema_type in schema_types:
-            cmd = ["zschema", schema_type, __file__ + ":" + name]
-            call(cmd)

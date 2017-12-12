@@ -6,23 +6,23 @@ from collections import defaultdict
 # Base / shared schema types for zgrab2
 
 # TODO: just import schemas.zcrypto when its exports are properly renamed
-from schemas.zcrypto import *
+import schemas.zcrypto as zcrypto
 
 # Map of protocol-name -> protocl-schema. This is wrapped in a SubRecord
-# Protocols are responsible for calling register_result_type(protocol_name, schema).
+# Protocols are responsible for calling register_scan_response_type(protocol_name, schema).
 # Failure to do so will result in a validation exception for any scan results containing that protocol.
 # NOTE: Scans with custom names will cause the validator to fail.
 # TODO: It seems like this should be doable with the zschema.registry?
-zgrab2_result_types = {}
+scan_response_types = {}
 
 # Placeholder / RFU. Many mysql fields are only included in debug mode.
 def DebugOnly(childType):
     return childType
 
 # zgrab2/processing.go: Grab
-zgrab2_outer = Record({
+grab_result = Record({
     "ip": IPv4Address(required = True),
-    "data": SubRecord(zgrab2_result_types, required = True),
+    "data": SubRecord(scan_response_types, required = True),
 })
 
 # zgrab2/module.go: const SCAN_*
@@ -38,19 +38,23 @@ STATUS_VALUES = [
 ]
 
 # zgrab2/module.go: ScanResponse
-zgrab2_protocol_base = SubRecord({
-    "status": Enum(values = STATUS_VALUES, required = True), # TODO: make an enum
-    "time": DateTime(required=True), # TODO: time->timestamp
+base_scan_response = SubRecord({
+    "status": Enum(values = STATUS_VALUES, required = True),
+    "timestamp": DateTime(required = True),
     "result": SubRecord({}, required = False), # This is overridden by the protocols' implementations
     "error": String(required = False)
     # TODO: error_component? domain?
 })
 
 # zgrab2/tls.go: TLSLog
-zgrab2_tls_log = SubRecord({
-    "handshake_log": zgrab_tls,
-    "heartbleed_log": zcrypto_heartbleed_log
+tls_log = SubRecord({
+    "handshake_log": zcrypto.tls_handshake,
+    "heartbleed_log": zcrypto.heartbleed_log
 })
 
-def register_result_type(name, schema):
-    zgrab2_result_types[name] = schema
+# Register a schema type for responses with the given name.
+def register_scan_response_type(name, schema):
+    scan_response_types[name] = schema
+
+zschema.registry.register_schema("zgrab2", grab_result)
+

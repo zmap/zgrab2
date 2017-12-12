@@ -79,7 +79,7 @@ ecdsa_public_key = SubRecord({
 })
 
 # x509/json.go jsonCertificate (mapped from x509.Certificate)
-zgrab_parsed_certificate = SubRecord({
+parsed_certificate = SubRecord({
     "subject":distinguished_name,
     # TODO FIXME: Added by jb 2017/12/11
     "subject_dn": String(),
@@ -178,42 +178,38 @@ zgrab_parsed_certificate = SubRecord({
 })
 
 # ???
-zgrab_certificate_trust = SubRecord({
+certificate_trust = SubRecord({
     "type":String(doc="root, intermediate, or leaf certificate"),
     "trusted_path":Boolean(doc="Does certificate chain up to browser root store"),
     "valid":Boolean(doc="is this certificate currently valid in this browser"),
     "was_valid":Boolean(doc="was this certificate ever valid in this browser")
 })
 
-zgrab_lint_result = SubRecord({
-
-})
-
-zgrab_lint = SubRecord({})
+lint = SubRecord({})
 
 # ???
-zgrab_certificate = SubRecord({
+certificate = SubRecord({
     "raw":Binary(),
-    "parsed":zgrab_parsed_certificate,
+    "parsed":parsed_certificate,
     "validation":SubRecord({
-        "nss":zgrab_certificate_trust,
-        "apple":zgrab_certificate_trust,
-        "microsoft":zgrab_certificate_trust,
-        "android":zgrab_certificate_trust,
-        "java":zgrab_certificate_trust,
+        "nss":certificate_trust,
+        "apple":certificate_trust,
+        "microsoft":certificate_trust,
+        "android":certificate_trust,
+        "java":certificate_trust,
     }),
-    "lint":zgrab_lint
+    "lint":lint
 })
 
 # ???
-zgrab_server_certificate_valid = SubRecord({
+server_certificate_valid = SubRecord({
     "complete_chain":Boolean(doc="does server provide a chain up to a root"),
     "valid":Boolean(doc="is this certificate currently valid in this browser"),
     "error":String()
 })
 
 # zcrypto/tls/tls_handshake.go: ServerHandshake
-zgrab_tls = SubRecord({
+tls_handshake = SubRecord({
     "client_hello":SubRecord({
         "random":Binary(),
         "extended_random":Binary(),
@@ -251,16 +247,16 @@ zgrab_tls = SubRecord({
             })),
     }),
     "server_certificates":SubRecord({
-        "certificate":zgrab_certificate,
-        "chain":ListOf(zgrab_certificate),
+        "certificate":certificate,
+        "chain":ListOf(certificate),
         "validation":SubRecord({
             "matches_domain":Boolean(),
             "stores":SubRecord({
-                "nss":zgrab_server_certificate_valid,
-                "microsoft":zgrab_server_certificate_valid,
-                "apple":zgrab_server_certificate_valid,
-                "java":zgrab_server_certificate_valid,
-                "android":zgrab_server_certificate_valid,
+                "nss":server_certificate_valid,
+                "microsoft":server_certificate_valid,
+                "apple":server_certificate_valid,
+                "java":server_certificate_valid,
+                "android":server_certificate_valid,
             }),
             # TODO FIXME: ?? are the above applicable in zgrab2? I see the following    # TODO FIXME: Added by jb 2017/12/11
             # TODO FIXME: Added by jb 2017/12/11
@@ -407,7 +403,7 @@ zgrab_tls = SubRecord({
 })
 
 # zcrypto/tls/tls_heartbeat.go: Heartbleed
-zcrypto_heartbleed_log = SubRecord({
+heartbleed_log = SubRecord({
     "heartbleed_enabled": Boolean(),
     "heartbleed_vulnerable": Boolean()    
 })
