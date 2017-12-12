@@ -77,7 +77,7 @@ func (s *MySQLScanner) GetPort() uint {
 	return s.config.Port
 }
 
-func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (_result interface{}, thrown error) {
+func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _result interface{}, thrown error) {
 	sql := mysql.NewConnection(&mysql.Config{
 		Host: t.IP.String(),
 		Port: uint16(s.config.Port),
@@ -124,5 +124,6 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (_result interface{}, thrown er
 		//	sql.Connection = &(conn.Conn.conn) // (cannot refer to unexported field or method conn)
 		result.TLSLog = conn.GetLog()
 	}
-	return _result, thrown
+	// TODO FIXME: distinguish errors
+	return zgrab2.SCAN_SUCCESS, _result, thrown
 }
