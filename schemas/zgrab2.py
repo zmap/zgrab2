@@ -5,14 +5,13 @@ from collections import defaultdict
 
 # Base / shared schema types for zgrab2
 
-# TODO: just import schemas.zcrypto when its exports are properly renamed
 import schemas.zcrypto as zcrypto
 
 # Map of protocol-name -> protocl-schema. This is wrapped in a SubRecord
 # Protocols are responsible for calling register_scan_response_type(protocol_name, schema).
 # Failure to do so will result in a validation exception for any scan results containing that protocol.
 # NOTE: Scans with custom names will cause the validator to fail.
-# TODO: It seems like this should be doable with the zschema.registry?
+# TODO: Can this be somehow replaced with the main registry?
 scan_response_types = {}
 
 # Placeholder / RFU. Many mysql fields are only included in debug mode.

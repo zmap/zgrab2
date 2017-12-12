@@ -5,7 +5,6 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-# TODO: just import zcrypto_schema when its exports are properly renamed
 from schemas.zcrypto import *
 import schemas.zgrab2 as zgrab2
 

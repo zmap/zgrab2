@@ -5,8 +5,6 @@ import zschema.registry
 # Mostly copied from zmap/zgrab/zgrab_schema.py
 # Since the struct -> json mappings are defined in zcrypto, it seems like it would make sense to have this schema defined there
 
-# TODO: rename zgrab -> zcrypto
-
 # For items in x509/pkix/pkix.go, there is a corresponding struct in x509/pkix/json.go, prefixed with "aux" (e.g. Name -> auxName)
 
 # x509/pkix/pkix.go: Name
