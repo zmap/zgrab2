@@ -29,7 +29,7 @@ func PrintScanners() {
 // RunScanner runs a single scan on a target and returns the resulting data
 func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	res, e := s.Scan(target)
+	status, res, e := s.Scan(target)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}
@@ -39,7 +39,7 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 		errString := e.Error()
 		err = &errString
 	}
-	resp := ScanResponse{Result: res, Error: err, Time: t.Format(time.RFC3339)}
+	resp := ScanResponse{Result: res, Error: err, Timestamp: t.Format(time.RFC3339), Status: status}
 	return s.GetName(), resp
 }
 
