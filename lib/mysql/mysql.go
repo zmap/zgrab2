@@ -234,7 +234,8 @@ func NewConnection(config *Config) *Connection {
 		Config:         InitConfig(config),
 		State:          STATE_NOT_CONNECTED,
 		Connection:     nil,
-		SequenceNumber: 0}
+		SequenceNumber: 0,
+	}
 }
 
 // Top-level interface for all packets
