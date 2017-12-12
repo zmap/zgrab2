@@ -246,7 +246,7 @@ func (z *TLSConnection) GetLog() *TLSLog {
 func (z *TLSConnection) Handshake() error {
 	if z.flags.Heartbleed {
 		buf := make([]byte, 256)
-		# TODO - CheckHeartbleed does not bubble errors from Handshake
+		// TODO - CheckHeartbleed does not bubble errors from Handshake
 		_, err := z.CheckHeartbleed(buf)
 		return err
 	} else {
