@@ -13,7 +13,7 @@ import (
 	"net/http"
 
 	"github.com/zmap/zgrab2/lib/ssh"
-	"github.com/zmap/zgrab2/lib/terminal"
+	"github.com/zmap/zgrab2/lib/ssh/terminal"
 )
 
 func ExampleNewServerConn() {

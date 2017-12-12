@@ -2,13 +2,8 @@ language: go
 go:
 - 1.7.4
 before_install:
-- go get github.com/zmap/zcertificate
-- go get github.com/zmap/zlint
-- go get github.com/zmap/zcrypto/x509
-- go get github.com/zmap/rc2
-- go get github.com/zmap/zgrab2
-- go get github.com/sirupsen/logrus
-- go get github.com/miekg/dns
+- go get ./...
+- go get -t ./...
 before_script:
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
