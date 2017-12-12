@@ -1,3 +1,5 @@
+# zschema sub-schema for zgrab2's mysql module (modules/mysql.go)
+# Registers zgrab2-mysql globally, and mysql with the main zgrab2 schema.
 from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
@@ -15,6 +17,7 @@ mysql_packet = SubRecord({
     "parsed": SubRecord({})
 })
 
+# zgrab2/lib/mysql/mysql.go: getServerStatusFlags()
 mysql_server_status_flags = {
 		"SERVER_STATUS_IN_TRANS": Boolean(),
 		"SERVER_STATUS_AUTOCOMMIT": Boolean(),
@@ -32,6 +35,7 @@ mysql_server_status_flags = {
 		"SERVER_SESSION_STATE_CHANGED": Boolean()
 }
 
+# zgrab2/lib/mysql/mysql.go: getClientCapabilityFlags()
 mysql_capability_flags = {
 		"CLIENT_LONG_PASSWORD": Boolean(),
 		"CLIENT_FOUND_ROWS": Boolean(),

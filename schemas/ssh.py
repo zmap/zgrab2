@@ -1,3 +1,6 @@
+# zschema sub-schema for zgrab2's ssh module (modules/ssh.go)
+# Registers zgrab2-ssh globally, and ssh with the main zgrab2 schema.
+
 from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
