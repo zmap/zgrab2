@@ -1,15 +1,14 @@
 language: go
 go:
 - 1.7.4
-sudo: required
-services:
-- docker
+# services:
+# - docker
 before_install:
 # FIXME: Is there a better way to do this?
 - "[ -d zschema ] || git clone https://github.com/zmap/zschema"
 - go get ./...
 - go get -t ./...
-- pip install python-dateutil
+- pip install --user python-dateutil
 # - docker run -itd -p 13306:3306 --rm --name testmysql-5.5 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:5.5
 # - docker run -itd -p 23306:3306 --rm --name testmysql-5.6 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:5.6
 - docker run -itd -p 33306:3306 --rm --name testmysql-5.7 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:5.7
@@ -20,12 +19,18 @@ before_script:
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
 - cd cmd/zgrab2 && go build && cd ../..
 script:
+- python -m zschema $TRAVIS_BUILD_DIR/src/github.com/zmap/zschema/
+# FIXME: 
+- PYTHONPATH=$PYTHONPATH:zschema python -m zschema validate schemas/__init__.py:zgrab2 out-5.7.json
+- PYTHONPATH=$PYTHONPATH:zschema python -m zschema validate schemas/__init__.py:zgrab2 out-5.7.json
+- PYTHONPATH=$PYTHONPATH:zschema python -m zschema validate schemas/__init__.py:zgrab2 out-5.7.json
+- 
 # - ./integration_tests.sh 5.5 13306
 # - ./integration_tests.sh 5.6 23306
-- ./integration_tests.sh 5.7 33306
+# - ./integration_tests.sh 5.7 33306
 # - ./integration_tests.sh 8.0 43306
-# notifications:
-#   email:
-#   - dev@censys.io
-#   slack:
-#     secure: noP0AfD8G8QXJKJ5MYYieUmZnhQWI8HMsrxZdAdeXt+rT5phKcuG0zTdF2p66I7R5zTygx7Kp3KhjAPROJ7Eh1dIUW2wqYHpezfKAM2lSZkmkDosMDGp0CzWzub0G+KGFSrW3bw3gjBaOUhOpn8K2NKYVsmne4odF3t1Ap/J/x+pbCJjhxbn3rP34miQhq2E/wnmbF59eDiHYJqIqagUfbe7fhxMfU/FI7H//NquLU0dN6EfTCxt4M8S49VkrHMjzApGnxwntjT0lt9ZI4s0AxZ9RUWM4cEnVOoEgvXbOw6Vz+nDqjmLyLR5iIfSu05pUy7YB/3yTl19XI7xjEqcbaygEXmFW1XOkQjuYxYjtUgRK2t6DYd8PwRqCmIcRMErIkbOqd0Q0Afc3zQna9aX4P+iIHndZz9mmG9qW4nWFPjPhJXClLqwyWAXxPulP70l+u3+EYhm75VUAm/jZeKFQ9uLbNTI1b2FcXV4BXvbBcatSCyNmBuLwPwjSFNX7yteo88DGZav4RtlPgKAjMHX+HqQpsiglNjYbFfA/kfh6ygkYgu7kWB7fGJvjd5CoDlWjvPWYjdQ3Wcv2qatlV050MIfjd4AcxgSxivdv24O7SOKxV+t3OzK5zVO0tFf5IG5jZFwJOsZ/ylvm76xunl5jfofIKlH0x7mzUgVlUkCi4Q=
+notifications:
+  email:
+  - dev@censys.io
+  slack:
+    secure: noP0AfD8G8QXJKJ5MYYieUmZnhQWI8HMsrxZdAdeXt+rT5phKcuG0zTdF2p66I7R5zTygx7Kp3KhjAPROJ7Eh1dIUW2wqYHpezfKAM2lSZkmkDosMDGp0CzWzub0G+KGFSrW3bw3gjBaOUhOpn8K2NKYVsmne4odF3t1Ap/J/x+pbCJjhxbn3rP34miQhq2E/wnmbF59eDiHYJqIqagUfbe7fhxMfU/FI7H//NquLU0dN6EfTCxt4M8S49VkrHMjzApGnxwntjT0lt9ZI4s0AxZ9RUWM4cEnVOoEgvXbOw6Vz+nDqjmLyLR5iIfSu05pUy7YB/3yTl19XI7xjEqcbaygEXmFW1XOkQjuYxYjtUgRK2t6DYd8PwRqCmIcRMErIkbOqd0Q0Afc3zQna9aX4P+iIHndZz9mmG9qW4nWFPjPhJXClLqwyWAXxPulP70l+u3+EYhm75VUAm/jZeKFQ9uLbNTI1b2FcXV4BXvbBcatSCyNmBuLwPwjSFNX7yteo88DGZav4RtlPgKAjMHX+HqQpsiglNjYbFfA/kfh6ygkYgu7kWB7fGJvjd5CoDlWjvPWYjdQ3Wcv2qatlV050MIfjd4AcxgSxivdv24O7SOKxV+t3OzK5zVO0tFf5IG5jZFwJOsZ/ylvm76xunl5jfofIKlH0x7mzUgVlUkCi4Q=
