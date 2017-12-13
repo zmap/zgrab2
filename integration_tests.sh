@@ -11,6 +11,8 @@ shift
 echo "Testing MySQL Version $SQL_VERSION on port $PORT..."
 echo "127.0.0.1" | ./cmd/zgrab2/zgrab2 mysql -p $PORT $* > $OUTPUT_FILE
 
+cat $OUTPUT_FILE
+
 if [ -d zschema ]; then
   PYTHONPATH=$PYTHONPATH:$ZSCHEMA_PATH python -m zschema validate schemas/__init__.py:zgrab2 $OUTPUT_FILE
 else
