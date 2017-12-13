@@ -1,6 +1,7 @@
 language: go
 go:
 - 1.7.4
+sudo: required
 services:
 - docker
 before_install:
