@@ -4,12 +4,12 @@ go:
 services:
 - docker
 before_install:
-# JMESPath is used to do context-specific validation of results
-- go get github.com/jmespath/jp && go build github.com/jmespath/jp
 # FIXME: Is there a better way to do this?
 - "[ -d zschema ] || git clone https://github.com/zmap/zschema"
 - go get ./...
 - go get -t ./...
+# JMESPath is used to do context-specific validation of results
+- go get github.com/jmespath/jp && go build github.com/jmespath/jp
 # needed by zschema
 - pip install --user python-dateutil
 - ./start_mysql.sh

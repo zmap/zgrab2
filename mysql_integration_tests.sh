@@ -17,7 +17,7 @@ OUTPUT_FILE="$ZGRAB_OUTPUT/mysql/$MYSQL_VERSION.json"
 echo "Testing MySQL Version $MYSQL_VERSION on port $MYSQL_PORT..."
 echo "127.0.0.1" | ./cmd/zgrab2/zgrab2 mysql -p $MYSQL_PORT $* > $OUTPUT_FILE
 
-SERVER_VERSION=$(jp/jp data.mysql.result.handshake.parsed.server_version < $OUTPUT_FILE)
+SERVER_VERSION=$(./jp data.mysql.result.handshake.parsed.server_version < $OUTPUT_FILE)
 
 if [[ "$SERVER_VERSION" =~ "$MYSQL_VERSION\..*" ]]; then
     echo "Server version matches expected version: $SERVER_VERSION =~ $MYSQL_VERSION"
