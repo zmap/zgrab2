@@ -12,10 +12,10 @@ if [ -z $ZGRAB_OUTPUT ]; then
 fi
 
 echo "Doing MySQL integration tests..."
-# ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.5 MYSQL_PORT=13306 ./mysql_integration_tests.sh
-# ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.6 MYSQL_PORT=23306 ./mysql_integration_tests.sh
+ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.5 MYSQL_PORT=13306 ./mysql_integration_tests.sh
+ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.6 MYSQL_PORT=23306 ./mysql_integration_tests.sh
 ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.7 MYSQL_PORT=33306 ./mysql_integration_tests.sh
-# ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=8.0 MYSQL_PORT=43306 ./mysql_integration_tests.sh
+ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=8.0 MYSQL_PORT=43306 ./mysql_integration_tests.sh
 
 if [ -d $ZSCHEMA_PATH ]; then
     echo "Doing schema validation..."
