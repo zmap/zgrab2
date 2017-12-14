@@ -8,21 +8,19 @@ before_install:
 - "[ -d zschema ] || git clone https://github.com/zmap/zschema"
 - go get ./...
 - go get -t ./...
+# needed by zschema
 - pip install --user python-dateutil
-# - docker run -itd -p 13306:3306 --rm --name testmysql-5.5 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:5.5
-# - docker run -itd -p 23306:3306 --rm --name testmysql-5.6 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:5.6
-- docker run -itd -p 33306:3306 --rm --name testmysql-5.7 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:5.7
-# - docker run -itd -p 43306:3306 --rm --name testmysql-8.0 -e MYSQL_ROOT_PASSWORD=rootPassword mysql:8.0
-# - docker ps -a
-before_script:
+- ./start_mysql.sh
+- docker ps -a
+# JMESPath is used to do context-specific validation of results
+- git clone git://github.com/jmespath/jp && pushd jp && go build && popd && jp/jp --help
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
-- cd cmd/zgrab2 && go build && cd ../..
+- pushd cmd/zgrab2 && go build && popd
 script:
-# - ./integration_tests.sh 5.5 13306
-# - ./integration_tests.sh 5.6 23306
-- ./integration_tests.sh 5.7 33306
-# - ./integration_tests.sh 8.0 43306
+- ./integration_tests.sh
+after_script:
+- ./cleanup_mysql.sh
 # notifications:
 #   email:
 #   - dev@censys.io

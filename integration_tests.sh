@@ -1,30 +1,34 @@
 #!/bin/sh -e
-SQL_VERSION="$1"
-PORT="$2"
-CONTAINER_NAME="testmysql-$SQL_VERSION"
-OUTPUT_FILE="out-$SQL_VERSION.json"
-ZSCHEMA_PATH=zschema
 
-shift
-shift
+# Do all integration tests for all protocols
 
-echo "Testing MySQL Version $SQL_VERSION on port $PORT..."
-echo "127.0.0.1" | ./cmd/zgrab2/zgrab2 mysql -p $PORT $* > $OUTPUT_FILE
-
-cat $OUTPUT_FILE
-
-if [ -d zschema ]; then
-  PYTHONPATH=$PYTHONPATH:$ZSCHEMA_PATH python -m zschema validate schemas/__init__.py:zgrab2 $OUTPUT_FILE
-else
-  echo "Skipping schema validation: clone zschema into $ZSCHEMA_PATH to enable"
+if [ -z $ZSCHEMA_PATH ]; then
+    ZSCHEMA_PATH="zschema"
 fi
 
-SERVER_VERSION=$(jp data.mysql.result.handshake.parsed.server_version < $OUTPUT_FILE)
+# <protocol>_integration_tests.sh should drop its output into $ZGRAB_OUTPUT/<protocol>/* so that it can be validated
+if [ -z $ZGRAB_OUTPUT ]; then
+    ZGRAB_OUTPUT="zgrab-output"
+fi
 
-if [[ "$SERVER_VERSION" =~ "$SQL_VERSION\..*" ]]; then
-  echo "Server version matches expected version: $SERVER_VERSION =~ $SQL_VERSION"
-  exit 0
+echo "Doing MySQL integration tests..."
+# ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.5 MYSQL_PORT=13306 ./mysql_integration_tests.sh
+# ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.6 MYSQL_PORT=23306 ./mysql_integration_tests.sh
+ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.7 MYSQL_PORT=33306 ./mysql_integration_tests.sh
+# ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=8.0 MYSQL_PORT=43306 ./mysql_integration_tests.sh
+
+if [ -d $ZSCHEMA_PATH ]; then
+    echo "Doing schema validation..."
+    for protocol in $(ls $ZGRAB_OUTPUT); do
+        for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
+            target="$ZGRAB_OUTPUT/$protocol/$outfile"
+            echo "Validating $target [{("
+            cat $target
+            echo ")}]:"
+            PYTHONPATH=$ZSCHEMA_PATH python -m zschema validate schemas/__init__.py:zgrab2 $target
+            echo "validation of $target succeeded."
+        done
+    done
 else
-  echo "Server versiom mismatch: Got $SERVER_VERSION, expected $SQL_VERSION.*"
-  exit 1
+    echo "Skipping schema validation: point ZSCHEMA_PATH to your zschema checkout to enable"
 fi
