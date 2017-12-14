@@ -1,21 +1,32 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 # Do all integration tests for all protocols
+# To add tests for a new protocol, create a directory integration_tests/<new_protocol>, and drop its setup.sh, test.sh, and cleanup.sh there.
 
 if [ -z $ZSCHEMA_PATH ]; then
-    ZSCHEMA_PATH="zschema"
+    ZSCHEMA_PATH="$(pwd)/zschema"
 fi
 
 # <protocol>_integration_tests.sh should drop its output into $ZGRAB_OUTPUT/<protocol>/* so that it can be validated
 if [ -z $ZGRAB_OUTPUT ]; then
-    ZGRAB_OUTPUT="zgrab-output"
+    ZGRAB_OUTPUT="$(pwd)/zgrab-output"
 fi
 
-echo "Doing MySQL integration tests..."
-ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.5 MYSQL_PORT=13306 ./mysql_integration_tests.sh
-ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.6 MYSQL_PORT=23306 ./mysql_integration_tests.sh
-ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=5.7 MYSQL_PORT=33306 ./mysql_integration_tests.sh
-ZGRAB_OUTPUT=$ZGRAB_OUTPUT MYSQL_VERSION=8.0 MYSQL_PORT=43306 ./mysql_integration_tests.sh
+export ZGRAB_OUTPUT=$ZGRAB_OUTPUT
+export ZGRAB_ROOT=$(pwd)
+
+pushd integration_tests
+for mod in $(ls); do
+    if [ -d "$mod" ]; then
+        pushd $mod
+        for test in $(ls test*.sh); do
+            echo "Running integration_tests/$mod/$test"
+            $test
+        done
+        popd
+    fi
+done
+popd
 
 if [ -d $ZSCHEMA_PATH ]; then
     echo "Doing schema validation..."

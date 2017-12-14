@@ -12,7 +12,7 @@ before_install:
 - go get github.com/jmespath/jp && go build github.com/jmespath/jp
 # needed by zschema
 - pip install --user python-dateutil
-- ./start_mysql.sh
+- ./setup_integration_tests.sh
 - docker ps -a
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
@@ -20,7 +20,7 @@ before_install:
 script:
 - ./integration_tests.sh
 after_script:
-- ./cleanup_mysql.sh
+- ./cleanup_integration_tests.sh
 notifications:
   email:
   - dev@censys.io
