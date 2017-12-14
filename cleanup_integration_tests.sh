@@ -11,7 +11,7 @@ for mod in $(ls); do
         pushd $mod
         for cleanup in $(ls cleanup*.sh); do
             echo "Cleaning up $mod (integration_tests/$mod/$cleanup)..."
-            if ! $cleanup; then
+            if ! ./$cleanup; then
                 echo "Warning: cleanup for $mod/$cleanup failed with exit code $?"
             fi
         done

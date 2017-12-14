@@ -11,7 +11,7 @@ for mod in $(ls); do
         pushd $mod
         for setup in $(ls setup*.sh); do
             echo "Setting up $mod (integration_tests/$mod/$setup)..."
-            $setup
+            ./$setup
         done
         popd
     fi

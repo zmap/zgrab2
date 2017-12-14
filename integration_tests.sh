@@ -21,7 +21,7 @@ for mod in $(ls); do
         pushd $mod
         for test in $(ls test*.sh); do
             echo "Running integration_tests/$mod/$test"
-            $test
+            ./$test
         done
         popd
     fi
