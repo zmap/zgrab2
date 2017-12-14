@@ -101,6 +101,7 @@ func duplicateIP(ip net.IP) net.IP {
 	return dup
 }
 
+// Given an error object thrown by a scan, attempt to get the appropriate ScanStatus enum value
 func TryGetScanStatus(err error) ScanStatus {
 	if err == nil {
 		return SCAN_SUCCESS

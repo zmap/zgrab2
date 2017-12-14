@@ -20,7 +20,7 @@ echo "127.0.0.1" | ./cmd/zgrab2/zgrab2 mysql -p $MYSQL_PORT $* > $OUTPUT_FILE
 SERVER_VERSION=$(./jp data.mysql.result.handshake.parsed.server_version < $OUTPUT_FILE)
 
 if [[ "$SERVER_VERSION" == "\"$MYSQL_VERSION."* ]]; then
-    echo "Server version matches expected version: $SERVER_VERSION !== $MYSQL_VERSION.*"
+    echo "Server version matches expected version: $SERVER_VERSION == $MYSQL_VERSION.*"
     exit 0
 else
     echo "Server versiom mismatch: Got $SERVER_VERSION, expected $MYSQL_VERSION.*"
