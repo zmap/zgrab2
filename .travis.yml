@@ -13,7 +13,7 @@ before_install:
 - ./start_mysql.sh
 - docker ps -a
 # JMESPath is used to do context-specific validation of results
-- git clone git://github.com/jmespath/jp && pushd jp && go build && popd && jp/jp --help
+- git clone git://github.com/jmespath/jp && pushd jp && ./scripts/build-self-contained && popd && jp/jp --help
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
 - pushd cmd/zgrab2 && go build && popd
