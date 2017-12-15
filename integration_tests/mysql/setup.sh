@@ -3,6 +3,7 @@
 # Start all of the MySQL docker containers, and wait for them start responding on port 3306
 
 echo "Launching docker containers..."
+# NOTE: the 5.5 and 5.6 versions do not have SSL enabled
 CONTAINER_NAME=testmysql-5.5 MYSQL_VERSION=5.5 MYSQL_PORT=13306 ./util/launch_mysql_container.sh
 CONTAINER_NAME=testmysql-5.6 MYSQL_VERSION=5.6 MYSQL_PORT=23306 ./util/launch_mysql_container.sh
 CONTAINER_NAME=testmysql-5.7 MYSQL_VERSION=5.7 MYSQL_PORT=33306 ./util/launch_mysql_container.sh
