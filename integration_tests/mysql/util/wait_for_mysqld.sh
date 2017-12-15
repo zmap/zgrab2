@@ -5,7 +5,7 @@ if [ -z $CONTAINER_NAME ] || [ -z $MYSQL_PORT ]; then
     exit 1
 fi
 
-echo "Waiting for port $MYSQLD to come up on $CONTAINER_NAME..."
+echo "Waiting for mysqld process to come up on $CONTAINER_NAME..."
 while ! (docker exec $CONTAINER_NAME ps -Af | grep mysqld > /dev/null); do
     echo -n "."
     sleep 1
