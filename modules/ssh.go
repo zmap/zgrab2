@@ -73,7 +73,7 @@ func (s *SSHScanner) GetName() string {
 	return s.config.Name
 }
 
-func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
+func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	data := new(ssh.HandshakeLog)
 
 	port := strconv.FormatUint(uint64(s.config.Port), 10)
@@ -98,6 +98,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
 	sshConfig.GexMaxBits = s.config.GexMaxBits
 	sshConfig.GexPreferredBits = s.config.GexPreferredBits
 	_, err := ssh.Dial("tcp", rhost, sshConfig)
-
-	return data, err
+	// TODO FIXME: Distinguish error types
+	status := zgrab2.TryGetScanStatus(err)
+	return status, data, err
 }

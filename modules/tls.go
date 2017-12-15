@@ -63,6 +63,6 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
-	return s, nil
+func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	return zgrab2.SCAN_SUCCESS, s, nil
 }

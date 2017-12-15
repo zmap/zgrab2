@@ -207,10 +207,9 @@ func InitConfig(base *Config) *Config {
 
 // Log of the packets sent/received during the connection.
 type ConnectionLog struct {
-	Handshake    *ConnectionLogEntry  `json:"handshake,omitempty"`
-	Error        *ConnectionLogEntry  `json:"error,omitempty"`
-	SSLRequest   *ConnectionLogEntry  `json:"ssl_request,omitempty"`
-	TLSHandshake *tls.ServerHandshake `json:"tls_handshake,omitempty"`
+	Handshake  *ConnectionLogEntry `json:"handshake,omitempty"`
+	Error      *ConnectionLogEntry `json:"error,omitempty"`
+	SSLRequest *ConnectionLogEntry `json:"ssl_request,omitempty"`
 }
 
 // Struct holding state for a single connection
@@ -235,7 +234,8 @@ func NewConnection(config *Config) *Connection {
 		Config:         InitConfig(config),
 		State:          STATE_NOT_CONNECTED,
 		Connection:     nil,
-		SequenceNumber: 0}
+		SequenceNumber: 0,
+	}
 }
 
 // Top-level interface for all packets
@@ -285,7 +285,7 @@ type HandshakePacket struct {
 	// auth_plugin_data_len: int<1>
 	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
 	// if (capabilities & CLIENT_SECURE_CONNECTION) {
-	// reserved:  string<10> all 0
+	// reserved:  string<10> all 0: custom marshaler will omit this if it is all \x00s.
 	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
 	// auth_plugin_data_part_2: string<MAX(13, auth_plugin_data_len - 8)>
 	AuthPluginData2 []byte `zgrab:"debug" json:"auth_plugin_data_part_2,omitempty"`
@@ -595,7 +595,7 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	packet.Raw = base64.StdEncoding.EncodeToString(body)
 
 	if seq != c.SequenceNumber {
-		log.Warnf("Sequence number mismatch: got 0x%x, expected 0x%x", seq, c.SequenceNumber+1)
+		log.Debugf("Sequence number mismatch: got 0x%x, expected 0x%x", seq, c.SequenceNumber+1)
 	}
 	// Update sequence number
 	c.SequenceNumber = seq + 1
@@ -616,13 +616,9 @@ func (c *Connection) GetHandshake() *HandshakePacket {
 	return nil
 }
 
-// Get the TLSHandshake if present, or otherwise nil
-func (c *Connection) GetTLSHandshake() *tls.ServerHandshake {
-	return c.ConnectionLog.TLSHandshake
-}
-
 // Perform a TLS handshake using the configured TLSConfig on the current connection
 func (c *Connection) StartTLS() error {
+
 	client := tls.Client(*c.Connection, c.Config.TLSConfig)
 	err := client.Handshake()
 	if err != nil {
@@ -632,31 +628,55 @@ func (c *Connection) StartTLS() error {
 	return nil
 }
 
-// Check if the connection has been upgraded to TLS
-func (c *Connection) IsSecure() bool {
-	return c.GetTLSHandshake() != nil
+// Check if both the input client flags and the server capability flags support TLS
+func (c *Connection) SupportsTLS() bool {
+	if handshake := c.GetHandshake(); handshake != nil {
+		return (handshake.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0
+	}
+	// Vacuously false if you are not connected
+	return false
+}
+
+// Send the SSL_REQUEST packet (the client should begin the TLS handshake immediately after this returns successfully)
+func (c *Connection) NegotiateTLS() error {
+	c.State = STATE_SSL_REQUEST
+	sslRequest := SSLRequestPacket{
+		CapabilityFlags: c.Config.ClientCapabilities,
+		MaxPacketSize:   c.Config.MaxPacketSize,
+		CharacterSet:    c.Config.CharSet,
+		Reserved:        c.Config.ReservedData,
+	}
+	sentPacket, err := c.sendPacket(&sslRequest)
+	if err != nil {
+		return fmt.Errorf("Error sending SSLRequest packet: %s", err)
+	}
+	c.ConnectionLog.SSLRequest = sentPacket
+
+	c.State = STATE_SSL_HANDSHAKE
+	return nil
 }
 
 // Connect to the configured server and perform the initial handshake
 func (c *Connection) Connect() error {
-	// @TODO @FIXME -- Break this into Connect/Scan/Disconnect?
 	// Allow Scan on pre-connected / user-supplied connections?
 	dialer := net.Dialer{Timeout: c.Config.Timeout}
+	log.Debugf("Connecting to %s:%d", c.Config.Host, c.Config.Port)
 	conn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", c.Config.Host, c.Config.Port))
 	if err != nil {
+		log.Debugf("Error connecting: %v", err)
 		return fmt.Errorf("Connect error: %s", err)
 	}
 	c.Connection = &conn
 	c.State = STATE_CONNECTED
 	c.ConnectionLog = ConnectionLog{
-		Handshake:    nil,
-		TLSHandshake: nil,
-		SSLRequest:   nil,
-		Error:        nil,
+		Handshake:  nil,
+		SSLRequest: nil,
+		Error:      nil,
 	}
 
 	packet, err := c.readPacket()
 	if err != nil {
+		log.Debugf("Error reading handshake packet: %v", err)
 		return fmt.Errorf("Error reading server handshake packet: %s", err)
 	}
 
@@ -665,6 +685,7 @@ func (c *Connection) Connect() error {
 		c.ConnectionLog.Handshake = packet
 	case *ERRPacket:
 		c.ConnectionLog.Error = packet
+		log.Debugf("Got error packet: 0x%x / %s", p.ErrorCode, p.ErrorMessage)
 		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", p.ErrorCode, p.ErrorMessage)
 	default:
 		// Drop unrecgnized packets -- including those with packet.Parsed == nil -- into the "Error" slot
@@ -675,33 +696,6 @@ func (c *Connection) Connect() error {
 		}
 		return fmt.Errorf("Server returned unexpected packet type after connecting: %s", jsonStr)
 	}
-
-	handshakePacket := c.GetHandshake()
-
-	// How to handle mismatched reserved? It will be available in the output, but should it trigger a 'failure'?
-	// if hex.EncodeToString(parsed.reserved) != "00000000000000000000" { ... }
-
-	if (handshakePacket.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0 {
-		c.State = STATE_SSL_REQUEST
-		sslRequest := SSLRequestPacket{
-			CapabilityFlags: c.Config.ClientCapabilities,
-			MaxPacketSize:   c.Config.MaxPacketSize,
-			CharacterSet:    c.Config.CharSet,
-			Reserved:        c.Config.ReservedData,
-		}
-		sentPacket, err := c.sendPacket(&sslRequest)
-		if err != nil {
-			return fmt.Errorf("Error sending SSLRequest packet: %s", err)
-		}
-		c.ConnectionLog.SSLRequest = sentPacket
-		c.State = STATE_SSL_HANDSHAKE
-
-		if c.StartTLS() != nil {
-			return fmt.Errorf("Error performing TLS handshake: %s", err)
-		}
-		c.ConnectionLog.TLSHandshake = (*c.Connection).(*tls.Conn).GetHandshakeLog()
-	}
-	c.State = STATE_FINISHED
 	return nil
 }
 

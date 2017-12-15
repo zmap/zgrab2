@@ -5,7 +5,7 @@ type Scanner interface {
 	// Init runs once for this module at library init time
 	Init(flags ScanFlags) error
 
-	// InitPerSender runs once per Goroutine. A single Goroutine will scan some non-deterministics
+	// InitPerSender runs once per Goroutine. A single Goroutine will scan some non-deterministic
 	// subset of the input scan targets
 	InitPerSender(senderID int) error
 
@@ -13,7 +13,31 @@ type Scanner interface {
 	GetName() string
 
 	// Scan connects to a host. The result should be JSON-serializable
-	Scan(t ScanTarget) (interface{}, error)
+	Scan(t ScanTarget) (ScanStatus, interface{}, error)
+}
+
+type ScanStatus string
+
+// TODO: Confirm to standard string const format (names, capitalization, hyphens/underscores, etc)
+// TODO: Enumerate further status types
+const (
+	SCAN_SUCCESS            = "success"
+	SCAN_CONNECTION_REFUSED = "connection-refused" // TCP connection was actively rejected
+	SCAN_CONNECTION_TIMEOUT = "connection-timeout" // No response to TCP connection request
+	SCAN_CONNECTION_CLOSED  = "connection-closed"  // The TCP connection was unexpectedly closed
+	SCAN_IO_TIMEOUT         = "io-timeout"         // Timed out waiting on data
+	SCAN_PROTOCOL_ERROR     = "protocol-error"     // Received data incompatible with the target protocol
+	SCAN_APPLICATION_ERROR  = "application-error"  // The application reported an error
+	SCAN_UNKNOWN_ERROR      = "unknown-error"      // Catch-all for unrecognized errors
+)
+
+// ScanResponse is the result of a scan on a single host
+type ScanResponse struct {
+	// Status is required for all responses. Other fields are optional.
+	Status    ScanStatus  `json:"status"`
+	Result    interface{} `json:"result,omitempty"`
+	Timestamp string      `json:"timestamp,omitempty"`
+	Error     *string     `json:"error,omitempty"`
 }
 
 // ScanModule is an interface which represents a module that the framework can

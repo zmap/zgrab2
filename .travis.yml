@@ -1,15 +1,26 @@
 language: go
 go:
 - 1.7.4
+services:
+- docker
 before_install:
+# FIXME: Is there a better way to do this?
+- "[ -d zschema ] || git clone https://github.com/zmap/zschema"
 - go get ./...
 - go get -t ./...
-before_script:
+# JMESPath is used to do context-specific validation of results
+- go get github.com/jmespath/jp && go build github.com/jmespath/jp
+# needed by zschema
+- pip install --user python-dateutil
+- ./setup_integration_tests.sh
+- docker ps -a
 - mkdir -p $GOPATH/src/github.com/zmap
 - ln -s $TRAVIS_BUILD_DIR $GOPATH/src/github.com/zmap || true
-- cd cmd/zgrab2 && go build && cd ../..
+- pushd cmd/zgrab2 && go build && popd
 script:
-- "./integration_tests.py"
+- ./integration_tests.sh
+after_script:
+- ./cleanup_integration_tests.sh
 notifications:
   email:
   - dev@censys.io
