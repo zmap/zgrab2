@@ -105,15 +105,15 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 	}
 	if t.Certificates != "" {
 		// TODO FIXME: Implement
-		log.Warnf("--certificates not implemented")
+		log.Fatalf("--certificates not implemented")
 	}
 	if t.CertificateMap != "" {
 		// TODO FIXME: Implement
-		log.Warnf("--certificate-map not implemented")
+		log.Fatalf("--certificate-map not implemented")
 	}
 	if t.RootCAs != "" {
 		// TODO FIXME: Implement
-		log.Warnf("--root-cas not implemented")
+		log.Fatalf("--root-cas not implemented")
 	}
 	if t.NextProtos != "" {
 		// TODO: Different format?
@@ -146,7 +146,7 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 
 	if t.CurvePreferences != "" {
 		// TODO FIXME: Implement (how to map curveName to CurveID? Or are there standard 'suites' like we use for cipher suites?)
-		log.Warnf("--curve-preferences not implemented")
+		log.Fatalf("--curve-preferences not implemented")
 	}
 
 	if t.NoECDHE {
@@ -156,7 +156,7 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 
 	if t.SignatureAlgorithms != "" {
 		// TODO FIXME: Implement (none of the signatureAndHash functions/consts are exported from common.go...?)
-		log.Warnf("--signature-algorithms not implemented")
+		log.Fatalf("--signature-algorithms not implemented")
 	}
 
 	if t.HeartbeatEnabled {
