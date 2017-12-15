@@ -20,7 +20,7 @@ type MySQLScanResults struct {
 type MySQLFlags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
-	Verbose bool `long:"verbose" description:"Output additional information, including <TODO: including what?>."`
+	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 type MySQLModule struct {
