@@ -16,12 +16,13 @@ type Scanner interface {
 	Scan(t ScanTarget) (ScanStatus, interface{}, error)
 }
 
+// ScanStatus is the enum value that states how the scan ended.
 type ScanStatus string
 
 // TODO: Confirm to standard string const format (names, capitalization, hyphens/underscores, etc)
 // TODO: Enumerate further status types
 const (
-	SCAN_SUCCESS            = "success"
+	SCAN_SUCCESS            = "success"            // The protocol in question was positively identified and the scan encountered no errors
 	SCAN_CONNECTION_REFUSED = "connection-refused" // TCP connection was actively rejected
 	SCAN_CONNECTION_TIMEOUT = "connection-timeout" // No response to TCP connection request
 	SCAN_CONNECTION_CLOSED  = "connection-closed"  // The TCP connection was unexpectedly closed
