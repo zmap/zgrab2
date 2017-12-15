@@ -1,4 +1,7 @@
-#!/bin/bash +e
+#!/bin/bash
+
+# Keep cleaning up even if something fails
+set +e 
 
 # Stop all MySQL containers, but first grab the logs from them
 
