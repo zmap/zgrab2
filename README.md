@@ -69,6 +69,7 @@ func init() {
         log.Fatal(err)
     }
 }
+```
 
 ### Output schema
 
