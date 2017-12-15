@@ -75,6 +75,8 @@ func init() {
 
 To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](schemas/__init__.py) to ensure that it is loaded.
 
+See [schemas/README.md](schemas/README.md) for details.
+
 ### Integration tests
 To add integration tests for the new module, add shell scripts to setup/test/cleanup the tests in `integration_tests/[your-module]/`, named `setup.sh`, `test.sh` and `cleanup.sh` respectively. See [integration_tests/mysql/*](integration_tests/mysql) for an example. The only requirement is that the `test.sh` script drops its output in `$ZGRAB_OUTPUT/[your-module]/*.json`, so that it can be validated against the schema.
 
