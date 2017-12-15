@@ -87,27 +87,29 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _res
 	defer func() {
 		recovered := recover()
 		if recovered != nil {
-			// Don't clobber an explicitly-thrown error message just bcause there was no panic()
-			logger.Debugf("Got error scanning %s: %v", s.GetName(), recovered)
 			thrown = recovered.(error)
+			status = zgrab2.TryGetScanStatus(thrown)
+			// TODO FIXME: do more to distinguish errors
 		}
 		result.ConnectionLog = sql.ConnectionLog
-		// Following the example of the SSH module, allow the possibility of failing while still returning a (perhaps incomplete) log
 	}()
 	defer sql.Disconnect()
-	if err := sql.Connect(); err != nil {
+	var err error
+	if err = sql.Connect(); err != nil {
 		panic(err)
 	}
 	if sql.SupportsTLS() {
-		if nerr := sql.NegotiateTLS(); nerr != nil {
-			panic(nerr)
+		if err = sql.NegotiateTLS(); err != nil {
+			panic(err)
 		}
 		var conn *zgrab2.TLSConnection
-		if conn, thrown = s.config.TLSFlags.GetTLSConnection(sql.Connection); thrown != nil {
-			panic(thrown)
+		if conn, err = s.config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
+			panic(err)
 		}
-		if herr := conn.Handshake(); herr != nil {
-			panic(herr)
+		// Following the example of the SSH module, allow the possibility of failing while still returning a (perhaps incomplete) log
+		result.TLSLog = conn.GetLog()
+		if err = conn.Handshake(); err != nil {
+			panic(err)
 		}
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		var netConn net.Conn = conn
@@ -121,8 +123,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _res
 		//  sql.Connection = conn.Conn // (cannot use conn.Conn (type tls.Conn) as type *net.Conn)
 		//  sql.Connection = &conn.Conn // (cannot use &conn.Conn (type *tls.Conn) as type *net.Conn)
 		//	sql.Connection = &(conn.Conn.conn) // (cannot refer to unexported field or method conn)
-		result.TLSLog = conn.GetLog()
 	}
-	// TODO FIXME: do more to distinguish errors
-	return zgrab2.TryGetScanStatus(thrown), _result, thrown
+	// If we made it this far, the scan was a success.
+	return zgrab2.SCAN_SUCCESS, _result, nil
 }
