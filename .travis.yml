@@ -10,8 +10,7 @@ before_install:
 - go get -t ./...
 # JMESPath is used to do context-specific validation of results
 - go get github.com/jmespath/jp && go build github.com/jmespath/jp
-# needed by zschema
-- pip install --user python-dateutil
+- pip install --user zschema
 - ./setup_integration_tests.sh
 - docker ps -a
 - mkdir -p $GOPATH/src/github.com/zmap

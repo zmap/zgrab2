@@ -3,10 +3,6 @@
 # Do all integration tests for all protocols
 # To add tests for a new protocol, create a directory integration_tests/<new_protocol>, and drop its setup.sh, test.sh, and cleanup.sh there.
 
-if [ -z $ZSCHEMA_PATH ]; then
-    ZSCHEMA_PATH="$(pwd)/zschema"
-fi
-
 # <protocol>_integration_tests.sh should drop its output into $ZGRAB_OUTPUT/<protocol>/* so that it can be validated
 if [ -z $ZGRAB_OUTPUT ]; then
     ZGRAB_OUTPUT="$(pwd)/zgrab-output"
@@ -28,18 +24,14 @@ for mod in $(ls); do
 done
 popd
 
-if [ -d $ZSCHEMA_PATH ]; then
-    echo "Doing schema validation..."
-    for protocol in $(ls $ZGRAB_OUTPUT); do
-        for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
-            target="$ZGRAB_OUTPUT/$protocol/$outfile"
-            echo "Validating $target [{("
-            cat $target
-            echo ")}]:"
-            PYTHONPATH=$ZSCHEMA_PATH python -m zschema validate schemas/__init__.py:zgrab2 $target
-            echo "validation of $target succeeded."
-        done
+echo "Doing schema validation..."
+for protocol in $(ls $ZGRAB_OUTPUT); do
+    for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
+        target="$ZGRAB_OUTPUT/$protocol/$outfile"
+        echo "Validating $target [{("
+        cat $target
+        echo ")}]:"
+        python -m zschema validate schemas/__init__.py:zgrab2 $target
+        echo "validation of $target succeeded."
     done
-else
-    echo "Skipping schema validation: point ZSCHEMA_PATH to your zschema checkout to enable"
-fi
+done
