@@ -65,7 +65,6 @@ func (s *MySQLScanner) Init(flags zgrab2.ScanFlags) error {
 }
 
 func (s *MySQLScanner) InitPerSender(senderID int) error {
-	// @TODO @FIXME: This is never called..?
 	return nil
 }
 
@@ -124,6 +123,6 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _res
 		//	sql.Connection = &(conn.Conn.conn) // (cannot refer to unexported field or method conn)
 		result.TLSLog = conn.GetLog()
 	}
-	// TODO FIXME: distinguish errors
-	return zgrab2.SCAN_SUCCESS, _result, thrown
+	// TODO FIXME: do more to distinguish errors
+	return zgrab2.TryGetScanStatus(thrown), _result, thrown
 }
