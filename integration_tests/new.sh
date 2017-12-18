@@ -38,4 +38,4 @@ echo "Tests cleanup for $module_name"
 EOF
 chmod +x $module_path/cleanup.sh
 
-echo "Test files scafollded in $module_path"
+echo "Test files scaffolded in $module_path"
