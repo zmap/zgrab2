@@ -3,6 +3,10 @@
 # Do all integration tests for all protocols
 # To add tests for a new protocol, create a directory integration_tests/<new_protocol>, and drop its setup.sh, test.sh, and cleanup.sh there.
 
+# Run from root of project
+TEST_DIR=$(dirname "$0")
+cd "$TEST_DIR/.."
+
 # <protocol>_integration_tests.sh should drop its output into $ZGRAB_OUTPUT/<protocol>/* so that it can be validated
 if [ -z $ZGRAB_OUTPUT ]; then
     ZGRAB_OUTPUT="$(pwd)/zgrab-output"

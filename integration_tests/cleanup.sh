@@ -6,6 +6,10 @@ set +e
 # Clean up after running the integration tests.
 # Drop your cleanup script(s) in integration_tests/<protocol>/cleanup(.*).sh
 
+# Run from root of project
+TEST_DIR=$(dirname "$0")
+cd "$TEST_DIR/.."
+
 echo "Cleaning up integration tests..."
 
 pushd integration_tests
