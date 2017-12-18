@@ -3,12 +3,10 @@ package modules
 import (
 	"net"
 
-	logrus "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
 )
-
-var logger *logrus.Logger
 
 // HandshakeLog contains detailed information about each step of the
 // MySQL handshake, and can be encoded to JSON.
@@ -31,11 +29,10 @@ type MySQLScanner struct {
 }
 
 func init() {
-	logger = logrus.New()
 	var module MySQLModule
 	_, err := zgrab2.AddCommand("mysql", "MySQL", "Grab a MySQL handshake", 3306, &module)
 	if err != nil {
-		logger.Fatal(err)
+		log.Fatal(err)
 	}
 }
 
@@ -58,9 +55,6 @@ func (f *MySQLFlags) Help() string {
 func (s *MySQLScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*MySQLFlags)
 	s.config = f
-	if f.Verbose {
-		logger.SetLevel(logrus.DebugLevel)
-	}
 	return nil
 }
 
@@ -76,14 +70,12 @@ func (s *MySQLScanner) GetPort() uint {
 	return s.config.Port
 }
 
-func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _result interface{}, thrown error) {
+func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 	sql := mysql.NewConnection(&mysql.Config{
 		Host: t.IP.String(),
 		Port: uint16(s.config.Port),
 	})
-
-	result := MySQLScanResults{}
-	_result = &result
+	result = &MySQLScanResults{}
 	defer func() {
 		recovered := recover()
 		if recovered != nil {
@@ -91,7 +83,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _res
 			status = zgrab2.TryGetScanStatus(thrown)
 			// TODO FIXME: do more to distinguish errors
 		}
-		result.ConnectionLog = sql.ConnectionLog
+		result.(*MySQLScanResults).ConnectionLog = sql.ConnectionLog
 	}()
 	defer sql.Disconnect()
 	var err error
@@ -107,7 +99,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _res
 			panic(err)
 		}
 		// Following the example of the SSH module, allow the possibility of failing while still returning a (perhaps incomplete) log
-		result.TLSLog = conn.GetLog()
+		result.(*MySQLScanResults).TLSLog = conn.GetLog()
 		if err = conn.Handshake(); err != nil {
 			panic(err)
 		}
@@ -125,5 +117,5 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, _res
 		//	sql.Connection = &(conn.Conn.conn) // (cannot refer to unexported field or method conn)
 	}
 	// If we made it this far, the scan was a success.
-	return zgrab2.SCAN_SUCCESS, _result, nil
+	return zgrab2.SCAN_SUCCESS, result, nil
 }

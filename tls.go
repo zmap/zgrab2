@@ -2,6 +2,7 @@ package zgrab2
 
 import (
 	"encoding/base64"
+	"encoding/csv"
 	"fmt"
 	"net"
 	"strings"
@@ -63,12 +64,18 @@ type TLSFlags struct {
 
 func getCSV(arg string) []string {
 	// TODO: Find standard way to pass array-valued options
-	split := strings.Split(arg, ",")
-	ret := make([]string, len(split))
-	for i, v := range split {
-		ret[i] = strings.Trim(v, " \t")
+	reader := csv.NewReader(strings.NewReader(arg))
+	ret, err := reader.ReadAll()
+	if err != nil {
+		log.Fatalf("Error parsing CSV argument '%s': %s", arg, err)
 	}
-	return ret
+	if len(ret) != 1 {
+		log.Fatalf("Bad CSV -- must have exactly one row (%s)", arg)
+	}
+	for i, v := range ret[0] {
+		ret[0][i] = strings.Trim(v, " \t")
+	}
+	return ret[0]
 }
 
 func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
@@ -105,15 +112,15 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 	}
 	if t.Certificates != "" {
 		// TODO FIXME: Implement
-		log.Warnf("--certificates not implemented")
+		log.Fatalf("--certificates not implemented")
 	}
 	if t.CertificateMap != "" {
 		// TODO FIXME: Implement
-		log.Warnf("--certificate-map not implemented")
+		log.Fatalf("--certificate-map not implemented")
 	}
 	if t.RootCAs != "" {
 		// TODO FIXME: Implement
-		log.Warnf("--root-cas not implemented")
+		log.Fatalf("--root-cas not implemented")
 	}
 	if t.NextProtos != "" {
 		// TODO: Different format?
@@ -146,7 +153,7 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 
 	if t.CurvePreferences != "" {
 		// TODO FIXME: Implement (how to map curveName to CurveID? Or are there standard 'suites' like we use for cipher suites?)
-		log.Warnf("--curve-preferences not implemented")
+		log.Fatalf("--curve-preferences not implemented")
 	}
 
 	if t.NoECDHE {
@@ -156,7 +163,7 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 
 	if t.SignatureAlgorithms != "" {
 		// TODO FIXME: Implement (none of the signatureAndHash functions/consts are exported from common.go...?)
-		log.Warnf("--signature-algorithms not implemented")
+		log.Fatalf("--signature-algorithms not implemented")
 	}
 
 	if t.HeartbeatEnabled {
