@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # Do all integration tests for all protocols
-# To add tests for a new protocol, create a directory integration_tests/<new_protocol>, and drop its setup.sh, test.sh, and cleanup.sh there.
+# To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
 
 # Run from root of project
 TEST_DIR=$(dirname "$0")
