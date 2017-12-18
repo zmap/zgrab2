@@ -2,6 +2,7 @@ package zgrab2
 
 import (
 	"encoding/base64"
+	"encoding/csv"
 	"fmt"
 	"net"
 	"strings"
@@ -63,12 +64,18 @@ type TLSFlags struct {
 
 func getCSV(arg string) []string {
 	// TODO: Find standard way to pass array-valued options
-	split := strings.Split(arg, ",")
-	ret := make([]string, len(split))
-	for i, v := range split {
-		ret[i] = strings.Trim(v, " \t")
+	reader := csv.NewReader(strings.NewReader(arg))
+	ret, err := reader.ReadAll()
+	if err != nil {
+		log.Fatalf("Error parsing CSV argument '%s': %s", arg, err)
 	}
-	return ret
+	if len(ret) != 1 {
+		log.Fatalf("Bad CSV -- must have exactly one row (%s)", arg)
+	}
+	for i, v := range ret[0] {
+		ret[0][i] = strings.Trim(v, " \t")
+	}
+	return ret[0]
 }
 
 func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
