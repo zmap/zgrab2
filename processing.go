@@ -90,7 +90,11 @@ func Process(mon *Monitor) {
 	}()
 	//Start all the workers
 	for i := 0; i < workers; i++ {
-		go func() {
+		go func(i int) {
+			for _, scannerName := range orderedScanners {
+				scanner := *scanners[scannerName]
+				scanner.InitPerSender(i)
+			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
 					result := grabTarget(obj, mon)
@@ -98,7 +102,7 @@ func Process(mon *Monitor) {
 				}
 			}
 			workerDone.Done()
-		}()
+		}(i)
 	}
 
 	// Read the input, send to workers
