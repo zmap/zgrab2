@@ -1,8 +1,6 @@
 package modules
 
 import (
-	"net"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
@@ -104,17 +102,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, resu
 			panic(err)
 		}
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
-		var netConn net.Conn = conn
-		sql.Connection = &netConn
-		// Works:
-		//	var netConn net.Conn = conn
-		//	sql.Connection = &netConn
-		// Does not work:
-		//	sql.Connection = &conn // (**ZGrabConnection is not *net.Conn)
-		//  sql.Connection = &(conn.(net.Conn)) // (conn is not an interface)
-		//  sql.Connection = conn.Conn // (cannot use conn.Conn (type tls.Conn) as type *net.Conn)
-		//  sql.Connection = &conn.Conn // (cannot use &conn.Conn (type *tls.Conn) as type *net.Conn)
-		//	sql.Connection = &(conn.Conn.conn) // (cannot refer to unexported field or method conn)
+		sql.Connection = conn
 	}
 	// If we made it this far, the scan was a success.
 	return zgrab2.SCAN_SUCCESS, result, nil
