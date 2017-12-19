@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# zgrab
+cmd/zgrab2/zgrab2
+zgrab-output/
+
+# CI dependencies
+jp

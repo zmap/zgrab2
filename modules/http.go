@@ -88,8 +88,8 @@ func (s *HTTPScanner) GetName() string {
 	return s.config.Name
 }
 
-func (s *HTTPScanner) Scan(t zgrab2.ScanTarget) (interface{}, error) {
+func (s *HTTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	http := HTTPRequest{Method: "Get", Body: "testing"}
 	ret := HTTPResults{ProxyRequest: &http}
-	return ret, nil
+	return zgrab2.SCAN_SUCCESS, ret, nil
 }

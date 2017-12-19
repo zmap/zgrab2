@@ -5,4 +5,4 @@
 // This package contains test data shared between the various subpackages of
 // the github.com/zmap/zgrab2/lib package. Under no circumstance should
 // this data be used for production code.
-package testdata // import "github.com/zmap/zgrab2/lib/testdata"
+package testdata // import "github.com/zmap/zgrab2/lib/ssh/testdata"

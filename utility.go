@@ -100,3 +100,33 @@ func duplicateIP(ip net.IP) net.IP {
 	copy(dup, ip)
 	return dup
 }
+
+// Given an error object thrown by a scan, attempt to get the appropriate ScanStatus enum value
+func TryGetScanStatus(err error) ScanStatus {
+	if err == nil {
+		return SCAN_SUCCESS
+	}
+	switch e := err.(type) {
+	case *net.OpError:
+		switch e.Op {
+		case "dial":
+			// TODO: Distinguish connection timeout / connection refused
+			// Windows examples:
+			//	"dial tcp 192.168.30.3:22: connectex: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond."
+			//	"dial tcp 127.0.0.1:22: connectex: No connection could be made because the target machine actively refused it."
+			return SCAN_CONNECTION_TIMEOUT
+		case "read":
+			// TODO: Distinguish connection reset vs timeout
+			return SCAN_IO_TIMEOUT
+		case "write":
+			// TODO: Distinguish connection reset vs timeout
+			return SCAN_IO_TIMEOUT
+		default:
+			// TODO: Do we need a generic network error?
+			return SCAN_UNKNOWN_ERROR
+		}
+	// TODO: More error types
+	default:
+		return SCAN_UNKNOWN_ERROR
+	}
+}

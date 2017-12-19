@@ -71,5 +71,17 @@ func init() {
 }
 ```
 
+### Output schema
+
+To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](schemas/__init__.py) to ensure that it is loaded.
+
+See [schemas/README.md](schemas/README.md) for details.
+
+### Integration tests
+To add integration tests for the new module, run `integration_tests/new.sh [your_new_protocol_name]`.
+This will add stub shell scripts in `integration_tests/your_new_protocol_name`; update these as needed.
+See [integration_tests/mysql/*](integration_tests/mysql) for an example.
+The only hard requirement is that the `test.sh` script drops its output in `$ZGRAB_OUTPUT/[your-module]/*.json`, so that it can be validated against the schema.
+
 ## License
 ZGrab2.0 is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.
