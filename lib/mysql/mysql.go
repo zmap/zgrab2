@@ -220,7 +220,7 @@ type Connection struct {
 	// Enum to track connection status
 	State ConnectionState
 	// TCP or TLS-wrapped Connection pointer (IsSecure() will tell which)
-	Connection *net.Conn
+	Connection net.Conn
 	// The sequence number used with the server to number packets
 	SequenceNumber uint8
 
@@ -540,7 +540,7 @@ func (c *Connection) sendPacket(packet WritablePacket) (*ConnectionLogEntry, err
 	}
 
 	// @TODO: Buffered send?
-	_, err := (*c.Connection).Write(toSend)
+	_, err := c.Connection.Write(toSend)
 	return &logPacket, err
 }
 
@@ -564,9 +564,8 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 // Read a packet and sequence identifier off of the given connection
 func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	// @TODO @FIXME Find/use conventional buffered packet-reading functions, handle timeouts / connection reset / etc
-	conn := *c.Connection
-	reader := bufio.NewReader(conn)
-	if terr := conn.SetReadDeadline(time.Now().Add(c.Config.Timeout)); terr != nil {
+	reader := bufio.NewReader(c.Connection)
+	if terr := c.Connection.SetReadDeadline(time.Now().Add(c.Config.Timeout)); terr != nil {
 		return nil, fmt.Errorf("Error calling SetReadTimeout(): %s", terr)
 	}
 	var header [4]byte
@@ -618,13 +617,12 @@ func (c *Connection) GetHandshake() *HandshakePacket {
 
 // Perform a TLS handshake using the configured TLSConfig on the current connection
 func (c *Connection) StartTLS() error {
-
-	client := tls.Client(*c.Connection, c.Config.TLSConfig)
+	client := tls.Client(c.Connection, c.Config.TLSConfig)
 	err := client.Handshake()
 	if err != nil {
 		return fmt.Errorf("TLS Handshake error: %s", err)
 	}
-	*(c.Connection) = client
+	c.Connection = client
 	return nil
 }
 
@@ -666,7 +664,7 @@ func (c *Connection) Connect() error {
 		log.Debugf("Error connecting: %v", err)
 		return fmt.Errorf("Connect error: %s", err)
 	}
-	c.Connection = &conn
+	c.Connection = conn
 	c.State = STATE_CONNECTED
 	c.ConnectionLog = ConnectionLog{
 		Handshake:  nil,
@@ -706,7 +704,7 @@ func (c *Connection) Disconnect() error {
 	}
 	c.State = STATE_NOT_CONNECTED
 	// Change state even if close fails
-	return (*c.Connection).Close()
+	return c.Connection.Close()
 }
 
 // NUL STRING type from https://web.archive.org/web/20160316113745/https://dev.mysql.com/doc/internals/en/string.html
