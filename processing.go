@@ -26,40 +26,9 @@ type ScanTarget struct {
 	Domain string
 }
 
-type Dialer interface {
-	Dial(string, string) (net.Conn, error)
-}
-
-type TimeoutDialer interface {
-	DialTimeout(string, string, time.Duration) (net.Conn, error)
-}
-
-type DefaultDialer struct {
-	Timeout time.Duration
-}
-
-func (d *DefaultDialer) Dial(proto string, host string) (net.Conn, error) {
-	if d.Timeout == 0 {
-		return net.Dial(proto, host)
-	} else {
-		return net.DialTimeout(proto, host, d.Timeout)
-	}
-}
-
-func (d *DefaultDialer) DialTimeout(proto string, host string, timeout time.Duration) (net.Conn, error) {
-	return net.DialTimeout(proto, host, timeout)
-}
-
-func (t *ScanTarget) OpenDial(flags *BaseFlags, dialer Dialer) (net.Conn, error) {
-	return dialer.Dial("tcp", fmt.Sprintf("%s:%d", t.IP.String(), flags.Port))
-}
-
-func (t *ScanTarget) OpenDialTimeout(flags *BaseFlags, dialer TimeoutDialer) (net.Conn, error) {
-	return dialer.DialTimeout("tcp", fmt.Sprintf("%s:%d", t.IP.String(), flags.Port), time.Second*time.Duration(flags.Timeout))
-}
-
+// ScanTarget.Open connects to the ScanTarget using net.DialTimeout(), getting the port and timeout from flags.
 func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	return t.OpenDialTimeout(flags, &DefaultDialer{})
+	return net.DialTimeout("tcp", fmt.Sprintf("%s:%d", t.IP.String(), flags.Port), time.Second*time.Duration(flags.Timeout))
 }
 
 // grabTarget calls handler for each action
