@@ -1,0 +1,83 @@
+package zgrab2
+
+import (
+	"io"
+	"net"
+)
+
+// ScanStatus is the enum value that states how the scan ended.
+type ScanStatus string
+
+// TODO: Confirm to standard string const format (names, capitalization, hyphens/underscores, etc)
+// TODO: Enumerate further status types
+const (
+	SCAN_SUCCESS            = "success"            // The protocol in question was positively identified and the scan encountered no errors
+	SCAN_CONNECTION_REFUSED = "connection-refused" // TCP connection was actively rejected
+	SCAN_CONNECTION_TIMEOUT = "connection-timeout" // No response to TCP connection request
+	SCAN_CONNECTION_CLOSED  = "connection-closed"  // The TCP connection was unexpectedly closed
+	SCAN_IO_TIMEOUT         = "io-timeout"         // Timed out waiting on data
+	SCAN_PROTOCOL_ERROR     = "protocol-error"     // Received data incompatible with the target protocol
+	SCAN_APPLICATION_ERROR  = "application-error"  // The application reported an error
+	SCAN_UNKNOWN_ERROR      = "unknown-error"      // Catch-all for unrecognized errors
+)
+
+// ScanError an error that also includes a ScanStatus.
+type ScanError struct {
+	Status ScanStatus
+	Err    error
+}
+
+func (err *ScanError) Error() string {
+	if err.Err == nil {
+		return "<nil>"
+	}
+	return err.Err.Error()
+}
+
+// NewScanError returns a ScanError with the given status and error.
+func NewScanError(status ScanStatus, err error) *ScanError {
+	return &ScanError{Status: status, Err: err}
+}
+
+// DetectScanError returns a ScanError that attempts to detect the status from the given error.
+func DetectScanError(err error) *ScanError {
+	return &ScanError{Status: TryGetScanStatus(err), Err: err}
+}
+
+// TryGetScanStatus attempts to get the ScanStatus enum value corresponding to the given error.
+// Mostly supports network errors. A nil error is interpreted as SCAN_SUCCESS.
+// An unrecognized error is interpreted as SCAN_UNKNOWN_ERROR.
+func TryGetScanStatus(err error) ScanStatus {
+	if err == nil {
+		return SCAN_SUCCESS
+	}
+	if err == io.EOF {
+		// Presumably the caller did not call TryGetScanStatus if the EOF was expected
+		return SCAN_IO_TIMEOUT
+	}
+	switch e := err.(type) {
+	case *ScanError:
+		return e.Status
+	case *net.OpError:
+		switch e.Op {
+		case "dial":
+			// TODO: Distinguish connection timeout / connection refused
+			// Windows examples:
+			//	"dial tcp 192.168.30.3:22: connectex: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond."
+			//	"dial tcp 127.0.0.1:22: connectex: No connection could be made because the target machine actively refused it."
+			return SCAN_CONNECTION_TIMEOUT
+		case "read":
+			// TODO: Distinguish connection reset vs timeout
+			return SCAN_IO_TIMEOUT
+		case "write":
+			// TODO: Distinguish connection reset vs timeout
+			return SCAN_IO_TIMEOUT
+		default:
+			// TODO: Do we need a generic network error?
+			return SCAN_UNKNOWN_ERROR
+		}
+	// TODO: More error types
+	default:
+		return SCAN_UNKNOWN_ERROR
+	}
+}
