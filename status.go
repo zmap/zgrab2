@@ -8,17 +8,20 @@ import (
 // ScanStatus is the enum value that states how the scan ended.
 type ScanStatus string
 
-// TODO: Confirm to standard string const format (names, capitalization, hyphens/underscores, etc)
+// TODO: Conform to standard string const format (names, capitalization, hyphens/underscores, etc)
 // TODO: Enumerate further status types
 const (
 	SCAN_SUCCESS            = "success"            // The protocol in question was positively identified and the scan encountered no errors
 	SCAN_CONNECTION_REFUSED = "connection-refused" // TCP connection was actively rejected
 	SCAN_CONNECTION_TIMEOUT = "connection-timeout" // No response to TCP connection request
-	SCAN_CONNECTION_CLOSED  = "connection-closed"  // The TCP connection was unexpectedly closed
-	SCAN_IO_TIMEOUT         = "io-timeout"         // Timed out waiting on data
-	SCAN_PROTOCOL_ERROR     = "protocol-error"     // Received data incompatible with the target protocol
-	SCAN_APPLICATION_ERROR  = "application-error"  // The application reported an error
-	SCAN_UNKNOWN_ERROR      = "unknown-error"      // Catch-all for unrecognized errors
+
+	// TODO: lump connection closed / io timeout?
+	SCAN_CONNECTION_CLOSED = "connection-closed" // The TCP connection was unexpectedly closed
+	SCAN_IO_TIMEOUT        = "io-timeout"        // Timed out waiting on data
+	SCAN_PROTOCOL_ERROR    = "protocol-error"    // Received data incompatible with the target protocol
+	// TODO: Add SCAN_TLS_PROTOCOL_ERROR? For purely TLS-wrapped protocols, SCAN_PROTOCOL_ERROR is fine -- but for protocols that have a non-TLS bootstrap (e.g. a STARTTLS procedure), SCAN_PROTOCOL_ERROR is misleading, since it did get far-enough into the application protocol to start TLS handshaking -- but a garbled TLS handshake is certainly not a SCAN_APPLICATION_ERROR
+	SCAN_APPLICATION_ERROR = "application-error" // The application reported an error
+	SCAN_UNKNOWN_ERROR     = "unknown-error"     // Catch-all for unrecognized errors
 )
 
 // ScanError an error that also includes a ScanStatus.
@@ -27,6 +30,7 @@ type ScanError struct {
 	Err    error
 }
 
+// Error is an implementation of the builtin.error interface -- just forward the wrapped error's Error() method
 func (err *ScanError) Error() string {
 	if err.Err == nil {
 		return "<nil>"
