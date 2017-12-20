@@ -233,7 +233,7 @@ type TLSLog struct {
 
 func (z *TLSConnection) GetLog() *TLSLog {
 	handshake := z.Conn.GetHandshakeLog()
-	if !z.flags.KeepClientLogs {
+	if handshake != nil && !z.flags.KeepClientLogs {
 		handshake.ClientHello = nil
 		handshake.ClientKeyExchange = nil
 		handshake.ClientFinished = nil
