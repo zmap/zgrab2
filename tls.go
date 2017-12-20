@@ -261,12 +261,12 @@ func (z *TLSConnection) Handshake() error {
 	}
 }
 
-func (t *TLSFlags) GetTLSConnection(conn *net.Conn) (*TLSConnection, error) {
+func (t *TLSFlags) GetTLSConnection(conn net.Conn) (*TLSConnection, error) {
 	cfg, err := t.GetTLSConfig()
 	if err != nil {
 		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
 	}
-	tlsClient := tls.Client(*conn, cfg)
+	tlsClient := tls.Client(conn, cfg)
 	wrappedClient := TLSConnection{
 		Conn:  *tlsClient,
 		flags: t,
