@@ -3,10 +3,12 @@ package zgrab2
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -22,6 +24,11 @@ type Grab struct {
 type ScanTarget struct {
 	IP     net.IP
 	Domain string
+}
+
+// ScanTarget.Open connects to the ScanTarget using net.DialTimeout(), getting the port and timeout from flags.
+func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
+	return net.DialTimeout("tcp", fmt.Sprintf("%s:%d", t.IP.String(), flags.Port), time.Second*time.Duration(flags.Timeout))
 }
 
 // grabTarget calls handler for each action
