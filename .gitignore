@@ -7,3 +7,6 @@ zgrab-output/
 
 # CI dependencies
 jp
+
+# Compiled python modules
+schemas/*.pyc
