@@ -1,0 +1,14 @@
+ssl = on
+ssl_ciphers = 'HIGH:MEDIUM:+3DES:!aNULL'
+ssl_cert_file = 'server.crt'
+ssl_key_file = 'server.key'
+ssl_ca_file = ''
+ssl_crl_file = ''
+
+logging_collector = on
+log_directory = 'pg_log'
+log_filename = 'postgres.log'
+log_file_mode = '0666'
+log_min_messages = 'DEBUG5'
+log_connections = on
+log_disconnections = on
