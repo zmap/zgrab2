@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 # Set up the integration tests for all modules.
 # Drop your setup script(s) in integration_tests/<protocol>/setup(.*).sh

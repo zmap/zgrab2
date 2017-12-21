@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -e
 
 # Launch a MySQL container with $MYSQL_VERSION, an root empty password, console logging, and host:$MYSQL_PORT forwarded to container:3306
 

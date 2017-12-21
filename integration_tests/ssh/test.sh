@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 SSH_PORT=33022
 CONTAINER_NAME="sshtest"

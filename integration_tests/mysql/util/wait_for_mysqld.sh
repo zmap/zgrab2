@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -e
 
 if [ -z $CONTAINER_NAME ] || [ -z $MYSQL_PORT ]; then
     echo "Must provide CONTAINER_NAME and MYSQL_PORT"

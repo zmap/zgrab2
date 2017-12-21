@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 # Run the MySQL-specific integration tests:
 # 1. Run zgrab2 on localhost:$MYSQL_PORT
