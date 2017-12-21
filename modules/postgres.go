@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,37 +15,69 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-type Dialer interface {
-	Dial(network, address string) (net.Conn, error)
-	DialTimeout(network, address string, timeout time.Duration) (net.Conn, error)
+// PostgresResults is the information returned to the caller.
+type PostgresResults struct {
+	TLSLog            *zgrab2.TLSLog `json:"tls,omitempty"`
+	SupportedVersions string         `json:"supported_versions,omitempty"`
+	StartupResponse   string         `json:"startup_response,omitempty"`
+	IsSSL             bool           `json:"is_ssl"`
 }
 
+// PostgresFlags sets the module-specific flags that can be passed in from the command line
+type PostgresFlags struct {
+	zgrab2.BaseFlags
+	zgrab2.TLSFlags
+	SkipSSL         bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
+	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	ProtocolVersion string `long:"protocol_version" description:"The protocol to use in the StartupPacket" default:"3.0"`
+}
+
+// PostgresScanner is the zgrab2 scanner type for the postgres protocol
+type PostgresScanner struct {
+	Config *PostgresFlags
+}
+
+// PostgresModule is the zgrab2 module for the postgres protocol
+type PostgresModule struct {
+}
+
+// Connection wraps the state of a given connection to a server
 type Connection struct {
 	Connection net.Conn
 	Config     *PostgresFlags
 	IsSSL      bool
 }
 
-type Packet struct {
+// ServerPacket is a direct representation of the response packet returned by the server (See e.g. https://www.postgresql.org/docs/9.6/static/protocol-message-formats.html)
+// The first byte is a message type, an alphanumeric character.
+// The following four bytes are the length of the message body.
+// The following <length> bytes are the message itself.
+// In certain special cases, the Length can be 0; for instance, a response to an SSLRequest is only a S/N Type with no length / body, while pre-startup errors can be a E Type followed by a \n\0-terminated string.
+type ServerPacket struct {
 	Type   byte
 	Length uint32
 	Body   []byte
 }
 
-func (p *Packet) ToString() string {
-	return fmt.Sprintf("{ Packet(%p): { Type: '%c', Length: %d, Body: hex(%s) } }", &p, p.Type, p.Length, hex.EncodeToString(p.Body))
+// ServerPacket.ToString() is used in logging, to get a human-readable representation of the packet.
+func (p *ServerPacket) ToString() string {
+	// TODO: Don't hex-encode human-readable bodies?
+	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: hex(%s) } }", &p, p.Type, p.Length, hex.EncodeToString(p.Body))
 }
 
-func (c *Connection) Send(data []byte) error {
-	toSend := make([]byte, len(data)+4)
-	copy(toSend[4:], data)
-	binary.BigEndian.PutUint32(toSend[0:], uint32(len(data)+4))
+// Connection.Send() sends a client packet: a big-endian uint32 length followed by the body.
+func (c *Connection) Send(body []byte) error {
+	toSend := make([]byte, len(body)+4)
+	copy(toSend[4:], body)
+	// The length contains the length of the length, hence the +4.
+	binary.BigEndian.PutUint32(toSend[0:], uint32(len(body)+4))
 
 	// @TODO: Buffered send?
 	_, err := c.Connection.Write(toSend)
 	return err
 }
 
+// Connection.SendU32() sends an uint32 packet to the server.
 func (c *Connection) SendU32(val uint32) error {
 	toSend := make([]byte, 8)
 	binary.BigEndian.PutUint32(toSend[0:], uint32(8))
@@ -54,12 +87,14 @@ func (c *Connection) SendU32(val uint32) error {
 	return err
 }
 
+// Connection.Close() closes out the underlying TCP connection to the server.
 func (c *Connection) Close() error {
 	return c.Connection.Close()
 }
 
-func (c *Connection) Read() (*Packet, *zgrab2.ScanError) {
-	ret := Packet{}
+// Connection.Read() reads a ServerPacket from the server.
+func (c *Connection) Read() (*ServerPacket, *zgrab2.ScanError) {
+	ret := ServerPacket{}
 	if err := c.Connection.SetReadDeadline(time.Now().Add(time.Duration(c.Config.Timeout) * time.Second)); err != nil {
 		// Error *setting* the timeout?
 		return nil, zgrab2.DetectScanError(err)
@@ -112,60 +147,8 @@ func (c *Connection) Read() (*Packet, *zgrab2.ScanError) {
 	return &ret, nil
 }
 
-// HandshakeLog contains detailed information about each step of the
-// MySQL handshake, and can be encoded to JSON.
-type PostgresResults struct {
-	TLSLog            *zgrab2.TLSLog `json:"tls,omitempty"`
-	SupportedVersions string         `json:"supported_versions,omitempty"`
-	StartupResponse   string         `json:"startup_response,omitempty"`
-	IsSSL             bool           `json:"is_ssl"`
-}
-
-type PostgresFlags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	SkipSSL         bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
-	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	ProtocolVersion uint32 `long:"protocol_version" default:"3"`
-}
-
-type connectionManager struct {
-	connections []*net.Conn
-}
-
-func (m *connectionManager) addConnection(c *net.Conn) {
-	m.connections = append(m.connections, c)
-}
-
-func (m *connectionManager) cleanUp() {
-	for _, v := range m.connections {
-		// Close them all even if there is a panic with one
-		defer func(c *net.Conn) {
-			(*c).Close()
-		}(v)
-	}
-}
-
-func newConnectionManager() *connectionManager {
-	return &connectionManager{}
-}
-
-type PostgresModule struct {
-}
-
-type PostgresScanner struct {
-	Config *PostgresFlags
-}
-
-func init() {
-	var module PostgresModule
-	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func ReadDict(buf []byte) map[string]string {
+// DecodeMap() decodes a map encoded as a aequence of "key1\0value1\0key2\0value2\0...keyN\0valueN\0\0"
+func DecodeMap(buf []byte) map[string]string {
 	ret := make(map[string]string)
 	parts := strings.Split(string(buf), "\x00")
 	for i := 0; i < len(parts)-1; i += 2 {
@@ -176,13 +159,43 @@ func ReadDict(buf []byte) map[string]string {
 	return ret
 }
 
-func SerializeDict(dict map[string]string) []byte {
+// EncodeMap() encodes a map into a byte array of the form "key0\0value\0key1\0value1\0...keyN\0valueN\0\0"
+func EncodeMap(dict map[string]string) []byte {
 	var strs []string
 	for k, v := range dict {
 		strs = append(strs, k)
 		strs = append(strs, v)
 	}
 	return append([]byte(strings.Join(strs, "\x00")), 0x00, 0x00)
+}
+
+// connectionManager is a utility for getting connections and ensuring that they all get closed
+// TODO: Is there something like this in the standard libraries??
+type connectionManager struct {
+	connections []io.Closer
+}
+
+// Add a connection to be cleaned up
+func (m *connectionManager) addConnection(c io.Closer) {
+	m.connections = append(m.connections, c)
+}
+
+// Close all managed connections
+func (m *connectionManager) cleanUp() {
+	for _, v := range m.connections {
+		// Close them all even if there is a panic with one
+		defer func(c io.Closer) {
+			err := c.Close()
+			if err != nil {
+				log.Debugf("Got error closing connection: %v", err)
+			}
+		}(v)
+	}
+}
+
+// Get a new connectionmanager instance
+func newConnectionManager() *connectionManager {
+	return &connectionManager{}
 }
 
 func (m *PostgresModule) NewFlags() interface{} {
@@ -219,6 +232,7 @@ func (s *PostgresScanner) GetPort() uint {
 	return s.Config.Port
 }
 
+// PostgresScanner.DoSSL() attempts to upgrade the connection to SSL, returning an error on failure.
 func (s *PostgresScanner) DoSSL(sql *Connection) error {
 	var conn *zgrab2.TLSConnection
 	var err error
@@ -233,19 +247,37 @@ func (s *PostgresScanner) DoSSL(sql *Connection) error {
 	return nil
 }
 
-func GetStartupPacket(version uint32, kvps map[string]string) []byte {
-	ret := SerializeDict(kvps)
-	// FIXME: float version
-	return append([]byte{0x00, byte(version), 0x00, 0x00}, ret...)
+// EncodeStartupMessage creates a StartupMessage: uint16 Major + uint16 Minor + (key/value pairs)
+func EncodeStartupMessage(version string, kvps map[string]string) []byte {
+	dict := EncodeMap(kvps)
+	ret := make([]byte, len(dict)+4)
+	parts := strings.Split(version, ".")
+	if len(parts) == 1 {
+		parts = []string{parts[0], "0"}
+	}
+	major, err := strconv.ParseUint(parts[0], 0, 16)
+	if err != nil {
+		log.Fatalf("Error parsing major version %s as a uint16:", parts[0], err)
+	}
+	minor, err := strconv.ParseUint(parts[1], 0, 16)
+	if err != nil {
+		log.Fatalf("Error parsing minor version as a uint16:", parts[1], err)
+	}
+	binary.BigEndian.PutUint16(ret[0:2], uint16(major))
+	binary.BigEndian.PutUint16(ret[2:4], uint16(minor))
+	copy(ret[4:], dict)
+
+	return ret
 }
 
+// PostgresScanner.newConnection() opens up a new connection to the ScanTarget, and if necessary, attempts to update the connection to SSL
 func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool) (*Connection, *zgrab2.ScanError) {
 	var conn net.Conn
 	var err error
 	if conn, err = t.Open(&s.Config.BaseFlags); err != nil {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	mgr.addConnection(&conn)
+	mgr.addConnection(conn)
 	sql := Connection{Connection: conn, Config: s.Config}
 	sql.IsSSL = false
 	if !nossl && !s.Config.SkipSSL {
@@ -272,6 +304,9 @@ func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionMan
 	return &sql, nil
 }
 
+// PostgresScanner.Scan() does the actual scanning. It opens two connections:
+// With the first it sends a bogus protocol version in hopes of getting a list of supported protcols back.
+// With the second, it sends a standard StartupMessage, but without the required "user" field.
 func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 	var err error
 	var results PostgresResults
@@ -320,17 +355,24 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 
 	// Skip TLS on second/later rounds, since we already have TLS logs (though if we ever send sensitive information, this may need to change)
 	startupSql, connectErr := s.newConnection(&t, mgr, true)
-	startupPacket := GetStartupPacket(s.Config.ProtocolVersion, map[string]string{
-		// Omitting the required "user" field
+	if connectErr != nil {
+		return connectErr.Status, &results, connectErr.Err
+	}
+	startupPacket := EncodeStartupMessage(s.Config.ProtocolVersion, map[string]string{
+		// Intentionally omitting the required "user" field
 		"client_encoding": "UTF8",
 		"datestyle":       "ISO, MDY",
 	})
 	if err = startupSql.Send(startupPacket); err != nil {
 		return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 	}
-	if response, readError := startupSql.Read(); readError == nil {
+	if response, readError := startupSql.Read(); readError != nil {
+		log.Debugf("Error reading response after StartupMessage: %v", readError)
+		return readError.Status, &results, readError.Err
+	} else {
 		if response.Type == 'E' {
-			j, e := json.Marshal(ReadDict(response.Body))
+			// FIXME TODO: Better output format here
+			j, e := json.Marshal(DecodeMap(response.Body))
 			if e == nil {
 				results.StartupResponse = string(j)
 			} else {
@@ -341,10 +383,35 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 			log.Debugf("Unexpected response from server: %s", response.ToString())
 			results.StartupResponse = response.ToString()
 		}
-	} else {
-		fmt.Printf("readError??", readError)
 	}
-	// Anything else to do? Could we include a dummy user value, but not send the subsequent password packet? That would give us some auth options
+	// TODO: Anything else to do? Could we include a dummy user value, but not send the subsequent password packet? That would give us some auth options
 	startupSql.Close()
+	authSql, connectErr := s.newConnection(&t, mgr, false)
+	if connectErr != nil {
+		return connectErr.Status, nil, connectErr.Err
+	}
+	authPacket := EncodeStartupMessage(s.Config.ProtocolVersion, map[string]string{
+		"user":            "guest",
+		"client_encoding": "UTF8",
+		"datestyle":       "ISO, MDY",
+	})
+	if err = authSql.Send(authPacket); err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
+	}
+	if response, readError := authSql.Read(); readError != nil {
+		log.Debugf("Error reading response after auth StartupMessage: %v", readError)
+		return readError.Status, &results, readError.Err
+	} else {
+		log.Warnf("Response: %s", response.ToString())
+	}
 	return status, &results, thrown
+}
+
+// init() registers the module with the zgrab2 framework
+func init() {
+	var module PostgresModule
+	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
