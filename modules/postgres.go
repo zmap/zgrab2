@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jb/tcpwrap"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -223,14 +222,14 @@ func (s *PostgresScanner) GetPort() uint {
 func (s *PostgresScanner) DoSSL(sql *Connection) error {
 	var conn *zgrab2.TLSConnection
 	var err error
-	if conn, err = s.Config.TLSFlags.GetTLSConnection(tcpwrap.Unwrap(sql.Connection)); err != nil {
+	if conn, err = s.Config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
 		return err
 	}
 	if err = conn.Handshake(); err != nil {
 		return err
 	}
 	// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
-	sql.Connection = tcpwrap.TaggedWrap(conn, "SSL")
+	sql.Connection = conn
 	return nil
 }
 
@@ -247,7 +246,7 @@ func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionMan
 		return nil, zgrab2.DetectScanError(err)
 	}
 	mgr.addConnection(&conn)
-	sql := Connection{Connection: tcpwrap.TaggedWrap(conn, "TCP"), Config: s.Config}
+	sql := Connection{Connection: conn, Config: s.Config}
 	sql.IsSSL = false
 	if !nossl && !s.Config.SkipSSL {
 		if err = sql.SendU32(80877103); err != nil {
@@ -295,7 +294,7 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 		_results, ok := result.(*PostgresResults)
 		if ok {
 			if _results.IsSSL {
-				_results.TLSLog = tcpwrap.Unwrap(v0Sql.Connection).(*zgrab2.TLSConnection).GetLog()
+				_results.TLSLog = v0Sql.Connection.(*zgrab2.TLSConnection).GetLog()
 			}
 		}
 	}() // Do SSL the first round, so that if we bail, we still have the TLS logs
