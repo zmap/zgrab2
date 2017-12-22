@@ -62,8 +62,6 @@ ${module_name}_scan_response = SubRecord({
 zschema.registry.register_schema("zgrab2-${module_name}", ${module_name}_scan_response)
 
 zgrab2.register_scan_response_type("${module_name}", ${module_name}_scan_response)
-
-
 EOF
 
 echo "import schemas.$module_name" >> schemas/__init__.py
