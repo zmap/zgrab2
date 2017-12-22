@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 # Do all integration tests for all protocols
 # To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
@@ -28,6 +30,8 @@ for mod in $(ls); do
 done
 popd
 
+status=0
+failures=""
 echo "Doing schema validation..."
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
@@ -35,7 +39,22 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
         echo "Validating $target [{("
         cat $target
         echo ")}]:"
-        python -m zschema validate schemas/__init__.py:zgrab2 $target
-        echo "validation of $target succeeded."
+        if ! python -m zschema validate schemas/__init__.py:zgrab2 $target; then
+            echo "Schema validation failed for $protocol/$outfile"
+            if [[ $status -eq 0 ]]; then
+                failures="$protocol/$outfile"
+            else
+                failures="$failures, $protocol/$outfile"
+            fi
+            status=1
+        else
+            echo "validation of $target succeeded."
+        fi
     done
 done
+
+if [ -n "$failures" ]; then
+    echo "One or more schema validations failed: $failures"
+fi
+
+exit $status
