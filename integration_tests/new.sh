@@ -38,4 +38,34 @@ echo "Tests cleanup for $module_name"
 EOF
 chmod +x $module_path/cleanup.sh
 
+#!/bin/bash
+set -x
+set -e
+
+module_name=postgres
+cat << EOF > schemas/$module_name.py
+# zschema sub-schema for zgrab2's $module_name module
+# Registers zgrab2-$module_name globally, and $module_name with the main zgrab2 schema.
+from zschema.leaves import *
+from zschema.compounds import *
+import zschema.registry
+
+import schemas.zcrypto as zcrypto
+import schemas.zgrab2 as zgrab2
+
+${module_name}_scan_response = SubRecord({
+    "result": SubRecord({
+        # TODO FIXME IMPLEMENT SCHEMA
+    })
+}, extends = zgrab2.base_scan_response)
+
+zschema.registry.register_schema("zgrab2-${module_name}", ${module_name}_scan_response)
+
+zgrab2.register_scan_response_type("${module_name}", ${module_name}_scan_response)
+
+
+EOF
+
+echo "import schemas.$module_name" >> schemas/__init__.py
+
 echo "Test files scaffolded in $module_path"
