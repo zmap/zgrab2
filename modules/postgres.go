@@ -17,10 +17,11 @@ import (
 
 // PostgresResults is the information returned to the caller.
 type PostgresResults struct {
-	TLSLog            *zgrab2.TLSLog `json:"tls,omitempty"`
-	SupportedVersions string         `json:"supported_versions,omitempty"`
-	StartupResponse   string         `json:"startup_response,omitempty"`
-	IsSSL             bool           `json:"is_ssl"`
+	TLSLog              *zgrab2.TLSLog `json:"tls,omitempty"`
+	SupportedVersions   string         `json:"supported_versions,omitempty"`
+	StartupResponse     string         `json:"startup_response,omitempty"`
+	UserStartupResponse string         `json:"user_startup_response,omitempty"`
+	IsSSL               bool           `json:"is_ssl"`
 }
 
 // PostgresFlags sets the module-specific flags that can be passed in from the command line
@@ -30,6 +31,7 @@ type PostgresFlags struct {
 	SkipSSL         bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
 	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	ProtocolVersion string `long:"protocol_version" description:"The protocol to use in the StartupPacket" default:"3.0"`
+	User            string `long:"user" description:"Username to pass to StartupMessage. If omitted, no user will be sent." default:""`
 }
 
 // PostgresScanner is the zgrab2 scanner type for the postgres protocol
@@ -386,23 +388,26 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 	}
 	// TODO: Anything else to do? Could we include a dummy user value, but not send the subsequent password packet? That would give us some auth options
 	startupSql.Close()
-	authSql, connectErr := s.newConnection(&t, mgr, false)
-	if connectErr != nil {
-		return connectErr.Status, nil, connectErr.Err
-	}
-	authPacket := EncodeStartupMessage(s.Config.ProtocolVersion, map[string]string{
-		"user":            "guest",
-		"client_encoding": "UTF8",
-		"datestyle":       "ISO, MDY",
-	})
-	if err = authSql.Send(authPacket); err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
-	}
-	if response, readError := authSql.Read(); readError != nil {
-		log.Debugf("Error reading response after auth StartupMessage: %v", readError)
-		return readError.Status, &results, readError.Err
-	} else {
-		log.Warnf("Response: %s", response.ToString())
+	if s.Config.User != "" {
+		authSql, connectErr := s.newConnection(&t, mgr, false)
+		if connectErr != nil {
+			return connectErr.Status, nil, connectErr.Err
+		}
+		authPacket := EncodeStartupMessage(s.Config.ProtocolVersion, map[string]string{
+			"user":            s.Config.User,
+			"client_encoding": "UTF8",
+			"datestyle":       "ISO, MDY",
+		})
+		if err = authSql.Send(authPacket); err != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
+		}
+		if response, readError := authSql.Read(); readError != nil {
+			log.Debugf("Error reading response after auth StartupMessage: %v", readError)
+			return readError.Status, &results, readError.Err
+		} else {
+			// FIXME TODO: Better output format here
+			results.UserStartupResponse = response.ToString()
+		}
 	}
 	return status, &results, thrown
 }
