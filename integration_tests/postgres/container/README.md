@@ -12,7 +12,7 @@ For most new versions, you can just add the new version tag to the `versions` li
 If on the other hand you need a custom Dockerfile / setup script (as we did for 9.3, which doesn't support all of the SSL config options available in later versions), 
 you will need to add a custom `Dockerfile.[version]`.
 The Dockerfile will receive a build-arg named IMAGE_TYPE, which can be `ssl` or `nossl`, which it can use to make the appropriate setup decisions.
-See `Dockerfile.93` for an example.
+See `Dockerfile.9.3` for an example. The only difference there is it uses the 9.3 versions of the conf files.
 
 ## Details ##
 

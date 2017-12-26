@@ -10,6 +10,7 @@ if [ "$#" -ne 2 ]; then
   exit 1
 fi
 
+# If there is a Dockerfile specifically for this version, use that
 if [ -f Dockerfile.$VERSION ]; then
   cp Dockerfile.$VERSION Dockerfile
 else
@@ -17,6 +18,7 @@ else
   # The reason for the sed is, you cannot use build-args in the FROM directive.
   # And, it doesn't seem that you can forward the version tag in the docker run command to the 'parent' image.
   # So, it seems we're stuck creating a bunch of images whose only difference is the version tag in the FROM statement at build time.
+  # Or, using the base images, which don't have SSL or logging enabled.
 
   sed "s!#{POSTGRES_VERSION}!$VERSION!g" < Dockerfile.template > Dockerfile
 fi
