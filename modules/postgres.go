@@ -314,7 +314,7 @@ func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionMan
 			}
 			sql.IsSSL = true
 		case 'E':
-			return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("Application rejected SSLRequest packet -- response = %s", sslRsponse.ToString()))
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("Application rejected SSLRequest packet -- response = %s", sslResponse.ToString()))
 		default:
 			// Returning PROTOCOL_ERROR here since any garbage data that starts with a small-ish u32 could be a valid packet, and no known server versions return anything beyond S/N/E.
 			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Unexpected response type '%c' from server", sslResponse.Type))
