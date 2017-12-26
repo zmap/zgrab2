@@ -26,9 +26,48 @@ type ScanTarget struct {
 	Domain string
 }
 
-// ScanTarget.Open connects to the ScanTarget using net.DialTimeout(), getting the port and timeout from flags.
+// scanTargetConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
+type scanTargetConnection struct {
+	net.Conn
+	Timeout time.Duration
+}
+
+func (c *scanTargetConnection) Read(b []byte) (n int, err error) {
+	if c.Timeout > 0 {
+		if err = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout)); err != nil {
+			return 0, err
+		}
+	}
+	return c.Conn.Read(b)
+}
+
+func (c *scanTargetConnection) Write(b []byte) (n int, err error) {
+	if c.Timeout > 0 {
+		if err = c.Conn.SetWriteDeadline(time.Now().Add(c.Timeout)); err != nil {
+			return 0, err
+		}
+	}
+	return c.Conn.Write(b)
+}
+
+// ScanTarget.Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	return net.DialTimeout("tcp", fmt.Sprintf("%s:%d", t.IP.String(), flags.Port), time.Second*time.Duration(flags.Timeout))
+	timeout := time.Second * time.Duration(flags.Timeout)
+	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
+	var conn net.Conn
+	var err error
+	if timeout > 0 {
+		conn, err = net.DialTimeout("tcp", target, timeout)
+	} else {
+		conn, err = net.Dial("tcp", target)
+	}
+	if err != nil {
+		return conn, err
+	}
+	return &scanTargetConnection{
+		Conn:    conn,
+		Timeout: timeout,
+	}, nil
 }
 
 // grabTarget calls handler for each action

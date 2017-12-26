@@ -23,9 +23,6 @@ import (
 	"math"
 	"net"
 	"strings"
-	"time"
-
-	"github.com/zmap/zcrypto/tls"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -98,12 +95,6 @@ const (
 )
 
 type Config struct {
-	// @TODO: Does it make sense to make Host/Port connection fields, so that Config can be shared across connections?
-	Host string
-	Port uint16
-
-	TLSConfig          *tls.Config
-	Timeout            time.Duration
 	ClientCapabilities uint32
 	MaxPacketSize      uint32
 	CharSet            byte
@@ -181,16 +172,6 @@ func getClientCapabilityFlags(flags uint32) map[string]bool {
 func InitConfig(base *Config) *Config {
 	if base == nil {
 		base = &Config{}
-	}
-	if base.TLSConfig == nil {
-		// @TODO @FIXME Can this be pulled from a global zgrab config module?
-		base.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-	if base.Port == 0 {
-		base.Port = DEFAULT_PORT
-	}
-	if base.Timeout == 0 {
-		base.Timeout = DEFAULT_TIMEOUT_SECS * time.Second
 	}
 	if base.ClientCapabilities == 0 {
 		base.ClientCapabilities = DEFAULT_CLIENT_CAPABILITIES
@@ -565,13 +546,10 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	// @TODO @FIXME Find/use conventional buffered packet-reading functions, handle timeouts / connection reset / etc
 	reader := bufio.NewReader(c.Connection)
-	if terr := c.Connection.SetReadDeadline(time.Now().Add(c.Config.Timeout)); terr != nil {
-		return nil, fmt.Errorf("Error calling SetReadTimeout(): %s", terr)
-	}
 	var header [4]byte
 	n, err := reader.Read(header[:])
 	if err != nil {
-		return nil, fmt.Errorf("Error reading packet header (timeout=%s): %s", err, c.Config.Timeout)
+		return nil, fmt.Errorf("Error reading packet header: %s", err)
 	}
 	if n != 4 {
 		return nil, fmt.Errorf("Wrong number of bytes returned (got %d, expected 4)", n)
@@ -615,17 +593,6 @@ func (c *Connection) GetHandshake() *HandshakePacket {
 	return nil
 }
 
-// Perform a TLS handshake using the configured TLSConfig on the current connection
-func (c *Connection) StartTLS() error {
-	client := tls.Client(c.Connection, c.Config.TLSConfig)
-	err := client.Handshake()
-	if err != nil {
-		return fmt.Errorf("TLS Handshake error: %s", err)
-	}
-	c.Connection = client
-	return nil
-}
-
 // Check if both the input client flags and the server capability flags support TLS
 func (c *Connection) SupportsTLS() bool {
 	if handshake := c.GetHandshake(); handshake != nil {
@@ -655,15 +622,7 @@ func (c *Connection) NegotiateTLS() error {
 }
 
 // Connect to the configured server and perform the initial handshake
-func (c *Connection) Connect() error {
-	// Allow Scan on pre-connected / user-supplied connections?
-	dialer := net.Dialer{Timeout: c.Config.Timeout}
-	log.Debugf("Connecting to %s:%d", c.Config.Host, c.Config.Port)
-	conn, err := dialer.Dial("tcp", fmt.Sprintf("%s:%d", c.Config.Host, c.Config.Port))
-	if err != nil {
-		log.Debugf("Error connecting: %v", err)
-		return fmt.Errorf("Connect error: %s", err)
-	}
+func (c *Connection) Connect(conn net.Conn) error {
 	c.Connection = conn
 	c.State = STATE_CONNECTED
 	c.ConnectionLog = ConnectionLog{

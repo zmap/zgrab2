@@ -69,10 +69,7 @@ func (s *MySQLScanner) GetPort() uint {
 }
 
 func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	sql := mysql.NewConnection(&mysql.Config{
-		Host: t.IP.String(),
-		Port: uint16(s.config.Port),
-	})
+	sql := mysql.NewConnection(&mysql.Config{})
 	result = &MySQLScanResults{}
 	defer func() {
 		recovered := recover()
@@ -85,7 +82,11 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, resu
 	}()
 	defer sql.Disconnect()
 	var err error
-	if err = sql.Connect(); err != nil {
+	conn, err := t.Open(&s.config.BaseFlags)
+	if err != nil {
+		panic(err)
+	}
+	if err = sql.Connect(conn); err != nil {
 		panic(err)
 	}
 	if sql.SupportsTLS() {
