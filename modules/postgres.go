@@ -15,6 +15,11 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
+const (
+	// From https://www.postgresql.org/docs/10/static/protocol-message-formats.html: "The SSL request code. The value is chosen to contain 1234 in the most significant 16 bits, and 5679 in the least significant 16 bits. (To avoid confusion, this code must not be the same as any protocol version number.)"
+	POSTGRES_SSL_REQUEST = 80877103
+)
+
 // PostgresResults is the information returned to the caller.
 type PostgresResults struct {
 	TLSLog              *zgrab2.TLSLog `json:"tls,omitempty"`
@@ -147,6 +152,14 @@ func (c *Connection) Read() (*ServerPacket, *zgrab2.ScanError) {
 		return &ret, zgrab2.DetectScanError(err)
 	}
 	return &ret, nil
+}
+
+// Connection.GetTLSLog() gets the connection's TLSLog, or nil if the connection has not yet been set up as TLS
+func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
+	if !c.IsSSL {
+		return nil
+	}
+	return c.Connection.(*zgrab2.TLSConnection).GetLog()
 }
 
 // DecodeMap() decodes a map encoded as a aequence of "key1\0value1\0key2\0value2\0...keyN\0valueN\0\0"
@@ -283,7 +296,8 @@ func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionMan
 	sql := Connection{Connection: conn, Config: s.Config}
 	sql.IsSSL = false
 	if !nossl && !s.Config.SkipSSL {
-		if err = sql.SendU32(80877103); err != nil {
+		// NOTE: The SSLRequest request type was introduced in version 7.2, released in 2002 (though the oldest supported version is 9.3, released 2013-09-09)
+		if err = sql.SendU32(POSTGRES_SSL_REQUEST); err != nil {
 			return nil, zgrab2.DetectScanError(err)
 		}
 		sslResponse, readError := sql.Read()
@@ -292,14 +306,17 @@ func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionMan
 		}
 		switch sslResponse.Type {
 		case 'N':
-			// No SSL
+			// No SSL -- do nothing, just return
 		case 'S':
 			if err = s.DoSSL(&sql); err != nil {
-				// This is arguably between an application error and a protocol error...
-				return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
+				// This is arguably between an application error and a protocol error; going with APPLICATION_ERROR, since it seems the odds of a different protocol randomly returning a valid 'S' packet are extremely slim.
+				return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 			}
 			sql.IsSSL = true
+		case 'E':
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("Application rejected SSLRequest packet -- response = %s", sslRsponse.ToString()))
 		default:
+			// Returning PROTOCOL_ERROR here since any garbage data that starts with a small-ish u32 could be a valid packet, and no known server versions return anything beyond S/N/E.
 			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Unexpected response type '%c' from server", sslResponse.Type))
 		}
 	}
@@ -323,20 +340,15 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 	}
 	if v0Sql.IsSSL {
 		results.IsSSL = true
+		// This pointer will be populated as the connection is negotiated
+		results.TLSLog = v0Sql.GetTLSLog()
 	} else {
 		results.IsSSL = false
+		results.TLSLog = nil
 	}
-	defer func() {
-		// Lazy fetch of TLSConnection.GetLog() -- grab it too early and some of its content may be missing
-		_results, ok := result.(*PostgresResults)
-		if ok {
-			if _results.IsSSL {
-				_results.TLSLog = v0Sql.Connection.(*zgrab2.TLSConnection).GetLog()
-			}
-		}
-	}() // Do SSL the first round, so that if we bail, we still have the TLS logs
+	// Do SSL the first round, so that if we bail, we still have the TLS logs
 
-	// Announce a version 0.0 client
+	// Announce a (bogus) version 0.0 client, expect an 'E'-type response giving the supported versions
 	if err = v0Sql.SendU32(0); err != nil {
 		return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 	}
@@ -353,6 +365,7 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 		results.SupportedVersions = string(v0Response.Body)
 	}
 
+	// Explicitly close it since we're done, but the connectionManager will manage any dangling connections at cleanup time
 	v0Sql.Close()
 
 	// Skip TLS on second/later rounds, since we already have TLS logs (though if we ever send sensitive information, this may need to change)
