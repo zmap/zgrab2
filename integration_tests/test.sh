@@ -53,6 +53,8 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
     done
 done
 
+# TODO: check for status == success
+
 if [ -n "$failures" ]; then
     echo "One or more schema validations failed: $failures"
 fi
