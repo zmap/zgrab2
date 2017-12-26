@@ -3,7 +3,7 @@
 set -e
 
 SSH_PORT=33022
-CONTAINER_NAME="sshtest"
+CONTAINER_NAME="zgrab_ssh"
 
 # Run the SSH-specific integration tests:
 # 1. Run zgrab2 on localhost:$SSH_PORT

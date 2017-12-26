@@ -2,7 +2,7 @@
 
 set +e
 
-CONTAINER_NAME="sshtest"
+CONTAINER_NAME="zgrab_ssh"
 
 echo "BEGIN DOCKER LOGS FROM $CONTAINER_NAME [{("
 docker logs --tail all $CONTAINER_NAME

@@ -3,8 +3,8 @@
 set -e
 
 SSH_PORT=33022
-CONTAINER_TAG="sshtest"
-CONTAINER_NAME="sshtest"
+CONTAINER_TAG="zgrab_ssh"
+CONTAINER_NAME="zgrab_ssh"
 
 # TODO FIXME: find a pre-built container with sshd already running? This works, but if it has to build the container image, the apt-get update is very slow.
 

@@ -13,7 +13,7 @@ fi
 
 mkdir -p $ZGRAB_OUTPUT/mysql
 
-CONTAINER_NAME="testmysql-$MYSQL_VERSION"
+CONTAINER_NAME="zgrab_mysql-$MYSQL_VERSION"
 OUTPUT_FILE="$ZGRAB_OUTPUT/mysql/$MYSQL_VERSION.json"
 
 echo "Testing MySQL Version $MYSQL_VERSION on port $MYSQL_PORT..."
