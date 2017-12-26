@@ -409,7 +409,7 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 			results.UserStartupResponse = response.ToString()
 		}
 	}
-	return status, &results, thrown
+	return zgrab2.SCAN_SUCCESS, &results, thrown
 }
 
 // init() registers the module with the zgrab2 framework
