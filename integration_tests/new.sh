@@ -38,11 +38,6 @@ echo "Tests cleanup for $module_name"
 EOF
 chmod +x $module_path/cleanup.sh
 
-#!/bin/bash
-set -x
-set -e
-
-module_name=postgres
 cat << EOF > schemas/$module_name.py
 # zschema sub-schema for zgrab2's $module_name module
 # Registers zgrab2-$module_name globally, and $module_name with the main zgrab2 schema.
