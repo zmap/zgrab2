@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 
+# This will build our custom postgres docker image for the requested type (ssl/nossl) and postgres version.
+# 
+
 set -e
 
 TYPE=$1
 VERSION=$2
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 [type] [version]"
+if [ "$#" -ne 2 ] || ! ( [ "$TYPE" = "ssl" ] || [ "$TYPE" = "nossl" ] ); then
+  echo "integration_tests/postgres/container/build.sh: Build a zgrab_postgres docker image"
+  echo ""
+  echo "Usage:"
+  echo ""
+  echo "  $0 [type] [version]"
+  echo ""
+  echo "...where [type] is \"ssl\" or \"nossl\", and [version] is the postgres server version."
+  echo ""
+  echo "On success, creates an image tagged zgrab_postgres:[version]-[type]".
+  echo ""
   exit 1
 fi
 
