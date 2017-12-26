@@ -206,11 +206,43 @@ server_certificate_valid = SubRecord({
     "error":String()
 })
 
+hex_name_value = SubRecord({
+    "hex":String(),
+    "name":String(),
+    # FIXME: Integer size?
+    "value":Integer(),
+})
+
+cipher_suite = hex_name_value
+
+signature_and_hash_type = SubRecord({
+    "signature_algorithm":String(),
+    "hash_algorithm":String(),
+})
+
 # zcrypto/tls/tls_handshake.go: ServerHandshake
 tls_handshake = SubRecord({
     "client_hello":SubRecord({
-        "random":Binary(),
+        "cipher_suites": ListOf(cipher_suite),
+        "compression_methods":ListOf(hex_name_value),
+        "extended_master_secret": Boolean(),
         "extended_random":Binary(),
+        "heartbeat":Boolean(),
+        "next_protocol_negotiation":Boolean(),
+        "ocsp_stapling":Boolean(),
+        "random":Binary(),
+        "sct_enabled":Boolean(),
+        "scts":Boolean(),
+        "secure_renegotiation":Boolean(),
+        "signature_and_hashes":ListOf(signature_and_hash_type),
+        "supported_curves": ListOf(hex_name_value),
+        "supported_point_formats": ListOf(hex_name_value),
+        "ticket": Boolean(),
+        "version":SubRecord({
+            "name":String(),
+            # FIXME: Integer size?
+            "value":Integer()
+        }),
     }),
     "server_hello":SubRecord({
         "version":SubRecord({
@@ -220,12 +252,7 @@ tls_handshake = SubRecord({
         }),
         "random":Binary(),
         "session_id": Binary(),
-        "cipher_suite":SubRecord({
-            "hex":String(),
-            "name":String(),
-            # FIXME: Integer size?
-            "value":Integer(),
-        }),
+        "cipher_suite":cipher_suite,
         # FIXME: Integer size?
         "compression_method":Integer(),
         "ocsp_stapling":Boolean(),
@@ -309,10 +336,7 @@ tls_handshake = SubRecord({
             "raw":Binary(),
             "type":String(),
             "valid":Boolean(),
-            "signature_and_hash_type":SubRecord({
-                "signature_algorithm":String(),
-                "hash_algorithm":String(),
-            }),
+            "signature_and_hash_type":signature_and_hash_type,
             "tls_version":SubRecord({
                 "name":String(),
                 # FIXME: Integer size
