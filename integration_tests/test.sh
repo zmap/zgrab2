@@ -41,19 +41,29 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
         echo ")}]:"
         if ! python -m zschema validate schemas/__init__.py:zgrab2 $target; then
             echo "Schema validation failed for $protocol/$outfile"
+            err="schema failure@$protocol/$outfile"
             if [[ $status -eq 0 ]]; then
-                failures="$protocol/$outfile"
+                failures="$err"
             else
-                failures="$failures, $protocol/$outfile"
+                failures="$failures, $err"
             fi
             status=1
         else
             echo "validation of $target succeeded."
+            scan_status=$($ZGRAB_ROOT/jp -u data.${protocol}.status < $target)
+            if ! [ $scan_status = "success" ]; then
+                echo "Scan returned success=$scan_status for $protocol/$outfile"
+                err="scan failure(${scan_status})@$protocol/$outfile"
+                if [[ $status -eq 0 ]]; then
+                    failures="$err"
+                else
+                    failures="$failures, $err"
+                fi
+                status=1
+            fi
         fi
     done
 done
-
-# TODO: check for status == success
 
 if [ -n "$failures" ]; then
     echo "One or more schema validations failed: $failures"
