@@ -38,6 +38,10 @@ func (err *ScanError) Error() string {
 	return err.Err.Error()
 }
 
+func (err *ScanError) Unpack(results interface{}) (ScanStatus, interface{}, error) {
+	return err.Status, results, err.Err
+}
+
 // NewScanError returns a ScanError with the given status and error.
 func NewScanError(status ScanStatus, err error) *ScanError {
 	return &ScanError{Status: status, Err: err}
