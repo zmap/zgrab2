@@ -30,13 +30,17 @@ type PostgresResults struct {
 	UserStartupError   *PostgresError      `json:"user_startup_error,omitempty"`
 	IsSSL              bool                `json:"is_ssl"`
 	AuthenticationMode *AuthenticationMode `json:"authentication_mode,omitempty"`
-	ServerParameters   map[string]string   `json:"server_parameters,omitempty"`
+	ServerParameters   *ServerParameters   `json:"server_parameters,omitempty"`
 	BackendKeyData     *BackendKeyData     `json:"backend_key_data,omitempty", zgrab:"debug"`
 	TransactionStatus  string              `json:"transaction_status,omitempty"`
 }
 
 // PostgresError is parsed the payload of an 'E'-type packet, mapping the friendly names of the various fields to the values returned by the server
 type PostgresError map[string]string
+
+// After authentication, the server sends a series of 'S' packets with key/value pairs.
+// We keep track of them all -- but the golang postgres library only stores the server_version and TimeZone.
+type ServerParameters map[string]string
 
 // BackendKeyData is the data returned by the 'K'-type packet
 type BackendKeyData struct {
@@ -149,29 +153,29 @@ func appendStringList(dest string, val string) string {
 	}
 }
 
-// PostgresResults.appendBadParam() adds a packet to the list of bad/unexpected parameters
-func (results *PostgresResults) appendBadParam(packet *ServerPacket) {
-	results.ServerParameters[KeyBadParameters] = appendStringList(results.ServerParameters[KeyBadParameters], packet.ToString())
+// ServerParameters.appendBadParam() adds a packet to the list of bad/unexpected parameters
+func (p *ServerParameters) appendBadParam(packet *ServerPacket) {
+	(*p)[KeyBadParameters] = appendStringList((*p)[KeyBadParameters], packet.ToString())
 }
 
 // PostgresResults.decodeServerResponse() fills out the results object with packets returned by the server.
 func (results *PostgresResults) decodeServerResponse(packets []*ServerPacket) {
 	// Note: The only parameters the golang postgres library pays attention to are the server_version and the TimeZone.
-	results.ServerParameters = make(map[string]string)
+	serverParams := make(ServerParameters)
 	for _, packet := range packets {
 		switch packet.Type {
 		case 'S':
 			parts := strings.Split(string(packet.Body), "\x00")
 			if len(parts) == 2 || (len(parts) == 3 && len(parts[2]) == 0) {
-				results.ServerParameters[parts[0]] = parts[1]
+				serverParams[parts[0]] = parts[1]
 			} else {
 				log.Debugf("Unexpected format for ParameterStatus packet (%d parts)", len(parts))
-				results.appendBadParam(packet)
+				serverParams.appendBadParam(packet)
 			}
 		case 'K':
 			if packet.Length != 12 {
 				log.Debugf("Bad size for BackendKeyData (%d)", packet.Length)
-				results.appendBadParam(packet)
+				serverParams.appendBadParam(packet)
 			} else {
 				pid := binary.BigEndian.Uint32(packet.Body[0:4])
 				key := binary.BigEndian.Uint32(packet.Body[4:8])
@@ -183,7 +187,7 @@ func (results *PostgresResults) decodeServerResponse(packets []*ServerPacket) {
 		case 'Z':
 			if packet.Length != 5 {
 				log.Debugf("Bad size for ReadyForQuery (%d)", packet.Length)
-				results.appendBadParam(packet)
+				serverParams.appendBadParam(packet)
 			} else {
 				results.TransactionStatus = string(packet.Body[0])
 			}
@@ -193,6 +197,16 @@ func (results *PostgresResults) decodeServerResponse(packets []*ServerPacket) {
 			results.UserStartupError = decodeError(packet.Body)
 		default:
 			// Ignore other message types
+		}
+	}
+	// Merge the ServerParams, so that we can keep track of values across multiple connections
+	if len(serverParams) > 0 {
+		if results.ServerParameters == nil {
+			results.ServerParameters = &serverParams
+		} else {
+			for k, v := range serverParams {
+				(*results.ServerParameters)[k] = v
+			}
 		}
 	}
 }
