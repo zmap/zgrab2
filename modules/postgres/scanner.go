@@ -3,7 +3,6 @@ package postgres
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 
