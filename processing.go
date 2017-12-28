@@ -62,7 +62,10 @@ func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 		conn, err = net.Dial("tcp", target)
 	}
 	if err != nil {
-		return conn, err
+		if conn != nil {
+			conn.Close()
+		}
+		return nil, err
 	}
 	return &scanTargetConnection{
 		Conn:    conn,
