@@ -15,8 +15,26 @@ import (
 
 const (
 	// From https://www.postgresql.org/docs/10/static/protocol-message-formats.html: "The SSL request code. The value is chosen to contain 1234 in the most significant 16 bits, and 5679 in the least significant 16 bits. (To avoid confusion, this code must not be the same as any protocol version number.)"
-	POSTGRES_SSL_REQUEST = 80877103
+	postgresSSLRequest = 80877103
 )
+
+// PostgresResults is the information returned by the scanner to the caller.
+// https://raw.githubusercontent.com/nmap/nmap/master/nmap-service-probes uses the line number of the error response (e.g. StartupError["line"]) to infer the version number
+type PostgresResults struct {
+	TLSLog             *zgrab2.TLSLog      `json:"tls,omitempty"`
+	SupportedVersions  string              `json:"supported_versions,omitempty"`
+	ProtocolError      *PostgresError      `json:"protocol_error,omitempty"`
+	StartupError       *PostgresError      `json:"startup_error,omitempty"`
+	UserStartupError   *PostgresError      `json:"user_startup_error,omitempty"`
+	IsSSL              bool                `json:"is_ssl"`
+	AuthenticationMode *AuthenticationMode `json:"authentication_mode,omitempty"`
+	ServerParameters   map[string]string   `json:"server_parameters,omitempty"`
+	BackendKeyData     *BackendKeyData     `json:"backend_key_data,omitempty", zgrab:"debug"`
+	TransactionStatus  string              `json:"transaction_status,omitempty"`
+}
+
+// PostgresError is parsed the payload of an 'E'-type packet, mapping the friendly names of the various fields to the values returned by the server
+type PostgresError map[string]string
 
 // BackendKeyData is the data returned by the 'K'-type packet
 type BackendKeyData struct {
@@ -28,22 +46,6 @@ type BackendKeyData struct {
 type AuthenticationMode struct {
 	Mode    string `json:"mode"`
 	Payload []byte `json:"payload,omitempty"'`
-}
-
-// PostgresError is parsed the payload of an 'E'-type packet, mapping the friendly names of the various fields to the values returned by the server
-type PostgresError map[string]string
-
-// PostgresResults is the information returned by the scanner to the caller.
-type PostgresResults struct {
-	TLSLog             *zgrab2.TLSLog      `json:"tls,omitempty"`
-	SupportedVersions  string              `json:"supported_versions,omitempty"`
-	StartupError       *PostgresError      `json:"startup_error,omitempty"`
-	UserStartupError   *PostgresError      `json:"user_startup_error,omitempty"`
-	IsSSL              bool                `json:"is_ssl"`
-	AuthenticationMode *AuthenticationMode `json:"authentication_mode,omitempty"`
-	ServerParameters   map[string]string   `json:"server_parameters,omitempty"`
-	BackendKeyData     *BackendKeyData     `json:"backend_key_data,omitempty", zgrab:"debug"`
-	TransactionStatus  string              `json:"transaction_status,omitempty"`
 }
 
 // PostgresFlags sets the module-specific flags that can be passed in from the command line
@@ -139,15 +141,15 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		if string(buf[n-2:n]) == "\x0a\x00" {
 			ret.Length = 0
 			ret.Body = append(length[:], ret.Body...)
-			return &ret, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("Server error: %s", string(ret.Body[0:len(ret.Body)-2])))
+			return &ret, nil
 		} else {
-			return &ret, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
 		}
 	}
 	ret.Body = make([]byte, ret.Length-4) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, ret.Body)
 	if err != nil && err != io.EOF {
-		return &ret, zgrab2.DetectScanError(err)
+		return nil, zgrab2.DetectScanError(err)
 	}
 	return &ret, nil
 }
@@ -155,7 +157,7 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 // Connection.RequestSSL() sends an SSLRequest packet to the server, and returns true iff the server reports that it is SSL-capable. Otherwise it returns false and possibly an error.
 func (c *Connection) RequestSSL() (bool, *zgrab2.ScanError) {
 	// NOTE: The SSLRequest request type was introduced in version 7.2, released in 2002 (though the oldest supported version is 9.3, released 2013-09-09)
-	if err := c.SendU32(POSTGRES_SSL_REQUEST); err != nil {
+	if err := c.SendU32(postgresSSLRequest); err != nil {
 		return false, zgrab2.DetectScanError(err)
 	}
 	var header [1]byte
@@ -485,18 +487,16 @@ func (s *PostgresScanner) readAll(sql *Connection) ([]*ServerPacket, *zgrab2.Sca
 	var ret []*ServerPacket = nil
 	for {
 		response, readError := sql.ReadPacket()
-		if response != nil {
-			ret = append(ret, response)
-			if response.Type == 'Z' {
-				return ret, nil
-			}
-		}
 		if readError != nil {
 			if readError.Status == zgrab2.SCAN_IO_TIMEOUT || readError.Err == io.EOF {
 				return ret, nil
 			} else {
 				return ret, readError
 			}
+		}
+		ret = append(ret, response)
+		if response.Type == 'Z' {
+			return ret, nil
 		}
 	}
 }
@@ -513,83 +513,112 @@ func (s *PostgresScanner) getDefaultKVPs() map[string]string {
 // With the first it sends a bogus protocol version in hopes of getting a list of supported protcols back.
 // With the second, it sends a standard StartupMessage, but without the required "user" field.
 func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	var err error
 	var results PostgresResults
 
 	mgr := newConnectionManager()
-	defer func() {
-		mgr.cleanUp()
-	}()
-	v0Sql, connectErr := s.newConnection(&t, mgr, false)
-	if connectErr != nil {
-		return connectErr.Unpack(nil)
-	}
-	if v0Sql.IsSSL {
-		results.IsSSL = true
-		// This pointer will be populated as the connection is negotiated
-		results.TLSLog = v0Sql.GetTLSLog()
-	} else {
-		results.IsSSL = false
-		results.TLSLog = nil
-	}
-	// Do SSL the first round, so that if we bail, we still have the TLS logs
+	defer mgr.cleanUp()
 
-	// Announce a (bogus) version 0.0 client, expect an 'E'-type response giving the supported versions
-	if err = v0Sql.SendU32(0); err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
-	}
-	v0Response, v0Error := v0Sql.ReadPacket()
-	if v0Response == nil && v0Error != nil {
-		return v0Error.Unpack(&results)
-	}
-
-	if v0Error != nil && v0Response.Type != 'E' {
-		// No server should be allowing a 0.0 client...but if it does allow it, ok?
-		log.Debugf("Unexpected response from server: %s", v0Response.ToString())
-		results.SupportedVersions = "0.0"
-	} else {
-		results.SupportedVersions = string(v0Response.Body)
-	}
-
-	_, v0Error = s.readAll(v0Sql)
-	// TODO: decode the response (if any)?
-	v0Sql.Close()
-	if v0Error != nil {
-		return v0Error.Unpack(&results)
-	}
-	// Explicitly close it since we're done, but the connectionManager will manage any dangling connections at cleanup time
-	v0Sql.Close()
-
-	// Skip TLS on second/later rounds, since we already have TLS logs (though if we ever send sensitive information, this may need to change)
-	startupSql, connectErr := s.newConnection(&t, mgr, true)
-	if connectErr != nil {
-		return connectErr.Unpack(&results)
-	}
-	startupPacket := EncodeStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs())
-	if err = startupSql.Send(startupPacket); err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
-	}
-	if response, readError := startupSql.ReadPacket(); readError != nil {
-		log.Debugf("Error reading response after StartupMessage: %v", readError)
-		return readError.Unpack(&results)
-	} else {
-		if response.Type == 'E' {
-			results.StartupError = decodeError(response.Body)
-		} else {
-			// No server should allow a missing User field
-			log.Debugf("Unexpected response from server: %s", response.ToString())
+	// Send too-low protocol version (0.0) StartupMessage to get a simple supported-protocols error string
+	// Also do TLS handshake, if configured / supported
+	{
+		sql, connectErr := s.newConnection(&t, mgr, false)
+		if connectErr != nil {
+			return connectErr.Unpack(nil)
 		}
+		defer sql.Close()
+		if sql.IsSSL {
+			results.IsSSL = true
+			// This pointer will be populated as the connection is negotiated
+			results.TLSLog = sql.GetTLSLog()
+		} else {
+			results.IsSSL = false
+			results.TLSLog = nil
+		}
+		// Do SSL the first round, so that if we bail, we still have the TLS logs
+
+		// Announce a (bogus) version 0.0 client, expect an 'E'-tagged response with just the error message
+		if err := sql.SendU32(0x00); err != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
+		}
+		response, readErr := sql.ReadPacket()
+		if readErr != nil {
+			return readErr.Unpack(&results)
+		}
+
+		if response.Type != 'E' {
+			// No server should be allowing a 0.0 client...but if it does allow it, don't bail out
+			log.Debugf("Unexpected response from server: %s", response.ToString())
+			results.SupportedVersions = response.ToString()
+		} else {
+			results.SupportedVersions = string(response.Body)
+		}
+
+		if _, err := s.readAll(sql); err != nil {
+			return err.Unpack(&results)
+		}
+		sql.Close()
 	}
-	// TODO: Anything else to do? Could we include a dummy user value, but not send the subsequent password packet? That would give us some auth options
-	_, readError := s.readAll(startupSql)
-	startupSql.Close()
-	if readError != nil {
-		return readError.Unpack(&results)
+
+	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
+	{
+		sql, connectErr := s.newConnection(&t, mgr, true)
+		if connectErr != nil {
+			return connectErr.Unpack(&results)
+		}
+
+		if err := sql.SendU32(0xff<<16 | 0xff); err != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
+		}
+		response, readErr := sql.ReadPacket()
+		if readErr != nil {
+			return readErr.Unpack(&results)
+		}
+
+		if response.Type != 'E' {
+			// No server should be allowing a 255.255 client...but if it does allow it, don't bail out
+			log.Debugf("Unexpected response from server: %s", response.ToString())
+			results.ProtocolError = nil
+		} else {
+			results.ProtocolError = decodeError(response.Body)
+		}
+
+		if _, err := s.readAll(sql); err != nil {
+			return err.Unpack(&results)
+		}
+		sql.Close()
+	}
+
+	{
+		// Skip TLS on second/later rounds, since we already have TLS logs (though if we ever send sensitive information, this may need to change)
+		sql, connectErr := s.newConnection(&t, mgr, true)
+		if connectErr != nil {
+			return connectErr.Unpack(&results)
+		}
+		startupPacket := EncodeStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs())
+		if err := sql.Send(startupPacket); err != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
+		}
+		if response, err := sql.ReadPacket(); err != nil {
+			log.Debugf("Error reading response after StartupMessage: %v", err)
+			return err.Unpack(&results)
+		} else {
+			if response.Type == 'E' {
+				results.StartupError = decodeError(response.Body)
+			} else {
+				// No server should allow a missing User field -- but if it does, log and continue
+				log.Debugf("Unexpected response from server: %s", response.ToString())
+			}
+		}
+		// TODO: use any packets returned to fill out results? There probably won't be any, and they will probably be overwritten if Config.User etc is set...
+		if _, err := s.readAll(sql); err != nil {
+			return err.Unpack(&results)
+		}
+		sql.Close()
 	}
 	if s.Config.User != "" || s.Config.Database != "" || s.Config.ApplicationName != "" {
-		authSql, connectErr := s.newConnection(&t, mgr, false)
+		sql, connectErr := s.newConnection(&t, mgr, false)
 		if connectErr != nil {
-			return connectErr.Status, nil, connectErr.Err
+			return connectErr.Unpack(&results)
 		}
 		kvps := s.getDefaultKVPs()
 		if s.Config.User != "" {
@@ -602,16 +631,16 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 			kvps["application_name"] = s.Config.ApplicationName
 		}
 		authPacket := EncodeStartupMessage(s.Config.ProtocolVersion, kvps)
-		if err = authSql.Send(authPacket); err != nil {
+		if err := sql.Send(authPacket); err != nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
-		packets, readError := s.readAll(authSql)
-		authSql.Close()
+		packets, err := s.readAll(sql)
+		sql.Close()
 		if packets != nil {
 			results.decodeServerResponse(packets)
 		}
-		if readError != nil {
-			return readError.Unpack(&results)
+		if err != nil {
+			return err.Unpack(&results)
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &results, thrown
@@ -620,7 +649,6 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 // init() registers the module with the zgrab2 framework
 func init() {
 	var module PostgresModule
-	log.SetLevel(log.DebugLevel)
 	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
 	if err != nil {
 		log.Fatal(err)
