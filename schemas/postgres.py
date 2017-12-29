@@ -6,7 +6,9 @@ import zschema.registry
 
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
-
+ 
+# modules/postgres/scanner.go - decodeError() (TODO: Currently an unconstrained map[string]string; it is possible to get "unknown (0x%x)" fields, but it would probably be proper to reject those at this point)
+# These are defined in detail at https://www.postgresql.org/docs/10/static/protocol-error-fields.html.
 postgres_error = SubRecord({
     "severity": String(required = True),
     "severity_v": String(),
@@ -26,6 +28,7 @@ postgres_error = SubRecord({
     "routine": String(),
 })
 
+# modules/postgres/scanner.go - decodeAuthMode()
 AUTH_MODES = [
   "kerberos_v5",
   "password_cleartext",
@@ -40,18 +43,19 @@ AUTH_MODES = [
   "sasl-final"
 ]
 
+# modules/postgres/scanner.go: AuthenticationMode
 postgres_auth_mode = SubRecord({
   "mode": Enum(values = AUTH_MODES, required = True),
   "Payload": Binary(),
 })
 
+# modules/postgres/scanner.go: BackendKeyData
 postgres_key_data = SubRecord({
   "process_id": Unsigned32BitInteger(), 
   "secret_key": Unsigned32BitInteger(),
 })
 
-
-
+# modules/postgres/scanner.go: PostgresResults
 postgres_scan_response = SubRecord({
     "result": SubRecord({
         "tls": zgrab2.tls_log,
@@ -60,7 +64,7 @@ postgres_scan_response = SubRecord({
         "startup_error": postgres_error,
         "is_ssl": Boolean(required = True),
         "authentication_mode": postgres_auth_mode,
-        "server_parameters": String(), # TODO FIXME: This is currendly an unconstrained map
+        "server_parameters": String(), # TODO FIXME: This is currendly an unconstrained map[string]string
         "backend_key_data": postgres_key_data,
         "transaction_status": String(),
     })
