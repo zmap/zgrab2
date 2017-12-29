@@ -7,15 +7,10 @@ set -e
 
 # Run from root of project
 TEST_DIR=$(dirname "$0")
-cd "$TEST_DIR/.."
+ZGRAB_ROOT="$TEST_DIR/.."
+cd "$ZGRAB_ROOT"
 
-# <protocol>_integration_tests.sh should drop its output into $ZGRAB_OUTPUT/<protocol>/* so that it can be validated
-if [ -z $ZGRAB_OUTPUT ]; then
-    ZGRAB_OUTPUT="$(pwd)/zgrab-output"
-fi
-
-export ZGRAB_OUTPUT=$ZGRAB_OUTPUT
-export ZGRAB_ROOT=$(pwd)
+ZGRAB_OUTPUT="$ZGRAB_ROOT/zgrab-output"
 
 pushd integration_tests
 for mod in $(ls); do

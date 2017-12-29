@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 
 set -e
+MODULE_DIR=$(dirname $0)
+TEST_ROOT=$MODULE_DIR/..
+ZGRAB_ROOT=$MODULE_DIR/../..
+ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
-SSH_PORT=33022
 CONTAINER_NAME="zgrab_ssh"
 
 # Run the SSH-specific integration tests:
-# 1. Run zgrab2 on localhost:$SSH_PORT
-
-if [ -z $ZGRAB_ROOT ] || [ -z $ZGRAB_OUTPUT ]; then
-    echo "Must set ZGRAB_ROOT and ZGRAB_OUTPUT"
-    exit 1
-fi
+# 1. Run zgrab2 on the container
 
 mkdir -p $ZGRAB_OUTPUT/ssh
 
 OUTPUT_FILE="$ZGRAB_OUTPUT/ssh/ssh.json"
 
-echo "Testing SSH Version on local port $SSH_PORT..."
-echo "127.0.0.1" | $ZGRAB_ROOT/cmd/zgrab2/zgrab2 ssh -p $SSH_PORT $* > $OUTPUT_FILE
+echo "ssh/test: Testing SSH Version on local port $SSH_PORT..."
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ssh > $OUTPUT_FILE
+
+echo "ssh/test: BEGIN docker logs from $CONTAINER_NAME [{("
+docker logs --tail all $CONTAINER_NAME
+echo ")}] END docker logs from $CONTAINER_NAME"
+

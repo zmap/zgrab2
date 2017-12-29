@@ -2,17 +2,10 @@
 
 set +e
 
-echo "Begin tests cleanup for postgres"
+echo "postgres/cleanup: Begin tests cleanup for postgres"
 
 function clean() {
   CONTAINER_NAME=$1
-  echo "BEGIN DOCKER LOGS FROM $CONTAINER_NAME [{("
-  docker logs --tail all $CONTAINER_NAME
-  echo ")}] END DOCKER LOGS FROM $CONTAINER_NAME"
-  echo "BEGIN POSTGRES LOGS FROM $CONTAINER_NAME [{("
-  # TODO HACK FIXME: Hack for MinGW: for some reason, /var/lib/ is being replaced with c:/mingw/msys/1.0/var/lib/, but //var/lib is safe.
-  docker exec -t $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log
-  echo ")}] END POSTGRES LOGS FROM $CONTAINER_NAME"
   docker stop $CONTAINER_NAME
 }
 
@@ -24,4 +17,4 @@ for version in $versions; do
   done
 done
 
-echo "Finished tests cleanup for postgres"
+echo "postgres/cleanup: Finished tests cleanup for postgres"

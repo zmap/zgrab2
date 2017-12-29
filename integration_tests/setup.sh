@@ -7,20 +7,24 @@ set -e
 
 # Run from root of project
 TEST_DIR=$(dirname "$0")
-cd "$TEST_DIR/.."
+ZGRAB_ROOT="$TEST_DIR/.."
+cd "$ZGRAB_ROOT"
+
+echo "Building zgrab2_runner docker image..."
+./docker-runner/build-runner.sh
 
 echo "Setting up integration tests..."
 
 pushd integration_tests
 for mod in $(ls); do
-    if [ -d "$mod" ]; then
-        pushd $mod
-        for setup in $(ls setup*.sh); do
-            echo "Setting up $mod (integration_tests/$mod/$setup)..."
-            ./$setup
-        done
-        popd
-    fi
+  if [ -d "$mod" ]; then
+    pushd $mod
+    for setup in $(ls setup*.sh); do
+      echo "Setting up $mod (integration_tests/$mod/$setup)..."
+      ./$setup
+    done
+    popd
+  fi
 done
 popd
 
