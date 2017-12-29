@@ -14,10 +14,10 @@ RUN go get ./...
 RUN go get -t ./...
 
 # This should already be executable, but just in case...
-RUN chmod a+x ./docker-runner/runner.sh
+RUN chmod a+x ./docker-runner/entrypoint.sh
 
 # Build on the container
 RUN cd cmd/zgrab2 && go build && cd ../..
 
 CMD []
-ENTRYPOINT ["/go/src/github.com/zmap/zgrab2/docker-runner/runner.sh"]
+ENTRYPOINT ["/go/src/github.com/zmap/zgrab2/docker-runner/entrypoint.sh"]
