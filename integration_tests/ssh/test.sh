@@ -15,7 +15,7 @@ mkdir -p $ZGRAB_OUTPUT/ssh
 
 OUTPUT_FILE="$ZGRAB_OUTPUT/ssh/ssh.json"
 
-echo "ssh/test: Testing SSH Version on local port $SSH_PORT..."
+echo "ssh/test: Testing SSH Version on $CONTAINER_NAME..."
 CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ssh > $OUTPUT_FILE
 
 echo "ssh/test: BEGIN docker logs from $CONTAINER_NAME [{("
