@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zmap/zgrab/ztools/http"
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 type dumpTest struct {

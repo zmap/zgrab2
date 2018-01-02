@@ -9,9 +9,9 @@ import (
 	"log"
 	"net/url"
 
-	"github.com/zmap/zgrab/ztools/http"
-	"github.com/zmap/zgrab/ztools/http/cookiejar"
-	"github.com/zmap/zgrab/ztools/http/httptest"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/cookiejar"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func ExampleNew() {

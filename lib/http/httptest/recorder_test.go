@@ -9,7 +9,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/zmap/zgrab/ztools/http"
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 func TestRecorder(t *testing.T) {
