@@ -10,4 +10,4 @@ if [ -x $CONTAINER_NAME ]; then
 fi
 
 set -e
-docker run --link $CONTAINER_NAME:target -e ZGRAB_TARGET=target zgrab2_runner $@
+docker run --rm --link $CONTAINER_NAME:target -e ZGRAB_TARGET=target zgrab2_runner $@
