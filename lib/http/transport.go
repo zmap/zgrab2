@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"golang.org/x/net/lex/httplex"
 )
@@ -383,7 +384,13 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 		}
 
 		if cm.targetScheme == "https" {
-			req.TLSHandshake = pconn.conn.(*tls.Conn).GetHandshakeLog()
+			switch conn := pconn.conn.(type) {
+			case *tls.Conn:
+				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
+				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog(), HeartbleedLog: conn.GetHeartbleedLog()}
+			case *zgrab2.TLSConnection:
+				req.TLSLog = conn.GetLog()
+			}
 		}
 
 		var resp *Response
