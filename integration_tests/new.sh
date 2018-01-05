@@ -66,7 +66,7 @@ ${module_name}_scan_response = SubRecord({
     "result": SubRecord({
         # TODO FIXME IMPLEMENT SCHEMA
     })
-}, extends = zgrab2.base_scan_response)
+}, extends=zgrab2.base_scan_response)
 
 zschema.registry.register_schema("zgrab2-${module_name}", ${module_name}_scan_response)
 
