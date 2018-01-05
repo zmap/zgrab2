@@ -3,6 +3,9 @@ package zgrab2
 import (
 	"io"
 	"net"
+	"runtime/debug"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // ScanStatus is the enum value that states how the scan ended.
@@ -82,10 +85,12 @@ func TryGetScanStatus(err error) ScanStatus {
 			return SCAN_IO_TIMEOUT
 		default:
 			// TODO: Do we need a generic network error?
+			log.Debugf("Failed to detect error from net.OpError %v, op = %s at %s", e, e.Op, string(debug.Stack()))
 			return SCAN_UNKNOWN_ERROR
 		}
 	// TODO: More error types
 	default:
+		log.Debugf("Failed to detect error from %v at %s", e, string(debug.Stack()))
 		return SCAN_UNKNOWN_ERROR
 	}
 }
