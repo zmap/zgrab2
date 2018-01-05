@@ -17,11 +17,11 @@ zgrab2:
 docker-runner: zgrab2
 	make -C docker-runner
 
-.integration-test-setup:
+.integration-test-setup: docker-runner
 	./integration_tests/setup.sh
 	touch .integration-test-setup
 
-integration-test: .integration-test-setup docker-runner
+integration-test: docker-runner .integration-test-setup
 	./integration_tests/test.sh
 	./integration_tests/cleanup.sh
 
