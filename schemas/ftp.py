@@ -1,0 +1,22 @@
+# zschema sub-schema for zgrab2's ftp module
+# Registers zgrab2-ftp globally, and ftp with the main zgrab2 schema.
+from zschema.leaves import *
+from zschema.compounds import *
+import zschema.registry
+
+import schemas.zcrypto as zcrypto
+import schemas.zgrab2 as zgrab2
+ 
+# modules/ftp.go - FTPScanResults
+ftp_scan_response = SubRecord({
+    "result": SubRecord({
+        "tls": zgrab2.tls_log,
+        "banner": String(),
+        "auth_tls_resp": String(),
+        "auth_ssl_resp": String()
+    })
+}, extends = zgrab2.base_scan_response)
+
+zschema.registry.register_schema("zgrab2-ftp", ftp_scan_response)
+
+zgrab2.register_scan_response_type("ftp", ftp_scan_response)
