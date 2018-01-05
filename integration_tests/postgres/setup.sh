@@ -39,6 +39,7 @@ function waitFor() {
   echo "...postgres is up."
 }
 
+pushd container
 docker images --format {{.Repository}}:{{.Tag}} > images.tmp 
 
 for version in $versions; do
@@ -48,7 +49,7 @@ for version in $versions; do
 done
 
 rm -f images.tmp
-
+popd container
 echo "postgres/setup: Waiting for all postgres containers to start up..."
 
 for version in $versions; do
