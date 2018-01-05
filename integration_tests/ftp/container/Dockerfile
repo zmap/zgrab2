@@ -12,4 +12,8 @@ RUN echo 'ssl_ciphers=HIGH' >> /etc/vsftpd.conf
 RUN service vsftpd stop
 RUN update-rc.d -f vsftpd remove
 
-ENTRYPOINT ["/usr/sbin/vsftpd"]
+WORKDIR /
+COPY entrypoint.sh .
+RUN chmod a+x ./entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
