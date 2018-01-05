@@ -1,6 +1,6 @@
 language: go
 go:
-- 1.7.4
+- 1.9
 services:
 - docker
 before_install:
@@ -9,13 +9,13 @@ before_install:
 # JMESPath is used to do context-specific validation of results
 - go get github.com/jmespath/jp && go build github.com/jmespath/jp
 - pip install --user zschema
-- ./integration_tests/setup.sh
 - docker ps -a
 install:
-- pushd cmd/zgrab2 && go build && popd
+- make clean zgrab2
 script:
-- ./integration_tests/test.sh
+- make integration-test
 after_script:
+# Cleanup even if the integration tests fail
 - ./integration_tests/cleanup.sh
 notifications:
   email:

@@ -21,4 +21,3 @@ CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ssh > $OU
 echo "ssh/test: BEGIN docker logs from $CONTAINER_NAME [{("
 docker logs --tail all $CONTAINER_NAME
 echo ")}] END docker logs from $CONTAINER_NAME"
-
