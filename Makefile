@@ -1,23 +1,39 @@
+ifeq ($(OS),Windows_NT)
+  EXECUTABLE_EXTENSION := .exe
+else
+  EXECUTABLE_EXTENSION :=
+endif
+
 all: zgrab2
 
-.PHONY: clean zgrab2 integration_test integration_test_clean
+.PHONY: clean integration-test integration-test-clean docker-runner
 
 zgrab2: 
-	cd cmd/zgrab2 && go build
+	cd cmd/zgrab2 && go build && cd ../..
+	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
+	# the docker-runner must be re-built
+	make -C docker-runner clean
 
-.integration_test_setup:
-	./integration_tests/setup.sh
-	touch .integration_test_setup
+docker-runner: zgrab2
+	make -C docker-runner
 
-integration_test: .integration_test_setup
-	./integration_tests/test.sh
-	./integration_tests/cleanup.sh
+.integration-test-setup:
+	./integration-tests/setup.sh
+	touch .integration-test-setup
 
-integration_test_clean:
-	rm test_setup
+integration-test: .integration-test-setup docker-runner
+	./integration-tests/test.sh
+	./integration-tests/cleanup.sh
+
+integration-test-clean:
+	rm -f .integration-test-setup
+	rm -rf zgrab-output
 	./integration_tests/cleanup.sh
 	# Wipe out any zgrab docker images so that they can be built fresh
-	bash -c 'for id in `docker images --format "{{.Repository}},{{.ID}}" | grep "zgrab" | cut -d, -f 2`; do docker rmi $$id; done'
+	bash -c 'for id in `docker images --format "{{.Repository}},{{.ID}}" | grep "zgrab" | cut -d, -f 2`; do docker rmi -f $$id; done'
 
 clean:
 	cd cmd/zgrab2 && go clean
+	rm -f .integration-test-setup
+	rm -f .docker-runner
+	rm -f zgrab2
