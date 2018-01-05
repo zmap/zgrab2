@@ -48,6 +48,8 @@ for version in $versions; do
   done
 done
 
+rm -f images.tmp
+popd
 echo "postgres/setup: Waiting for all postgres containers to start up..."
 
 for version in $versions; do
