@@ -12,7 +12,7 @@ if ! [ -x $ZGRAB_REBUILD ]; then
     git checkout $ZGRAB_BRANCH
   fi
   git pull
-  pushd cmd/zgrab2 && go build && popd
+  make
 fi
 
 set -x

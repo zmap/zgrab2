@@ -17,7 +17,7 @@ RUN go get -t ./...
 RUN chmod a+x ./docker-runner/entrypoint.sh
 
 # Build on the container
-RUN cd cmd/zgrab2 && go build && cd ../..
+RUN make
 
 CMD []
 ENTRYPOINT ["/go/src/github.com/zmap/zgrab2/docker-runner/entrypoint.sh"]
