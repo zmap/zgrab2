@@ -11,7 +11,7 @@ ZGRAB_ROOT="$TEST_DIR/.."
 cd "$ZGRAB_ROOT"
 
 echo "Building zgrab2_runner docker image..."
-./docker-runner/build-runner.sh
+make -C ./docker-runner
 
 echo "Setting up integration tests..."
 
