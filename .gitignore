@@ -2,7 +2,7 @@
 .DS_Store
 
 # zgrab
-zgrab
+zgrab2
 cmd/zgrab2/zgrab2
 cmd/zgrab2/zgrab2.exe
 zgrab-output/
@@ -15,6 +15,5 @@ jp.exe
 schemas/*.pyc
 
 # Marker files for make
-.integration_test_setup
-docker-runner/.base-image
-docker-runner/.docker-runner
+.integration-test-setup
+docker-runner/*.id

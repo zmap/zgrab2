@@ -17,7 +17,7 @@ RUN go get -v -t ./...
 RUN chmod a+x ./docker-runner/entrypoint.sh
 
 # Build on the container
-RUN make clean zgrab2
+RUN make container-clean
 
 CMD []
 ENTRYPOINT ["/go/src/github.com/zmap/zgrab2/docker-runner/entrypoint.sh"]
