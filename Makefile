@@ -17,18 +17,18 @@ zgrab2:
 docker-runner: zgrab2
 	make -C docker-runner
 
-.integration-test-setup: docker-runner
+.integration-test-setup: | docker-runner
 	./integration_tests/setup.sh
 	touch .integration-test-setup
 
 integration-test: docker-runner .integration-test-setup
 	./integration_tests/test.sh
-	./integration_tests/cleanup.sh
 
 integration-test-clean:
 	rm -f .integration-test-setup
 	rm -rf zgrab-output
 	./integration_tests/cleanup.sh
+	make -C docker-runner clean
 	# Wipe out any zgrab docker images so that they can be built fresh
 	bash -c 'for id in `docker images --format "{{.Repository}},{{.ID}}" | grep "zgrab" | cut -d, -f 2`; do docker rmi -f $$id; done'
 
