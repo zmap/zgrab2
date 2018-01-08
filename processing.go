@@ -16,7 +16,7 @@ import (
 // Grab contains all scan responses for a single host
 type Grab struct {
 	IP     string                  `json:"ip,omitempty"`
-	Domain string                   `json:"domain,omitempty"`
+	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
 }
 

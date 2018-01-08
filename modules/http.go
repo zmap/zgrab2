@@ -4,16 +4,19 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
-	"net/url"
 	"io"
 	"net"
+	"net/url"
 	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/http"
 )
+
+var ErrRedirLocalhost = errors.New("Redirecting to localhost")
+var ErrTooManyRedirects = errors.New("Too many redirects")
 
 type HTTPFlags struct {
 	zgrab2.BaseFlags
@@ -39,13 +42,13 @@ type HTTPRequest struct {
 type HTTPHeaders map[string]interface{}
 
 type HTTPResponse struct {
-	VersionMajor int    `json:"version_major,omitempty"`
-	VersionMinor int    `json:"version_minor,omitempty"`
-	StatusCode   int    `json:"status_code,omitempty"`
-	StatusLine   string `json:"status_line,omitempty"`
+	VersionMajor int         `json:"version_major,omitempty"`
+	VersionMinor int         `json:"version_minor,omitempty"`
+	StatusCode   int         `json:"status_code,omitempty"`
+	StatusLine   string      `json:"status_line,omitempty"`
 	Headers      HTTPHeaders `json:"headers,omitempty"`
-	Body       string `json:"body,omitempty"`
-	BodySHA256 []byte `json:"body_sha256,omitempty"`
+	Body         string      `json:"body,omitempty"`
+	BodySHA256   []byte      `json:"body_sha256,omitempty"`
 }
 
 type HTTPResults struct {
@@ -110,9 +113,9 @@ func (s *HTTPScanner) GetName() string {
 	return s.config.Name
 }
 
+// HTTPScan.getTLSDialer returns a Dial function that connects using the zgrab2.GetTLSConnection()
 func (s *HTTPScan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		log.Warnf("** TLS DIALER: %s, %s ***", net, addr)
 		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(s.scanner.config.BaseFlags.Timeout))
 		if err != nil {
 			return nil, err
@@ -127,6 +130,7 @@ func (s *HTTPScan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 	}
 }
 
+// Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
 func redirectsToLocalhost(host string) bool {
 	if i := net.ParseIP(host); i != nil {
 		return i.IsLoopback() || i.Equal(net.IPv4zero)
@@ -148,9 +152,7 @@ func redirectsToLocalhost(host string) bool {
 	return false
 }
 
-var ErrRedirLocalhost = errors.New("Redirecting to localhost")
-var ErrTooManyRedirects = errors.New("Too many redirects")
-
+// Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses the redirectToLocalhost and MaxRedirects config
 func (s *HTTPScan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
 		if !s.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
@@ -179,11 +181,13 @@ func (s *HTTPScan) getCheckRedirect() func(*http.Request, *http.Response, []*htt
 	}
 }
 
+// Maps URL protocol to the default port for that protocol
 var protoToPort = map[string]uint16{
 	"http":  80,
 	"https": 443,
 }
 
+// getHTTPURL gets the HTTP URL (sans default port) for the given protocol/host/port/endpoint.
 func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	var proto string
 	if https {
@@ -198,6 +202,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	}
 }
 
+// HTTPScanner.NewHTTPScan gets a new HTTPScan instance for the given target
 func (s *HTTPScanner) NewHTTPScan(t *zgrab2.ScanTarget) *HTTPScan {
 	ret := HTTPScan{
 		scanner: s,
@@ -220,10 +225,11 @@ func (s *HTTPScanner) NewHTTPScan(t *zgrab2.ScanTarget) *HTTPScan {
 		host = t.IP.String()
 	}
 	ret.url = getHTTPURL(s.config.UseHTTPS, host, uint16(s.config.BaseFlags.Port), s.config.Endpoint)
-	
+
 	return &ret
 }
 
+// Perform the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
 func (s *HTTPScan) grab() *zgrab2.ScanError {
 	// TODO: Allow body?
 	request, err := http.NewRequest(s.scanner.config.Method, s.url, nil)
@@ -239,7 +245,6 @@ func (s *HTTPScan) grab() *zgrab2.ScanError {
 	s.results.Response = resp
 	if err != nil {
 		if urlError, ok := err.(*url.Error); ok {
-			log.Debugf("Swap out error: %v -> %v", err, urlError.Err)
 			err = urlError.Err
 		}
 	}
@@ -251,7 +256,7 @@ func (s *HTTPScan) grab() *zgrab2.ScanError {
 		case ErrTooManyRedirects:
 			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 		default:
-			return zgrab2.DetectScanError(err)			
+			return zgrab2.DetectScanError(err)
 		}
 	}
 
@@ -270,7 +275,7 @@ func (s *HTTPScan) grab() *zgrab2.ScanError {
 	}
 
 	return nil
-} 
+}
 
 func (s *HTTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	scan := s.NewHTTPScan(&t)
