@@ -1,1 +1,2 @@
 *.sh eol=LF
+Makefile eol=LF
