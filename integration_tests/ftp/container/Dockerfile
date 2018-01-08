@@ -1,6 +1,6 @@
-FROM ubuntu:16.04
+FROM zgrab2_service_base:latest
 
-RUN apt-get update && apt-get install -y vsftpd
+RUN apt-get install -y vsftpd
 # This comes pre-configured to use a pre-generated certificate at /etc/ssl/certs/ssl-cert-snakeoil.pem,
 # but by default ssl_enable=NO. So, changing that to YES and (re)starting the service should be all we need to do.
 RUN sed -i 's/ssl_enable=NO/ssl_enable=YES/g' /etc/vsftpd.conf
