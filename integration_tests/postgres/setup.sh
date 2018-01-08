@@ -19,6 +19,7 @@ function doSetup() {
   if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
     echo "postgres/setup: Container $CONTAINER_NAME already running -- stopping..."
     docker stop $CONTAINER_NAME
+    sleep 2
     echo "...stopped."
   fi
   echo "postgres/setup: Starting container $CONTAINER_NAME on port local port $PORT..."

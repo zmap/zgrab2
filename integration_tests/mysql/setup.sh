@@ -5,6 +5,12 @@ versions="5.5 5.6 5.7 8.0"
 
 function launch() {
   VERSION=$1
+  CONTAINER_NAME="zgrab_mysql-$VERSION"
+  if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
+    echo "mysql/setup: Container $CONTAINER_NAME already running -- stopping..."
+    docker stop $CONTAINER_NAME
+    echo "...stopped."
+  fi
   docker run -itd --rm --name zgrab_mysql-$VERSION -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e MYSQL_LOG_CONSOLE=true mysql:$VERSION
 }
 
