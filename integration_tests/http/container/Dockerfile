@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM zgrab2_service_base:latest
 RUN apt-get update && apt-get install -y openssl lighttpd
 
 WORKDIR /etc/lighttpd
