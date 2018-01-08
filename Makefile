@@ -6,7 +6,7 @@ endif
 
 all: zgrab2
 
-.PHONY: clean integration-test integration-test-clean docker-runner
+.PHONY: clean integration-test integration-test-clean docker-runner container-clean
 
 zgrab2: 
 	cd cmd/zgrab2 && go build && cd ../..
@@ -31,6 +31,12 @@ integration-test-clean:
 	make -C docker-runner clean
 	# Wipe out any zgrab docker images so that they can be built fresh
 	bash -c 'for id in `docker images --format "{{.Repository}},{{.ID}}" | grep "zgrab" | cut -d, -f 2`; do docker rmi -f $$id; done'
+
+# This is the target for re-building from source in the container
+container-clean:
+	rm -f zgrab2
+	cd cmd/zgrab2 && go build && cd ../..
+	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
 clean:
 	cd cmd/zgrab2 && go clean

@@ -1,5 +1,5 @@
 FROM golang:1.9
-# TODO: Create a base image that already has the pre-requisites downloaded?
+# Base image that already has the pre-requisites downloaded.
 
 WORKDIR /go/src/github.com/zmap
 
