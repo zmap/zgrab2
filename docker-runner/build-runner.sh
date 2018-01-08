@@ -7,4 +7,4 @@ set -e
 RUNNER_DIR=$(dirname "$0")
 ZGRAB_ROOT="$RUNNER_DIR/.."
 
-docker build -t zgrab2_runner -f $RUNNER_DIR/Dockerfile $ZGRAB_ROOT
+docker build -t zgrab2_runner:latest -f $RUNNER_DIR/Dockerfile $ZGRAB_ROOT
