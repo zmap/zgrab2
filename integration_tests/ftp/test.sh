@@ -13,10 +13,13 @@ CONTAINER_NAME="zgrab_ftp"
 
 mkdir -p $ZGRAB_OUTPUT/ftp
 
-OUTPUT_FILE="$ZGRAB_OUTPUT/ftp/ftp.json"
+OUTPUT_DIR="$ZGRAB_OUTPUT/ftp"
+
+echo "ftp/test: Testing FTP with --authtls on $CONTAINER_NAME..."
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ftp --authtls > $OUTPUT_DIR/authtls.json
 
 echo "ftp/test: Testing FTP on $CONTAINER_NAME..."
-CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ftp --ftp-authtls > $OUTPUT_FILE
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ftp > $OUTPUT_DIR/default.json
 
 echo "ftp/test: BEGIN vsftpd logs from $CONTAINER_NAME [{("
 docker exec -t $CONTAINER_NAME cat //var/log/vsftpd.log

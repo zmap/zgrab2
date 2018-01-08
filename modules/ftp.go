@@ -22,7 +22,7 @@ type FTPFlags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 	Verbose    bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	FTPAuthTLS bool `long:"ftp-authtls" description:"Collect FTPS certificates in addition to FTP banners"`
+	FTPAuthTLS bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
 }
 
 // FTPModule implements the zgrab2.Module interface
