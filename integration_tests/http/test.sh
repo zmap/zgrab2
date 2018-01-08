@@ -10,8 +10,6 @@ OUTPUT_ROOT=$ZGRAB_OUTPUT/http
 
 mkdir -p $OUTPUT_ROOT
 
-
-
 CONTAINER_NAME=zgrab_http
 
 echo "http/test: Run http test in default port (should be 80)"
