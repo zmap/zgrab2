@@ -29,8 +29,6 @@ integration-test-clean:
 	rm -rf zgrab-output
 	./integration_tests/cleanup.sh
 	make -C docker-runner clean
-	# Wipe out any zgrab docker images so that they can be built fresh
-	bash -c 'for id in `docker images --format "{{.Repository}},{{.ID}}" | grep "zgrab" | cut -d, -f 2`; do docker rmi -f $$id; done'
 
 # This is the target for re-building from source in the container
 container-clean:
