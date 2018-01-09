@@ -23,6 +23,7 @@ docker-runner: zgrab2
 	touch .integration-test-setup
 
 integration-test: docker-runner .integration-test-setup
+	rm -rf zgrab-output
 	./integration_tests/test.sh
 
 integration-test-clean:
