@@ -1,3 +1,9 @@
+ifeq ($(OS),Windows_NT)
+  EXECUTABLE_EXTENSION := .exe
+else
+  EXECUTABLE_EXTENSION :=
+endif
+
 all: docker-runner.id
 
 .PHONY: clean clean-all
@@ -8,7 +14,7 @@ service-base-image.id:
 runner-base-image.id:
 	docker build -t zgrab2_runner_base:latest -f runner-base.Dockerfile -q . > runner-base-image.id || rm -f runner-base-image.id
 
-docker-runner.id: runner-base-image.id service-base-image.id
+docker-runner.id: ../cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) runner-base-image.id service-base-image.id
 	docker build -t zgrab2_runner:latest -f Dockerfile -q .. > docker-runner.id || rm -f docker-runner.id
 
 clean:
