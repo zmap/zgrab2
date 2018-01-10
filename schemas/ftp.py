@@ -12,8 +12,8 @@ ftp_scan_response = SubRecord({
     "result": SubRecord({
         "tls": zgrab2.tls_log,
         "banner": String(),
-        "auth_tls_resp": String(),
-        "auth_ssl_resp": String()
+        "auth_tls": String(),
+        "auth_ssl": String()
     })
 }, extends = zgrab2.base_scan_response)
 
