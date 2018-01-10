@@ -12,8 +12,8 @@ import (
 // FTPScanResults is the output of the scan. Identical to the original from zgrab, with the addition of TLSLog.
 type FTPScanResults struct {
 	Banner      string         `json:"banner,omitempty"`
-	AuthTLSResp string         `json:"auth_tls_resp,omitempty"`
-	AuthSSLResp string         `json:"auth_ssl_resp,omitempty"`
+	AuthTLSResp string         `json:"auth_tls,omitempty"`
+	AuthSSLResp string         `json:"auth_ssl,omitempty"`
 	TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
@@ -45,7 +45,7 @@ type FTPConnection struct {
 // ftp.init() registers the ftp zgrab2 module
 func init() {
 	var module FTPModule
-	_, err := zgrab2.AddCommand("ftp", "FTP", "Grab a FTP banner", 21, &module)
+	_, err := zgrab2.AddCommand("ftp", "FTP", "Grab an FTP banner", 21, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
