@@ -1,19 +1,16 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -e
 
 # Do all integration tests for all protocols
 # To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
 
 # Run from root of project
 TEST_DIR=$(dirname "$0")
-cd "$TEST_DIR/.."
+ZGRAB_ROOT="$TEST_DIR/.."
+cd "$ZGRAB_ROOT"
 
-# <protocol>_integration_tests.sh should drop its output into $ZGRAB_OUTPUT/<protocol>/* so that it can be validated
-if [ -z $ZGRAB_OUTPUT ]; then
-    ZGRAB_OUTPUT="$(pwd)/zgrab-output"
-fi
-
-export ZGRAB_OUTPUT=$ZGRAB_OUTPUT
-export ZGRAB_ROOT=$(pwd)
+ZGRAB_OUTPUT="$ZGRAB_ROOT/zgrab-output"
 
 pushd integration_tests
 for mod in $(ls); do
@@ -28,6 +25,8 @@ for mod in $(ls); do
 done
 popd
 
+status=0
+failures=""
 echo "Doing schema validation..."
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
@@ -35,7 +34,34 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
         echo "Validating $target [{("
         cat $target
         echo ")}]:"
-        python -m zschema validate schemas/__init__.py:zgrab2 $target
-        echo "validation of $target succeeded."
+        if ! python -m zschema validate schemas/__init__.py:zgrab2 $target; then
+            echo "Schema validation failed for $protocol/$outfile"
+            err="schema failure@$protocol/$outfile"
+            if [[ $status -eq 0 ]]; then
+                failures="$err"
+            else
+                failures="$failures, $err"
+            fi
+            status=1
+        else
+            echo "validation of $target succeeded."
+            scan_status=$($ZGRAB_ROOT/jp -u data.${protocol}.status < $target)
+            if ! [ $scan_status = "success" ]; then
+                echo "Scan returned success=$scan_status for $protocol/$outfile"
+                err="scan failure(${scan_status})@$protocol/$outfile"
+                if [[ $status -eq 0 ]]; then
+                    failures="$err"
+                else
+                    failures="$failures, $err"
+                fi
+                status=1
+            fi
+        fi
     done
 done
+
+if [ -n "$failures" ]; then
+    echo "One or more schema validations failed: $failures"
+fi
+
+exit $status

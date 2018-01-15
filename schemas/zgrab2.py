@@ -20,7 +20,8 @@ def DebugOnly(childType):
 
 # zgrab2/processing.go: Grab
 grab_result = Record({
-    "ip": IPv4Address(required = True),
+    "ip": IPv4Address(required = False),
+    "domain": String(required = False),
     "data": SubRecord(scan_response_types, required = True),
 })
 

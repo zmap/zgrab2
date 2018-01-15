@@ -1,16 +1,35 @@
 #!/bin/bash -e
 
-# Start all of the MySQL docker containers, and wait for them start responding on port 3306
-
-echo "Launching docker containers..."
 # NOTE: the 5.5 and 5.6 versions do not have SSL enabled
-CONTAINER_NAME=testmysql-5.5 MYSQL_VERSION=5.5 MYSQL_PORT=13306 ./util/launch_mysql_container.sh
-CONTAINER_NAME=testmysql-5.6 MYSQL_VERSION=5.6 MYSQL_PORT=23306 ./util/launch_mysql_container.sh
-CONTAINER_NAME=testmysql-5.7 MYSQL_VERSION=5.7 MYSQL_PORT=33306 ./util/launch_mysql_container.sh
-CONTAINER_NAME=testmysql-8.0 MYSQL_VERSION=8.0 MYSQL_PORT=43306 ./util/launch_mysql_container.sh
+versions="5.5 5.6 5.7 8.0"
 
-echo "Waiting for MySQL to start up on all containers..."
-CONTAINER_NAME=testmysql-5.5 MYSQL_PORT=13306 ./util/wait_for_mysqld.sh
-CONTAINER_NAME=testmysql-5.6 MYSQL_PORT=23306 ./util/wait_for_mysqld.sh
-CONTAINER_NAME=testmysql-5.7 MYSQL_PORT=33306 ./util/wait_for_mysqld.sh
-CONTAINER_NAME=testmysql-8.0 MYSQL_PORT=43306 ./util/wait_for_mysqld.sh
+function launch() {
+  VERSION=$1
+  CONTAINER_NAME="zgrab_mysql-$VERSION"
+  if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
+    echo "mysql/setup: Container $CONTAINER_NAME already running -- stopping..."
+    docker stop $CONTAINER_NAME
+    echo "...stopped."
+  fi
+  docker run -itd --rm --name zgrab_mysql-$VERSION -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e MYSQL_LOG_CONSOLE=true mysql:$VERSION
+}
+
+function waitFor() {
+  VERSION=$1
+  CONTAINER_NAME=zgrab_mysql-$VERSION
+  echo "mysql/setup: Waiting for mysqld process to come up on $CONTAINER_NAME..."
+  while ! (docker exec $CONTAINER_NAME ps -Af | grep mysqld > /dev/null); do
+      echo -n "*"
+      sleep 1
+  done
+  echo "...ok."
+}
+
+echo "mysql/setup: Launching docker containers..."
+for version in $versions; do
+  launch $version
+done
+
+for version in $versions; do
+  waitFor $version
+done

@@ -2,8 +2,18 @@
 .DS_Store
 
 # zgrab
+zgrab2
 cmd/zgrab2/zgrab2
+cmd/zgrab2/zgrab2.exe
 zgrab-output/
 
 # CI dependencies
 jp
+jp.exe
+
+# Compiled python modules
+schemas/*.pyc
+
+# Marker files for make
+.integration-test-setup
+docker-runner/*.id

@@ -222,6 +222,7 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 type TLSConnection struct {
 	tls.Conn
 	flags *TLSFlags
+	log   *TLSLog
 }
 
 type TLSLog struct {
@@ -232,31 +233,29 @@ type TLSLog struct {
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
-	handshake := z.Conn.GetHandshakeLog()
-	if !z.flags.KeepClientLogs {
-		handshake.ClientHello = nil
-		handshake.ClientKeyExchange = nil
-		handshake.ClientFinished = nil
+	if z.log == nil {
+		z.log = &TLSLog{}
 	}
-	var heartbleed *tls.Heartbleed
-	if z.flags.Heartbleed {
-		heartbleed = z.Conn.GetHeartbleedLog()
-	} else {
-		heartbleed = nil
-	}
-	return &TLSLog{
-		HandshakeLog:  handshake,
-		HeartbleedLog: heartbleed,
-	}
+
+	return z.log
 }
 
 func (z *TLSConnection) Handshake() error {
+	log := z.GetLog()
 	if z.flags.Heartbleed {
 		buf := make([]byte, 256)
+		defer func() {
+			log.HandshakeLog = z.Conn.GetHandshakeLog()
+			log.HeartbleedLog = z.Conn.GetHeartbleedLog()
+		}()
 		// TODO - CheckHeartbleed does not bubble errors from Handshake
 		_, err := z.CheckHeartbleed(buf)
 		return err
 	} else {
+		defer func() {
+			log.HandshakeLog = z.Conn.GetHandshakeLog()
+			log.HeartbleedLog = nil
+		}()
 		return z.Conn.Handshake()
 	}
 }
