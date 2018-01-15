@@ -10,8 +10,8 @@ ADD . zgrab2
 
 WORKDIR /go/src/github.com/zmap/zgrab2
 
-RUN go get -v ./...
-RUN go get -v -t ./...
+RUN go get -f -u -v .
+RUN go get -f -u -v -t .
 
 # This should already be executable, but just in case...
 RUN chmod a+x ./docker-runner/entrypoint.sh
