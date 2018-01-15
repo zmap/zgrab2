@@ -222,6 +222,20 @@ signature_and_hash_type = SubRecord({
     "hash_algorithm": String(),
 })
 
+hex_name_value = SubRecord({
+    "hex": String(),
+    "name": String(),
+    # FIXME: Integer size?
+    "value": Integer(),
+})
+
+cipher_suite = hex_name_value
+
+signature_and_hash_type = SubRecord({
+    "signature_algorithm": String(),
+    "hash_algorithm": String(),
+})
+
 # zcrypto/tls/tls_handshake.go: ServerHandshake
 tls_handshake = SubRecord({
     "client_hello": SubRecord({
