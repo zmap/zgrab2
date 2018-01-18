@@ -458,12 +458,10 @@ func (self *Connection) SendTDSPacket(packetType uint8, body []byte) error {
 func (self *Connection) ReadPreloginPacket() (*TDSPacket, *PreloginOptions, error) {
 	packet, err := self.tdsConn.ReadPacket()
 	if err != nil {
-		// FIXME: protocol error
 		return nil, nil, err
 	}
 	if packet.Type != TDSPacketTypeTabularResult {
-		// FIXME: application error
-		return packet, nil, fmt.Errorf("Received unexpected TDS packet type 0x%02x", packet.Type)
+		return packet, nil, &zgrab2.ScanError{Status: zgrab2.SCAN_APPLICATION_ERROR, Err: err}
 	}
 	plOptions, rest, err := DecodePreloginOptions(packet.Body)
 	if err != nil {
@@ -536,6 +534,8 @@ func (self *Connection) Close() error {
 type TDSWrappedConnection struct {
 	// The underlying conn. Traffic going over this connection is wrapped in TDS headers.
 	conn net.Conn
+	// The connection this wrapper is attached to.
+	session *Connection
 	// If enabled == false, reads and writes to the wrapped connection pass directly through to conn.
 	enabled bool
 	// messageType is the header type added to written packets.
@@ -622,12 +622,13 @@ func (self *TDSWrappedConnection) Write(b []byte) (n int, err error) {
 	if len(b)+8 > 0xffff {
 		return 0, ErrTooLarge
 	}
+	self.session.sequenceNumber++
 	header := TDSHeader{
 		Type:           self.messageType,
 		Status:         TDSStatusEOM,
 		Length:         uint16(len(b) + 8),
 		SPID:           0,
-		SequenceNumber: 1,
+		SequenceNumber: uint8(self.session.sequenceNumber % 0x100),
 		Window:         0,
 	}
 	buf := header.Encode()
@@ -674,7 +675,9 @@ func (self *TDSWrappedConnection) SetWriteDeadline(t time.Time) error {
 
 // Create a new MSSQL connection using the given raw socket connection to the database.
 func NewConnection(conn net.Conn) *Connection {
-	return &Connection{rawConn: conn, tdsConn: &TDSWrappedConnection{conn: conn, enabled: true}}
+	ret := &Connection{rawConn: conn}
+	ret.tdsConn = &TDSWrappedConnection{conn: conn, session: ret, enabled: true}
+	return ret
 }
 
 // Not implemented.
@@ -683,7 +686,7 @@ func (self *Connection) Login() {
 	// TODO: send login
 	if self.GetEncryptMode() != EncryptModeOn {
 		// Client was only using encryption for login, so switch back to the rawConn
-		self.tdsConn = &TDSWrappedConnection{conn: self.rawConn, enabled: true}
+		self.tdsConn = &TDSWrappedConnection{conn: self.rawConn, enabled: true, session: self}
 		// TDSWrappedConnection.Write(rawData) -> net.Conn.Write(header + rawData)
 		// net.Conn.Read() -> header + rawData -> TDSWrappedConnection.Read() -> rawData
 	}
@@ -731,7 +734,7 @@ func (self *Connection) Handshake(flags *MSSQLFlags) (EncryptMode, error) {
 	// TDSWrappedConnection.Write(rawData) -> tls.Conn.Write(header + rawData) -> net.Conn.Write(protected[header + rawData])
 	// net.Conn.Read() => protected[header + rawData] -> tls.Conn.Read() => header + rawData -> TDSWrappedClient.Read() => rawData
 	self.tdsConn.enabled = false
-	self.tdsConn = &TDSWrappedConnection{conn: tlsClient, enabled: true}
+	self.tdsConn = &TDSWrappedConnection{conn: tlsClient, enabled: true, session: self}
 	self.tlsConn = tlsClient
 	return mode, nil
 }
