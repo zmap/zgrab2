@@ -554,16 +554,16 @@ func min(a, b int) int {
 }
 
 // Read a single packet from the connection and return the whole packet (this is the only way to see the packet type, sequence number, etc).
-func (c *TDSWrappedConnection) ReadPacket() (*TDSPacket, error) {
-	if !c.enabled {
+func (self *TDSWrappedConnection) ReadPacket() (*TDSPacket, error) {
+	if !self.enabled {
 		return nil, ErrInvalidState
 	}
-	header, err := ReadTDSHeader(c.conn)
+	header, err := ReadTDSHeader(self.conn)
 	if err != nil {
 		return nil, err
 	}
 	buf := make([]byte, header.Length-8)
-	_, err = io.ReadFull(c.conn, buf)
+	_, err = io.ReadFull(self.conn, buf)
 	if err != nil {
 		return nil, err
 	}
@@ -577,53 +577,53 @@ func (c *TDSWrappedConnection) ReadPacket() (*TDSPacket, error) {
 // If it has sufficient data in remainder to satisfy the read, just return that.
 // Otherwise, attempt to read a header (FIXME: with a 1s timeout), then block on reading the entire packet and add it to the remainder.
 // Then, consume and repeat. If there is an error reading, return the error back to the user with the corresponding bytes read.
-func (c *TDSWrappedConnection) Read(b []byte) (n int, err error) {
-	if !c.enabled {
-		return c.conn.Read(b)
+func (self *TDSWrappedConnection) Read(b []byte) (n int, err error) {
+	if !self.enabled {
+		return self.conn.Read(b)
 	}
 	output := b
 	soFar := 0
-	for len(output) > len(c.remainder) {
-		copy(output, c.remainder)
-		output = output[len(c.remainder):]
-		soFar = soFar + len(c.remainder)
-		c.remainder = make([]byte, 0)
+	for len(output) > len(self.remainder) {
+		copy(output, self.remainder)
+		output = output[len(self.remainder):]
+		soFar = soFar + len(self.remainder)
+		self.remainder = make([]byte, 0)
 		// BEGIN FIXME
-		c.conn.SetReadDeadline(time.Now().Add(1e9))
-		header, err := ReadTDSHeader(c.conn)
+		self.conn.SetReadDeadline(time.Now().Add(1e9))
+		header, err := ReadTDSHeader(self.conn)
 		if err != nil {
 			return soFar, err
 		}
 		// END FIXME
-		c.remainder = make([]byte, header.Length-8)
-		n, err = io.ReadFull(c.conn, c.remainder)
+		self.remainder = make([]byte, header.Length-8)
+		n, err = io.ReadFull(self.conn, self.remainder)
 		if err != nil {
 			logrus.Warn("Error reading body", err)
 			return soFar, err
 		}
-		toCopy := min(len(output), len(c.remainder))
-		copy(output, c.remainder[0:toCopy])
+		toCopy := min(len(output), len(self.remainder))
+		copy(output, self.remainder[0:toCopy])
 		output = output[toCopy:]
-		c.remainder = c.remainder[toCopy:]
+		self.remainder = self.remainder[toCopy:]
 		soFar = soFar + toCopy
 	}
 	// now len(output) <= len(remainder)
-	copy(output, c.remainder)
-	c.remainder = c.remainder[len(output):]
+	copy(output, self.remainder)
+	self.remainder = self.remainder[len(output):]
 	return len(b), nil
 }
 
 // The wrapped Write method. If not enabled, just pass through to conn.Write.
 // Otherise, wrap b in a TDSHeader with the next sequence number and packet type given by messageType, and send it in a single conn.Write().
-func (c *TDSWrappedConnection) Write(b []byte) (n int, err error) {
-	if !c.enabled {
-		return c.conn.Write(b)
+func (self *TDSWrappedConnection) Write(b []byte) (n int, err error) {
+	if !self.enabled {
+		return self.conn.Write(b)
 	}
 	if len(b)+8 > 0xffff {
 		return 0, ErrTooLarge
 	}
 	header := TDSHeader{
-		Type:           c.messageType,
+		Type:           self.messageType,
 		Status:         TDSStatusEOM,
 		Length:         uint16(len(b) + 8),
 		SPID:           0,
@@ -632,7 +632,7 @@ func (c *TDSWrappedConnection) Write(b []byte) (n int, err error) {
 	}
 	buf := header.Encode()
 	output := append(buf, b...)
-	ret, err := c.conn.Write(output)
+	ret, err := self.conn.Write(output)
 	if ret > 0 {
 		ret = ret - 8
 		if ret < 0 {
@@ -643,33 +643,33 @@ func (c *TDSWrappedConnection) Write(b []byte) (n int, err error) {
 }
 
 // Passthrough to the underlying connection.
-func (c *TDSWrappedConnection) Close() error {
-	return c.conn.Close()
+func (self *TDSWrappedConnection) Close() error {
+	return self.conn.Close()
 }
 
 // Passthrough to the underlying connection.
-func (c *TDSWrappedConnection) LocalAddr() net.Addr {
-	return c.conn.LocalAddr()
+func (self *TDSWrappedConnection) LocalAddr() net.Addr {
+	return self.conn.LocalAddr()
 }
 
 // Passthrough to the underlying connection.
-func (c *TDSWrappedConnection) RemoteAddr() net.Addr {
-	return c.conn.RemoteAddr()
+func (self *TDSWrappedConnection) RemoteAddr() net.Addr {
+	return self.conn.RemoteAddr()
 }
 
 // Passthrough to the underlying connection.
-func (c *TDSWrappedConnection) SetDeadline(t time.Time) error {
-	return c.conn.SetDeadline(t)
+func (self *TDSWrappedConnection) SetDeadline(t time.Time) error {
+	return self.conn.SetDeadline(t)
 }
 
 // Passthrough to the underlying connection.
-func (c *TDSWrappedConnection) SetReadDeadline(t time.Time) error {
-	return c.conn.SetReadDeadline(t)
+func (self *TDSWrappedConnection) SetReadDeadline(t time.Time) error {
+	return self.conn.SetReadDeadline(t)
 }
 
 // Passthrough to the underlying connection.
-func (c *TDSWrappedConnection) SetWriteDeadline(t time.Time) error {
-	return c.conn.SetWriteDeadline(t)
+func (self *TDSWrappedConnection) SetWriteDeadline(t time.Time) error {
+	return self.conn.SetWriteDeadline(t)
 }
 
 // Create a new MSSQL connection using the given raw socket connection to the database.

@@ -12,7 +12,7 @@ type MSSQLScanResults struct {
 	Version         string           `json:"version,omitempty"`
 	InstanceName    string           `json:"instance_name,omitempty"`
 	TLSLog          *zgrab2.TLSLog   `json:"tls,omitempty"`
-	PreloginOptions *PreloginOptions `json:"prelogin_options,omitempty"`
+	PreloginOptions *PreloginOptions `json:"prelogin_options,omitempty" zgrab:"debug"`
 }
 
 type MSSQLFlags struct {
@@ -37,34 +37,34 @@ func init() {
 	}
 }
 
-func (m *MSSQLModule) NewFlags() interface{} {
+func (self *MSSQLModule) NewFlags() interface{} {
 	return new(MSSQLFlags)
 }
 
-func (m *MSSQLModule) NewScanner() zgrab2.Scanner {
+func (self *MSSQLModule) NewScanner() zgrab2.Scanner {
 	return new(MSSQLScanner)
 }
 
-func (f *MSSQLFlags) Validate(args []string) error {
+func (self *MSSQLFlags) Validate(args []string) error {
 	return nil
 }
 
-func (f *MSSQLFlags) Help() string {
+func (self *MSSQLFlags) Help() string {
 	return ""
 }
 
-func (s *MSSQLScanner) Init(flags zgrab2.ScanFlags) error {
+func (self *MSSQLScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*MSSQLFlags)
-	s.config = f
+	self.config = f
 	return nil
 }
 
-func (s *MSSQLScanner) InitPerSender(senderID int) error {
+func (self *MSSQLScanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *MSSQLScanner) GetName() string {
-	return s.config.Name
+func (self *MSSQLScanner) GetName() string {
+	return self.config.Name
 }
 
 func (s *MSSQLScanner) GetPort() uint {

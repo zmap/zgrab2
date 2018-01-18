@@ -7,6 +7,14 @@ import zschema.registry
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
 
+ENCRYPT_MODES = [
+  "ENCRYPT_OFF",
+  "ENCRYPT_ON",
+  "ENCRYPT_NOT_SUP",
+  "ENCRYPT_REQ",
+  "UNKNOWN"
+]
+
 unknown_prelogin_option = SubRecord({
     "token": Unsigned8BitInteger(),
     "value": Binary(),
@@ -18,7 +26,7 @@ prelogin_options = SubRecord({
         "minor": Unsigned8BitInteger(),
         "build_number": Unsigned16BitInteger(),
     }),
-    "encrypt_mode": String(),
+    "encrypt_mode": Enum(values=ENCRYPT_MODES),
     "instance": String(),
     "thread_id": Unsigned32BitInteger(),
     "mars": Unsigned8BitInteger(),
