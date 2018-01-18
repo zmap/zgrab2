@@ -14,3 +14,7 @@ OUTPUT_FILE="$ZGRAB_OUTPUT/mssql/2017-linux.json"
 
 echo "mssql/test: Tests runner for mssql"
 CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mssql > $OUTPUT_FILE
+
+echo "BEGIN DOCKER LOGS FROM $CONTAINER_NAME [{("
+docker logs --tail all $CONTAINER_NAME
+echo ")}] END DOCKER LOGS FROM $CONTAINER_NAME"
