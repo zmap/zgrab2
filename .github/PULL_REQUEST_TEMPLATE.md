@@ -10,4 +10,4 @@ _If necessary, explain the motivation for this PR, and note any caveats that app
 
 ## Issue Tracking
 
-_Add a Trello link here if a card represents this work._
+_Add a link to the relevant GitHub issue(s) if the pull request resolves it._
