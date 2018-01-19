@@ -17,8 +17,8 @@ type ChargenResults struct {
 
 type ChargenFlags struct {
 	zgrab2.BaseFlags
-	Verbose      bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	LocalAddr    string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
+	Verbose   bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	LocalAddr string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
 }
 
 type ChargenModule struct {
@@ -80,9 +80,9 @@ func looksLikeChargen(buf []byte) bool {
 	str = strings.Trim(str, "\r\n")
 	lines := strings.Split(str, "\n")
 	// Lines all the same length, except perhaps the last line
-	for n := 1; n < len(lines) - 1; n++ {
+	for n := 1; n < len(lines)-1; n++ {
 		line := lines[n]
-		if len(line) != len(lines[n - 1]) {
+		if len(line) != len(lines[n-1]) {
 			return false
 		}
 		if len(line) < 20 {
@@ -94,9 +94,9 @@ func looksLikeChargen(buf []byte) bool {
 		jumps := 0
 		line = strings.Trim(line, "\r\n")
 		for i := 1; i < len(line); i++ {
-			prev := line[i - 1]
+			prev := line[i-1]
 			ch := line[i]
-			if ch != prev + 1 {
+			if ch != prev+1 {
 				jumps++
 				if ch >= prev {
 					return false
@@ -104,7 +104,7 @@ func looksLikeChargen(buf []byte) bool {
 				if jumps > 1 {
 					return false
 				}
-			} 
+			}
 		}
 	}
 	return true
