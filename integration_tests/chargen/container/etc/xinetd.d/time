@@ -1,0 +1,28 @@
+# default: off
+# description: An RFC 868 time server. This protocol provides a
+# site-independent, machine readable date and time. The Time service sends back
+# to the originating source the time in seconds since midnight on January first
+# 1900.
+# This is the tcp version.
+service time
+{
+	disable		= no
+	type		= INTERNAL
+	id		= time-stream
+	socket_type	= stream
+	protocol	= tcp
+	user		= root
+	wait		= no
+}
+
+# This is the udp version.
+service time
+{
+	disable		= no
+	type		= INTERNAL
+	id		= time-dgram
+	socket_type	= dgram
+	protocol	= udp
+	user		= root
+	wait		= yes
+}

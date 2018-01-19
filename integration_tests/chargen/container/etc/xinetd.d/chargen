@@ -1,0 +1,28 @@
+# default: off
+# description: An xinetd internal service which generate characters.  The
+# xinetd internal service which continuously generates characters until the
+# connection is dropped.  The characters look something like this:
+# !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefg
+# This is the tcp version.
+service chargen
+{
+	disable		= no
+	type		= INTERNAL
+	id		= chargen-stream
+	socket_type	= stream
+	protocol	= tcp
+	user		= root
+	wait		= no
+}
+
+# This is the udp version.
+service chargen
+{
+	disable		= no
+	type		= INTERNAL
+	id		= chargen-dgram
+	socket_type	= dgram
+	protocol	= udp
+	user		= root
+	wait		= yes
+}
