@@ -41,19 +41,19 @@ const (
 
 // Constants from ntp/include/ntp_request.h
 const (
-	IMPL_UNIV uint8 = 0
-	IMPL_XNTPD_OLD = 2
-	IMPL_XNTPD = 3
+	IMPL_UNIV      uint8 = 0
+	IMPL_XNTPD_OLD       = 2
+	IMPL_XNTPD           = 3
 )
 
 const (
-	REQ_PEER_LIST uint8 = 0
-	REQ_MON_GETLIST_1  = 42
+	REQ_PEER_LIST     uint8 = 0
+	REQ_MON_GETLIST_1       = 42
 )
 
 // NTPShort a 32-bit struct defined in figure 3. The upper 16 bits are the seconds, the lower 16 bits are the fractional seconds.
 type NTPShort struct {
-	Seconds uint16 `json:"seconds"`
+	Seconds  uint16 `json:"seconds"`
 	Fraction uint16 `json:"fraction"`
 }
 
@@ -63,7 +63,7 @@ func (self *NTPShort) Decode(buf []byte) error {
 	}
 	self.Seconds = binary.BigEndian.Uint16(buf[0:2])
 	self.Fraction = binary.BigEndian.Uint16(buf[2:4])
-	return nil  
+	return nil
 }
 
 func DecodeNTPShort(buf []byte) (*NTPShort, error) {
@@ -105,7 +105,7 @@ func (self *NTPShort) SetDuration(d time.Duration) {
 
 // NTPLong a 64-bit fixed-length number defined in figure 3. The upper 32 bits are the seconds, the lower 32 bits are the fractional seconds.
 type NTPLong struct {
-	Seconds uint32 `json:"seconds"`
+	Seconds  uint32 `json:"seconds"`
 	Fraction uint32 `json:"fraction"`
 }
 
@@ -136,7 +136,7 @@ func (self *NTPLong) Decode(buf []byte) error {
 	}
 	self.Seconds = binary.BigEndian.Uint32(buf[0:4])
 	self.Fraction = binary.BigEndian.Uint32(buf[4:8])
-	return nil  
+	return nil
 }
 
 func DecodeNTPLong(buf []byte) (*NTPLong, error) {
@@ -227,7 +227,7 @@ func DecodeNTPHeader(buf []byte) (*NTPHeader, error) {
 		return nil, err
 	}
 	if err := ret.OriginTimestamp.Decode(buf[24:32]); err != nil {
-		return nil, err 
+		return nil, err
 	}
 	if err := ret.ReceiveTimestamp.Decode(buf[32:40]); err != nil {
 		return nil, err
@@ -235,7 +235,7 @@ func DecodeNTPHeader(buf []byte) (*NTPHeader, error) {
 	if err := ret.TransmitTimestamp.Decode(buf[40:48]); err != nil {
 		return nil, err
 	}
-	
+
 	return &ret, nil
 }
 
@@ -259,7 +259,7 @@ func (self *NTPHeader) Encode() ([]byte, error) {
 	if (self.LeapIndicator >> 2) != 0 {
 		return nil, ErrInvalidLeapIndicator
 	}
-	ret[0] = byte((uint8(self.LeapIndicator) << 6) | (uint8(self.Mode) << 3) | uint8(self.Version)) 
+	ret[0] = byte((uint8(self.LeapIndicator) << 6) | (uint8(self.Mode) << 3) | uint8(self.Version))
 	ret[1] = byte(self.Stratum)
 	ret[2] = byte(self.Poll)
 	ret[3] = byte(self.Precision)
@@ -298,23 +298,23 @@ func (self *NTPHeader) ValidateSyntax() error {
 }
 
 type PrivatePacketHeader struct {
-	IsResponse bool `json:"is_response"`
-	HasMore bool `json:"has_more"`
-	Version uint8 `json:"version"`
-	Mode uint8 `json:"version"`
-	IsAuthenticated bool `json:"is_authenticated"`
-	SequenceNumber uint8 `json:"sequence_number"`
-	ImplementationNumber uint8 `json:"implementation_number"`
-	RequestCode uint8 `json:"request_code"`
-	Error uint8 `json:"error"`
-	NumRecords uint16 `json:"num_records"`
-	RecordSize uint16 `json:"record_size"`
-	MBZ uint8 `json:"mbz"`
+	IsResponse           bool   `json:"is_response"`
+	HasMore              bool   `json:"has_more"`
+	Version              uint8  `json:"version"`
+	Mode                 uint8  `json:"version"`
+	IsAuthenticated      bool   `json:"is_authenticated"`
+	SequenceNumber       uint8  `json:"sequence_number"`
+	ImplementationNumber uint8  `json:"implementation_number"`
+	RequestCode          uint8  `json:"request_code"`
+	Error                uint8  `json:"error"`
+	NumRecords           uint16 `json:"num_records"`
+	RecordSize           uint16 `json:"record_size"`
+	MBZ                  uint8  `json:"mbz"`
 }
 
 func (self *PrivatePacketHeader) Encode() ([]byte, error) {
 	ret := [8]byte{}
-	if (self.Mode >> 3) != 0 || (self.Version >> 3) != 0 {
+	if (self.Mode>>3) != 0 || (self.Version>>3) != 0 {
 		return nil, ErrInvalidHeader
 	}
 	ret[0] = self.Mode | (self.Version << 3)
@@ -324,7 +324,7 @@ func (self *PrivatePacketHeader) Encode() ([]byte, error) {
 	if self.HasMore {
 		ret[0] = ret[0] | 0x40
 	}
-	if self.SequenceNumber & 0x80 != 0 {
+	if self.SequenceNumber&0x80 != 0 {
 		return nil, ErrInvalidHeader
 	}
 	ret[1] = self.SequenceNumber
@@ -333,15 +333,15 @@ func (self *PrivatePacketHeader) Encode() ([]byte, error) {
 	}
 	ret[2] = self.ImplementationNumber
 	ret[3] = self.RequestCode
-	if (self.Error >> 4) != 0 || (self.NumRecords >> 12) != 0 {
+	if (self.Error>>4) != 0 || (self.NumRecords>>12) != 0 {
 		return nil, ErrInvalidHeader
 	}
-	ret[4] = (self.Error << 4) | uint8(self.NumRecords >> 8)
+	ret[4] = (self.Error << 4) | uint8(self.NumRecords>>8)
 	ret[5] = byte(self.NumRecords & 0xFF)
-	if (self.MBZ >> 4) != 0  || (self.RecordSize >> 12) != 0 {
+	if (self.MBZ>>4) != 0 || (self.RecordSize>>12) != 0 {
 		return nil, ErrInvalidHeader
 	}
-	ret[6] = (self.MBZ << 4) | uint8(self.RecordSize >> 8)
+	ret[6] = (self.MBZ << 4) | uint8(self.RecordSize>>8)
 	ret[7] = byte(self.RecordSize & 0xFF)
 	return ret[:], nil
 }
@@ -353,27 +353,27 @@ func ReadPrivateModeHeader(buf []byte) (*PrivatePacketHeader, error) {
 	}
 	ret.Mode = buf[0] & 0x07
 	ret.Version = buf[0] >> 3 & 0x07
-	ret.IsResponse = (buf[0] >> 6) & 1 == 1 
-	ret.HasMore = (buf[0] >> 7) & 1 == 1
+	ret.IsResponse = (buf[0]>>6)&1 == 1
+	ret.HasMore = (buf[0]>>7)&1 == 1
 	ret.SequenceNumber = buf[1] & 0x7F
-	ret.IsAuthenticated = (buf[1] >> 7) & 1 == 1
+	ret.IsAuthenticated = (buf[1]>>7)&1 == 1
 	ret.ImplementationNumber = buf[2]
 	ret.RequestCode = buf[3]
 	ret.Error = buf[4] >> 4
-	ret.NumRecords = uint16(buf[4] & 0x0F) << 4 | uint16(buf[5])
+	ret.NumRecords = uint16(buf[4]&0x0F)<<4 | uint16(buf[5])
 	ret.MBZ = buf[6] >> 4
-	ret.RecordSize = uint16(buf[6] & 0x0f) << 4 | uint16(buf[7])
+	ret.RecordSize = uint16(buf[6]&0x0f)<<4 | uint16(buf[7])
 	return &ret, nil
 }
 
 func NewMode7Packet(impl uint8, req uint8) *PrivatePacketHeader {
 	return &PrivatePacketHeader{
-		Version: 2,
-		Mode: 7,
-		SequenceNumber: 0x00,
+		Version:              2,
+		Mode:                 7,
+		SequenceNumber:       0x00,
 		ImplementationNumber: impl,
-		RequestCode: req,
-		Error: 0x00,
+		RequestCode:          req,
+		Error:                0x00,
 	}
 }
 
@@ -488,5 +488,5 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	vTemp := inPacket.Version
 	result.Version = &vTemp
 
-	return zgrab2.SCAN_SUCCESS, &inPacket, nil
+	return zgrab2.SCAN_SUCCESS, result, nil
 }

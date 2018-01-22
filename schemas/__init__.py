@@ -3,3 +3,4 @@ import schemas.mysql
 import schemas.ssh
 import schemas.postgres
 import schemas.ftp
+import schemas.ntp
