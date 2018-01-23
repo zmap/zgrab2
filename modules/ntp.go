@@ -571,8 +571,8 @@ type NTPResults struct {
 
 type NTPConfig struct {
 	zgrab2.BaseFlags
+	zgrab2.UDPFlags
 	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	LocalAddr   string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
 	MonList     bool   `long:"monlist" description:"Perform a REQ_MON_GETLIST request"`
 	RequestCode string `long:"request-code" description:"Specify a request code for MonList other than REQ_MON_GETLIST" default:"REQ_MON_GETLIST"`
 	Version     uint8  `long:"version" description:"The version number to pass to the server." default:"3"`
@@ -744,24 +744,7 @@ func (self *NTPScanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 }
 
 func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	target := fmt.Sprintf("%s:%d", t.IP.String(), self.config.Port)
-	var err error
-	var local *net.UDPAddr = nil
-	if self.config.LocalAddr != "" {
-		local, err = net.ResolveUDPAddr("udp", self.config.LocalAddr)
-		if err != nil {
-			// panic?
-			return zgrab2.SCAN_UNKNOWN_ERROR, nil, err
-		}
-	}
-	remote, err := net.ResolveUDPAddr("udp", target)
-	if err != nil {
-		// panic?
-		return zgrab2.SCAN_UNKNOWN_ERROR, nil, err
-	}
-	// TODO: timeout
-	var sock net.Conn
-	sock, err = net.DialUDP("udp", local, remote)
+	sock, err := t.OpenUDP(&self.config.BaseFlags, &self.config.UDPFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
