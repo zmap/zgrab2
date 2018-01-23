@@ -8,7 +8,10 @@ GO_FILES = $(shell find . -type f -name '*.go')
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean docker-runner container-clean
+.PHONY: all clean integration-test integration-test-clean docker-runner container-clean gofmt
+
+gofmt:
+	goimports -w -l $(GO_FILES)
 
 zgrab2: $(GO_FILES)
 	cd cmd/zgrab2 && go build && cd ../..
