@@ -2,9 +2,11 @@ package modules
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -39,17 +41,201 @@ const (
 	Private                          = 7
 )
 
+type ImplNumber uint8
+
 // Constants from ntp/include/ntp_request.h
 const (
-	IMPL_UNIV      uint8 = 0
-	IMPL_XNTPD_OLD       = 2
-	IMPL_XNTPD           = 3
+	IMPL_UNIV      ImplNumber = 0
+	IMPL_XNTPD_OLD            = 2
+	IMPL_XNTPD                = 3
 )
 
+var ImplNumberMap map[ImplNumber]string = map[ImplNumber]string{
+	IMPL_UNIV:      "IMPL_UNIV",
+	IMPL_XNTPD_OLD: "IMPL_XNTPD_OLD",
+	IMPL_XNTPD:     "IMPL_XNTPD",
+}
+
+func (self ImplNumber) MarshalJSON() ([]byte, error) {
+	ret, ok := ImplNumberMap[self]
+	if !ok {
+		ret = fmt.Sprintf("UNKNOWN (0x%02x)", self)
+	}
+	return json.Marshal(ret)
+}
+
+type RequestCode uint8
+
 const (
-	REQ_PEER_LIST     uint8 = 0
-	REQ_MON_GETLIST_1       = 42
+	REQ_PEER_LIST        RequestCode = 0
+	REQ_PEER_LIST_SUM                = 1
+	REQ_PEER_INFO                    = 2
+	REQ_PEER_STATS                   = 3
+	REQ_SYS_INFO                     = 4
+	REQ_SYS_STATS                    = 5
+	REQ_IO_STATS                     = 6
+	REQ_MEM_STATS                    = 7
+	REQ_LOOP_INFO                    = 8
+	REQ_TIMER_STATS                  = 9
+	REQ_CONFIG                       = 10
+	REQ_UNCONFIG                     = 11
+	REQ_SET_SYS_FLAG                 = 12
+	REQ_CLR_SYS_FLAG                 = 13
+	REQ_MONITOR                      = 14
+	REQ_NOMONITOR                    = 15
+	REQ_GET_RESTRICT                 = 16
+	REQ_RESADDFLAGS                  = 17
+	REQ_RESSUBFLAGS                  = 18
+	REQ_UNRESTRICT                   = 19
+	REQ_MON_GETLIST                  = 20
+	REQ_RESET_STATS                  = 21
+	REQ_RESET_PEER                   = 22
+	REQ_REREAD_KEYS                  = 23
+	REQ_DO_DIRTY_HACK                = 24
+	REQ_DONT_DIRTY_HACK              = 25
+	REQ_TRUSTKEY                     = 26
+	REQ_UNTRUSTKEY                   = 27
+	REQ_AUTHINFO                     = 28
+	REQ_TRAPS                        = 29
+	REQ_ADD_TRAP                     = 30
+	REQ_CLR_TRAP                     = 31
+	REQ_REQUEST_KEY                  = 32
+	REQ_CONTROL_KEY                  = 33
+	REQ_GET_CTLSTATS                 = 34
+	REQ_GET_LEAPINFO                 = 35
+	REQ_GET_CLOCKINFO                = 36
+	REQ_SET_CLKFUDGE                 = 37
+	REQ_GET_KERNEL                   = 38
+	REQ_GET_CLKBUGINFO               = 39
+	REQ_SET_PRECISION                = 41
+	REQ_MON_GETLIST_1                = 42
+	REQ_HOSTNAME_ASSOCID             = 43
+	REQ_IF_STATS                     = 44
+	REQ_IF_RELOAD                    = 45
 )
+
+var RequestCodeMap map[string]RequestCode = map[string]RequestCode{
+	"REQ_PEER_LIST":        REQ_PEER_LIST,
+	"REQ_PEER_LIST_SUM":    REQ_PEER_LIST_SUM,
+	"REQ_PEER_INFO":        REQ_PEER_INFO,
+	"REQ_PEER_STATS":       REQ_PEER_STATS,
+	"REQ_SYS_INFO":         REQ_SYS_INFO,
+	"REQ_SYS_STATS":        REQ_SYS_STATS,
+	"REQ_IO_STATS":         REQ_IO_STATS,
+	"REQ_MEM_STATS":        REQ_MEM_STATS,
+	"REQ_LOOP_INFO":        REQ_LOOP_INFO,
+	"REQ_TIMER_STATS":      REQ_TIMER_STATS,
+	"REQ_CONFIG":           REQ_CONFIG,
+	"REQ_UNCONFIG":         REQ_UNCONFIG,
+	"REQ_SET_SYS_FLAG":     REQ_SET_SYS_FLAG,
+	"REQ_CLR_SYS_FLAG":     REQ_CLR_SYS_FLAG,
+	"REQ_MONITOR":          REQ_MONITOR,
+	"REQ_NOMONITOR":        REQ_NOMONITOR,
+	"REQ_GET_RESTRICT":     REQ_GET_RESTRICT,
+	"REQ_RESADDFLAGS":      REQ_RESADDFLAGS,
+	"REQ_RESSUBFLAGS":      REQ_RESSUBFLAGS,
+	"REQ_UNRESTRICT":       REQ_UNRESTRICT,
+	"REQ_MON_GETLIST":      REQ_MON_GETLIST,
+	"REQ_RESET_STATS":      REQ_RESET_STATS,
+	"REQ_RESET_PEER":       REQ_RESET_PEER,
+	"REQ_REREAD_KEYS":      REQ_REREAD_KEYS,
+	"REQ_DO_DIRTY_HACK":    REQ_DO_DIRTY_HACK,
+	"REQ_DONT_DIRTY_HACK":  REQ_DONT_DIRTY_HACK,
+	"REQ_TRUSTKEY":         REQ_TRUSTKEY,
+	"REQ_UNTRUSTKEY":       REQ_UNTRUSTKEY,
+	"REQ_AUTHINFO":         REQ_AUTHINFO,
+	"REQ_TRAPS":            REQ_TRAPS,
+	"REQ_ADD_TRAP":         REQ_ADD_TRAP,
+	"REQ_CLR_TRAP":         REQ_CLR_TRAP,
+	"REQ_REQUEST_KEY":      REQ_REQUEST_KEY,
+	"REQ_CONTROL_KEY":      REQ_CONTROL_KEY,
+	"REQ_GET_CTLSTATS":     REQ_GET_CTLSTATS,
+	"REQ_GET_LEAPINFO":     REQ_GET_LEAPINFO,
+	"REQ_GET_CLOCKINFO":    REQ_GET_CLOCKINFO,
+	"REQ_SET_CLKFUDGE":     REQ_SET_CLKFUDGE,
+	"REQ_GET_KERNEL":       REQ_GET_KERNEL,
+	"REQ_GET_CLKBUGINFO":   REQ_GET_CLKBUGINFO,
+	"REQ_SET_PRECISION":    REQ_SET_PRECISION,
+	"REQ_MON_GETLIST_1":    REQ_MON_GETLIST_1,
+	"REQ_HOSTNAME_ASSOCID": REQ_HOSTNAME_ASSOCID,
+	"REQ_IF_STATS":         REQ_IF_STATS,
+	"REQ_IF_RELOAD":        REQ_IF_RELOAD,
+}
+
+var reverseRequestCodeMap map[RequestCode]string = nil
+
+func (self RequestCode) MarshalJSON() ([]byte, error) {
+	if reverseRequestCodeMap == nil {
+		reverseRequestCodeMap = make(map[RequestCode]string)
+		for k, v := range RequestCodeMap {
+			reverseRequestCodeMap[v] = k
+		}
+	}
+	ret, ok := reverseRequestCodeMap[self]
+	if !ok {
+		ret = fmt.Sprintf("UNKNOWN (0x%02x)", self)
+	}
+	return json.Marshal(ret)
+}
+
+func getRequestCode(enum string) (RequestCode, error) {
+	ret, ok := RequestCodeMap[enum]
+	if ok {
+		return ret, nil
+	}
+	v, err := strconv.ParseInt(enum, 0, 8)
+	if err != nil {
+		return 0, err
+	}
+	if v < 0 || v >= 0xff {
+		return 0, fmt.Errorf("RequestCode must be an 8-bit unsigned integer")
+	}
+	return RequestCode(v), nil
+}
+
+// InfoError taken from ntp_request.h -- actually just 3 bits
+type InfoError uint8
+
+const (
+	InfoErrorOkay     InfoError = 0
+	InfoErrorImpl               = 1
+	InfoErrorReq                = 2
+	InfoErrorFmt                = 3
+	InfoErrorNoData             = 4
+	InfoErrorUnknown5           = 5
+	InfoErrorUnknown6           = 6
+	InfoErrorAuth               = 7
+)
+
+var infoErrorMap map[InfoError]string = map[InfoError]string{
+	InfoErrorOkay:   "INFO_OKAY",
+	InfoErrorImpl:   "INFO_ERR_IMPL",
+	InfoErrorReq:    "INFO_ERR_REQ",
+	InfoErrorFmt:    "INFO_ERR_FMT",
+	InfoErrorNoData: "INFO_ERR_NODATA",
+	InfoErrorAuth:   "INFO_ERR_AUTH",
+}
+
+func isInfoError(err error) bool {
+	_, ok := err.(InfoError)
+	return ok
+}
+
+func (self InfoError) Error() string {
+	ret, ok := infoErrorMap[self]
+	if !ok {
+		return fmt.Sprintf("INFO_ERR_UNKNOWN (0x%02x)", uint8(self))
+	}
+	return ret
+}
+
+func (self InfoError) MarshalJSON() ([]byte, error) {
+	ret, ok := infoErrorMap[self]
+	if !ok {
+		ret = fmt.Sprintf("UNKNOWN (0x%02x)", self)
+	}
+	return json.Marshal(ret)
+}
 
 // NTPShort a 32-bit struct defined in figure 3. The upper 16 bits are the seconds, the lower 16 bits are the fractional seconds.
 type NTPShort struct {
@@ -298,18 +484,18 @@ func (self *NTPHeader) ValidateSyntax() error {
 }
 
 type PrivatePacketHeader struct {
-	IsResponse           bool   `json:"is_response"`
-	HasMore              bool   `json:"has_more"`
-	Version              uint8  `json:"version"`
-	Mode                 uint8  `json:"version"`
-	IsAuthenticated      bool   `json:"is_authenticated"`
-	SequenceNumber       uint8  `json:"sequence_number"`
-	ImplementationNumber uint8  `json:"implementation_number"`
-	RequestCode          uint8  `json:"request_code"`
-	Error                uint8  `json:"error"`
-	NumRecords           uint16 `json:"num_records"`
-	RecordSize           uint16 `json:"record_size"`
-	MBZ                  uint8  `json:"mbz"`
+	IsResponse           bool        `json:"is_response"`
+	HasMore              bool        `json:"has_more"`
+	Version              uint8       `json:"version"`
+	Mode                 uint8       `json:"mode"`
+	IsAuthenticated      bool        `json:"is_authenticated"`
+	SequenceNumber       uint8       `json:"sequence_number"`
+	ImplementationNumber ImplNumber  `json:"implementation_number"`
+	RequestCode          RequestCode `json:"request_code"`
+	Error                InfoError   `json:"error"`
+	NumRecords           uint16      `json:"num_records"`
+	RecordSize           uint16      `json:"record_size"`
+	MBZ                  uint8       `json:"mbz"`
 }
 
 func (self *PrivatePacketHeader) Encode() ([]byte, error) {
@@ -331,12 +517,12 @@ func (self *PrivatePacketHeader) Encode() ([]byte, error) {
 	if self.IsAuthenticated {
 		ret[1] = ret[1] | 0x80
 	}
-	ret[2] = self.ImplementationNumber
-	ret[3] = self.RequestCode
+	ret[2] = uint8(self.ImplementationNumber)
+	ret[3] = uint8(self.RequestCode)
 	if (self.Error>>4) != 0 || (self.NumRecords>>12) != 0 {
 		return nil, ErrInvalidHeader
 	}
-	ret[4] = (self.Error << 4) | uint8(self.NumRecords>>8)
+	ret[4] = (uint8(self.Error) << 4) | uint8(self.NumRecords>>8)
 	ret[5] = byte(self.NumRecords & 0xFF)
 	if (self.MBZ>>4) != 0 || (self.RecordSize>>12) != 0 {
 		return nil, ErrInvalidHeader
@@ -346,27 +532,27 @@ func (self *PrivatePacketHeader) Encode() ([]byte, error) {
 	return ret[:], nil
 }
 
-func ReadPrivateModeHeader(buf []byte) (*PrivatePacketHeader, error) {
+func DecodePrivateModeHeader(buf []byte) (*PrivatePacketHeader, error) {
 	ret := PrivatePacketHeader{}
 	if len(buf) < 8 {
 		return nil, ErrInvalidHeader
 	}
 	ret.Mode = buf[0] & 0x07
 	ret.Version = buf[0] >> 3 & 0x07
-	ret.IsResponse = (buf[0]>>6)&1 == 1
-	ret.HasMore = (buf[0]>>7)&1 == 1
+	ret.HasMore = (buf[0]>>6)&1 == 1
+	ret.IsResponse = (buf[0]>>7)&1 == 1
 	ret.SequenceNumber = buf[1] & 0x7F
 	ret.IsAuthenticated = (buf[1]>>7)&1 == 1
-	ret.ImplementationNumber = buf[2]
-	ret.RequestCode = buf[3]
-	ret.Error = buf[4] >> 4
+	ret.ImplementationNumber = ImplNumber(buf[2])
+	ret.RequestCode = RequestCode(buf[3])
+	ret.Error = InfoError(buf[4] >> 4)
 	ret.NumRecords = uint16(buf[4]&0x0F)<<4 | uint16(buf[5])
 	ret.MBZ = buf[6] >> 4
 	ret.RecordSize = uint16(buf[6]&0x0f)<<4 | uint16(buf[7])
 	return &ret, nil
 }
 
-func NewMode7Packet(impl uint8, req uint8) *PrivatePacketHeader {
+func NewMode7Packet(impl ImplNumber, req RequestCode) *PrivatePacketHeader {
 	return &PrivatePacketHeader{
 		Version:              2,
 		Mode:                 7,
@@ -384,8 +570,10 @@ type NTPResults struct {
 
 type NTPConfig struct {
 	zgrab2.BaseFlags
-	Verbose   bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	LocalAddr string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
+	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	LocalAddr   string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
+	MonList     bool   `long:"monlist" description:"Perform a REQ_MON_GETLIST request"`
+	RequestCode string `long:"request-code" description:"Specify a request code for MonList other than REQ_MON_GETLIST" default:"REQ_MON_GETLIST"`
 }
 
 type NTPModule struct {
@@ -437,6 +625,94 @@ func (self *NTPScanner) GetPort() uint {
 	return self.config.Port
 }
 
+var ErrInvalidResponse = fmt.Errorf("Invalid response")
+
+func (self *NTPScanner) SendAndReceive(impl ImplNumber, req RequestCode, sock net.Conn) ([]byte, error) {
+	outPacket, err := NewMode7Packet(impl, req).Encode()
+	if err != nil {
+		return nil, err
+	}
+	outPacket = append(outPacket, make([]byte, 40)...)
+	n, err := sock.Write(outPacket)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(outPacket) {
+		return nil, err
+	}
+	buf := make([]byte, 512)
+	for i := 1; i < 20; i++ {
+		sock.SetReadDeadline(time.Now().Add(time.Second * 3))
+		n, err = sock.Read(buf)
+		if err != nil || n == 0 {
+			return nil, err
+		}
+		if n < 8 {
+			log.Debugf("Returned data too small (%d bytes)", n)
+			return nil, err
+		}
+		ret := buf[0:n]
+		inPacket, err := DecodePrivateModeHeader(ret)
+		if err != nil {
+			return nil, err
+		}
+		// Validation logic taken from getresponse@ntpdc/ntpdc.c
+		// check if version is in bounds
+		if inPacket.Mode != Private {
+			log.Debugf("Received non Private-mode packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
+			// TODO: continue?
+			return nil, err
+		}
+		if !inPacket.IsResponse {
+			log.Debugf("Received non response packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
+			// TODO: continue?
+			return nil, err
+		}
+		if inPacket.MBZ != 0 {
+			log.Debugf("Received nonzero MBZ in response packet (mbz=0x%02x), packet=%v", inPacket.MBZ, inPacket)
+			// TODO: continue?
+			return nil, err
+		}
+		if inPacket.ImplementationNumber != impl {
+			log.Debugf("Received mismatched implementation number in response packe (expected 0x%02x, got 0x%02x), packet=%v", impl, inPacket.ImplementationNumber, inPacket)
+			// TODO: continue?
+			return nil, err
+		}
+		if inPacket.Error != InfoErrorOkay {
+			log.Debugf("Got error in non-final response packet (error=0x%02x), packet=%v", inPacket.Error, inPacket)
+			return nil, inPacket.Error
+		}
+		body := ret[8:]
+		if len(body) != int(inPacket.RecordSize*inPacket.NumRecords) {
+			log.Debugf("Body length (%d) does not match record size (%d) * num records (%d)", len(body), inPacket.RecordSize, inPacket.NumRecords)
+			return nil, ErrInvalidResponse
+		}
+		return body, nil
+	}
+	log.Debugf("Too many packets")
+	return nil, ErrInvalidResponse
+}
+
+func (self *NTPScanner) MonList(sock net.Conn) (zgrab2.ScanStatus, interface{}, error) {
+	reqCode, err := getRequestCode(self.config.RequestCode)
+	if err != nil {
+		panic(err)
+	}
+	ret, err := self.SendAndReceive(IMPL_XNTPD, reqCode, sock)
+	if err != nil {
+		switch {
+		case err == ErrInvalidResponse:
+			// Response packet had invalid syntax or semantics
+			return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
+		case isInfoError(err):
+			return zgrab2.SCAN_APPLICATION_ERROR, nil, err
+		default:
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+	}
+	return zgrab2.SCAN_SUCCESS, &ret, err
+}
+
 func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	target := fmt.Sprintf("%s:%d", t.IP.String(), self.config.Port)
 	var err error
@@ -458,6 +734,10 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	sock, err = net.DialUDP("udp", local, remote)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	//sock = tcpwrap.Wrap(sock)
+	if self.config.MonList {
+		return self.MonList(sock)
 	}
 	outPacket := NTPHeader{}
 	outPacket.Mode = Client
