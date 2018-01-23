@@ -564,20 +564,20 @@ func newMode7Packet(impl implNumber, req requestCode) *privatePacketHeader {
 }
 
 type NTPResults struct {
-	Version         *uint8     `json:"version,omitempty"`
-	Time            *time.Time `json:"time,omitempty"`
-	MonListResponse []byte     `json:"monlist_response,omitempty"`
-	TimeResponse	*ntpHeader `json:"time_response,omitempty", zgrab:"debug"`
-	MonListHeader *privatePacketHeader `json:"monlist_header,omitempty", zgrab:"debug"`
+	Version         *uint8               `json:"version,omitempty"`
+	Time            *time.Time           `json:"time,omitempty"`
+	MonListResponse []byte               `json:"monlist_response,omitempty"`
+	TimeResponse    *ntpHeader           `json:"time_response,omitempty", zgrab:"debug"`
+	MonListHeader   *privatePacketHeader `json:"monlist_header,omitempty", zgrab:"debug"`
 }
 
 type NTPConfig struct {
 	zgrab2.BaseFlags
 	zgrab2.UDPFlags
-	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	MonList     bool   `long:"monlist" description:"Perform a REQ_MON_GETLIST request"`
-	RequestCode string `long:"request-code" description:"Specify a request code for MonList other than REQ_MON_GETLIST" default:"REQ_MON_GETLIST"`
-	Version     uint8  `long:"version" description:"The version number to pass to the server." default:"3"`
+	Verbose       bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	MonList       bool   `long:"monlist" description:"Perform a REQ_MON_GETLIST request"`
+	RequestCode   string `long:"request-code" description:"Specify a request code for MonList other than REQ_MON_GETLIST" default:"REQ_MON_GETLIST"`
+	Version       uint8  `long:"version" description:"The version number to pass to the server." default:"3"`
 	LeapIndicator uint8  `long:"leap-indicator" description:"The LI value to pass to the server. Default 3 (unknown)"`
 	SkipGetTime   bool   `long:"skip-get-time" description:"If set, don't request the server time"`
 }
