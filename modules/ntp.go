@@ -14,60 +14,60 @@ import (
 )
 
 // Section 6 of https://tools.ietf.org/html/rfc5905: times are relative to 1/1/1900 UTC
-var NTPEpoch = time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+var ntpEpoch = time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
 
-var UnixEpoch = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+var unixEpoch = time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // Leap Indicator defined in figure 9 of https://tools.ietf.org/html/rfc5905
-type LeapIndicator uint8
+type leapIndicator uint8
 
 const (
-	NoWarning     LeapIndicator = 0
-	ExtraSecond                 = 1
-	MissingSecond               = 2
-	Unknown                     = 3
+	noWarning     leapIndicator = 0
+	extraSecond                 = 1
+	missingSecond               = 2
+	unknown                     = 3
 )
 
-type AssociationMode uint8
+type associationMode uint8
 
 const (
-	Reserved         AssociationMode = 0
-	SymmetricActive                  = 1
-	SymmetricPassive                 = 2
-	Client                           = 3
-	Server                           = 4
-	Broadcast                        = 5
-	Control                          = 6
-	Private                          = 7
+	reserved         associationMode = 0
+	symmetricActive                  = 1
+	symmetricPassive                 = 2
+	client                           = 3
+	server                           = 4
+	broadcast                        = 5
+	control                          = 6
+	private                          = 7
 )
 
-type ImplNumber uint8
+type implNumber uint8
 
 // Constants from ntp/include/ntp_request.h
 const (
-	IMPL_UNIV      ImplNumber = 0
+	IMPL_UNIV      implNumber = 0
 	IMPL_XNTPD_OLD            = 2
 	IMPL_XNTPD                = 3
 )
 
-var ImplNumberMap map[ImplNumber]string = map[ImplNumber]string{
+var implNumberMap map[implNumber]string = map[implNumber]string{
 	IMPL_UNIV:      "IMPL_UNIV",
 	IMPL_XNTPD_OLD: "IMPL_XNTPD_OLD",
 	IMPL_XNTPD:     "IMPL_XNTPD",
 }
 
-func (self ImplNumber) MarshalJSON() ([]byte, error) {
-	ret, ok := ImplNumberMap[self]
+func (self implNumber) MarshalJSON() ([]byte, error) {
+	ret, ok := implNumberMap[self]
 	if !ok {
 		ret = fmt.Sprintf("UNKNOWN (0x%02x)", self)
 	}
 	return json.Marshal(ret)
 }
 
-type RequestCode uint8
+type requestCode uint8
 
 const (
-	REQ_PEER_LIST        RequestCode = 0
+	REQ_PEER_LIST        requestCode = 0
 	REQ_PEER_LIST_SUM                = 1
 	REQ_PEER_INFO                    = 2
 	REQ_PEER_STATS                   = 3
@@ -114,7 +114,7 @@ const (
 	REQ_IF_RELOAD                    = 45
 )
 
-var RequestCodeMap map[string]RequestCode = map[string]RequestCode{
+var requestCodeMap map[string]requestCode = map[string]requestCode{
 	"REQ_PEER_LIST":        REQ_PEER_LIST,
 	"REQ_PEER_LIST_SUM":    REQ_PEER_LIST_SUM,
 	"REQ_PEER_INFO":        REQ_PEER_INFO,
@@ -162,12 +162,12 @@ var RequestCodeMap map[string]RequestCode = map[string]RequestCode{
 	"REQ_IF_RELOAD":        REQ_IF_RELOAD,
 }
 
-var reverseRequestCodeMap map[RequestCode]string = nil
+var reverseRequestCodeMap map[requestCode]string = nil
 
-func (self RequestCode) MarshalJSON() ([]byte, error) {
+func (self requestCode) MarshalJSON() ([]byte, error) {
 	if reverseRequestCodeMap == nil {
-		reverseRequestCodeMap = make(map[RequestCode]string)
-		for k, v := range RequestCodeMap {
+		reverseRequestCodeMap = make(map[requestCode]string)
+		for k, v := range requestCodeMap {
 			reverseRequestCodeMap[v] = k
 		}
 	}
@@ -178,8 +178,8 @@ func (self RequestCode) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ret)
 }
 
-func getRequestCode(enum string) (RequestCode, error) {
-	ret, ok := RequestCodeMap[enum]
+func getRequestCode(enum string) (requestCode, error) {
+	ret, ok := requestCodeMap[enum]
 	if ok {
 		return ret, nil
 	}
@@ -188,40 +188,40 @@ func getRequestCode(enum string) (RequestCode, error) {
 		return 0, err
 	}
 	if v < 0 || v >= 0xff {
-		return 0, fmt.Errorf("RequestCode must be an 8-bit unsigned integer")
+		return 0, fmt.Errorf("requestCode must be an 8-bit unsigned integer")
 	}
-	return RequestCode(v), nil
+	return requestCode(v), nil
 }
 
-// InfoError taken from ntp_request.h -- actually just 3 bits
-type InfoError uint8
+// infoError taken from ntp_request.h -- actually just 3 bits
+type infoError uint8
 
 const (
-	InfoErrorOkay     InfoError = 0
-	InfoErrorImpl               = 1
-	InfoErrorReq                = 2
-	InfoErrorFmt                = 3
-	InfoErrorNoData             = 4
+	infoErrorOkay     infoError = 0
+	infoErrorImpl               = 1
+	infoErrorReq                = 2
+	infoErrorFmt                = 3
+	infoErrorNoData             = 4
 	InfoErrorUnknown5           = 5
 	InfoErrorUnknown6           = 6
-	InfoErrorAuth               = 7
+	infoErrorAuth               = 7
 )
 
-var infoErrorMap map[InfoError]string = map[InfoError]string{
-	InfoErrorOkay:   "INFO_OKAY",
-	InfoErrorImpl:   "INFO_ERR_IMPL",
-	InfoErrorReq:    "INFO_ERR_REQ",
-	InfoErrorFmt:    "INFO_ERR_FMT",
-	InfoErrorNoData: "INFO_ERR_NODATA",
-	InfoErrorAuth:   "INFO_ERR_AUTH",
+var infoErrorMap map[infoError]string = map[infoError]string{
+	infoErrorOkay:   "INFO_OKAY",
+	infoErrorImpl:   "INFO_ERR_IMPL",
+	infoErrorReq:    "INFO_ERR_REQ",
+	infoErrorFmt:    "INFO_ERR_FMT",
+	infoErrorNoData: "INFO_ERR_NODATA",
+	infoErrorAuth:   "INFO_ERR_AUTH",
 }
 
 func isInfoError(err error) bool {
-	_, ok := err.(InfoError)
+	_, ok := err.(infoError)
 	return ok
 }
 
-func (self InfoError) Error() string {
+func (self infoError) Error() string {
 	ret, ok := infoErrorMap[self]
 	if !ok {
 		return fmt.Sprintf("INFO_ERR_UNKNOWN (0x%02x)", uint8(self))
@@ -229,7 +229,7 @@ func (self InfoError) Error() string {
 	return ret
 }
 
-func (self InfoError) MarshalJSON() ([]byte, error) {
+func (self infoError) MarshalJSON() ([]byte, error) {
 	ret, ok := infoErrorMap[self]
 	if !ok {
 		ret = fmt.Sprintf("UNKNOWN (0x%02x)", self)
@@ -237,13 +237,13 @@ func (self InfoError) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ret)
 }
 
-// NTPShort a 32-bit struct defined in figure 3. The upper 16 bits are the seconds, the lower 16 bits are the fractional seconds.
-type NTPShort struct {
+// ntpShort a 32-bit struct defined in figure 3. The upper 16 bits are the seconds, the lower 16 bits are the fractional seconds.
+type ntpShort struct {
 	Seconds  uint16 `json:"seconds"`
 	Fraction uint16 `json:"fraction"`
 }
 
-func (self *NTPShort) Decode(buf []byte) error {
+func (self *ntpShort) Decode(buf []byte) error {
 	if len(buf) < 4 {
 		return ErrBufferTooSmall
 	}
@@ -252,71 +252,71 @@ func (self *NTPShort) Decode(buf []byte) error {
 	return nil
 }
 
-func DecodeNTPShort(buf []byte) (*NTPShort, error) {
+func DecodeNTPShort(buf []byte) (*ntpShort, error) {
 	if len(buf) < 4 {
 		return nil, ErrBufferTooSmall
 	}
-	ret := NTPShort{}
+	ret := ntpShort{}
 	err := ret.Decode(buf)
 	return &ret, err
 }
 
-func (self *NTPShort) Encode() []byte {
+func (self *ntpShort) Encode() []byte {
 	ret := make([]byte, 4)
 	binary.BigEndian.PutUint16(ret[0:2], self.Seconds)
 	binary.BigEndian.PutUint16(ret[2:4], self.Fraction)
 	return ret
 }
 
-func (self *NTPShort) GetNanos() uint32 {
+func (self *ntpShort) GetNanos() uint32 {
 	// frac/2^16 = nanos/10^9
 	// nanos = frac * 10^9 / 2^16
 	return uint32(float32(self.Fraction) / float32(1<<16) * 1e9)
 }
 
-func (self *NTPShort) SetNanos(nanos int) {
+func (self *ntpShort) SetNanos(nanos int) {
 	frac := float32(nanos) / float32(1e9) * 0x10000
 	self.Fraction = uint16(frac)
 }
 
-func (self *NTPShort) GetDuration() time.Duration {
+func (self *ntpShort) GetDuration() time.Duration {
 	return time.Duration(self.Seconds)*time.Second + time.Duration(self.GetNanos())*time.Nanosecond
 }
 
-func (self *NTPShort) SetDuration(d time.Duration) {
+func (self *ntpShort) SetDuration(d time.Duration) {
 	ns := d.Nanoseconds()
 	self.Seconds = uint16(ns / 1e9)
 	self.SetNanos(int(ns % 1e9))
 }
 
-// NTPLong a 64-bit fixed-length number defined in figure 3. The upper 32 bits are the seconds, the lower 32 bits are the fractional seconds.
-type NTPLong struct {
+// ntpLong a 64-bit fixed-length number defined in figure 3. The upper 32 bits are the seconds, the lower 32 bits are the fractional seconds.
+type ntpLong struct {
 	Seconds  uint32 `json:"seconds"`
 	Fraction uint32 `json:"fraction"`
 }
 
-func (self *NTPLong) GetNanos() uint64 {
+func (self *ntpLong) GetNanos() uint64 {
 	return uint64(float64(self.Fraction) / float64(1<<32) * 1e9)
 }
 
-func (self *NTPLong) SetNanos(nanos int) {
+func (self *ntpLong) SetNanos(nanos int) {
 	frac := float64(nanos) / float64(10^9) * (1 << 32)
 	self.Fraction = uint32(frac)
 }
 
-func (self *NTPLong) GetTime() time.Time {
-	return NTPEpoch.Add(time.Duration(self.Seconds)*time.Second + time.Duration(self.GetNanos())*time.Nanosecond)
+func (self *ntpLong) GetTime() time.Time {
+	return ntpEpoch.Add(time.Duration(self.Seconds)*time.Second + time.Duration(self.GetNanos())*time.Nanosecond)
 }
 
-func (self *NTPLong) SetTime(t time.Time) {
-	ntpTime := t.Add(UnixEpoch.Sub(NTPEpoch))
+func (self *ntpLong) SetTime(t time.Time) {
+	ntpTime := t.Add(unixEpoch.Sub(ntpEpoch))
 	s := ntpTime.Unix()
 	ns := ntpTime.UnixNano() - s*1e9
 	self.Seconds = uint32(s)
 	self.SetNanos(int(ns))
 }
 
-func (self *NTPLong) Decode(buf []byte) error {
+func (self *ntpLong) Decode(buf []byte) error {
 	if len(buf) < 8 {
 		return ErrBufferTooSmall
 	}
@@ -325,31 +325,31 @@ func (self *NTPLong) Decode(buf []byte) error {
 	return nil
 }
 
-func DecodeNTPLong(buf []byte) (*NTPLong, error) {
+func decodeNTPLong(buf []byte) (*ntpLong, error) {
 	if len(buf) < 8 {
 		return nil, ErrBufferTooSmall
 	}
-	ret := NTPLong{}
+	ret := ntpLong{}
 	err := ret.Decode(buf)
 	return &ret, err
 }
 
-func (self *NTPLong) Encode() []byte {
+func (self *ntpLong) Encode() []byte {
 	ret := make([]byte, 8)
 	binary.BigEndian.PutUint32(ret[0:4], self.Seconds)
 	binary.BigEndian.PutUint32(ret[4:8], self.Fraction)
 	return ret
 }
 
-type NTPHeader struct {
-	// LeapIndicator is the the top two bits of the first byte
-	LeapIndicator LeapIndicator `json:"leap_indicator"`
+type ntpHeader struct {
+	// leapIndicator is the the top two bits of the first byte
+	LeapIndicator leapIndicator `json:"leap_indicator"`
 
 	// Version is bits 5..3 of the first byte
 	Version uint8 `json:"version"`
 
 	// The mode is the lowest three bits of the first byte
-	Mode AssociationMode `json:"mode"`
+	Mode associationMode `json:"mode"`
 
 	// Stratum is defined in figure 11: values > 16 are reserved
 	Stratum uint8 `json:"stratum"`
@@ -362,25 +362,25 @@ type NTPHeader struct {
 	Precision int8 `json:"precision"`
 
 	// Root Delay: Total round-trip delay to the reference clock
-	RootDelay NTPShort `json:"root_delay"`
+	RootDelay ntpShort `json:"root_delay"`
 
 	// Root Dispersion: Total dispersion to the reference clock
-	RootDispersion NTPShort `json:"root_dispersion"`
+	RootDispersion ntpShort `json:"root_dispersion"`
 
 	// Reference ID (refid): 32-bit code identifying the particular server or reference clock.
 	ReferenceID [4]byte `json:"reference_id,omitempty"`
 
 	// Reference Timestamp: Time when the system clock was last set or corrected
-	ReferenceTimestamp NTPLong `json:"reference_timestamp,omitempty"`
+	ReferenceTimestamp ntpLong `json:"reference_timestamp,omitempty"`
 
 	// Origin Timestamp (org): Time at the client when the request departed for the server
-	OriginTimestamp NTPLong `json:"origin_timestamp,omitempty"`
+	OriginTimestamp ntpLong `json:"origin_timestamp,omitempty"`
 
 	// Receive Timestamp (rec): Time at the server when the request arrived from the client
-	ReceiveTimestamp NTPLong `json:"receive_timestamp,omitempty"`
+	ReceiveTimestamp ntpLong `json:"receive_timestamp,omitempty"`
 
 	// Transmit Timestamp (xmt): Time at the server when the response left for the client
-	TransmitTimestamp NTPLong `json:"transmit_timestamp,omitempty"`
+	TransmitTimestamp ntpLong `json:"transmit_timestamp,omitempty"`
 }
 
 var ErrInvalidLeapIndicator = fmt.Errorf("The leap indicator was not valid")
@@ -391,14 +391,14 @@ var ErrInvalidReferenceID = fmt.Errorf("The reference ID contained non-ASCII cha
 var ErrBufferTooSmall = fmt.Errorf("The buffer is too small")
 var ErrInvalidHeader = fmt.Errorf("Invalid header data")
 
-func DecodeNTPHeader(buf []byte) (*NTPHeader, error) {
+func decodeNTPHeader(buf []byte) (*ntpHeader, error) {
 	if len(buf) < 48 {
 		return nil, ErrBufferTooSmall
 	}
-	ret := NTPHeader{}
-	ret.LeapIndicator = LeapIndicator(buf[0] >> 6)
+	ret := ntpHeader{}
+	ret.LeapIndicator = leapIndicator(buf[0] >> 6)
 	ret.Version = uint8(buf[0] >> 3 & 0x07)
-	ret.Mode = AssociationMode(buf[0] & 0x07)
+	ret.Mode = associationMode(buf[0] & 0x07)
 	ret.Stratum = uint8(buf[1])
 	ret.Poll = int8(buf[2])
 	ret.Precision = int8(buf[3])
@@ -425,16 +425,16 @@ func DecodeNTPHeader(buf []byte) (*NTPHeader, error) {
 	return &ret, nil
 }
 
-func ReadNTPHeader(conn net.Conn) (*NTPHeader, error) {
+func readNTPHeader(conn net.Conn) (*ntpHeader, error) {
 	buf := make([]byte, 48)
 	_, err := io.ReadFull(conn, buf)
 	if err != nil {
 		return nil, err
 	}
-	return DecodeNTPHeader(buf)
+	return decodeNTPHeader(buf)
 }
 
-func (self *NTPHeader) Encode() ([]byte, error) {
+func (self *ntpHeader) Encode() ([]byte, error) {
 	ret := make([]byte, 48)
 	if (self.Version >> 3) != 0 {
 		return nil, ErrInvalidVersion
@@ -460,7 +460,7 @@ func (self *NTPHeader) Encode() ([]byte, error) {
 	return ret[:], nil
 }
 
-func (self *NTPHeader) ValidateSyntax() error {
+func (self *ntpHeader) ValidateSyntax() error {
 	if self.Version < 2 || self.Version > 4 {
 		return ErrInvalidVersion
 	}
@@ -483,22 +483,22 @@ func (self *NTPHeader) ValidateSyntax() error {
 	return nil
 }
 
-type PrivatePacketHeader struct {
+type privatePacketHeader struct {
 	IsResponse           bool        `json:"is_response"`
 	HasMore              bool        `json:"has_more"`
 	Version              uint8       `json:"version"`
 	Mode                 uint8       `json:"mode"`
 	IsAuthenticated      bool        `json:"is_authenticated"`
 	SequenceNumber       uint8       `json:"sequence_number"`
-	ImplementationNumber ImplNumber  `json:"implementation_number"`
-	RequestCode          RequestCode `json:"request_code"`
-	Error                InfoError   `json:"error"`
+	ImplementationNumber implNumber  `json:"implementation_number"`
+	RequestCode          requestCode `json:"request_code"`
+	Error                infoError   `json:"error"`
 	NumRecords           uint16      `json:"num_records"`
 	RecordSize           uint16      `json:"record_size"`
 	MBZ                  uint8       `json:"mbz"`
 }
 
-func (self *PrivatePacketHeader) Encode() ([]byte, error) {
+func (self *privatePacketHeader) Encode() ([]byte, error) {
 	ret := [8]byte{}
 	if (self.Mode>>3) != 0 || (self.Version>>3) != 0 {
 		return nil, ErrInvalidHeader
@@ -532,8 +532,8 @@ func (self *PrivatePacketHeader) Encode() ([]byte, error) {
 	return ret[:], nil
 }
 
-func DecodePrivateModeHeader(buf []byte) (*PrivatePacketHeader, error) {
-	ret := PrivatePacketHeader{}
+func decodePrivateModeHeader(buf []byte) (*privatePacketHeader, error) {
+	ret := privatePacketHeader{}
 	if len(buf) < 8 {
 		return nil, ErrInvalidHeader
 	}
@@ -543,17 +543,17 @@ func DecodePrivateModeHeader(buf []byte) (*PrivatePacketHeader, error) {
 	ret.IsResponse = (buf[0]>>7)&1 == 1
 	ret.SequenceNumber = buf[1] & 0x7F
 	ret.IsAuthenticated = (buf[1]>>7)&1 == 1
-	ret.ImplementationNumber = ImplNumber(buf[2])
-	ret.RequestCode = RequestCode(buf[3])
-	ret.Error = InfoError(buf[4] >> 4)
+	ret.ImplementationNumber = implNumber(buf[2])
+	ret.RequestCode = requestCode(buf[3])
+	ret.Error = infoError(buf[4] >> 4)
 	ret.NumRecords = uint16(buf[4]&0x0F)<<4 | uint16(buf[5])
 	ret.MBZ = buf[6] >> 4
 	ret.RecordSize = uint16(buf[6]&0x0f)<<4 | uint16(buf[7])
 	return &ret, nil
 }
 
-func NewMode7Packet(impl ImplNumber, req RequestCode) *PrivatePacketHeader {
-	return &PrivatePacketHeader{
+func newMode7Packet(impl implNumber, req requestCode) *privatePacketHeader {
+	return &privatePacketHeader{
 		Version:              2,
 		Mode:                 7,
 		SequenceNumber:       0x00,
@@ -567,6 +567,8 @@ type NTPResults struct {
 	Version         *uint8     `json:"version,omitempty"`
 	Time            *time.Time `json:"time,omitempty"`
 	MonListResponse []byte     `json:"monlist_response,omitempty"`
+	TimeResponse	*ntpHeader `json:"time_response,omitempty", zgrab:"debug"`
+	MonListHeader *privatePacketHeader `json:"monlist_header,omitempty", zgrab:"debug"`
 }
 
 type NTPConfig struct {
@@ -576,7 +578,8 @@ type NTPConfig struct {
 	MonList     bool   `long:"monlist" description:"Perform a REQ_MON_GETLIST request"`
 	RequestCode string `long:"request-code" description:"Specify a request code for MonList other than REQ_MON_GETLIST" default:"REQ_MON_GETLIST"`
 	Version     uint8  `long:"version" description:"The version number to pass to the server." default:"3"`
-	SkipGetTime bool   `long:"skip-get-time" description:"If set, don't request the server time"`
+	LeapIndicator uint8  `long:"leap-indicator" description:"The LI value to pass to the server. Default 3 (unknown)"`
+	SkipGetTime   bool   `long:"skip-get-time" description:"If set, don't request the server time"`
 }
 
 type NTPModule struct {
@@ -630,98 +633,104 @@ func (self *NTPScanner) GetPort() uint {
 
 var ErrInvalidResponse = fmt.Errorf("Invalid response")
 
-func (self *NTPScanner) SendAndReceive(impl ImplNumber, req RequestCode, sock net.Conn) ([]byte, error) {
-	outPacket, err := NewMode7Packet(impl, req).Encode()
+func (self *NTPScanner) SendAndReceive(impl implNumber, req requestCode, sock net.Conn) (*privatePacketHeader, []byte, error) {
+	outPacket, err := newMode7Packet(impl, req).Encode()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	outPacket = append(outPacket, make([]byte, 40)...)
 	n, err := sock.Write(outPacket)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if n != len(outPacket) {
-		return nil, err
+		return nil, nil, err
 	}
 	buf := make([]byte, 512)
 	for i := 1; i < 20; i++ {
 		sock.SetReadDeadline(time.Now().Add(time.Second * 3))
 		n, err = sock.Read(buf)
 		if err != nil || n == 0 {
-			return nil, err
+			return nil, nil, err
 		}
 		if n < 8 {
 			log.Debugf("Returned data too small (%d bytes)", n)
-			return nil, err
+			return nil, nil, err
 		}
 		ret := buf[0:n]
-		inPacket, err := DecodePrivateModeHeader(ret)
+		inPacket, err := decodePrivateModeHeader(ret)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		// Validation logic taken from getresponse@ntpdc/ntpdc.c
 		// check if version is in bounds
-		if inPacket.Mode != Private {
-			log.Debugf("Received non Private-mode packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
+		if inPacket.Mode != private {
+			log.Debugf("Received non private-mode packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
 			// TODO: continue?
-			return nil, err
+			return inPacket, nil, err
 		}
 		if !inPacket.IsResponse {
 			log.Debugf("Received non response packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
 			// TODO: continue?
-			return nil, err
+			return inPacket, nil, err
 		}
 		if inPacket.MBZ != 0 {
 			log.Debugf("Received nonzero MBZ in response packet (mbz=0x%02x), packet=%v", inPacket.MBZ, inPacket)
 			// TODO: continue?
-			return nil, err
+			return inPacket, nil, err
 		}
 		if inPacket.ImplementationNumber != impl {
 			log.Debugf("Received mismatched implementation number in response packe (expected 0x%02x, got 0x%02x), packet=%v", impl, inPacket.ImplementationNumber, inPacket)
 			// TODO: continue?
-			return nil, err
+			return inPacket, nil, err
 		}
-		if inPacket.Error != InfoErrorOkay {
+		if inPacket.Error != infoErrorOkay {
 			log.Debugf("Got error in non-final response packet (error=0x%02x), packet=%v", inPacket.Error, inPacket)
-			return nil, inPacket.Error
+			return inPacket, nil, inPacket.Error
 		}
 		body := ret[8:]
 		if len(body) != int(inPacket.RecordSize*inPacket.NumRecords) {
 			log.Debugf("Body length (%d) does not match record size (%d) * num records (%d)", len(body), inPacket.RecordSize, inPacket.NumRecords)
-			return nil, ErrInvalidResponse
+			return inPacket, nil, ErrInvalidResponse
 		}
-		return body, nil
+		return inPacket, body, nil
 	}
 	log.Debugf("Too many packets")
-	return nil, ErrInvalidResponse
+	return nil, nil, ErrInvalidResponse
 }
 
-func (self *NTPScanner) MonList(sock net.Conn) (zgrab2.ScanStatus, []byte, error) {
+func (self *NTPScanner) MonList(sock net.Conn, result *NTPResults) (zgrab2.ScanStatus, error) {
 	reqCode, err := getRequestCode(self.config.RequestCode)
 	if err != nil {
 		panic(err)
 	}
-	ret, err := self.SendAndReceive(IMPL_XNTPD, reqCode, sock)
+	header, ret, err := self.SendAndReceive(IMPL_XNTPD, reqCode, sock)
+	if ret != nil {
+		result.MonListResponse = ret
+	}
+	if header != nil {
+		result.MonListHeader = header
+	}
 	if err != nil {
 		switch {
 		case err == ErrInvalidResponse:
 			// Response packet had invalid syntax or semantics
-			return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
+			return zgrab2.SCAN_PROTOCOL_ERROR, err
 		case isInfoError(err):
-			return zgrab2.SCAN_APPLICATION_ERROR, nil, err
+			return zgrab2.SCAN_APPLICATION_ERROR, err
 		default:
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), err
 		}
 	}
-	return zgrab2.SCAN_SUCCESS, ret, err
+	return zgrab2.SCAN_SUCCESS, err
 }
 
-func (self *NTPScanner) GetTime(sock net.Conn) (*NTPHeader, error) {
-	outPacket := NTPHeader{}
-	outPacket.Mode = Client
+func (self *NTPScanner) GetTime(sock net.Conn) (*ntpHeader, error) {
+	outPacket := ntpHeader{}
+	outPacket.Mode = client
 	outPacket.Version = self.config.Version
 	// TODO: Configurable
-	outPacket.LeapIndicator = Unknown
+	outPacket.LeapIndicator = unknown
 	outPacket.Stratum = 0
 	encoded, err := outPacket.Encode()
 	if err != nil {
@@ -732,7 +741,7 @@ func (self *NTPScanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 		return nil, err
 	}
 
-	inPacket, err := ReadNTPHeader(sock)
+	inPacket, err := readNTPHeader(sock)
 	if err != nil {
 		return nil, err
 	}
@@ -754,6 +763,7 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 		inPacket, err := self.GetTime(sock)
 		if inPacket != nil {
 			temp := inPacket.ReceiveTimestamp.GetTime()
+			result.TimeResponse = inPacket
 			result.Time = &temp
 			result.Version = &inPacket.Version
 		}
@@ -762,10 +772,7 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 		}
 	}
 	if self.config.MonList {
-		status, ret, err := self.MonList(sock)
-		if ret != nil {
-			result.MonListResponse = ret
-		}
+		status, err := self.MonList(sock, result)
 		if err != nil {
 			return status, result, err
 		}
