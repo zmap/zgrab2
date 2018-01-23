@@ -564,8 +564,9 @@ func NewMode7Packet(impl ImplNumber, req RequestCode) *PrivatePacketHeader {
 }
 
 type NTPResults struct {
-	Version *uint8     `json:"version,omitempty"`
-	Time    *time.Time `json:"time,omitempty"`
+	Version         *uint8     `json:"version,omitempty"`
+	Time            *time.Time `json:"time,omitempty"`
+	MonListResponse []byte     `json:"monlist_response,omitempty"`
 }
 
 type NTPConfig struct {
@@ -574,6 +575,8 @@ type NTPConfig struct {
 	LocalAddr   string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
 	MonList     bool   `long:"monlist" description:"Perform a REQ_MON_GETLIST request"`
 	RequestCode string `long:"request-code" description:"Specify a request code for MonList other than REQ_MON_GETLIST" default:"REQ_MON_GETLIST"`
+	Version     uint8  `long:"version" description:"The version number to pass to the server." default:"3"`
+	SkipGetTime bool   `long:"skip-get-time" description:"If set, don't request the server time"`
 }
 
 type NTPModule struct {
@@ -693,7 +696,7 @@ func (self *NTPScanner) SendAndReceive(impl ImplNumber, req RequestCode, sock ne
 	return nil, ErrInvalidResponse
 }
 
-func (self *NTPScanner) MonList(sock net.Conn) (zgrab2.ScanStatus, interface{}, error) {
+func (self *NTPScanner) MonList(sock net.Conn) (zgrab2.ScanStatus, []byte, error) {
 	reqCode, err := getRequestCode(self.config.RequestCode)
 	if err != nil {
 		panic(err)
@@ -710,7 +713,34 @@ func (self *NTPScanner) MonList(sock net.Conn) (zgrab2.ScanStatus, interface{}, 
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
 	}
-	return zgrab2.SCAN_SUCCESS, &ret, err
+	return zgrab2.SCAN_SUCCESS, ret, err
+}
+
+func (self *NTPScanner) GetTime(sock net.Conn) (*NTPHeader, error) {
+	outPacket := NTPHeader{}
+	outPacket.Mode = Client
+	outPacket.Version = self.config.Version
+	// TODO: Configurable
+	outPacket.LeapIndicator = Unknown
+	outPacket.Stratum = 0
+	encoded, err := outPacket.Encode()
+	if err != nil {
+		return nil, err
+	}
+	_, err = sock.Write(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	inPacket, err := ReadNTPHeader(sock)
+	if err != nil {
+		return nil, err
+	}
+	err = inPacket.ValidateSyntax()
+	if err != nil {
+		return inPacket, err
+	}
+	return inPacket, nil
 }
 
 func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
@@ -736,37 +766,27 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	//sock = tcpwrap.Wrap(sock)
-	if self.config.MonList {
-		return self.MonList(sock)
-	}
-	outPacket := NTPHeader{}
-	outPacket.Mode = Client
-	outPacket.Version = 3
-	outPacket.LeapIndicator = Unknown
-	outPacket.Stratum = 0
-	encoded, err := outPacket.Encode()
-	if err != nil {
-		return zgrab2.SCAN_UNKNOWN_ERROR, nil, err
-	}
-	_, err = sock.Write(encoded)
-	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
-	}
-
-	inPacket, err := ReadNTPHeader(sock)
-	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
-	}
-	err = inPacket.ValidateSyntax()
-	if err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
-	}
-
 	result := &NTPResults{}
-	temp := inPacket.ReceiveTimestamp.GetTime()
-	result.Time = &temp
-	vTemp := inPacket.Version
-	result.Version = &vTemp
+	if !self.config.SkipGetTime {
+		inPacket, err := self.GetTime(sock)
+		if inPacket != nil {
+			temp := inPacket.ReceiveTimestamp.GetTime()
+			result.Time = &temp
+			result.Version = &inPacket.Version
+		}
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+	}
+	if self.config.MonList {
+		status, ret, err := self.MonList(sock)
+		if ret != nil {
+			result.MonListResponse = ret
+		}
+		if err != nil {
+			return status, result, err
+		}
+	}
 
 	return zgrab2.SCAN_SUCCESS, result, nil
 }
