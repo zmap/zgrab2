@@ -26,48 +26,38 @@ type ScanTarget struct {
 	Domain string
 }
 
-// scanTargetConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
-type scanTargetConnection struct {
-	net.Conn
-	Timeout time.Duration
-}
-
-func (c *scanTargetConnection) Read(b []byte) (n int, err error) {
-	if c.Timeout > 0 {
-		if err = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout)); err != nil {
-			return 0, err
-		}
-	}
-	return c.Conn.Read(b)
-}
-
-func (c *scanTargetConnection) Write(b []byte) (n int, err error) {
-	if c.Timeout > 0 {
-		if err = c.Conn.SetWriteDeadline(time.Now().Add(c.Timeout)); err != nil {
-			return 0, err
-		}
-	}
-	return c.Conn.Write(b)
-}
-
 // ScanTarget.Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
 	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
-	var conn net.Conn
+	return DialTimeoutConnection("tcp", target, timeout)
+}
+
+// ScanTarget.OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
+// Note that the UDP "connection" does not have an associated timeout.
+func (t *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
+	timeout := time.Second * time.Duration(flags.Timeout)
+	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
+	var local *net.UDPAddr = nil
 	var err error
-	if timeout > 0 {
-		conn, err = net.DialTimeout("tcp", target, timeout)
-	} else {
-		conn, err = net.Dial("tcp", target)
-	}
-	if err != nil {
-		if conn != nil {
-			conn.Close()
+	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
+		local = &net.UDPAddr{}
+		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
+			local.IP = net.ParseIP(udp.LocalAddress)
 		}
+		if udp.LocalPort != 0 {
+			local.Port = int(udp.LocalPort)
+		}
+	}
+	remote, err := net.ResolveUDPAddr("udp", target)
+	if err != nil {
 		return nil, err
 	}
-	return &scanTargetConnection{
+	conn, err := net.DialUDP("udp", local, remote)
+	if err != nil {
+		return nil, err
+	}
+	return &TimeoutConnection{
 		Conn:    conn,
 		Timeout: timeout,
 	}, nil
