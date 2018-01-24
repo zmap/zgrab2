@@ -250,7 +250,7 @@ parsed_certificate = SubRecord({
             "excluded_names": ListOf(String()),
             "excluded_email_addresses": ListOf(String()),
             "excluded_ip_addresses": ListOf(String()),
-            "excluded_directory_names": ListOf(distinguished_name)
+            "excluded_directory_names": ListOf(distinguished_name),
             "excluded_edi_party_names": ListOf(edi_party_name),
             "excluded_registered_ids": ListOf(String()),
         }),
