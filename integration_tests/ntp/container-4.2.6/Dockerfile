@@ -16,4 +16,4 @@ RUN ./configure
 RUN make
 
 # Don't require authentication, don't fork, debug level 10
-ENTRYPOINT [ "/opt/ntp-4.2.6p5/ntpd/ntpd", "-A" "-n", "-D", 10 ]
+ENTRYPOINT [ "/opt/ntp-4.2.6p5/ntpd/ntpd", "-A", "-n", "-D", "10" ]
