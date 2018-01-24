@@ -57,10 +57,10 @@ function test_4_2_6() {
     CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3 > "$OUTPUT_ROOT/4.2.6_normal.json"
     CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3 --monlist > "$OUTPUT_ROOT/4.2.6_monlist.json"
 
-    success_codes="REQ_MON_GETLIST_1 REQ_MON_GETLIST"
+    request_codes="REQ_MON_GETLIST_1 REQ_MON_GETLIST"
     for code in $request_codes; do
         CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3 --monlist --request-code $code > "$OUTPUT_ROOT/4.2.6_$code.json"
-        CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3 --monlist --request-code $code --skip-get-time > "$OUTPUT_ROOT/4.2.6_$code_solo.json"
+        CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3 --monlist --request-code $code --skip-get-time > "$OUTPUT_ROOT/4.2.6_${code}_solo.json"
     done
 
     # Check that when the server returns with a valid error code that we return status = application-error and we forward the INFO_ERR code from the server
@@ -72,3 +72,11 @@ function test_4_2_6() {
 test_openntp
 
 test_4_2_6
+
+for version in $versions; do
+    CONTAINER_NAME="zgrab_ntp_$version"
+
+    echo "ntp/test: BEGIN docker logs from $CONTAINER_NAME [{("
+    docker logs --tail all $CONTAINER_NAME
+    echo ")}] END docker logs from $CONTAINER_NAME"
+done

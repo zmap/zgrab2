@@ -4,9 +4,6 @@ FROM zgrab2_service_base:latest
 
 RUN apt-get install -y libssl-dev gcc g++ make binutils autoconf wget tar
 
-# This config file enables debugging and monitoring.
-COPY ntp.conf /etc
-
 WORKDIR /opt
 RUN wget https://www.eecis.udel.edu/~ntp/ntp_spool/ntp4/ntp-4.2/ntp-4.2.6p5.tar.gz
 RUN tar -xzf ntp-4.2.6p5.tar.gz
