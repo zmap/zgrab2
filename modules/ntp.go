@@ -535,18 +535,18 @@ func (self *ntpHeader) ValidateSyntax() error {
 
 // privatePacketHeader represents a header for a mode-7 packet, roughly corresponding to struct resp_pkt in ntp_request.h
 type privatePacketHeader struct {
-	IsResponse           bool        `json:"is_response"`
-	HasMore              bool        `json:"has_more"`
-	Version              uint8       `json:"version"`
-	Mode                 uint8       `json:"mode"`
-	IsAuthenticated      bool        `json:"is_authenticated"`
-	SequenceNumber       uint8       `json:"sequence_number"`
-	ImplementationNumber implNumber  `json:"implementation_number"`
-	RequestCode          requestCode `json:"request_code"`
-	Error                infoError   `json:"error"`
-	NumItems             uint16      `json:"num_records"`
-	MBZ                  uint8       `json:"mbz"`
-	ItemSize             uint16      `json:"record_size"`
+	IsResponse           bool            `json:"is_response"`
+	HasMore              bool            `json:"has_more"`
+	Version              uint8           `json:"version"`
+	Mode                 associationMode `json:"mode"`
+	IsAuthenticated      bool            `json:"is_authenticated"`
+	SequenceNumber       uint8           `json:"sequence_number"`
+	ImplementationNumber implNumber      `json:"implementation_number"`
+	RequestCode          requestCode     `json:"request_code"`
+	Error                infoError       `json:"error"`
+	NumItems             uint16          `json:"num_items"`
+	MBZ                  uint8           `json:"mbz"`
+	ItemSize             uint16          `json:"item_size"`
 }
 
 // privatePacketHeader.Encode() encodes the packet header as a struct resp_pkt
@@ -555,7 +555,7 @@ func (self *privatePacketHeader) Encode() ([]byte, error) {
 	if (self.Mode>>3) != 0 || (self.Version>>3) != 0 {
 		return nil, errInvalidHeader
 	}
-	ret[0] = self.Mode | (self.Version << 3)
+	ret[0] = uint8(self.Mode) | (self.Version << 3)
 	if self.IsResponse {
 		ret[0] = ret[0] | 0x80
 	}
@@ -590,7 +590,7 @@ func decodePrivatePacketHeader(buf []byte) (*privatePacketHeader, error) {
 	if len(buf) < 8 {
 		return nil, errInvalidHeader
 	}
-	ret.Mode = buf[0] & 0x07
+	ret.Mode = associationMode(buf[0] & 0x07)
 	ret.Version = buf[0] >> 3 & 0x07
 	ret.HasMore = (buf[0]>>6)&1 == 1
 	ret.IsResponse = (buf[0]>>7)&1 == 1
@@ -782,12 +782,12 @@ func (self *NTPScanner) MonList(sock net.Conn, result *NTPResults) (zgrab2.ScanS
 	return zgrab2.SCAN_SUCCESS, err
 }
 
+// NTPScanner.GetTime() sends a "client" packet to the server and reads / returns the response
 func (self *NTPScanner) GetTime(sock net.Conn) (*ntpHeader, error) {
 	outPacket := ntpHeader{}
 	outPacket.Mode = client
 	outPacket.Version = self.config.Version
-	// TODO: Configurable
-	outPacket.LeapIndicator = unknown
+	outPacket.LeapIndicator = leapIndicator(self.config.LeapIndicator)
 	outPacket.Stratum = 0
 	encoded, err := outPacket.Encode()
 	if err != nil {
@@ -817,15 +817,14 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	result := &NTPResults{}
 	if !self.config.SkipGetTime {
 		inPacket, err := self.GetTime(sock)
-		if inPacket != nil {
-			temp := inPacket.ReceiveTimestamp.GetTime()
-			result.TimeResponse = inPacket
-			result.Time = &temp
-			result.Version = &inPacket.Version
-		}
 		if err != nil {
+			// even if an inPacket is returned, it failed the syntax check, so indicate a failed detection via result == nil.
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
+		temp := inPacket.ReceiveTimestamp.GetTime()
+		result.TimeResponse = inPacket
+		result.Time = &temp
+		result.Version = &inPacket.Version
 	}
 	if self.config.MonList {
 		status, err := self.MonList(sock, result)
@@ -833,6 +832,7 @@ func (self *NTPScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 			if self.config.SkipGetTime {
 				// TODO: Currently, returning a non-nil result means that the service was positively detected.
 				// It may be safer to add an explicit flag for this (status == success is not sufficient, since e.g. you can get a timeout after positively identifying the service)
+				// This also means that partial TLS handshakes cannot be returned
 				return status, nil, err
 			} else {
 				return status, result, err
