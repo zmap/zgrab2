@@ -55,6 +55,12 @@ type BaseFlags struct {
 	Timeout uint   `short:"t" long:"timeout" description:"Set connection timeout in seconds"`
 }
 
+// UDPFlags contains the common options used for all UDP scans
+type UDPFlags struct {
+	LocalPort    uint   `long:"local-port" description:"Set an explicit local port for UDP traffic"`
+	LocalAddress string `long:"local-addr" description:"Set an explicit local address for UDP traffic"`
+}
+
 // GetName returns the name of the respective scanner
 func (b *BaseFlags) GetName() string {
 	return b.Name
