@@ -7,14 +7,14 @@ import zschema.registry
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
 
-services = ( "chargen", "echo", "daytime", "time" )
+services = ("chargen", "echo", "daytime", "time")
 
 inetd_scan_response = SubRecord({
     "result": SubRecord({
         "output_size": Unsigned32BitInteger(),
         "output_data": String(),
     })
-}, extends = zgrab2.base_scan_response)
+}, extends=zgrab2.base_scan_response)
 
 zschema.registry.register_schema("zgrab2-inetd", inetd_scan_response)
 
