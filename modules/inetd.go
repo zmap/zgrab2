@@ -1,13 +1,13 @@
 package modules
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"bytes"
 	"fmt"
+	"net"
 	"strings"
 	"time"
-	"net"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -15,15 +15,15 @@ import (
 
 // Module names
 const (
-	svcEcho string = "echo"
-	svcDaytime = "daytime"
-	svcChargen = "chargen"
-	svcTime = "time"
+	svcEcho    string = "echo"
+	svcDaytime        = "daytime"
+	svcChargen        = "chargen"
+	svcTime           = "time"
 )
 
 // Mapping of default ports to the corresponding service id
 var portToService map[uint]string = map[uint]string{
-	7: svcEcho,
+	7:  svcEcho,
 	13: svcDaytime,
 	19: svcChargen,
 	37: svcTime,
@@ -56,8 +56,8 @@ type InetdResults struct {
 type InetdFlags struct {
 	zgrab2.BaseFlags
 	zgrab2.UDPFlags
-	UDP bool `long:"udp" description:"Use the UDP versions of the protocols"`
-	Verbose   bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	UDP     bool `long:"udp" description:"Use the UDP versions of the protocols"`
+	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // zgrab2 module implementation
@@ -73,8 +73,8 @@ type InetdScanner struct {
 }
 
 type InetdScan struct {
-	scanner *InetdScanner
-	totalSent []byte
+	scanner       *InetdScanner
+	totalSent     []byte
 	totalReceived []byte
 }
 
@@ -138,12 +138,12 @@ type checker func(self *InetdScan, outPacket, inPacket []byte) bool
 
 // Checker for the Daytime protocol (RFC867)
 func (self *InetdScan) looksLikeDaytime(outbuf, buf []byte) bool {
-	// From RFC867: 
+	// From RFC867:
 	//	- There is no specific syntax for the daytime.
 	//  - It is recommended that it be limited to the ASCII printing characters, space, carriage return, and line feed.
 	//  - The daytime should be just one line.
 	if len(buf) < 8 {
-		// arbitrary cutoff; but anything shorter than HHMMSS is definitely not a daytime. 
+		// arbitrary cutoff; but anything shorter than HHMMSS is definitely not a daytime.
 		return false
 	}
 	if hasNonASCII(buf, "\r\n") {
@@ -157,7 +157,7 @@ func (self *InetdScan) looksLikeEcho(outbuf, inbuf []byte) bool {
 	if len(outbuf) != len(inbuf) {
 		return false
 	}
-	return bytes.Compare(outbuf, inbuf) == 0 
+	return bytes.Compare(outbuf, inbuf) == 0
 }
 
 // Checker for the Time protocol (RFC868)
@@ -186,7 +186,7 @@ func (self *InetdScan) looksLikeChargen(outPacket, inPacket []byte) bool {
 
 		   The data may be anything.  It is recommended that a recognizable
 		   pattern be used in tha data.
-		
+
 		      One popular pattern is 72 chraracter lines of the ASCII printing
 		      characters.  There are 95 printing characters in the ASCII
 		      character set.  Sort the characters into an ordered sequence and
@@ -196,13 +196,13 @@ func (self *InetdScan) looksLikeChargen(outPacket, inPacket []byte) bool {
 		      On the next line (line 1) put the characters numbered 1 through
 		      72.  And so on.  On line N, put characters (0+N mod 95) through
 		      (71+N mod 95).  End each line with carriage return and line feed.
-	 */
+	*/
 	// Obviously "the data may be anything" means that we can have false negatives.
 	// So, we just check something similar to the "popular pattern".
 
 	if hasNonASCII(inPacket, "\r\n\t") {
 		return false
-	}	
+	}
 	str := string(inPacket)
 	if !self.scanner.config.UDP {
 		// For TCP, use the entire output
@@ -249,11 +249,11 @@ func (self *InetdScan) looksLikeChargen(outPacket, inPacket []byte) bool {
 }
 
 // Map of service name to the checker for that service
-var serviceMap map[string]checker = map[string]checker {
+var serviceMap map[string]checker = map[string]checker{
 	svcChargen: (*InetdScan).looksLikeChargen,
-	svcTime: (*InetdScan).looksLikeTime,
+	svcTime:    (*InetdScan).looksLikeTime,
 	svcDaytime: (*InetdScan).looksLikeDaytime,
-	svcEcho: (*InetdScan).looksLikeEcho,
+	svcEcho:    (*InetdScan).looksLikeEcho,
 }
 
 // InetdScanner.open() connects to the target using the configured flags (tcp, or udp if --udp is set)
