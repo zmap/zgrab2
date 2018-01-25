@@ -2,7 +2,6 @@ package modules
 
 import (
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -17,8 +16,8 @@ type ChargenResults struct {
 
 type ChargenFlags struct {
 	zgrab2.BaseFlags
+	zgrab2.UDPFlags
 	Verbose   bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	LocalAddr string `long:"local-addr" description:"Set an explicit local address, in the format ip:port (e.g. 0.0.0.0:55555)"`
 }
 
 type ChargenModule struct {
@@ -90,7 +89,7 @@ func looksLikeChargen(buf []byte) bool {
 		}
 	}
 	// Characters increment throughout the line, mod some value
-	for _, line := range lines[1:] {
+	for _, line := range lines[0:] {
 		jumps := 0
 		line = strings.Trim(line, "\r\n")
 		for i := 1; i < len(line); i++ {
@@ -111,23 +110,7 @@ func looksLikeChargen(buf []byte) bool {
 }
 
 func (self *ChargenScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	target := fmt.Sprintf("%s:%d", t.IP.String(), self.config.Port)
-	var err error
-	var local *net.UDPAddr = nil
-	if self.config.LocalAddr != "" {
-		local, err = net.ResolveUDPAddr("udp", self.config.LocalAddr)
-		if err != nil {
-			// panic?
-			return zgrab2.SCAN_UNKNOWN_ERROR, nil, err
-		}
-	}
-	remote, err := net.ResolveUDPAddr("udp", target)
-	if err != nil {
-		// panic?
-		return zgrab2.SCAN_UNKNOWN_ERROR, nil, err
-	}
-	// TODO: timeout
-	sock, err := net.DialUDP("udp", local, remote)
+	sock, err := t.OpenUDP(&self.config.BaseFlags, &self.config.UDPFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
