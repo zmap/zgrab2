@@ -15,5 +15,4 @@ jp.exe
 schemas/*.pyc
 
 # Marker files for make
-.integration-test-setup
 docker-runner/*.id
