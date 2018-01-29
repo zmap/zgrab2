@@ -9,7 +9,7 @@ mkdir -p $ZGRAB_OUTPUT/#{MODULE_NAME}
 
 CONTAINER_NAME=zgrab_#{MODULE_NAME}
 
-OUTPUT_FILE=$ZGRAB_OUTPUT/#{MODULE_NAME}
+OUTPUT_FILE=$ZGRAB_OUTPUT/#{MODULE_NAME}/#{MODULE_NAME}.json
 
 echo "#{MODULE_NAME}/test: Tests runner for #{MODULE_NAME}"
 # TODO FIXME: Add any necessary flags or additional tests
