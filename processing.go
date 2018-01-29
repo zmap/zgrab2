@@ -26,6 +26,18 @@ type ScanTarget struct {
 	Domain string
 }
 
+func (self ScanTarget) String() string {
+	if self.IP == nil && self.Domain == "" {
+		return "<empty target>"
+	} else if self.IP != nil && self.Domain != "" {
+		return self.Domain + "(" + self.IP.String() + ")"
+	} else if self.IP != nil {
+		return self.IP.String()
+	} else {
+		return self.Domain
+	}
+}
+
 // scanTargetConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
 type scanTargetConnection struct {
 	net.Conn
@@ -78,6 +90,13 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]ScanResponse)
 
 	for _, scannerName := range orderedScanners {
+		defer func(name string) {
+			if e := recover(); e != nil {
+				log.Errorf("Panic on scanner %s when scanning target %s", scannerName, input.String())
+				// Bubble out original error (with original stack) in lieu of explicitly logging the stack / error
+				panic(e)
+			}
+		}(scannerName)
 		scanner := scanners[scannerName]
 		name, res := RunScanner(*scanner, m, input)
 		moduleResult[name] = res
