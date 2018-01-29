@@ -6,21 +6,20 @@ versions="5.5 5.6 5.7 8.0"
 function launch() {
   VERSION=$1
   CONTAINER_NAME="zgrab_mysql-$VERSION"
-  if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
-    echo "mysql/setup: Container $CONTAINER_NAME already running -- stopping..."
-    docker stop $CONTAINER_NAME
-    echo "...stopped."
+  if docker ps --filter "name=$CONTAINER_NAME" | grep -q $CONTAINER_NAME; then
+    echo "mysql/setup: Container $CONTAINER_NAME already running -- skipping launch..."
+    return
   fi
-  docker run -itd --rm --name zgrab_mysql-$VERSION -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e MYSQL_LOG_CONSOLE=true mysql:$VERSION
+  docker run -td --rm --name $CONTAINER_NAME -e MYSQL_ALLOW_EMPTY_PASSWORD=true -e MYSQL_LOG_CONSOLE=true mysql:$VERSION
 }
 
 function waitFor() {
   VERSION=$1
   CONTAINER_NAME=zgrab_mysql-$VERSION
-  echo "mysql/setup: Waiting for mysqld process to come up on $CONTAINER_NAME..."
-  while ! (docker exec $CONTAINER_NAME ps -Af | grep mysqld > /dev/null); do
-      echo -n "*"
-      sleep 1
+  echo "mysql/setup: Waiting for $CONTAINER_NAME to become ready..."
+  while ! (docker logs --tail all $CONTAINER_NAME | grep -q "ready for connections."); do
+    echo -n "."
+    sleep 1
   done
   echo "...ok."
 }
