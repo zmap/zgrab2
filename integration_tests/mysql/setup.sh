@@ -21,7 +21,7 @@ function waitFor() {
     echo -n "."
     sleep 1
   done
-  for i in `seq 1 5` do;
+  for i in `seq 1 5`; do
     echo -n "*"
     sleep 1
   done
