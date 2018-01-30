@@ -42,13 +42,13 @@ func main() {
 		}
 		for i, fl := range flagsReturned {
 			f, _ := fl.(zgrab2.ScanFlags)
-			mod := *zgrab2.GetModule(modTypes[i])
+			mod := zgrab2.GetModule(modTypes[i])
 			s := mod.NewScanner()
 			s.Init(f)
 			zgrab2.RegisterScan(s.GetName(), s)
 		}
 	} else {
-		mod := *zgrab2.GetModule(moduleType)
+		mod := zgrab2.GetModule(moduleType)
 		s := mod.NewScanner()
 		s.Init(flag)
 		zgrab2.RegisterScan(moduleType, s)
