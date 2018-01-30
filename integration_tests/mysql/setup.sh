@@ -21,6 +21,7 @@ function waitFor() {
     echo -n "."
     sleep 1
   done
+  sleep 1
   echo "...ok."
 }
 
