@@ -15,3 +15,14 @@ if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
 fi
 
 docker run -td --rm -e "MSSQL_PID=$MSSQL_PRODUCT_ID" -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=$(openssl rand -base64 12)" --name $CONTAINER_NAME $CONTAINER_IMAGE:$CONTAINER_VERSION
+
+echo -n "mssql/setup: Waiting on $CONTAINER_NAME..."
+
+while ! docker logs $CONTAINER_NAME --tail all | grep -q "Server is listening on"; do
+    echo -n "."
+    sleep 1
+done
+
+sleep 1
+
+echo "...done."
