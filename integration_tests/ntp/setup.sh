@@ -33,7 +33,7 @@ done
 echo "...done."
 
 echo -n "ntp/setup: Waiting on zgrab_ntp_4.2.6..."
-while ! docker logs --tail all zgrab_ntp_4.2.6 | grep -q "^interface_action.*listen$"; do
+while ! docker logs --tail all zgrab_ntp_4.2.6 | grep -q "listen"; do
     echo -n "."
 done
 
