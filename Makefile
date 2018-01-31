@@ -21,16 +21,11 @@ zgrab2: $(GO_FILES)
 docker-runner: zgrab2
 	make -C docker-runner
 
-.integration-test-setup: | docker-runner
-	./integration_tests/setup.sh
-	touch .integration-test-setup
-
-integration-test: docker-runner .integration-test-setup
+integration-test: docker-runner
 	rm -rf zgrab-output
 	./integration_tests/test.sh
 
 integration-test-clean:
-	rm -f .integration-test-setup
 	rm -rf zgrab-output
 	./integration_tests/cleanup.sh
 	make -C docker-runner clean
@@ -43,5 +38,4 @@ container-clean:
 
 clean:
 	cd cmd/zgrab2 && go clean
-	rm -f .integration-test-setup
 	rm -f zgrab2

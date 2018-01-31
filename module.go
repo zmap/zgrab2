@@ -68,12 +68,12 @@ func (b *BaseFlags) GetName() string {
 
 // GetModule returns the registered module that corresponds to the given name
 // or nil otherwise
-func GetModule(name string) *ScanModule {
+func GetModule(name string) ScanModule {
 	return modules[name]
 }
 
-var modules map[string]*ScanModule
+var modules map[string]ScanModule
 
 func init() {
-	modules = make(map[string]*ScanModule)
+	modules = make(map[string]ScanModule)
 }
