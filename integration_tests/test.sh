@@ -5,25 +5,58 @@ set -e
 # Do all integration tests for all protocols
 # To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
 
+# Test procedure:
+# 1. For each module (subdirectory of integration_tests):
+#   a. Enter module directory
+#   b. If there is a setup.sh, run it (*)
+#   c. Run test.sh
+#   d. If there is a cleanup.sh, run it (*)
+# 2. For each JSON file in zgrab-output: (^)
+#   a. Dump the file to stdout
+#   b. Validate that the output matches the protocol's schema (using the parent folder name as the protocol)
+#   c. Check that data.<protocol>.status == "success"
+#
+# (*) Skip if the NOSETUP environment variable is set
+# (^) Skip if the NOSCHEMA environment variable is set
+
+# Any errors in the first part will cause an immediate failure.
+# During schema validation, all output is validated and the errors are dumped afterwards.
+# In either case, a failure leads to a nonzero exit code.
+# 
+
 # Run from root of project
 TEST_DIR=$(dirname "$0")
 ZGRAB_ROOT="$TEST_DIR/.."
 cd "$ZGRAB_ROOT"
 
-ZGRAB_OUTPUT="$ZGRAB_ROOT/zgrab-output"
+ZGRAB_OUTPUT="zgrab-output"
 
 pushd integration_tests
 for mod in $(ls); do
-    if [ -d "$mod" ]; then
+    if [ ".template" != "$mod" ] && [ -d "$mod" ]; then
         pushd $mod
         for test in $(ls test*.sh); do
             echo "Running integration_tests/$mod/$test"
+            # Given test.x.sh, find setup.x.sh and cleanup.x.sh
+            setup=${test/test/setup}
+            cleanup=${test/test/cleanup}
+            if [ -z $NOSETUP ] && [ -f $setup ]; then
+                ./$setup
+            fi
             ./$test
+            if [ -z $NOSETUP ] && [ -f $cleanup ]; then
+                ./$cleanup
+            fi
         done
         popd
     fi
 done
 popd
+
+if ! [ -z $NOSCHEMA ]; then
+    echo "Skipping schema validation."
+    exit 0
+fi
 
 status=0
 failures=""
@@ -44,8 +77,7 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
             fi
             status=1
         else
-            echo "validation of $target succeeded."
-            scan_status=$($ZGRAB_ROOT/jp -u data.${protocol}.status < $target)
+            scan_status=$(./jp -u data.${protocol}.status < $target)
             if ! [ $scan_status = "success" ]; then
                 echo "Scan returned success=$scan_status for $protocol/$outfile"
                 err="scan failure(${scan_status})@$protocol/$outfile"

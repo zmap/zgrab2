@@ -13,10 +13,10 @@ Once you have a working `$GOPATH`, run:
 $ go get github.com/zmap/zgrab2
 ```
 
-This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab`
+This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
 
 ```
-$ cd $GOPATH/src/github.com/zmap/zgrab
+$ cd $GOPATH/src/github.com/zmap/zgrab2
 $ make
 ```
 
@@ -82,6 +82,23 @@ To add integration tests for the new module, run `integration_tests/new.sh [your
 This will add stub shell scripts in `integration_tests/your_new_protocol_name`; update these as needed.
 See [integration_tests/mysql/*](integration_tests/mysql) for an example.
 The only hard requirement is that the `test.sh` script drops its output in `$ZGRAB_OUTPUT/[your-module]/*.json`, so that it can be validated against the schema.
+
+#### How to Run Integration Tests
+
+To run integration tests, you must have [Docker](https://www.docker.com/) installed. Then, you can follow the following steps to run integration tests:
+
+```
+$ go get github.com/jmespath/jp && go build github.com/jmespath/jp
+$ pip install --user zschema
+$ make integration-test
+```
+
+Running the integration tests will generate quite a bit of debug output. To ensure that tests completed successfully, you can check for a successful exit code after the tests complete:
+
+```
+$ echo $?
+0
+```
 
 ## License
 ZGrab2.0 is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.
