@@ -21,10 +21,9 @@ fi
 echo -n "http/setup: Waiting on $CONTAINER_NAME to start..."
 
 while ! docker exec -t $CONTAINER_NAME cat //var/log/lighttpd/error.log | grep -q "server started"; do
-  echo -n "."
+    echo -n "."
 done
 
 sleep 1
 
 echo "...done."
-
