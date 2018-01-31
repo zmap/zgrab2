@@ -9,4 +9,9 @@ CONTAINER_NAME="zgrab_mssql-2017-linux"
 # Supported MSSQL_PRODUCT_ID values are Developer, Express, Standard, Enterprise, EnterpriseCore
 MSSQL_PRODUCT_ID="Enterprise"
 
-docker run --rm -e "MSSQL_PID=$MSSQL_PRODUCT_ID" -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=$(openssl rand -base64 12)" --name $CONTAINER_NAME -d $CONTAINER_IMAGE:$CONTAINER_VERSION
+if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
+    echo "mssql/setup: Container $CONTAINER_NAME already running -- nothing more to do."
+    exit 0
+fi
+
+docker run -td --rm -e "MSSQL_PID=$MSSQL_PRODUCT_ID" -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=$(openssl rand -base64 12)" --name $CONTAINER_NAME $CONTAINER_IMAGE:$CONTAINER_VERSION
