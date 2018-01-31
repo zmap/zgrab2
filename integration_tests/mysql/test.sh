@@ -22,9 +22,11 @@ function doTest() {
   CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mysql --timeout 10 > $OUTPUT_FILE
   SERVER_VERSION=$($ZGRAB_ROOT/jp -u data.mysql.result.handshake.parsed.server_version < $OUTPUT_FILE)
   if [[ "$SERVER_VERSION" == "$MYSQL_VERSION."* ]]; then
-    echo "Server version matches expected version: $SERVER_VERSION == $MYSQL_VERSION.*"
+    echo "mysql/test: Server version matches expected version: $SERVER_VERSION == $MYSQL_VERSION.*"
   else
-    echo "Server version mismatch: Got $SERVER_VERSION, expected $MYSQL_VERSION.*"
+    echo "mysql/test: Server version mismatch: Got $SERVER_VERSION, expected $MYSQL_VERSION.*. Full output: [["
+    cat $OUTPUT_FILE
+    echo "]]"
     status=1
   fi
   echo "mysql/test: BEGIN docker+mysql logs from $CONTAINER_NAME [{("
