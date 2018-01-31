@@ -46,6 +46,7 @@ function waitFor() {
       sleep 1
     done
   fi
+  sleep 1
   echo "...postgres is up."
 }
 
