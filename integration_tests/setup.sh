@@ -5,13 +5,15 @@ set -e
 # Set up the integration tests for all modules.
 # Drop your setup script(s) in integration_tests/<protocol>/setup(.*).sh
 
+# You can run this script, then run...
+#   NOSETUP=1 ./test.sh
+# ...to run the integration tests without setting up and tearing down the
+# containers after each run.
+
 # Run from root of project
 TEST_DIR=$(dirname "$0")
 ZGRAB_ROOT="$TEST_DIR/.."
 cd "$ZGRAB_ROOT"
-
-echo "Building zgrab2_runner docker image..."
-make -C ./docker-runner
 
 echo "Setting up integration tests..."
 
