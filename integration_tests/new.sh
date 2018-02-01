@@ -31,4 +31,7 @@ sed -i "s/#{MODULE_NAME}/$module_name/g" "schemas/$module_name.py"
 
 echo "import schemas.$module_name" >> schemas/__init__.py
 
+cp "integration_tests/.template/module.go" "modules/$module_name.go"
+sed -i "s/#{MODULE_NAME}/$module_name/g" "modules/$module_name.go"
+
 echo "Test files scaffolded in $module_path"
