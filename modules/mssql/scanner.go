@@ -107,7 +107,7 @@ func (scanner *mssqlScanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, 
 	return zgrab2.SCAN_SUCCESS, result, nil
 }
 
-// RegisterModule is called by modules/postgres.go's init()
+// RegisterModule is called by modules/mssql.go's init()
 func RegisterModule() {
 	var module mssqlModule
 	_, err := zgrab2.AddCommand("mssql", "MSSQL", "Grab a mssql handshake", 1433, &module)
