@@ -76,13 +76,6 @@ func (t *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) 
 	}, nil
 }
 
-// ScanTarget.Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	timeout := time.Second * time.Duration(flags.Timeout)
-	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
-	return DialTimeoutConnection("tcp", target, timeout)
-}
-
 // grabTarget calls handler for each action
 func grabTarget(input ScanTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]ScanResponse)
