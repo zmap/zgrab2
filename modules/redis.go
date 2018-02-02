@@ -1,7 +1,10 @@
 package modules
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -10,19 +13,14 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-type redisConnection struct {
-	conn net.Conn
-	scan *redisScanner
-}
-
 type redisType string
 
 const (
 	redisTypeSimpleString redisType = "simple string"
-	redisTypeError = "error"
-	redisTypeInteger = "integer"
-	redisTypeBulkString = "bulk string"
-	redisTypeArray = "array"
+	redisTypeError                  = "error"
+	redisTypeInteger                = "integer"
+	redisTypeBulkString             = "bulk string"
+	redisTypeArray                  = "array"
 )
 
 type redisData interface {
@@ -33,89 +31,88 @@ type redisData interface {
 // Must not contain \r or \n. https://redis.io/topics/protocol#resp-simple-strings
 type redisSimpleString string
 
-func (self redisSimpleString) Type() redisType {
+func (redisSimpleString) Type() redisType {
 	return redisTypeSimpleString
 }
 
-func (self redisSimpleString) Encode() []byte {
-	return []byte("+" + self + "\r\n")
+func (str redisSimpleString) Encode() []byte {
+	return []byte("+" + str + "\r\n")
 }
 
 // https://redis.io/topics/protocol#resp-errors
 type redisError string
 
-func (self redisError) Type() redisType {
+func (redisError) Type() redisType {
 	return redisTypeError
 }
 
-func (self redisError) Encode() []byte {
-	return []byte("-" + self + "\r\n")
+func (err redisError) Encode() []byte {
+	return []byte("-" + err + "\r\n")
 }
 
-func (self redisError) ErrorPrefix() string {
-	return strings.SplitN(string(self), " ", 2)[0]
+func (err redisError) ErrorPrefix() string {
+	return strings.SplitN(string(err), " ", 2)[0]
 }
 
-func (self redisError) ErrorMessage() string {
-	parts := strings.SplitN(string(self), " ", 2)
+func (err redisError) ErrorMessage() string {
+	parts := strings.SplitN(string(err), " ", 2)
 	if len(parts) == 2 {
 		return parts[1]
-	} else {
-		return string(self)
 	}
+	return string(err)
 }
 
 // "the returned integer is guaranteed to be in the range of a signed 64 bit integer" (https://redis.io/topics/protocol#resp-integers)
 type redisInteger int64
 
-func (self redisInteger) Type() redisType {
+func (redisInteger) Type() redisType {
 	return redisTypeInteger
 }
 
-func (self redisInteger) Encode() []byte {
-	return []byte(fmt.Sprintf(":%d\r\n", self))
+func (val redisInteger) Encode() []byte {
+	return []byte(fmt.Sprintf(":%d\r\n", val))
 }
 
-type redisNullBulkStringType string
+type redisNullType []byte
 
-const redisNullBulkString redisNullBulkStringType = "<NULL>"
+var redisNull redisNullType = nil
 
-func (self redisNullBulkStringType) Type() redisType {
+func (redisNullType) Type() redisType {
 	return redisTypeBulkString
 }
 
-func (self redisNullBulkStringType) Encode() []byte {
+func (redisNullType) Encode() []byte {
 	return []byte("$-1\r\n")
 }
 
 type redisBulkString []byte
 
-func (self redisBulkString) Type() redisType {
+func (redisBulkString) Type() redisType {
 	return redisTypeBulkString
 }
 
-func (self redisBulkString) Encode() []byte {
-	prefix := fmt.Sprintf("$%d\r\n", len(self))
-	ret := make([]byte, len(prefix) + len(self) + 2)
+func (str redisBulkString) Encode() []byte {
+	prefix := fmt.Sprintf("$%d\r\n", len(str))
+	ret := make([]byte, len(prefix)+len(str)+2)
 	copy(ret, []byte(prefix))
-	copy(ret[len(prefix):], self)
-	ret[len(ret) - 2] = '\r'
-	ret[len(ret) - 1] = '\n'
+	copy(ret[len(prefix):], str)
+	ret[len(ret)-2] = '\r'
+	ret[len(ret)-1] = '\n'
 	return ret
 }
 
 // https://redis.io/topics/protocol#resp-arrays
 type redisArray []redisData
 
-func (self redisArray) Type() redisType {
+func (redisArray) Type() redisType {
 	return redisTypeArray
 }
 
-func (self redisArray) Encode() []byte {
+func (array redisArray) Encode() []byte {
 	var ret []byte
-	prefix := fmt.Sprintf("*%d\r\n", len(self))
+	prefix := fmt.Sprintf("*%d\r\n", len(array))
 	ret = append(ret, []byte(prefix)...)
-	for _, item := range self {
+	for _, item := range array {
 		ret = append(ret, item.Encode()...)
 	}
 	return ret
@@ -131,32 +128,81 @@ type redisScanResults struct {
 }
 
 var (
-	redisErrInvalidData error = fmt.Errorf("Invalid data")
-	redisErrWrongType = fmt.Errorf("Wrong type specifier")
+	errRedisInvalidData = errors.New("invalid data")
+	errRedisWrongType   = errors.New("wrong type specifier")
+	errRedisBadLength   = errors.New("bad length")
 )
+
+func (conn *redisConnection) read() ([]byte, error) {
+	buf := make([]byte, 1024)
+	n, err := conn.conn.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (conn *redisConnection) readUntilCRLF() ([]byte, error) {
+	var idx int
+	for idx = -1; idx == -1; idx = bytes.Index(conn.buffer, []byte{'\r', '\n'}) {
+		ret, err := conn.read()
+		if err != nil {
+			return nil, err
+		}
+		conn.buffer = append(conn.buffer, ret...)
+	}
+	ret := conn.buffer[:idx]
+	conn.buffer = conn.buffer[idx+2:]
+	return ret, nil
+}
+
+func (conn *redisConnection) readSimpleString() (redisData, error) {
+	body, err := conn.readUntilCRLF()
+	if err != nil {
+		return nil, err
+	}
+	return redisSimpleString(body), nil
+}
+
+func (conn *redisConnection) readInteger() (redisData, error) {
+	ret, err := conn.readSimpleString()
+	if err != nil {
+		return nil, err
+	}
+	parsed, err := strconv.ParseInt(string(ret.(redisSimpleString)), 10, 64)
+	if err != nil {
+		return nil, errRedisInvalidData
+	}
+	return redisInteger(parsed), nil
+
+}
 
 func basicRedisDecode(id byte, msg []byte) (string, []byte, error) {
 	if msg[0] != id {
-		return "", nil, redisErrWrongType
+		return "", nil, errRedisWrongType
 	}
 	str := string(msg)
 	idx := strings.Index(str, "\r\n")
 	if idx == -1 {
-		return "", nil, redisErrInvalidData
+		return "", nil, errRedisInvalidData
 	}
-	return string(msg[1:idx]), msg[idx + 2:], nil
+	return string(msg[1:idx]), msg[idx+2:], nil
 }
 
-func intRedisDecode(id byte, msg[]byte) (int64, []byte, error) {
+func intRedisDecode(id byte, msg []byte) (int64, []byte, error) {
 	ret, rest, err := basicRedisDecode(id, msg)
 	if err != nil {
 		return 0, nil, err
 	}
 	parsed, err := strconv.ParseInt(ret, 10, 64)
 	if err != nil {
-		return 0, nil, redisErrInvalidData
+		return 0, nil, errRedisInvalidData
 	}
 	return parsed, rest, nil
+}
+
+func (conn *redisConnection) readResponse() (redisData, error) {
+	return nil, nil
 }
 
 func decodeRedisBulkString(msg []byte) (redisData, []byte, error) {
@@ -165,15 +211,38 @@ func decodeRedisBulkString(msg []byte) (redisData, []byte, error) {
 		return nil, nil, err
 	}
 	if size == -1 {
-		return redisNullBulkString, rest, nil
+		return redisNull, rest, nil
 	}
-	if int64(len(rest)) < size + 2 {
-		return nil, nil, redisErrInvalidData
+	if int64(len(rest)) < size+2 {
+		return nil, nil, errRedisInvalidData
 	}
-	if rest[size] != '\r' || rest[size + 1] != '\n' {
-		return nil, nil, redisErrInvalidData
+	if rest[size] != '\r' || rest[size+1] != '\n' {
+		return nil, nil, errRedisInvalidData
 	}
-	return redisBulkString(rest[0:size]), rest[size + 2:], nil
+	return redisBulkString(rest[0:size]), rest[size+2:], nil
+}
+
+func (conn *redisConnection) readBulkString() (redisData, error) {
+	_size, err := conn.readInteger()
+	if err != nil {
+		return nil, err
+	}
+	size := _size.(redisInteger)
+	if size == -1 {
+		return redisNull, nil
+	}
+	if size < 0 || size > 512*1024*1024 {
+		return nil, errRedisBadLength
+	}
+	body := make([]byte, uint64(size)+2)
+	_, err = io.ReadFull(conn.conn, body)
+	if err != nil {
+		return nil, err
+	}
+	if !(body[size] == '\r' && body[size+1] == '\n') {
+		return nil, errRedisInvalidData
+	}
+	return redisBulkString(body[:size]), nil
 }
 
 func decodeRedisSimpleString(msg []byte) (redisData, []byte, error) {
@@ -206,8 +275,8 @@ func decodeRedisArray(msg []byte) (redisData, []byte, error) {
 		return nil, nil, err
 	}
 	ret := make(redisArray, size)
-	for i := 0; i < size; i++ {
-		ret[i], rest, err := decodeRedisData(rest)
+	for i := 0; int64(i) < size; i++ {
+		ret[i], rest, err = decodeRedisData(rest)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -216,20 +285,24 @@ func decodeRedisArray(msg []byte) (redisData, []byte, error) {
 }
 
 type redisDataDecoder func([]byte) (redisData, []byte, error)
+type redisDataReader func(*redisConnection) (redisData, error)
 
-var decoders map[byte]redisDataDecoder = map[byte]redisDataDecoder{
-	'+': decodeRedisSimpleString,
-	':': decodeRedisInteger,
-	'-': decodeRedisError,
-	'$': decodeRedisBulkString,
-	'*': decodeRedisArray,
-}
+var decoders map[byte]redisDataDecoder
 
 func decodeRedisData(msg []byte) (redisData, []byte, error) {
+	if decoders == nil {
+		decoders = map[byte]redisDataDecoder{
+			'+': decodeRedisSimpleString,
+			':': decodeRedisInteger,
+			'-': decodeRedisError,
+			'$': decodeRedisBulkString,
+			'*': decodeRedisArray,
+		}
+	}
 	ch := msg[0]
 	decoder, ok := decoders[ch]
 	if !ok {
-		return nil, nil, redisErrInvalidData
+		return nil, nil, errRedisInvalidData
 	}
 	return decoder(msg)
 }
@@ -251,7 +324,35 @@ type redisModule struct {
 // redisScanner implements the zgrab2.Scanner interface
 type redisScanner struct {
 	config *redisFlags
+	target *zgrab2.ScanTarget
 	// TODO: Add scan state
+}
+
+// redisConnection holds the state for a single connection within a scan
+type redisConnection struct {
+	scanner *redisScanner
+	conn    net.Conn
+	buffer  []byte
+}
+
+func (conn *redisConnection) sendCommands(cmds redisArray) (redisData, error) {
+	toSend := cmds.Encode()
+	n, err := conn.conn.Write(toSend)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(toSend) {
+		return nil, &zgrab2.ScanError{
+			Status: zgrab2.SCAN_IO_TIMEOUT,
+			Err:    errors.New("incomplete send"),
+		}
+	}
+	// FIXME
+	return nil, nil
+}
+
+func (conn *redisConnection) sendCommand(cmd string) (redisData, error) {
+	return nil, nil
 }
 
 // redis.init() registers the zgrab2 module
@@ -264,42 +365,58 @@ func init() {
 	}
 }
 
-func (m *redisModule) NewFlags() interface{} {
+func (module *redisModule) NewFlags() interface{} {
 	return new(redisFlags)
 }
 
-func (m *redisModule) NewScanner() zgrab2.Scanner {
+func (module *redisModule) NewScanner() zgrab2.Scanner {
 	return new(redisScanner)
 }
 
-func (f *redisFlags) Validate(args []string) error {
+func (flags *redisFlags) Validate(args []string) error {
 	return nil
 }
 
-func (f *redisFlags) Help() string {
+func (flags *redisFlags) Help() string {
 	return ""
 }
 
-func (s *redisScanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *redisScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*redisFlags)
-	s.config = f
+	scanner.config = f
 	return nil
 }
 
-func (s *redisScanner) InitPerSender(senderID int) error {
+func (scanner *redisScanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *redisScanner) GetName() string {
-	return s.config.Name
+func (scanner *redisScanner) GetName() string {
+	return scanner.config.Name
 }
 
-func (s *redisScanner) GetPort() uint {
-	return s.config.Port
+func (scanner *redisScanner) GetPort() uint {
+	return scanner.config.Port
+}
+
+func (scanner *redisScanner) connect() (*redisConnection, error) {
+	conn, err := scanner.target.Open(&scanner.config.BaseFlags)
+	if err != nil {
+		return nil, err
+	}
+	return &redisConnection{
+		scanner: scanner,
+		conn:    conn,
+	}, nil
 }
 
 // redisScanner.Scan() TODO: describe what is scanned
-func (s *redisScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	// TODO: implement
+func (scanner *redisScanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+	scanner.target = &target
+	conn, err := scanner.connect()
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	fmt.Println("conn=", conn.conn)
 	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
 }

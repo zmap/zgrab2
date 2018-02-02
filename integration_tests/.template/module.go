@@ -43,42 +43,42 @@ func init() {
 	}
 }
 
-func (m *#{MODULE_NAME}Module) NewFlags() interface{} {
+func (module *#{MODULE_NAME}Module) NewFlags() interface{} {
 	return new(#{MODULE_NAME}Flags)
 }
 
-func (m *#{MODULE_NAME}Module) NewScanner() zgrab2.Scanner {
+func (module *#{MODULE_NAME}Module) NewScanner() zgrab2.Scanner {
 	return new(#{MODULE_NAME}Scanner)
 }
 
-func (f *#{MODULE_NAME}Flags) Validate(args []string) error {
+func (flags *#{MODULE_NAME}Flags) Validate(args []string) error {
 	return nil
 }
 
-func (f *#{MODULE_NAME}Flags) Help() string {
+func (flags *#{MODULE_NAME}Flags) Help() string {
 	return ""
 }
 
-func (s *#{MODULE_NAME}Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *#{MODULE_NAME}Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*#{MODULE_NAME}Flags)
-	s.config = f
+	scanner.config = f
 	return nil
 }
 
-func (s *#{MODULE_NAME}Scanner) InitPerSender(senderID int) error {
+func (scanner *#{MODULE_NAME}Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *#{MODULE_NAME}Scanner) GetName() string {
+func (scanner *#{MODULE_NAME}Scanner) GetName() string {
 	return s.config.Name
 }
 
-func (s *#{MODULE_NAME}Scanner) GetPort() uint {
+func (scanner *#{MODULE_NAME}Scanner) GetPort() uint {
 	return s.config.Port
 }
 
 // #{MODULE_NAME}Scanner.Scan() TODO: describe what is scanned
-func (s *#{MODULE_NAME}Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (scanner *#{MODULE_NAME}Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 	// TODO: implement
 	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
 }
