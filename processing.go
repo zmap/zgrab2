@@ -66,23 +66,7 @@ func (c *scanTargetConnection) Write(b []byte) (n int, err error) {
 func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
 	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
-	var conn net.Conn
-	var err error
-	if timeout > 0 {
-		conn, err = net.DialTimeout("tcp", target, timeout)
-	} else {
-		conn, err = net.Dial("tcp", target)
-	}
-	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
-		return nil, err
-	}
-	return &scanTargetConnection{
-		Conn:    conn,
-		Timeout: timeout,
-	}, nil
+	return DialTimeoutConnection("tcp", target, timeout)
 }
 
 // grabTarget calls handler for each action
