@@ -4,3 +4,4 @@ import schemas.ssh
 import schemas.postgres
 import schemas.ftp
 import schemas.ntp
+import schemas.mssql
