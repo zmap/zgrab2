@@ -26,31 +26,30 @@ type ScanTarget struct {
 	Domain string
 }
 
-func (self ScanTarget) String() string {
-	if self.IP == nil && self.Domain == "" {
+func (target ScanTarget) String() string {
+	if target.IP == nil && target.Domain == "" {
 		return "<empty target>"
-	} else if self.IP != nil && self.Domain != "" {
-		return self.Domain + "(" + self.IP.String() + ")"
-	} else if self.IP != nil {
-		return self.IP.String()
-	} else {
-		return self.Domain
+	} else if target.IP != nil && target.Domain != "" {
+		return target.Domain + "(" + target.IP.String() + ")"
+	} else if target.IP != nil {
+		return target.IP.String()
 	}
+	return target.Domain
 }
 
-// ScanTarget.Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
+// Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
+func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	target := net.JoinHostPort(t.IP.String(), fmt.Sprintf("%d", flags.Port))
-	return DialTimeoutConnection("tcp", target, timeout)
+	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	return DialTimeoutConnection("tcp", address, timeout)
 }
 
-// ScanTarget.OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
+// OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
-func (t *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
+func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	target := net.JoinHostPort(t.IP.String(), fmt.Sprintf("%d", flags.Port))
-	var local *net.UDPAddr = nil
+	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	var local *net.UDPAddr
 	var err error
 
 	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
@@ -62,7 +61,7 @@ func (t *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) 
 			local.Port = int(udp.LocalPort)
 		}
 	}
-	remote, err := net.ResolveUDPAddr("udp", target)
+	remote, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
