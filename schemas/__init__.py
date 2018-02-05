@@ -3,4 +3,5 @@ import schemas.mysql
 import schemas.ssh
 import schemas.postgres
 import schemas.ftp
+import schemas.mssql
 import schemas.redis
