@@ -26,23 +26,22 @@ type ScanTarget struct {
 	Domain string
 }
 
-func (self ScanTarget) String() string {
-	if self.IP == nil && self.Domain == "" {
+func (target ScanTarget) String() string {
+	if target.IP == nil && target.Domain == "" {
 		return "<empty target>"
-	} else if self.IP != nil && self.Domain != "" {
-		return self.Domain + "(" + self.IP.String() + ")"
-	} else if self.IP != nil {
-		return self.IP.String()
-	} else {
-		return self.Domain
+	} else if target.IP != nil && target.Domain != "" {
+		return target.Domain + "(" + target.IP.String() + ")"
+	} else if target.IP != nil {
+		return target.IP.String()
 	}
+	return target.Domain
 }
 
-// ScanTarget.Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
+// Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
+func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
-	return DialTimeoutConnection("tcp", target, timeout)
+	address := fmt.Sprintf("%s:%d", target.IP.String(), flags.Port)
+	return DialTimeoutConnection("tcp", address, timeout)
 }
 
 // grabTarget calls handler for each action

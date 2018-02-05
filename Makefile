@@ -5,6 +5,7 @@ else
 endif
 
 GO_FILES = $(shell find . -type f -name '*.go')
+TEST_MODULES ?= 
 
 all: zgrab2
 
@@ -20,7 +21,7 @@ docker-runner: zgrab2
 
 integration-test: docker-runner
 	rm -rf zgrab-output
-	./integration_tests/test.sh
+	TEST_MODULES=$(TEST_MODULES) ./integration_tests/test.sh
 
 integration-test-clean:
 	rm -rf zgrab-output
