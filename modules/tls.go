@@ -7,14 +7,7 @@ import (
 
 type TLSFlags struct {
 	zgrab2.BaseFlags
-	Heartbleed           bool `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
-	Version              int  `long:"version" description:"Max TLS version to use"`
-	Verbose              bool `long:"verbose" description:"Add extra TLS information to JSON output (client hello, client KEX, key material, etc)" json:"verbose"`
-	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
-	ExtendedMasterSecret bool `long:"extended-master-secret" description:"Offer RFC 7627 Extended Master Secret extension" json:"extended"`
-	ExtendedRandom       bool `long:"extended-random" description:"Send TLS Extended Random Extension" json:"extran"`
-	NoSNI                bool `long:"no-sni" description:"Do not send domain name in TLS Handshake regardless of whether known" json:"sni"`
-	SCTExt               bool `long:"sct" description:"Request Signed Certificate Timestamps during TLS Handshake" json:"sct"`
+	zgrab2.TLSFlags
 }
 
 type TLSModule struct {
@@ -49,7 +42,10 @@ func (f *TLSFlags) Help() string {
 }
 
 func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
-	f, _ := flags.(*TLSFlags)
+	f, ok := flags.(*TLSFlags)
+	if !ok {
+		return zgrab2.ErrMismatchedFlags
+	}
 	s.config = f
 	return nil
 }
@@ -63,5 +59,17 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 }
 
 func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	return zgrab2.SCAN_SUCCESS, s, nil
+	tcpConn, err := t.Open(&s.config.BaseFlags)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), &zgrab2.TLSLog{}, err
+	}
+	var conn *zgrab2.TLSConnection
+	if conn, err = s.config.TLSFlags.GetTLSConnection(tcpConn); err != nil {
+		return zgrab2.TryGetScanStatus(err), &zgrab2.TLSLog{}, err
+	}
+	result := conn.GetLog()
+	if err = conn.Handshake(); err != nil {
+		return zgrab2.TryGetScanStatus(err), result, err
+	}
+	return zgrab2.SCAN_SUCCESS, result, nil
 }
