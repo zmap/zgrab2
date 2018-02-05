@@ -1,3 +1,11 @@
+// ntp.go adds a NTP scanner to zgrab2.modules.
+// NOTE: unlike most modules, this scans on UDP.
+// The default scan does a standard get time request.
+// Passing the monlist flag will check for the DDoS-amplifying MONLIST command.
+// The results of the scan are the version number and the time returned by the
+// server, and if verbose results are enabled, the entire parsed response
+// packet(s).
+// For more details on NTP, see https://tools.ietf.org/html/rfc5905.
 package modules
 
 import (
