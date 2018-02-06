@@ -4,6 +4,9 @@ set +e
 
 echo "redis/cleanup: Tests cleanup for redis"
 
-CONTAINER_NAME=zgrab_redis
+configs="default password renamed"
 
-docker stop $CONTAINER_NAME
+for cfg in $configs; do
+    CONTAINER_NAME="zgrab_redis_${cfg}"
+    docker stop $CONTAINER_NAME
+done

@@ -5,16 +5,16 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-// #{EXPORTED_MODULE_NAME}ScanResults is the output of the scan.
-type #{EXPORTED_MODULE_NAME}ScanResults struct {
+// ScanResults is the output of the scan.
+type ScanResults struct {
 	// TODO: Add protocol
 
 	// Protocols that support TLS should include
 	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// #{EXPORTED_MODULE_NAME}-specific command-line flags.
-type #{EXPORTED_MODULE_NAME}Flags struct {
+// Flags is #{MODULE_NAME}-specific command-line flags.
+type Flags struct {
 	zgrab2.BaseFlags
 	// TODO: Add more protocol-specific flags
 	// Protocols that support TLS should include zgrab2.TLSFlags
@@ -22,20 +22,20 @@ type #{EXPORTED_MODULE_NAME}Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
-// #{EXPORTED_MODULE_NAME}Module implements the zgrab2.Module interface
-type #{EXPORTED_MODULE_NAME}Module struct {
+// Module implements the zgrab2.Module interface
+type Module struct {
 	// TODO: Add any module-global state
 }
 
-// #{EXPORTED_MODULE_NAME}Scanner implements the zgrab2.Scanner interface
-type #{EXPORTED_MODULE_NAME}Scanner struct {
-	config *#{MODULE_NAME}Flags
+// Scanner implements the zgrab2.Scanner interface
+type Scanner struct {
+	config *Flags
 	// TODO: Add scan state
 }
 
-// #{EXPORTED_MODULE_NAME}.init() registers the zgrab2 module
-func init() {
-	var module #{EXPORTED_MODULE_NAME}Module
+// RegisterModule() registers the zgrab2 module
+func RegisterModule() {
+	var module Module
 	// FIXME: Set default port
 	_, err := zgrab2.AddCommand("#{MODULE_NAME}", "#{FRIENDLY_MODULE_NAME}", "Probe for #{FRIENDLY_MODULE_NAME}", FIXME_DEFAULT_PORT, &module)
 	if err != nil {
@@ -43,42 +43,50 @@ func init() {
 	}
 }
 
-func (module *#{EXPORTED_MODULE_NAME}Module) NewFlags() interface{} {
-	return new(#{EXPORTED_MODULE_NAME}Flags)
+// NewFlags provides an empty instance of the flags that will be filled in by the framework
+func (module *Module) NewFlags() interface{} {
+	return new(Flags)
 }
 
-func (module *#{EXPORTED_MODULE_NAME}Module) NewScanner() zgrab2.Scanner {
-	return new(#{EXPORTED_MODULE_NAME}Scanner)
+// NewScanner provides a new scanner instance
+func (module *Module) NewScanner() zgrab2.Scanner {
+	return new(Scanner)
 }
 
-func (flags *#{EXPORTED_MODULE_NAME}Flags) Validate(args []string) error {
+// Validate checks that the flags are valid
+func (flags *Flags) Validate(args []string) error {
 	return nil
 }
 
-func (flags *#{MODULE_NAME}Flags) Help() string {
+// Help returns the module's help string
+func (flags *Flags) Help() string {
 	return ""
 }
 
-func (scanner *#{EXPORTED_MODULE_NAME}Scanner) Init(flags zgrab2.ScanFlags) error {
-	f, _ := flags.(*#{EXPORTED_MODULE_NAME}Flags)
+// Init initializes the scanner
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
+	f, _ := flags.(*Flags)
 	scanner.config = f
 	return nil
 }
 
-func (scanner *#{EXPORTED_MODULE_NAME}Scanner) InitPerSender(senderID int) error {
+// InitPerSender initializes the scanner for a given sender
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (scanner *#{EXPORTED_MODULE_NAME}Scanner) GetName() string {
-	return s.config.Name
+// GetName returns the name of the scanner
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
-func (scanner *#{EXPORTED_MODULE_NAME}Scanner) GetPort() uint {
-	return s.config.Port
+// GetPort returns the port being scanned
+func (scanner *Scanner) GetPort() uint {
+	return scanner.config.Port
 }
 
-// #{EXPORTED_MODULE_NAME}Scanner.Scan() TODO: describe what is scanned
-func (scanner *#{EXPORTED_MODULE_NAME}Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+// Scan() TODO: describe what is scanned
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 	// TODO: implement
 	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
 }
