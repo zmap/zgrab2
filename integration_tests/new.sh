@@ -16,20 +16,8 @@ fi
 module_name="$1"
 module_path="integration_tests/$module_name"
 
-if [ -z "$EXPORTED_MODULE_NAME" ]; then
-    EXPORTED_MODULE_NAME=$(echo "$module_name" | tr /a-z/ /A-Z/)
-    echo "Using $EXPORTED_MODULE_NAME for the module name"
-fi
-
-if [ -z "$FRIENDLY_MODULE_NAME" ]; then
-    FRIENDLY_MODULE_NAME=$EXPORTED_MODULE_NAME
-    echo "Using $FRIENDLY_MODULE_NAME for the module friendly name"
-fi
-
 function doReplacements() {
     sed -i "s/#{MODULE_NAME}/$module_name/g" $1
-    sed -i "s/#{EXPORTED_MODULE_NAME}/$EXPORTED_MODULE_NAME/g" $1
-    sed -i "s/#{FRIENDLY_MODULE_NAME}/$FRIENDLY_MODULE_NAME/g" $1
 }
 
 mkdir -p $module_path
