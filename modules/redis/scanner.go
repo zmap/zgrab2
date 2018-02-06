@@ -93,7 +93,6 @@ type Result struct {
 // RegisterModule registers the zgrab2 module
 func RegisterModule() {
 	var module Module
-	// FIXME: Set default port
 	_, err := zgrab2.AddCommand("redis", "redis", "Probe for redis", 6379, &module)
 	if err != nil {
 		log.Fatal(err)
