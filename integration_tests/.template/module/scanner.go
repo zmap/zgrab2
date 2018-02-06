@@ -1,3 +1,5 @@
+// Package #{MODULE_NAME} provides a zgrab2 module that proves for #{MODULE_NAME}.
+// TODO: Describe module, the flags, the probe, the output, etc.
 package #{MODULE_NAME}
 
 import (
@@ -37,7 +39,7 @@ type Scanner struct {
 func RegisterModule() {
 	var module Module
 	// FIXME: Set default port
-	_, err := zgrab2.AddCommand("#{MODULE_NAME}", "#{FRIENDLY_MODULE_NAME}", "Probe for #{FRIENDLY_MODULE_NAME}", FIXME_DEFAULT_PORT, &module)
+	_, err := zgrab2.AddCommand("#{MODULE_NAME}", "#{MODULE_NAME}", "Probe for #{MODULE_NAME}", FIXME_DEFAULT_PORT, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
