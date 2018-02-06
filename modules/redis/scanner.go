@@ -56,11 +56,11 @@ type Scan struct {
 type Result struct {
 	// Commands is the list of commands actually sent to the server, serialized
 	// in inline format (e.g. COMMAND arg1 "arg 2" arg3)
-	Commands []string `json:"commands,omitempty"`
+	Commands []string `json:"commands,omitempty" zgrab:"debug"`
 
 	// CommandOutput is the output returned by the server for each command sent;
 	// the index in CommandOutput matches the index in Commands.
-	CommandOutput [][]byte `json:"command_output,omitempty"`
+	CommandOutput [][]byte `json:"command_output,omitempty" zgrab:"debug"`
 
 	// PingResponse is the response from the server, should be the simple string
 	// "PONG".
