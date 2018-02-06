@@ -9,9 +9,15 @@ import schemas.zgrab2 as zgrab2
 
 redis_scan_response = SubRecord({
     "result": SubRecord({
-        # TODO FIXME IMPLEMENT SCHEMA
+        "commands": ListOf(String()),
+        "command_output": ListOf(Binary()),
+        "ping_response": String(),
+        "info_response": String(),
+        "auth_response": String(),
+        "nonexistent_response": String(),
+        "version": String(),
     })
-}, extends = zgrab2.base_scan_response)
+}, extends=zgrab2.base_scan_response)
 
 zschema.registry.register_schema("zgrab2-redis", redis_scan_response)
 
