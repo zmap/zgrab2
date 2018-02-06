@@ -15,6 +15,7 @@ redis_scan_response = SubRecord({
         "info_response": String(),
         "auth_response": String(),
         "nonexistent_response": String(),
+        "quit_response": String(),
         "version": String(),
     })
 }, extends=zgrab2.base_scan_response)
