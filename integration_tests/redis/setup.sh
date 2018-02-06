@@ -8,12 +8,10 @@ CONTAINER_TAG="zgrab_redis"
 
 configs="password renamed default"
 
-let port=6379
 for cfg in $configs; do
     CONTAINER_NAME="zgrab_redis_$cfg"
     
-    RUN_ARGS="-p $port:6379 --rm --name $CONTAINER_NAME -td $CONTAINER_TAG redis-server //usr/local/etc/redis/${cfg}.conf"
-    let port++
+    RUN_ARGS="--rm --name $CONTAINER_NAME -td $CONTAINER_TAG redis-server //usr/local/etc/redis/${cfg}.conf"
     # If the container is already running, use it.
     if docker ps --filter "name=$CONTAINER_NAME" | grep -q $CONTAINER_NAME; then
         echo "redis/setup: Container $CONTAINER_NAME already running -- nothing to setup"
