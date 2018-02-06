@@ -2,18 +2,19 @@ package redis
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 )
 
+// fakeIO is a simple fake Reader/Writer. Read pulls data from the output
+// channel; Writes are NOOPs.
 type fakeIO struct {
-	input  chan byte
 	output chan byte
 }
 
+// Read from output until it would block.
 func (fakeio *fakeIO) Read(buf []byte) (int, error) {
 	// read what can be read from the channel without blocking
 	for i := 0; i < len(buf); {
@@ -28,25 +29,25 @@ func (fakeio *fakeIO) Read(buf []byte) (int, error) {
 	return len(buf), nil
 }
 
+// Write does nothing.
 func (fakeio *fakeIO) Write(buf []byte) (int, error) {
-	for _, v := range buf {
-		fakeio.input <- v
-	}
 	return len(buf), nil
 }
 
-func (fakeio *fakeIO) Push(buf []byte) {
+// Provide data to the output channel.
+func (fakeio *fakeIO) Provide(buf []byte) {
 	go func() {
-		// push new bytes as the buffer clears
+		// send new bytes as the buffer clears
 		for _, v := range buf {
 			fakeio.output <- v
 		}
 	}()
 }
 
-var bigBulkString = "--- BEGIN BULK STRING ---\r\nbulk string data\r\n--- END BULK STRING---\r\n"
-var bigSimpleString = strings.Repeat("simple,", 1024)
+var bigSimpleString = strings.Repeat("simple,", 1024*1024)
+var bigBulkString = "--- BEGIN BULK STRING ---\r\n" + bigSimpleString + "\r\n--- END BULK STRING---\r\n"
 
+// simpleStrings maps the string value to its encoding
 var simpleStrings = map[string]string{
 	"":                 "+\r\n",
 	"foo":              "+foo\r\n",
@@ -54,41 +55,49 @@ var simpleStrings = map[string]string{
 	bigSimpleString:    "+" + bigSimpleString + "\r\n",
 }
 
+// bulkStrings maps the string value to its encoding
 var bulkStrings = map[string]string{
 	"":                 "$0\r\n\r\n",
 	"foo":              "$3\r\nfoo\r\n",
 	"0123456789abcdef": "$16\r\n0123456789abcdef\r\n",
 	bigBulkString:      fmt.Sprintf("$%d\r\n%s\r\n", len(bigBulkString), bigBulkString),
+	"\r\n\n\r\r\n":     "$6\r\n\r\n\n\r\r\n\r\n",
 }
 
+// integers maps integer values to their encoding
 var integers = map[int64]string{
-	0:             ":0\r\n",
-	1:             ":1\r\n",
-	-1:            ":-1\r\n",
+	0:  ":0\r\n",
+	1:  ":1\r\n",
+	-1: ":-1\r\n",
+	// Largest signed 64-bit integer
 	(1 << 63) - 1: ":9223372036854775807\r\n",
-	-(1 << 63):    ":-9223372036854775808\r\n",
-	12345:         ":12345\r\n",
+	// Smallest signed 64-bit integer
+	-(1 << 63): ":-9223372036854775808\r\n",
+	12345:      ":12345\r\n",
 }
 
+// redisErrors maps error strings to their encoding
 var redisErrors = map[string]string{
 	"": "-\r\n",
 	"ERR something went wrong": "-ERR something went wrong\r\n",
 	"singleword":               "-singleword\r\n",
 }
 
+// redisErrors maps error strings to their prefixes
 var redisErrorPrefixes = map[string]string{
 	"": "",
 	"ERR something went wrong": "ERR",
 	"singleword":               "singleword",
 }
 
+// redisErrorMessages maps error strings to their "messages"
 var redisErrorMessages = map[string]string{
 	"": "",
 	"ERR something went wrong": "something went wrong",
 	"singleword":               "singleword",
 }
 
-// Note: reverse key/value order from other maps
+// redisArrays maps encoded array values to the corresponding array (Note: reverse key/value order from other maps)
 var redisArrays = map[string]RedisArray{
 	"*0\r\n":                                  RedisArray{},
 	"*1\r\n+\r\n":                             RedisArray{SimpleString("")},
@@ -107,82 +116,53 @@ var redisArrays = map[string]RedisArray{
 	},
 }
 
+// getConnection backed by a fakeIO, and the fakeIO instance.
 func getConnection() (*Connection, *fakeIO) {
-	fakeIO := fakeIO{
+	fakeio := fakeIO{
 		output: make(chan byte, 1024),
-		input:  make(chan byte, 1024),
 	}
-	conn := Connection{conn: &fakeIO}
-	return &conn, &fakeIO
+	conn := Connection{conn: &fakeio}
+	return &conn, &fakeio
 }
 
+// strip s down to 32 chars
 func strip(s interface{}) string {
-	v := fmt.Sprintf("%v", s)
-	if len(v) > 32 {
-		return v[0:20] + "..." + v[len(v)-10:]
+	var stringVal string
+	switch v := s.(type) {
+	case SimpleString:
+		stringVal = string(v)
+	case string:
+		stringVal = v
+	case BulkString:
+		stringVal = string([]byte(v))
+	case []byte:
+		stringVal = string(v)
+	default:
+		stringVal = fmt.Sprintf("%v", s)
 	}
-	return v
+	if len(stringVal) > 32 {
+		return stringVal[0:20] + "..." + stringVal[len(stringVal)-10:]
+	}
+	return stringVal
 }
 
-func stripAround(s []byte, i int) []byte {
-	lower := i - 3
-	if lower < 0 {
-		lower = 0
-	}
-	upper := i + 3
-	if upper >= len(s) {
-		upper = len(s) - 1
-	}
-	if upper < lower {
-		upper = lower
-	}
-	return s[lower:upper]
-}
-
-func assertEquals(t *testing.T, actual interface{}, expected interface{}) {
-	actualJSON, err := json.Marshal(actual)
-	if err != nil {
-		t.Fatalf("Error JSON-encoding %v: %v", actual, err)
-	}
-	expectedJSON, err := json.Marshal(expected)
-	if err != nil {
-		t.Fatalf("Error JSON-encoding %v: %v", expected, err)
-	}
-	mid := ""
-	if string(actualJSON) != string(expectedJSON) {
-		for i := 0; i < len(expectedJSON); i++ {
-			ai := expectedJSON[i]
-			bi := byte(0)
-			if i < len(actualJSON) {
-				bi = actualJSON[i]
-			}
-			if ai != bi {
-				mid = mid + fmt.Sprintf("[%d: '%s' != '%s']", i, string(stripAround(expectedJSON, i)), string(stripAround(actualJSON, i)))
-			}
-		}
-		t.Errorf("Expected [<%s>], got [<%s>]: %s", strip(string(expectedJSON)), strip(string(actualJSON)), mid)
+// Check that the two strings are equivalent, and if not, log the expected/actual
+func assertEquals(t *testing.T, actual string, expected string) {
+	if actual != expected {
+		t.Errorf("Expected [<%s>], got [<%s>]", strip(expected), strip(actual))
 	}
 }
 
+// Read a value from the connection, or throw a fatal error
 func rawRead(t *testing.T, conn *Connection) RedisValue {
 	ret, err := conn.ReadRedisValue()
 	if err != nil {
-		t.Errorf("Error reading value: %v", err)
+		t.Fatalf("Error reading value: %v", err)
 	}
 	return ret
 }
 
-func rawDecode(t *testing.T, s string) RedisValue {
-	ret, rest, err := DecodeRedisValue([]byte(s))
-	if err != nil {
-		t.Errorf("%s cannot be decoded: %v", strip(s), err)
-	}
-	if len(rest) > 0 {
-		t.Errorf("%s has %d bytes left over", strip(s), len(rest))
-	}
-	return ret
-}
-
+// Read a value from the connection and convert it to a string for easy comparison
 func read(t *testing.T, conn *Connection) string {
 	ret := rawRead(t, conn)
 	b, ok := ret.(BulkString)
@@ -192,19 +172,12 @@ func read(t *testing.T, conn *Connection) string {
 	return fmt.Sprintf("%v", ret)
 }
 
+// Encode a value and return a string for easy comparison
 func encode(a RedisValue) string {
 	return string(a.Encode())
 }
 
-func decode(t *testing.T, s string) string {
-	ret := rawDecode(t, s)
-	b, ok := ret.(BulkString)
-	if ok {
-		return string(b)
-	}
-	return fmt.Sprintf("%v", ret)
-}
-
+// Recursively compare two arrays, with the given path prefix
 func _compareArrays(a, b RedisArray, path string) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("Length mismatch (%d != %d)", len(a), len(b))
@@ -235,48 +208,7 @@ func _compareArrays(a, b RedisArray, path string) error {
 	return nil
 }
 
-func compareArrays(a, b RedisArray) error {
-	return _compareArrays(a, b, "")
-}
-
-func TestRedisArray(t *testing.T) {
-	var array RedisArray
-	e0 := SimpleString("foo")
-	e1 := BulkString([]byte(bigBulkString))
-	e2 := Integer(0)
-	e3 := Integer((1 << 62))
-	e4 := make(RedisArray, 0)
-	e5 := ErrorMessage("ERR some error")
-	assertEquals(t, encode(array), "*0\r\n")
-	array = append(array, e0)
-	assertEquals(t, encode(array), "*1\r\n"+encode(e0))
-	array = append(array, e1)
-	assertEquals(t, encode(array), "*2\r\n"+encode(e0)+encode(e1))
-	array = append(array, e2)
-	assertEquals(t, encode(array), "*3\r\n"+encode(e0)+encode(e1)+encode(e2))
-	array = append(array, e3)
-	assertEquals(t, encode(array), "*4\r\n"+encode(e0)+encode(e1)+encode(e2)+encode(e3))
-	array = append(array, e4)
-	assertEquals(t, encode(array), "*5\r\n"+encode(e0)+encode(e1)+encode(e2)+encode(e3)+encode(e4))
-	array = append(array, e5)
-	assertEquals(t, encode(array), "*6\r\n"+encode(e0)+encode(e1)+encode(e2)+encode(e3)+encode(e4)+encode(e5))
-
-	for expectedEncoding, redisData := range redisArrays {
-		assertEquals(t, encode(redisData), expectedEncoding)
-		decoded, rest, err := DecodeRedisValue([]byte(expectedEncoding))
-		if err != nil {
-			t.Errorf("%s cannot be decoded: %v", strip(expectedEncoding), err)
-		}
-		if len(rest) > 0 {
-			t.Errorf("%s has %d bytes left over", strip(expectedEncoding), len(rest))
-		}
-
-		if err := compareArrays(decoded.(RedisArray), redisData); err != nil {
-			t.Errorf("Decode error: %v", err)
-		}
-	}
-}
-
+// Compare two RedisValues directly (without using their encodings)
 func compareRedisValues(a, b RedisValue) error {
 	if reflect.TypeOf(a) != reflect.TypeOf(b) {
 		return fmt.Errorf("different types (%s != %s)", reflect.TypeOf(a).Name(), reflect.TypeOf(b).Name())
@@ -304,99 +236,120 @@ func compareRedisValues(a, b RedisValue) error {
 	}
 }
 
-func readWrite(t *testing.T, conn *Connection, io *fakeIO, value RedisValue) {
-	encoded := value.Encode()
-	io.Push(encoded)
+// Push the encoding to the fake IO, then read it off and compare it to the expected value
+func writeThenRead(t *testing.T, conn *Connection, io *fakeIO, encoded string, expected RedisValue) {
+	assertEquals(t, encoded, encode(expected))
+	io.Provide([]byte(encoded))
 	decoded, err := conn.ReadRedisValue()
 	if err != nil {
 		t.Fatalf("Error decoding value for %s: %v", strip(string(encoded)), err)
 	}
-	if err = compareRedisValues(decoded, value); err != nil {
-		t.Errorf("Read value did not match original value: %s != %s: %v", strip(decoded), strip(value), err)
+	if err = compareRedisValues(decoded, expected); err != nil {
+		t.Errorf("Read value did not match original value: %s != %s: %v", strip(decoded), strip(expected), err)
 	}
 }
 
+// TestSimpleString checks that SimpleStrings are encoded/decoded as expected.
 func TestSimpleString(t *testing.T) {
 	conn, io := getConnection()
-	for k, v := range simpleStrings {
-		assertEquals(t, encode(SimpleString(k)), v)
-		assertEquals(t, decode(t, v), k)
-		readWrite(t, conn, io, SimpleString(k))
+	for str, encoding := range simpleStrings {
+		writeThenRead(t, conn, io, encoding, SimpleString(str))
 	}
 }
 
+// TestInteger checks that Integers are encoded/decoded to the expected values.
 func TestInteger(t *testing.T) {
 	conn, io := getConnection()
-	for k, v := range integers {
-		assertEquals(t, encode(Integer(k)), v)
-		assertEquals(t, decode(t, v), fmt.Sprintf("%d", k))
-		readWrite(t, conn, io, Integer(k))
+	for val, encoding := range integers {
+		writeThenRead(t, conn, io, encoding, Integer(val))
 	}
 }
 
+// TestBulkString checks that SimpleStrings are encoded/decoded as expected.
 func TestBulkString(t *testing.T) {
 	conn, io := getConnection()
-	for k, v := range bulkStrings {
-		assertEquals(t, encode(BulkString(k)), v)
-		assertEquals(t, decode(t, v), string(k))
-		readWrite(t, conn, io, BulkString(k))
+	for str, encoding := range bulkStrings {
+		writeThenRead(t, conn, io, encoding, BulkString([]byte(str)))
 	}
-	assertEquals(t, encode(NullValue), "$-1\r\n")
-	readWrite(t, conn, io, NullValue)
+	writeThenRead(t, conn, io, "$-1\r\n", NullValue)
 }
 
+// TestIsNullValue checks that only the null value causes IsNullValue to return true
 func TestIsNullValue(t *testing.T) {
 	if !IsNullValue(NullValue) {
 		t.Errorf("!IsNullValue(&global RedisNull)")
 	}
-	ret, rest, err := DecodeRedisValue([]byte("$-1\r\n"))
-	if err != nil {
-		t.Errorf("Error decoding null value: %v", err)
-	}
-	if len(rest) > 0 {
-		t.Errorf("Got leftover data when decoding null")
-	}
-	if !IsNullValue(ret) {
-		t.Errorf("Decoded null string did not return null; got %v", ret)
-	}
 	for str, array := range redisArrays {
 		if IsNullValue(array) {
-			t.Errorf("Non-null array '%s' returned IsNullValue", str)
+			t.Errorf("Non-null array '%s' returned IsNullValue", strip(str))
 		}
 	}
-	for _, enc := range redisErrors {
-		err := rawDecode(t, enc)
-		if IsNullValue(err) {
-			t.Errorf("Non-null error message '%s' returned IsNullValue", enc)
+	for err := range redisErrors {
+		if IsNullValue(ErrorMessage(err)) {
+			t.Errorf("Non-null error message '%s' returned IsNullValue", strip(err))
 		}
 	}
-	for _, enc := range integers {
-		val := rawDecode(t, enc)
-		if IsNullValue(val) {
-			t.Errorf("Non-null integer '%s' returned IsNullValue", enc)
+	for val := range integers {
+		if IsNullValue(Integer(val)) {
+			t.Errorf("Non-null integer '%d' returned IsNullValue", val)
 		}
 	}
-	for _, enc := range bulkStrings {
-		val := rawDecode(t, enc)
-		if IsNullValue(val) {
-			t.Errorf("Non-null bulk string '%s' returned IsNullValue", enc)
+	for str := range bulkStrings {
+		bulk := BulkString([]byte(str))
+		if IsNullValue(bulk) {
+			t.Errorf("Non-null bulk string '%s' returned IsNullValue", strip(str))
 		}
 	}
-	for _, enc := range simpleStrings {
-		val := rawDecode(t, enc)
-		if IsNullValue(val) {
-			t.Errorf("Non-null simple string '%s' returned IsNullValue", enc)
+	for str := range simpleStrings {
+		if IsNullValue(SimpleString(str)) {
+			t.Errorf("Non-null simple string '%s' returned IsNullValue", strip(str))
 		}
 	}
 }
 
+// TestErrorMessage checks that ErrorMessages are encoded/decoded as expected.
 func TestErrorMessage(t *testing.T) {
 	conn, io := getConnection()
-	for k, v := range redisErrors {
-		assertEquals(t, encode(ErrorMessage(k)), v)
-		assertEquals(t, decode(t, v), k)
-		assertEquals(t, ErrorMessage(k).ErrorPrefix(), redisErrorPrefixes[k])
-		assertEquals(t, ErrorMessage(k).ErrorMessage(), redisErrorMessages[k])
-		readWrite(t, conn, io, ErrorMessage(k))
+	for str, encoding := range redisErrors {
+		assertEquals(t, ErrorMessage(str).ErrorPrefix(), redisErrorPrefixes[str])
+		assertEquals(t, ErrorMessage(str).ErrorMessage(), redisErrorMessages[str])
+		writeThenRead(t, conn, io, encoding, ErrorMessage(str))
+	}
+}
+
+// compareArrays recursively compares two arrays (loops not supported)
+func compareArrays(a, b RedisArray) error {
+	return _compareArrays(a, b, "")
+}
+
+// TestRedisArray checks that RedisArray encoding and decoding match the expected values.
+func TestRedisArray(t *testing.T) {
+	conn, io := getConnection()
+
+	// Slowly build up array, checking its encoding after each element is added
+	var array RedisArray
+	e0 := SimpleString("foo")
+	e1 := BulkString([]byte(bigBulkString))
+	e2 := Integer(0)
+	e3 := Integer((1 << 62))
+	e4 := make(RedisArray, 0)
+	e5 := ErrorMessage("ERR some error")
+	writeThenRead(t, conn, io, "*0\r\n", array)
+	array = append(array, e0)
+	writeThenRead(t, conn, io, "*1\r\n"+encode(e0), array)
+	array = append(array, e1)
+	writeThenRead(t, conn, io, "*2\r\n"+encode(e0)+encode(e1), array)
+	array = append(array, e2)
+	writeThenRead(t, conn, io, "*3\r\n"+encode(e0)+encode(e1)+encode(e2), array)
+	array = append(array, e3)
+	writeThenRead(t, conn, io, "*4\r\n"+encode(e0)+encode(e1)+encode(e2)+encode(e3), array)
+	array = append(array, e4)
+	writeThenRead(t, conn, io, "*5\r\n"+encode(e0)+encode(e1)+encode(e2)+encode(e3)+encode(e4), array)
+	array = append(array, e5)
+	writeThenRead(t, conn, io, "*6\r\n"+encode(e0)+encode(e1)+encode(e2)+encode(e3)+encode(e4)+encode(e5), array)
+
+	// Check calculated values
+	for expectedEncoding, redisValue := range redisArrays {
+		writeThenRead(t, conn, io, expectedEncoding, redisValue)
 	}
 }
