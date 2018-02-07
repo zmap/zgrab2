@@ -26,47 +26,53 @@ type ScanTarget struct {
 	Domain string
 }
 
-func (self ScanTarget) String() string {
-	if self.IP == nil && self.Domain == "" {
+func (target ScanTarget) String() string {
+	if target.IP == nil && target.Domain == "" {
 		return "<empty target>"
-	} else if self.IP != nil && self.Domain != "" {
-		return self.Domain + "(" + self.IP.String() + ")"
-	} else if self.IP != nil {
-		return self.IP.String()
-	} else {
-		return self.Domain
+	} else if target.IP != nil && target.Domain != "" {
+		return target.Domain + "(" + target.IP.String() + ")"
+	} else if target.IP != nil {
+		return target.IP.String()
 	}
+	return target.Domain
 }
 
-// scanTargetConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
-type scanTargetConnection struct {
-	net.Conn
-	Timeout time.Duration
-}
-
-func (c *scanTargetConnection) Read(b []byte) (n int, err error) {
-	if c.Timeout > 0 {
-		if err = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout)); err != nil {
-			return 0, err
-		}
-	}
-	return c.Conn.Read(b)
-}
-
-func (c *scanTargetConnection) Write(b []byte) (n int, err error) {
-	if c.Timeout > 0 {
-		if err = c.Conn.SetWriteDeadline(time.Now().Add(c.Timeout)); err != nil {
-			return 0, err
-		}
-	}
-	return c.Conn.Write(b)
-}
-
-// ScanTarget.Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func (t *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
+// Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
+func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	target := fmt.Sprintf("%s:%d", t.IP.String(), flags.Port)
-	return DialTimeoutConnection("tcp", target, timeout)
+	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	return DialTimeoutConnection("tcp", address, timeout)
+}
+
+// OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
+// Note that the UDP "connection" does not have an associated timeout.
+func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
+	timeout := time.Second * time.Duration(flags.Timeout)
+	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	var local *net.UDPAddr
+	var err error
+
+	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
+		local = &net.UDPAddr{}
+		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
+			local.IP = net.ParseIP(udp.LocalAddress)
+		}
+		if udp.LocalPort != 0 {
+			local.Port = int(udp.LocalPort)
+		}
+	}
+	remote, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.DialUDP("udp", local, remote)
+	if err != nil {
+		return nil, err
+	}
+	return &TimeoutConnection{
+		Conn:    conn,
+		Timeout: timeout,
+	}, nil
 }
 
 // grabTarget calls handler for each action
