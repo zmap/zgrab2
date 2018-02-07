@@ -1,11 +1,9 @@
 // Package http contains the zgrab2 Module implementation for HTTP(S).
-// The scan performs a GET on the specified path (default /).
-// If --use-https is provided, it uses TLS instead.
-// The output is based on the original zgrab HTTP output: it has the
-// high-level connect_request and connect_response (NOTE: Currently unused both
-// here and in zgrab), and the full parsed response object in response; if there
-// were any redirects, their full parsed responses also appear in
-// redirect_response_chain.
+//
+// The Flags can be configured to perform a specific Method (e.g. "GET") on the
+// specified Path (e.g. "/"). If UseHTTPS is true, the scanner uses TLS for the
+// initial request. The Result contains the final HTTP response following each
+// response in the redirect chain.
 package http
 
 import (
@@ -24,74 +22,60 @@ import (
 )
 
 var (
-	// ErrRedirLocalhost is thrown if there is an HTTP redirect pointing to localhost, when FollowLocalhostRedirects = false
+	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
+	// unless FollowLocalhostRedirects is set.
 	ErrRedirLocalhost = errors.New("Redirecting to localhost")
 
-	// ErrTooManyRedirects is thrown if the number of HTTP redirects exceeds the MaxRedirects flags
+	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
+	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("Too many redirects")
 )
 
-// Flags holds the command-line configuration for the HTTP scan module. Populated by the framework.
+// Flags holds the command-line configuration for the HTTP scan module.
+// Populated by the framework.
+//
+// TODO: Custom headers?
 type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
-	Method                   string `long:"method" default:"GET" description:"Set HTTP request method type"`
-	Endpoint                 string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
-	UserAgent                string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	ProxyDomain              string `long:"proxy-domain" description:"Send a CONNECT <domain> first"`
-	MaxSize                  int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects             int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
-	FollowLocalhostRedirects bool   `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
-	UseHTTPS                 bool   `long:"use-https" description:"Perform an HTTPS connection on the initial host"`
-	// TODO: Custom headers?
+	Method       string `long:"method" default:"GET" description:"Set HTTP request method type"`
+	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
+	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
+	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+
+	// FollowLocalhostRedirects overrides the default behavior to return
+	// ErrRedirLocalhost whenever a redirect points to localhost.
+	FollowLocalhostRedirects bool `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
+
+	// UseHTTPS causes the first request to be over TLS, without requiring a
+	// redirect to HTTPS. It does not change the port used for the connection.
+	UseHTTPS bool `long:"use-https" description:"Perform an HTTPS connection on the initial host"`
 }
 
-// Request holds the data used for the HTTP request sent to the target
-// NOTE: Currently unused (in the original zgrab, this was only populated in
-// sendHTTPRequestReadHTTPResponse(), which was only called from doProxy(),
-// which was never called.
-type Request struct {
-	Method    string `json:"method,omitempty"`
-	Endpoint  string `json:"endpoint,omitempty"`
-	UserAgent string `json:"user_agent,omitempty"`
-	Body      string `json:"body,omitempty"`
-}
-
-// Headers contains the HTTP headers. Currently unused (see NOTE in Request).
-type Headers map[string]interface{}
-
-// Response holds the raw data returned by the server. NOTE: as with Request,
-// this is unused both here and in the original zgrab.
-type Response struct {
-	VersionMajor int     `json:"version_major,omitempty"`
-	VersionMinor int     `json:"version_minor,omitempty"`
-	StatusCode   int     `json:"status_code,omitempty"`
-	StatusLine   string  `json:"status_line,omitempty"`
-	Headers      Headers `json:"headers,omitempty"`
-	Body         string  `json:"body,omitempty"`
-	BodySHA256   []byte  `json:"body_sha256,omitempty"`
-}
-
-// Results is the type returned to by the scan. NOTE: ProxyRequest/ProxyResponse
-// are currently never set (nor were they ever set in the original zgrab).
+// A Results object is returned by the HTTP module's Scanner.Scan()
+// implementation.
 type Results struct {
-	ProxyRequest          *Request         `json:"connect_request,omitempty"`
-	ProxyResponse         *Response        `json:"connect_response,omitempty"`
-	Response              *http.Response   `json:"response,omitempty"`
+	// Result is the final HTTP response in the RedirectResponseChain
+	Response *http.Response `json:"response,omitempty"`
+
+	// RedirectResponseChain is non-empty is the scanner follows a redirect.
+	// It contains all redirect response prior to the final response.
 	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
 }
 
-// Module is the implementation of the zgrab scan module.
+// Module is an implementation of the zgrab2.Module interface.
 type Module struct {
 }
 
-// Scanner is the implementation of the zgrab Scanner interface.
+// Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
 }
 
-// Scan holds the state for a single scan (maybe entailing multiple connections)
-type Scan struct {
+// scan holds the state for a single scan. This may entail multiple connections.
+// It is used to implement the zgrab2.Scanner interface.
+type scan struct {
 	scanner   *Scanner
 	target    *zgrab2.ScanTarget
 	transport *http.Transport
@@ -100,12 +84,12 @@ type Scan struct {
 	url       string
 }
 
-// NewFlags returns an empty flags object
+// NewFlags returns an empty Flags object.
 func (module *Module) NewFlags() interface{} {
 	return new(Flags)
 }
 
-// NewScanner returns a new instance of the module's zgrab2.Scanner implementation
+// NewScanner returns a new instance Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
@@ -127,18 +111,19 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-// InitPerSender initializes the scanner for a specific sender thread
+// InitPerSender does nothing in this module.
 func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-// GetName gets the scanner's name
+// GetName returns the name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
 }
 
-// getTLSDialer returns a Dial function that connects using the zgrab2.GetTLSConnection()
-func (scan *Scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
+// getTLSDialer returns a Dial function that connects using the
+// zgrab2.GetTLSConnection()
+func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
 		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(scan.scanner.config.BaseFlags.Timeout))
 		if err != nil {
@@ -176,7 +161,7 @@ func redirectsToLocalhost(host string) bool {
 }
 
 // Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses the redirectToLocalhost and MaxRedirects config
-func (scan *Scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
+func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
 			return ErrRedirLocalhost
@@ -225,8 +210,8 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) NewHTTPScan(t *zgrab2.ScanTarget) *Scan {
-	ret := Scan{
+func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
+	ret := scan{
 		scanner: scanner,
 		target:  t,
 		transport: &http.Transport{
@@ -252,7 +237,7 @@ func (scanner *Scanner) NewHTTPScan(t *zgrab2.ScanTarget) *Scan {
 }
 
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
-func (scan *Scan) Grab() *zgrab2.ScanError {
+func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
 	request, err := http.NewRequest(scan.scanner.config.Method, scan.url, nil)
 	if err != nil {
@@ -298,9 +283,11 @@ func (scan *Scan) Grab() *zgrab2.ScanError {
 	return nil
 }
 
-// Scan performs the full scan of the target
+// Scan implements the zgrab2.Scanner interface and performs the full scan of
+// the target. If the scanner is configured to follow redirects, this may entail
+// multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	scan := scanner.NewHTTPScan(&t)
+	scan := scanner.newHTTPScan(&t)
 	err := scan.Grab()
 	if err != nil {
 		return err.Unpack(&scan.results)
@@ -308,7 +295,8 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
 
-// RegisterModule is called by modules/http.go to register this module with the zgrab2 framework
+// RegisterModule is called by modules/http.go to register this module with the
+// zgrab2 framework.
 func RegisterModule() {
 	var module Module
 	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", 80, &module)
