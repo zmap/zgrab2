@@ -20,10 +20,10 @@ type Connection struct {
 	Connection net.Conn
 
 	// Config contains the flags from the command line.
-	Config     *Flags
-	
+	Config *Flags
+
 	// IsSSL is true if Connection is a TLS connection.
-	IsSSL      bool
+	IsSSL bool
 }
 
 // ServerPacket is a direct representation of the response packet
@@ -172,7 +172,7 @@ func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
 	return c.Connection.(*zgrab2.TLSConnection).GetLog()
 }
 
-// encodeMap encodes a map into a byte array of the form 
+// encodeMap encodes a map into a byte array of the form
 // "key0\0value\0key1\0value1\0...keyN\0valueN\0\0"
 func encodeMap(dict map[string]string) []byte {
 	var strs []string
@@ -207,7 +207,7 @@ func (c *Connection) SendStartupMessage(version string, kvps map[string]string) 
 	return c.Send(ret)
 }
 
-// ReadAll reads packets from the given connection until it hits a 
+// ReadAll reads packets from the given connection until it hits a
 // timeout, EOF, or a 'Z' packet.
 func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 	var ret []*ServerPacket

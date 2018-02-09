@@ -1,5 +1,5 @@
 // Package postgres contains the postgres zgrab2 Module implementation.
-// The Scan does three (or four -- see below) consecutive connections to 
+// The Scan does three (or four -- see below) consecutive connections to
 // the server, using different StartupMessages each time, and adds the
 // server's response to each to the output.
 // If any of database/user/application-name are specified on the command
@@ -28,35 +28,35 @@ const (
 	KeyUnknownErrorTag = "_unknown_error_tag"
 	// KeyBadParameters is the key into the ServerParameters table
 	// denoting an invalid parameter.
-	KeyBadParameters   = "_bad_parameters"
+	KeyBadParameters = "_bad_parameters"
 )
 
 // Results is the information returned by the scanner to the caller.
 // https://raw.githubusercontent.com/nmap/nmap/master/nmap-service-probes uses the line number of the error response (e.g. StartupError["line"]) to infer the version number
 type Results struct {
 	// TLSLog is the standard TLS log for the first connection.
-	TLSLog             *zgrab2.TLSLog      `json:"tls,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 
 	// SupportedVersions is the string returned by the server in response
 	// to a StartupMessage with ProtocolVersion = 0.0.
-	SupportedVersions  string              `json:"supported_versions,omitempty"`
+	SupportedVersions string `json:"supported_versions,omitempty"`
 
 	// ProtocolError is the string returned by the server in response to
 	// a StartupMessage with ProtocolVersion = 255.255.
-	ProtocolError      *PostgresError      `json:"protocol_error,omitempty"`
+	ProtocolError *PostgresError `json:"protocol_error,omitempty"`
 
 	// StartupError is the error returned by the server in response to the
 	// StartupMessage with no user provided.
-	StartupError       *PostgresError      `json:"startup_error,omitempty"`
+	StartupError *PostgresError `json:"startup_error,omitempty"`
 
 	// UserStartupError is the error returned by the server in response to
 	// the final StartupMessage when the user/database/application-name is
 	// set.
-	UserStartupError   *PostgresError      `json:"user_startup_error,omitempty"`
+	UserStartupError *PostgresError `json:"user_startup_error,omitempty"`
 
 	// IsSSL is true if the client was able to set up an SSL connection
 	// with the server.
-	IsSSL              bool                `json:"is_ssl"`
+	IsSSL bool `json:"is_ssl"`
 
 	// AuthenticationMode is the value of the R-type packet returned after
 	// the final StartupMessage.
@@ -64,15 +64,15 @@ type Results struct {
 
 	// ServerParameters is a map of the key/value pairs returned after the
 	// final StartupMessage.
-	ServerParameters   *ServerParameters   `json:"server_parameters,omitempty"`
+	ServerParameters *ServerParameters `json:"server_parameters,omitempty"`
 
 	// BackendKeyData is the value of the 'K'-type packet returned by the
 	// server after the final StartupMessage.
-	BackendKeyData     *BackendKeyData     `json:"backend_key_data,omitempty" zgrab:"debug"`
+	BackendKeyData *BackendKeyData `json:"backend_key_data,omitempty" zgrab:"debug"`
 
-	// TransactionStatus is the value of the 'Z'-type packet returned by 
+	// TransactionStatus is the value of the 'Z'-type packet returned by
 	// the server after the final StartupMessage.
-	TransactionStatus  string              `json:"transaction_status,omitempty"`
+	TransactionStatus string `json:"transaction_status,omitempty"`
 }
 
 // PostgresError is parsed the payload of an 'E'-type packet, mapping
@@ -346,16 +346,16 @@ func (s *Scanner) getDefaultKVPs() map[string]string {
 }
 
 // Scan does the actual scanning. It opens up to four connections:
-// 1. Sends a bogus protocol version in hopes of getting a list of 
+// 1. Sends a bogus protocol version in hopes of getting a list of
 //    supported protcols back. Results here are supported_versions and
 //    and tls (* if applicable).
 // 2. Send a too-high protocol version (255.255) to get full error
 //    message, including line numbers, which could be useful for probing
 //    server version. This is where it gets the protcol_error result.
-// 3. Send a StartupMessage with a valid protocol version (by default 
+// 3. Send a StartupMessage with a valid protocol version (by default
 //    3.0, but this can be overridden on the command line), but omit the
 //    user field. This is where it gets the startup_error result.
-// 4. Only sent if at least one of user/database/application-name 
+// 4. Only sent if at least one of user/database/application-name
 //    command line flags are provided. Does the same as #3, but includes
 //    any/all of user/database/application-name. This is where it gets
 //    backend_key_data, server_parameters, authentication_mode,
