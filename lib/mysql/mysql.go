@@ -1,15 +1,12 @@
-/**
- * @TODO @FIXME: copyright info
- * Very basic MySQL connection library.
- * Usage:
- *	var sql *mysql.Connection := mysql.NewConnection(&mysql.Config{
- *		Host: targetHost,
- *		Port: targetPort,
- *	})
- *	err := sql.Connect()
- *	defer sql.Disconnect()
- * The Connection exports the connection details via the ConnectionLog.
- */
+// Package mysql is a very basic MySQL connection library.
+// Usage:
+//    var sql *mysql.Connection := mysql.NewConnection(&mysql.Config{
+//    Host: targetHost,
+//    Port: targetPort,
+//  })
+//  err := sql.Connect()
+//  defer sql.Disconnect()
+// The Connection exports the connection details via the ConnectionLog.
 package mysql
 
 import (
@@ -28,31 +25,27 @@ import (
 )
 
 const (
-	// Start state
+	// STATE_NOT_CONNECTED is the start state.
 	STATE_NOT_CONNECTED = "NOT_CONNECTED"
 
-	// After the TCP connection is completed
+	// STATE_CONNECTED is the state after the TCP connection is completed.
 	STATE_CONNECTED = "CONNECTED"
 
-	// After reading a HandshakePacket with SSL capabilities, before sending the SSLRequest packet
+	// STATE_SSL_REQUEST is the state after reading a HandshakePacket with
+	// SSL capabilities, before sending the SSLRequest packet.
 	STATE_SSL_REQUEST = "SSL_REQUEST"
 
-	// After sending an SSLRequest packet, before peforming an SSL handshake
+	// STATE_SSL_HANDSHAKE is the state after sending an SSLRequest
+	// packet, before peforming an SSL handshake.
 	STATE_SSL_HANDSHAKE = "SSL_HANDSHAKE"
 
-	// After connection has been negotiated (from either CONNECTED or SSL_HANDSHAKE)
+	// STATE_FINISHED is the state after the connection has been 
+	// negotiated (from either CONNECTED or SSL_HANDSHAKE).
 	STATE_FINISHED = "STATE_FINISHED"
 )
 
+// ConnectionState tracks the state of the Connection instance.
 type ConnectionState string
-
-const (
-	PACKET_TYPE_OK          = "OK"
-	PACKET_TYPE_ERROR       = "ERROR"
-	PACKET_TYPE_HANDSHAKE   = "HANDSHAKE"
-	PACKET_TYPE_EOF         = "EOF"
-	PACKET_TYPE_SSL_REQUEST = "SSL_REQUEST"
-)
 
 // Capability flags: See https://dev.mysql.com/doc/dev/mysql-server/8.0.1/group__group__cs__capabilities__flags.html
 const (
@@ -67,17 +60,14 @@ const (
 	CLIENT_IGNORE_SPACE
 	CLIENT_PROTOCOL_41
 	CLIENT_INTERACTIVE
-	// CLIENT_SSL = (1<<11)
 	CLIENT_SSL
 	CLIENT_IGNORE_SIGPIPE
 	CLIENT_TRANSACTIONS
 	CLIENT_RESERVED
-	// CLIENT_SECURE_CONNECTION = (1 << 15)
 	CLIENT_SECURE_CONNECTION
 	CLIENT_MULTI_STATEMENTS
 	CLIENT_MULTI_RESULTS
 	CLIENT_PS_MULTI_RESULTS
-	// CLIENT_PLUGIN_AUTH = ( 1 << 19 )
 	CLIENT_PLUGIN_AUTH
 	CLIENT_CONNECT_ATTRS
 	CLIENT_PLUGIN_AUTH_LEN_ENC_CLIENT_DATA
@@ -94,6 +84,7 @@ const (
 	DEFAULT_RESERVED_DATA_HEX   = "0000000000000000000000000000000000000000000000"
 )
 
+// Config specifies the client settings for the connection.
 type Config struct {
 	ClientCapabilities uint32
 	MaxPacketSize      uint32
@@ -174,7 +165,8 @@ func GetClientCapabilityFlags(flags uint32) map[string]bool {
 	return flagsToSet(uint64(flags), consts)
 }
 
-// Fill in a (possibly newly-created) Config instance with the default values
+// InitConfig fills in a (possibly newly-created) Config instance with 
+// the default values where values are not present.
 func InitConfig(base *Config) *Config {
 	if base == nil {
 		base = &Config{}
@@ -192,30 +184,35 @@ func InitConfig(base *Config) *Config {
 	return base
 }
 
-// Log of the packets sent/received during the connection.
+// ConnectionLog is a log of packets sent/received during the connection.
 type ConnectionLog struct {
 	Handshake  *ConnectionLogEntry `json:"handshake,omitempty"`
 	Error      *ConnectionLogEntry `json:"error,omitempty"`
 	SSLRequest *ConnectionLogEntry `json:"ssl_request,omitempty"`
 }
 
-// Struct holding state for a single connection
+// Connection holds the state of a single connection.
 type Connection struct {
-	// Configuration for this connection
+	// Config is the client configuration for this connection.
 	Config *Config
 
-	// Enum to track connection status
+	// ConnectionState tracks how far along along the client is in 
+	// negotiating the connection.
 	State ConnectionState
-	// TCP or TLS-wrapped Connection pointer (IsSecure() will tell which)
+
+	// Connection is the TCP or TLS-wrapped Connection (IsSecure() will 
+	// tell which)
 	Connection net.Conn
-	// The sequence number used with the server to number packets
+
+	// SequenceNumber is used to number packets to / from the server.
 	SequenceNumber uint8
 
-	// Log of MySQL packets received/sent
+	// ConnectionLog is a log of MySQL packets received/sent.
 	ConnectionLog ConnectionLog
 }
 
-// Constructor, filling in defaults where needed
+// NewConnection creates a new connection object with the given config
+// (using defaults where none is specified).
 func NewConnection(config *Config) *Connection {
 	return &Connection{
 		Config:         InitConfig(config),
@@ -225,65 +222,98 @@ func NewConnection(config *Config) *Connection {
 	}
 }
 
-// Top-level interface for all packets
+// PacketInfo is the top-level interface for all packets.
 type PacketInfo interface {
 }
 
-// Most packets are read from the server; for packets that need to be sent, they need an encoding function
+// WritablePacket is a sub-interface for those packets that must be
+// sent by the client to the server, and not just read.
 type WritablePacket interface {
 	PacketInfo
 	EncodeBody() []byte
 }
 
-// Entry in the ConnectionLog. Raw is the base64-encoded body, Parsed is the parsed packet.
-// Either may be nil if there was an error reading/decoding the packet.
+// ConnectionLogEntry is an entry in the ConnectionLog.Entry in the ConnectionLog. 
 type ConnectionLogEntry struct {
+	// Length is the actual length of the packet body.
 	Length         uint32     `zgrab:"debug" json:"length"`
+
+	// SequenceNumber is the sequence number included in the packet.
 	SequenceNumber uint8      `zgrab:"debug" json:"sequence_number"`
+
+	// Raw is the raw packet body, base64-encoded. May be nil on a read
+	// error.
 	Raw            string     `zgrab:"debug" json:"raw"`
+
+	// Parsed is the parsed packet body. May be nil on a decode error.
 	Parsed         PacketInfo `json:"parsed,omitempty"`
 }
 
-// HandshakePacket defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
-// @TODO @FIXME: This is protocol version 10 handle previous / future versions
+// HandshakePacket is the packet the server sends immediately upon a
+// client connecting (unless there is an error, like there are no users
+// allowed to connect from the client's host).
+// The packet format is defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html
+// This is compatible with at least protocol version 10.
 // Protocol version 9 was 3.22 and prior (1998?).
 type HandshakePacket struct {
-	// protocol_version: int<1>
+	// ProtocolVersion is the version of the protocol being used.
 	ProtocolVersion byte `json:"protocol_version"`
-	// server_version: string<NUL>
+
+	// ServerVersion is a human-readable server version.
 	ServerVersion string `json:"server_version"`
-	// connection_id: int<4>
-	ConnectionID uint32 `zgrab:"debug" json:"connection_id"` // [4]
-	// auth_plugin_data_part_1: string<8>
+
+	// ConnectionID is the ID used by the server to identify this client.
+	ConnectionID uint32 `zgrab:"debug" json:"connection_id"`
+
+	// AuthPluginData1 is the first part of the auth-plugin-specific data.
 	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1"`
-	// fillter_1: byte<1>
+
+	// Filler1 is an unused byte, defined to be 0.
 	Filler1 byte `zgrab:"debug" json:"filler_1,omitempty"`
-	// capability_flag_1: int<2> -- Stored as lower 16 bits of capability_flags
-	// character_set: int<1> (optional? 0 is a valid value, so omitempty doesn't seem like an option)
+
+	// At this point in the struct, the lower 16 bits of the 
+	// CapabilityFlags appear.
+
+	// CharacterSet is the low 8 bits of the default server character-set
 	CharacterSet byte `zgrab:"debug" json:"character_set"`
 
-	// Synthetic field: if true, none of the following fields are present.
+	// ShortHandshake is a synthetic field: if true, none of the following
+	// fields are present.
 	ShortHandshake bool `zgrab:"debug" json:"short_handshake"`
 
-	// status_flags: int<> (optional? doing omitempty since no flags would be interpreted as all 0s)
+	// StatusFlags is a bit field giving the server's status.
 	StatusFlags uint16 `json:"status_flags,omitempty"`
-	// capability_flag_2: int<2> -- Stored as upper 16 bits of capability_flags
 
-	// auth_plugin_data_len: int<1>
-	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
-	// if (capabilities & CLIENT_SECURE_CONNECTION) {
-	// reserved:  string<10> all 0: custom marshaler will omit this if it is all \x00s.
-	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
-	// auth_plugin_data_part_2: string<MAX(13, auth_plugin_data_len - 8)>
-	AuthPluginData2 []byte `zgrab:"debug" json:"auth_plugin_data_part_2,omitempty"`
-	// auth_plugin_name: string<NUL>, but old versions lacked null terminator, so returning string<EOF>
-	AuthPluginName string `zgrab:"debug" json:"auth_plugin_name,omitempty"`
-	// }
-	// Synthetic field built from capability_flags_1 || capability_flags_2 << 16
+	// At this point in the struct, the upper 16 bits of the 
+	// CapabilityFlags appear.
+
+	// CapabilityFlags the combined capability flags, which tell what
+	// the server can do (e.g. whether it supports SSL).
 	CapabilityFlags uint32 `json:"capability_flags"`
+
+	// AuthPluginDataLen is the length of the full auth-plugin-specific
+	// data (so len(AuthPluginData1) + len(AuthPluginData2) = 
+	// AuthPluginDataLen)
+	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
+
+	// The following field are only present if the CLIENT_SECURE_CONNECTION
+	// capability flag is set:
+
+	// Reserved is defined to be ten bytes of 0x00s.
+	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
+
+	// AuthPluginData2 is the remainder of the auth-plugin-specific data.
+	// Its length is MAX(13, auth_plugin_data_len - 8).
+	AuthPluginData2 []byte `zgrab:"debug" json:"auth_plugin_data_part_2,omitempty"`
+
+	// AuthPluginName is the name of the auth plugin. This determines the
+	// format / interpretation of AuthPluginData.
+	AuthPluginName string `zgrab:"debug" json:"auth_plugin_name,omitempty"`
+
 }
 
-// Omit reserved from encoded packet if it is the default value (ten bytes of 0s)
+// MarshalJSON omits reserved from encoded packet if it is the default 
+// value (ten bytes of 0s).
 func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	reserved := p.Reserved
 	if base64.StdEncoding.EncodeToString(reserved) == "AAAAAAAAAAAAAA==" {
@@ -340,30 +370,40 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 	return ret, nil
 }
 
+// OKPacket is sent by the server in response to a successful command.
+// See e.g. https://dev.mysql.com/doc/internals/en/packet-OK_Packet.html
 type OKPacket struct {
-	// header: 0xfe or 0x00
+	// Header identifies the packet as an OK_Packet. Either 0x01 or 0xFE.
 	Header byte `zgrab:"debug" json:"header"`
-	// affected_rows: int<lenenc>
+
+	// AffectedRows gives the number of rows affected by the command.
 	AffectedRows uint64 `zgrab:"debug" json:"affected_rows"`
-	// last_insert_rowid: int<lenenc>
+
+	// LastInsertId gives the ID of the last-inserted row.
 	LastInsertId uint64 `json:"last_insert_id"`
-	// if (CLIENT_PROTOCOL_41 || CLIENT_TRANSACTIONS) {
-	// status_flags: int<2>
+
+	// The following fields are only present if the ClientCapabilities
+	// returned by the server contain the flag CLIENT_TRANSACTIONS:
+
+	// StatusFlags give the server's status (see e.g. https://dev.mysql.com/doc/internals/en/status-flags.html)
 	StatusFlags uint16 `json:"status_flags,omitempty"`
-	// if CLIENT_PROTOCOL_41 {
-	// warnings: int<2>
+
+	// Warnings is only present if the ClientCapabilities returned by the
+	// server contain the flag CLIENT_PROTOCOL_41. 
+	// Warnings gives the number of warnings.
 	Warnings uint16 `json:"warnings,omitempty"`
-	// }
-	// }
-	// info: string<lenenc> || string<EOF>
+
+	// Info gives human readable status information.
 	Info string `json:"info,omitempty"`
-	// if CLIENT_SESSION_TRACK && status_flags && SERVER_SESSION_STATE_CHANGED {
-	// session_state_changes: string<lenenc>
+
+	// SessionStateChanges is only present if the server has the 
+	// CLIENT_SESSION_TRACK ClientCapability and the StatusFlags contain
+	// SERVER_SESSION_STATE_CHANGED.
+	// SessionStateChanges gives state information on the session.
 	SessionStateChanges string `zgrab:"debug" json:"session_state_changes,omitempty"`
-	// }
 }
 
-// Convert the StatusFlags to an array of consts
+// MarshalJSON convert the StatusFlags to an set of consts.
 func (p *OKPacket) MarshalJSON() ([]byte, error) {
 	// 	Hack around infinite MarshalJSON loop by aliasing parent type (http://choly.ca/post/go-json-marshalling/)
 	type Alias OKPacket
@@ -423,19 +463,25 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 	return ret, nil
 }
 
-// ERRPacket defined at https://web.archive.org/web/20160316124241/https://dev.mysql.com/doc/internals/en/packet-ERRPacket.html
+// ERRPacket is returned by the server when there is an error.
+// It is defined at https://web.archive.org/web/20160316124241/https://dev.mysql.com/doc/internals/en/packet-ERRPacket.html
 type ERRPacket struct {
-	// header: int<1>
+	// Header identifies the packet as an ERR_Packet; its value is 0xFF.
 	Header byte `zgrab:"debug" json:"header"`
-	// error_code: int<2>
+
+	// ErrorCode identifies the error.
 	ErrorCode uint16 `json:"error_code"`
-	// if CLIENT_PROTOCOL_41 {
-	// sql_state_marker string<1>
+
+	// SQLStateMarker and SQLState are only present if the server has
+	// ClientCapability CLIENT_PROTOCOL_41:
+
+	// SQLStateMarker is a numeric marker of the SQL state.
 	SQLStateMarker string `zgrab:"debug" json:"sql_state_marker,omitempty"`
-	// sql_state string<5>
+
+	// SQLStateString is a five-character string representation of the SQL state.
 	SQLState string `zgrab:"debug" json:"sql_state,omitempty"`
-	// }
-	// error_messagestring<eof> (in the packet encoding, an absent value and an empty string have the same encoding)
+
+	// ErrorMessage is a human-readable error message.
 	ErrorMessage string `json:"error_message,omitempty"`
 }
 
@@ -459,19 +505,27 @@ func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 	return ret, nil
 }
 
-// SSLRequest packet type defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
+// SSLRequestPacket is the packet sent by the client to inform the
+// server that a TLS handshake follows.
+// It is defined at type defined at https://web.archive.org/web/20160316105725/https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::SSLRequest
 type SSLRequestPacket struct {
-	// capability_flags int<4>: Would be weird to not set CLIENT_SSL (0x0800) in your SSLRequest packet
+	// CapabilityFlags is a bit field of flags that the client supports.
+	// CLIENT_SSL (0x0800) must always be set.
 	CapabilityFlags uint32 `json:"capability_flags"`
-	// max_packet_size int<4>
+
+	// MaxPacketSize specifies the maximum size packets the client expects
+	// to receive.
 	MaxPacketSize uint32 `zgrab:"debug" json:"max_packet_size"`
-	// character_set int<1>
+
+	// CharacterSet specifies the client's expected character set.
 	CharacterSet byte `zgrab:"debug" json:"character_set"`
-	// reserved string<23>: all \x00
+
+	// Reserved is a 23-byte string of null characters.
 	Reserved []byte `zgrab:"debug" json:"reserved,omitempty"`
 }
 
-// Omit reserved from encoded packet if it is the default value (ten bytes of 0s)
+// MarshalJSON omits reserved from encoded packet if it is the default
+// value (ten bytes of 0s).
 func (p *SSLRequestPacket) MarshalJSON() ([]byte, error) {
 	reserved := p.Reserved
 	if base64.StdEncoding.EncodeToString(reserved) == "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" {
@@ -490,6 +544,7 @@ func (p *SSLRequestPacket) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// EncodeBody encodes the SSLRequestPacket for transport to the server.
 func (p *SSLRequestPacket) EncodeBody() []byte {
 	var ret [32]byte
 	binary.LittleEndian.PutUint32(ret[0:], p.CapabilityFlags)
@@ -591,7 +646,8 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	return &packet, nil
 }
 
-// Get the server HandshakePacket if present, or otherwise, nil
+// GetHandshake attempts to get the Handshake packet from the 
+// ConnectionLog; if none is present, returns nil.
 func (c *Connection) GetHandshake() *HandshakePacket {
 	if entry := c.ConnectionLog.Handshake; entry != nil {
 		return entry.Parsed.(*HandshakePacket)
@@ -599,7 +655,8 @@ func (c *Connection) GetHandshake() *HandshakePacket {
 	return nil
 }
 
-// Check if both the input client flags and the server capability flags support TLS
+// SupportsTLS checks if both the input client flags and the server 
+// capability flags support TLS.
 func (c *Connection) SupportsTLS() bool {
 	if handshake := c.GetHandshake(); handshake != nil {
 		return (handshake.CapabilityFlags & c.Config.ClientCapabilities & CLIENT_SSL) != 0
@@ -608,7 +665,8 @@ func (c *Connection) SupportsTLS() bool {
 	return false
 }
 
-// Send the SSL_REQUEST packet (the client should begin the TLS handshake immediately after this returns successfully)
+// NegotiateTLS sends the SSL_REQUEST packet (the client should begin 
+// the TLS handshake immediately after this returns successfully).
 func (c *Connection) NegotiateTLS() error {
 	c.State = STATE_SSL_REQUEST
 	sslRequest := SSLRequestPacket{
@@ -662,7 +720,7 @@ func (c *Connection) Connect(conn net.Conn) error {
 	return nil
 }
 
-// Close the connection.
+// Disconnect from the server and close any underlying connections.
 func (c *Connection) Disconnect() error {
 	if c.Connection == nil {
 		return nil
