@@ -12,8 +12,8 @@ import (
 	"github.com/zmap/zgrab2/lib/mysql"
 )
 
-// MySQLScanResults contains detailed information about the scan.
-type MySQLScanResults struct {
+// ScanResults contains detailed information about the scan.
+type ScanResults struct {
 	// ProtocolVersion is the 8-bit unsigned integer representing the
 	// server's protocol version sent in the initial HandshakePacket from
 	// the server.
@@ -71,16 +71,22 @@ type MySQLScanResults struct {
 }
 
 // Convert the ConnectionLog into the output format.
-func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *MySQLScanResults {
-	ret := MySQLScanResults{}
+func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *ScanResults {
+	ret := ScanResults{}
 	if connectionLog == nil {
-		return &ret
+		return nil
+	}
+	// If we received neither a Handshake nor an Error message, then no
+	// MySQL service is detected.
+	if connectionLog.Handshake == nil && connectionLog.Error == nil {
+		return nil
 	}
 	if connectionLog.Handshake != nil {
 		ret.RawPackets = append(ret.RawPackets, connectionLog.Handshake.Raw)
 		switch handshake := connectionLog.Handshake.Parsed.(type) {
 		case *mysql.HandshakePacket:
 			ret.ProtocolVersion = handshake.ProtocolVersion
+			ret.ServerVersion = handshake.ServerVersion
 			ret.ConnectionID = handshake.ConnectionID
 			len1 := len(handshake.AuthPluginData1)
 			ret.AuthPluginData = make([]byte, len1+len(handshake.AuthPluginData2))
@@ -113,62 +119,80 @@ func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *MySQLScan
 	return &ret
 }
 
-type MySQLFlags struct {
+// Flags give the command-line flags for the MySQL module.
+type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
-type MySQLModule struct {
+// Module is the implementation of the zgrab2.Module interface.
+type Module struct {
 }
 
-type MySQLScanner struct {
-	config *MySQLFlags
+// Scanner is the implementation of the zgrab2.Scanner interface.
+type Scanner struct {
+	config *Flags
 }
 
+// RegisterModule is called by modules/mysql.go to register the scanner.
 func RegisterModule() {
-	var module MySQLModule
+	var module Module
 	_, err := zgrab2.AddCommand("mysql", "MySQL", "Grab a MySQL handshake", 3306, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func (m *MySQLModule) NewFlags() interface{} {
-	return new(MySQLFlags)
+// NewFlags returns a new default flags object.
+func (m *Module) NewFlags() interface{} {
+	return new(Flags)
 }
 
-func (m *MySQLModule) NewScanner() zgrab2.Scanner {
-	return new(MySQLScanner)
+// NewScanner returns a new Scanner object.
+func (m *Module) NewScanner() zgrab2.Scanner {
+	return new(Scanner)
 }
 
-func (f *MySQLFlags) Validate(args []string) error {
+// Validate validates the flags and returns nil on success.
+func (f *Flags) Validate(args []string) error {
 	return nil
 }
 
-func (f *MySQLFlags) Help() string {
+// Help returns the module's help string.
+func (f *Flags) Help() string {
 	return ""
 }
 
-func (s *MySQLScanner) Init(flags zgrab2.ScanFlags) error {
-	f, _ := flags.(*MySQLFlags)
+// Init initializes the Scanner with the command-line flags.
+func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+	f, _ := flags.(*Flags)
 	s.config = f
 	return nil
 }
 
-func (s *MySQLScanner) InitPerSender(senderID int) error {
+// InitPerSender does nothing in this module.
+func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *MySQLScanner) GetName() string {
+// GetName returns the name from the command line flags.
+func (s *Scanner) GetName() string {
 	return s.config.Name
 }
 
-func (s *MySQLScanner) GetPort() uint {
+// GetPort returns the port that is being scanned.
+func (s *Scanner) GetPort() uint {
 	return s.config.Port
 }
 
-func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+// Scan probles the target for a MySQL server.
+// 1. Connects and waits to receive the handshake packet.
+// 2. If the server supports SSL, send an SSLRequest packet, then 
+//    perform the standard TLS actions.
+// 3. Process and return the results.
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+	var tlsConn *zgrab2.TLSConnection
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
 		recovered := recover()
@@ -178,6 +202,9 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, resu
 			// TODO FIXME: do more to distinguish errors
 		}
 		result = readResultsFromConnectionLog(&sql.ConnectionLog)
+		if tlsConn != nil {
+			result.(*ScanResults).TLSLog = tlsConn.GetLog()
+		}
 	}()
 	defer sql.Disconnect()
 	var err error
@@ -192,17 +219,14 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, resu
 		if err = sql.NegotiateTLS(); err != nil {
 			panic(err)
 		}
-		var conn *zgrab2.TLSConnection
-		if conn, err = s.config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
+		if tlsConn, err = s.config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
 			panic(err)
 		}
-		// Following the example of the SSH module, allow the possibility of failing while still returning a (perhaps incomplete) log
-		result.(*MySQLScanResults).TLSLog = conn.GetLog()
-		if err = conn.Handshake(); err != nil {
+		if err = tlsConn.Handshake(); err != nil {
 			panic(err)
 		}
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
-		sql.Connection = conn
+		sql.Connection = tlsConn
 	}
 	// If we made it this far, the scan was a success. The result will be grabbed in the defer block above.
 	return zgrab2.SCAN_SUCCESS, nil, nil

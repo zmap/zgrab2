@@ -39,7 +39,7 @@ const (
 	// packet, before peforming an SSL handshake.
 	STATE_SSL_HANDSHAKE = "SSL_HANDSHAKE"
 
-	// STATE_FINISHED is the state after the connection has been 
+	// STATE_FINISHED is the state after the connection has been
 	// negotiated (from either CONNECTED or SSL_HANDSHAKE).
 	STATE_FINISHED = "STATE_FINISHED"
 )
@@ -108,7 +108,7 @@ func flagsToSet(flags uint64, consts []string) (ret map[string]bool) {
 
 // GetServerStatusFlags returns a map[string]bool representation of the
 // given flags. The keys are the constant names defined in the MySQL
-// docs, and the values are true (flags that are not set have no 
+// docs, and the values are true (flags that are not set have no
 // corresponding map entry).
 func GetServerStatusFlags(flags uint16) map[string]bool {
 	consts := []string{
@@ -132,7 +132,7 @@ func GetServerStatusFlags(flags uint16) map[string]bool {
 
 // GetClientCapabilityFlags returns a map[string]bool representation of
 // the given flags. The keys are the constant names defined in the MySQL
-// docs, and the values are true (flags that are not set have no 
+// docs, and the values are true (flags that are not set have no
 // corresponding map entry).
 func GetClientCapabilityFlags(flags uint32) map[string]bool {
 	consts := []string{
@@ -165,7 +165,7 @@ func GetClientCapabilityFlags(flags uint32) map[string]bool {
 	return flagsToSet(uint64(flags), consts)
 }
 
-// InitConfig fills in a (possibly newly-created) Config instance with 
+// InitConfig fills in a (possibly newly-created) Config instance with
 // the default values where values are not present.
 func InitConfig(base *Config) *Config {
 	if base == nil {
@@ -196,11 +196,11 @@ type Connection struct {
 	// Config is the client configuration for this connection.
 	Config *Config
 
-	// ConnectionState tracks how far along along the client is in 
+	// ConnectionState tracks how far along along the client is in
 	// negotiating the connection.
 	State ConnectionState
 
-	// Connection is the TCP or TLS-wrapped Connection (IsSecure() will 
+	// Connection is the TCP or TLS-wrapped Connection (IsSecure() will
 	// tell which)
 	Connection net.Conn
 
@@ -233,20 +233,20 @@ type WritablePacket interface {
 	EncodeBody() []byte
 }
 
-// ConnectionLogEntry is an entry in the ConnectionLog.Entry in the ConnectionLog. 
+// ConnectionLogEntry is an entry in the ConnectionLog.Entry in the ConnectionLog.
 type ConnectionLogEntry struct {
 	// Length is the actual length of the packet body.
-	Length         uint32     `zgrab:"debug" json:"length"`
+	Length uint32 `zgrab:"debug" json:"length"`
 
 	// SequenceNumber is the sequence number included in the packet.
-	SequenceNumber uint8      `zgrab:"debug" json:"sequence_number"`
+	SequenceNumber uint8 `zgrab:"debug" json:"sequence_number"`
 
 	// Raw is the raw packet body, base64-encoded. May be nil on a read
 	// error.
-	Raw            string     `zgrab:"debug" json:"raw"`
+	Raw string `zgrab:"debug" json:"raw"`
 
 	// Parsed is the parsed packet body. May be nil on a decode error.
-	Parsed         PacketInfo `json:"parsed,omitempty"`
+	Parsed PacketInfo `json:"parsed,omitempty"`
 }
 
 // HandshakePacket is the packet the server sends immediately upon a
@@ -271,7 +271,7 @@ type HandshakePacket struct {
 	// Filler1 is an unused byte, defined to be 0.
 	Filler1 byte `zgrab:"debug" json:"filler_1,omitempty"`
 
-	// At this point in the struct, the lower 16 bits of the 
+	// At this point in the struct, the lower 16 bits of the
 	// CapabilityFlags appear.
 
 	// CharacterSet is the low 8 bits of the default server character-set
@@ -284,7 +284,7 @@ type HandshakePacket struct {
 	// StatusFlags is a bit field giving the server's status.
 	StatusFlags uint16 `json:"status_flags,omitempty"`
 
-	// At this point in the struct, the upper 16 bits of the 
+	// At this point in the struct, the upper 16 bits of the
 	// CapabilityFlags appear.
 
 	// CapabilityFlags the combined capability flags, which tell what
@@ -292,7 +292,7 @@ type HandshakePacket struct {
 	CapabilityFlags uint32 `json:"capability_flags"`
 
 	// AuthPluginDataLen is the length of the full auth-plugin-specific
-	// data (so len(AuthPluginData1) + len(AuthPluginData2) = 
+	// data (so len(AuthPluginData1) + len(AuthPluginData2) =
 	// AuthPluginDataLen)
 	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
 
@@ -309,10 +309,9 @@ type HandshakePacket struct {
 	// AuthPluginName is the name of the auth plugin. This determines the
 	// format / interpretation of AuthPluginData.
 	AuthPluginName string `zgrab:"debug" json:"auth_plugin_name,omitempty"`
-
 }
 
-// MarshalJSON omits reserved from encoded packet if it is the default 
+// MarshalJSON omits reserved from encoded packet if it is the default
 // value (ten bytes of 0s).
 func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	reserved := p.Reserved
@@ -389,14 +388,14 @@ type OKPacket struct {
 	StatusFlags uint16 `json:"status_flags,omitempty"`
 
 	// Warnings is only present if the ClientCapabilities returned by the
-	// server contain the flag CLIENT_PROTOCOL_41. 
+	// server contain the flag CLIENT_PROTOCOL_41.
 	// Warnings gives the number of warnings.
 	Warnings uint16 `json:"warnings,omitempty"`
 
 	// Info gives human readable status information.
 	Info string `json:"info,omitempty"`
 
-	// SessionStateChanges is only present if the server has the 
+	// SessionStateChanges is only present if the server has the
 	// CLIENT_SESSION_TRACK ClientCapability and the StatusFlags contain
 	// SERVER_SESSION_STATE_CHANGED.
 	// SessionStateChanges gives state information on the session.
@@ -646,7 +645,7 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	return &packet, nil
 }
 
-// GetHandshake attempts to get the Handshake packet from the 
+// GetHandshake attempts to get the Handshake packet from the
 // ConnectionLog; if none is present, returns nil.
 func (c *Connection) GetHandshake() *HandshakePacket {
 	if entry := c.ConnectionLog.Handshake; entry != nil {
@@ -655,7 +654,7 @@ func (c *Connection) GetHandshake() *HandshakePacket {
 	return nil
 }
 
-// SupportsTLS checks if both the input client flags and the server 
+// SupportsTLS checks if both the input client flags and the server
 // capability flags support TLS.
 func (c *Connection) SupportsTLS() bool {
 	if handshake := c.GetHandshake(); handshake != nil {
@@ -665,7 +664,7 @@ func (c *Connection) SupportsTLS() bool {
 	return false
 }
 
-// NegotiateTLS sends the SSL_REQUEST packet (the client should begin 
+// NegotiateTLS sends the SSL_REQUEST packet (the client should begin
 // the TLS handshake immediately after this returns successfully).
 func (c *Connection) NegotiateTLS() error {
 	c.State = STATE_SSL_REQUEST
