@@ -1,5 +1,12 @@
-package postgres
-
+// Package postgres contains the postgres zgrab2 Module implementation.
+// The Scan does three (or four -- see below) consecutive connections to 
+// the server, using different StartupMessages each time, and adds the
+// server's response to each to the output.
+// If any of database/user/application-name are specified on the command
+// line, the fourth StartupMessage is sent with the provided data. This
+// may allow additional data, such as detailed server parameters, to be
+// collected. Absent these, version information must be inferred from
+// the values in the results (e.g. line numbers in error strings).
 import (
 	"encoding/binary"
 	"fmt"
