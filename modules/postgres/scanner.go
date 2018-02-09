@@ -7,6 +7,8 @@
 // may allow additional data, such as detailed server parameters, to be
 // collected. Absent these, version information must be inferred from
 // the values in the results (e.g. line numbers in error strings).
+package postgres
+
 import (
 	"encoding/binary"
 	"fmt"
