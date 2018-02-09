@@ -6,7 +6,7 @@ set -e
 # To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
 
 # Test procedure:
-# 1. For each module (subdirectory of integration_tests):
+# 1. For each module (subdirectory of integration_tests (%)):
 #   a. Enter module directory
 #   b. If there is a setup.sh, run it (*)
 #   c. Run test.sh
@@ -18,6 +18,8 @@ set -e
 #
 # (*) Skip if the NOSETUP environment variable is set
 # (^) Skip if the NOSCHEMA environment variable is set
+# (%) The .templates directory is skipped, and if the TEST_MODULES 
+#     environment variables is set, only modules in that list are run
 
 # Any errors in the first part will cause an immediate failure.
 # During schema validation, all output is validated and the errors are dumped afterwards.
@@ -33,7 +35,7 @@ ZGRAB_OUTPUT="zgrab-output"
 
 pushd integration_tests
 for mod in $(ls); do
-    if [ ".template" != "$mod" ] && [ -d "$mod" ]; then
+    if [ ".template" != "$mod" ] && [ -d "$mod" ] && ( [ -z $TEST_MODULES ] || [ $mod = *"$TEST_MODULES"* ]); then
         pushd $mod
         for test in $(ls test*.sh); do
             echo "Running integration_tests/$mod/$test"
