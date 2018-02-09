@@ -60,10 +60,10 @@ type PostgresFlags struct {
 	zgrab2.TLSFlags
 	SkipSSL         bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
 	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	ProtocolVersion string `long:"protocol_version" description:"The protocol to use in the StartupPacket" default:"3.0"`
+	ProtocolVersion string `long:"protocol-version" description:"The protocol to use in the StartupPacket" default:"3.0"`
 	User            string `long:"user" description:"Username to pass to StartupMessage. If omitted, no user will be sent." default:""`
 	Database        string `long:"database" description:"Database to pass to StartupMessage. If omitted, none will be sent." default:""`
-	ApplicationName string `long:"application_name" description:"application_name value to pass in StartupMessage. If omitted, none will be sent." default:""`
+	ApplicationName string `long:"application-name" description:"application_name value to pass in StartupMessage. If omitted, none will be sent." default:""`
 }
 
 // PostgresScanner is the zgrab2 scanner type for the postgres protocol
