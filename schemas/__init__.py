@@ -2,6 +2,7 @@
 import schemas.mysql
 import schemas.ssh
 import schemas.postgres
+import schemas.http
 import schemas.ftp
 import schemas.ntp
 import schemas.mssql

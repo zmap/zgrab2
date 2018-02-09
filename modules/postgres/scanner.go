@@ -1,3 +1,12 @@
+// Package postgres contains the postgres zgrab2 Module implementation.
+// The Scan does three (or four -- see below) consecutive connections to
+// the server, using different StartupMessages each time, and adds the
+// server's response to each to the output.
+// If any of database/user/application-name are specified on the command
+// line, the fourth StartupMessage is sent with the provided data. This
+// may allow additional data, such as detailed server parameters, to be
+// collected. Absent these, version information must be inferred from
+// the values in the results (e.g. line numbers in error strings).
 package postgres
 
 import (
@@ -16,63 +25,100 @@ const (
 )
 
 const (
+	// KeyUnknownErrorTag is the key into the error table denoting an
+	// unrecognized error type.
 	KeyUnknownErrorTag = "_unknown_error_tag"
-	KeyBadParameters   = "_bad_parameters"
+	// KeyBadParameters is the key into the ServerParameters table
+	// denoting an invalid parameter.
+	KeyBadParameters = "_bad_parameters"
 )
 
-// PostgresResults is the information returned by the scanner to the caller.
+// Results is the information returned by the scanner to the caller.
 // https://raw.githubusercontent.com/nmap/nmap/master/nmap-service-probes uses the line number of the error response (e.g. StartupError["line"]) to infer the version number
-type PostgresResults struct {
-	TLSLog             *zgrab2.TLSLog      `json:"tls,omitempty"`
-	SupportedVersions  string              `json:"supported_versions,omitempty"`
-	ProtocolError      *PostgresError      `json:"protocol_error,omitempty"`
-	StartupError       *PostgresError      `json:"startup_error,omitempty"`
-	UserStartupError   *PostgresError      `json:"user_startup_error,omitempty"`
-	IsSSL              bool                `json:"is_ssl"`
+type Results struct {
+	// TLSLog is the standard TLS log for the first connection.
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+
+	// SupportedVersions is the string returned by the server in response
+	// to a StartupMessage with ProtocolVersion = 0.0.
+	SupportedVersions string `json:"supported_versions,omitempty"`
+
+	// ProtocolError is the string returned by the server in response to
+	// a StartupMessage with ProtocolVersion = 255.255.
+	ProtocolError *PostgresError `json:"protocol_error,omitempty"`
+
+	// StartupError is the error returned by the server in response to the
+	// StartupMessage with no user provided.
+	StartupError *PostgresError `json:"startup_error,omitempty"`
+
+	// UserStartupError is the error returned by the server in response to
+	// the final StartupMessage when the user/database/application-name is
+	// set.
+	UserStartupError *PostgresError `json:"user_startup_error,omitempty"`
+
+	// IsSSL is true if the client was able to set up an SSL connection
+	// with the server.
+	IsSSL bool `json:"is_ssl"`
+
+	// AuthenticationMode is the value of the R-type packet returned after
+	// the final StartupMessage.
 	AuthenticationMode *AuthenticationMode `json:"authentication_mode,omitempty"`
-	ServerParameters   *ServerParameters   `json:"server_parameters,omitempty"`
-	BackendKeyData     *BackendKeyData     `json:"backend_key_data,omitempty", zgrab:"debug"`
-	TransactionStatus  string              `json:"transaction_status,omitempty"`
+
+	// ServerParameters is a map of the key/value pairs returned after the
+	// final StartupMessage.
+	ServerParameters *ServerParameters `json:"server_parameters,omitempty"`
+
+	// BackendKeyData is the value of the 'K'-type packet returned by the
+	// server after the final StartupMessage.
+	BackendKeyData *BackendKeyData `json:"backend_key_data,omitempty" zgrab:"debug"`
+
+	// TransactionStatus is the value of the 'Z'-type packet returned by
+	// the server after the final StartupMessage.
+	TransactionStatus string `json:"transaction_status,omitempty"`
 }
 
-// PostgresError is parsed the payload of an 'E'-type packet, mapping the friendly names of the various fields to the values returned by the server
+// PostgresError is parsed the payload of an 'E'-type packet, mapping
+// the friendly names of the various fields to the values returned by
+// the server.
 type PostgresError map[string]string
 
-// After authentication, the server sends a series of 'S' packets with key/value pairs.
+// ServerParameters is a map of key/value pairs sent by the server after
+// authentication. These are 'S'-type packets.
 // We keep track of them all -- but the golang postgres library only stores the server_version and TimeZone.
 type ServerParameters map[string]string
 
-// BackendKeyData is the data returned by the 'K'-type packet
+// BackendKeyData is the data returned by the 'K'-type packet.
 type BackendKeyData struct {
 	ProcessID uint32 `json:"process_id"`
 	SecretKey uint32 `json:"secret_key"`
 }
 
-// AuthenticationMode abstracts the various 'R'-type packets
+// AuthenticationMode abstracts the various 'R'-type packets.
 type AuthenticationMode struct {
 	Mode    string `json:"mode"`
-	Payload []byte `json:"payload,omitempty"'`
+	Payload []byte `json:"payload,omitempty"`
 }
 
-// PostgresFlags sets the module-specific flags that can be passed in from the command line
-type PostgresFlags struct {
+// Flags sets the module-specific flags that can be passed in from the
+// command line.
+type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 	SkipSSL         bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
 	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	ProtocolVersion string `long:"protocol_version" description:"The protocol to use in the StartupPacket" default:"3.0"`
+	ProtocolVersion string `long:"protocol-version" description:"The protocol to use in the StartupPacket" default:"3.0"`
 	User            string `long:"user" description:"Username to pass to StartupMessage. If omitted, no user will be sent." default:""`
 	Database        string `long:"database" description:"Database to pass to StartupMessage. If omitted, none will be sent." default:""`
-	ApplicationName string `long:"application_name" description:"application_name value to pass in StartupMessage. If omitted, none will be sent." default:""`
+	ApplicationName string `long:"application-name" description:"application_name value to pass in StartupMessage. If omitted, none will be sent." default:""`
 }
 
-// PostgresScanner is the zgrab2 scanner type for the postgres protocol
-type PostgresScanner struct {
-	Config *PostgresFlags
+// Scanner is the zgrab2 scanner type for the postgres protocol
+type Scanner struct {
+	Config *Flags
 }
 
-// PostgresModule is the zgrab2 module for the postgres protocol
-type PostgresModule struct {
+// Module is the zgrab2 module for the postgres protocol
+type Module struct {
 }
 
 // decodeAuthMode() decodes the body of an 'R'-type packet and returns a friendlier description of it
@@ -94,10 +140,10 @@ func decodeAuthMode(buf []byte) *AuthenticationMode {
 		12: "sasl-final",
 	}
 
-	modeId := binary.BigEndian.Uint32(buf[0:4])
-	mode, ok := modeMap[modeId]
+	modeID := binary.BigEndian.Uint32(buf[0:4])
+	mode, ok := modeMap[modeID]
 	if !ok {
-		mode = fmt.Sprintf("unknown (0x%x)", modeId)
+		mode = fmt.Sprintf("unknown (0x%x)", modeID)
 	}
 	return &AuthenticationMode{
 		Mode:    mode,
@@ -148,9 +194,8 @@ func decodeError(buf []byte) *PostgresError {
 func appendStringList(dest string, val string) string {
 	if dest == "" {
 		return val
-	} else {
-		return dest + "; " + val
 	}
+	return dest + "; " + val
 }
 
 // ServerParameters.appendBadParam() adds a packet to the list of bad/unexpected parameters
@@ -158,8 +203,8 @@ func (p *ServerParameters) appendBadParam(packet *ServerPacket) {
 	(*p)[KeyBadParameters] = appendStringList((*p)[KeyBadParameters], packet.ToString())
 }
 
-// PostgresResults.decodeServerResponse() fills out the results object with packets returned by the server.
-func (results *PostgresResults) decodeServerResponse(packets []*ServerPacket) {
+// Results.decodeServerResponse() fills out the results object with packets returned by the server.
+func (results *Results) decodeServerResponse(packets []*ServerPacket) {
 	// Note: The only parameters the golang postgres library pays attention to are the server_version and the TimeZone.
 	serverParams := make(ServerParameters)
 	for _, packet := range packets {
@@ -211,42 +256,50 @@ func (results *PostgresResults) decodeServerResponse(packets []*ServerPacket) {
 	}
 }
 
-func (m *PostgresModule) NewFlags() interface{} {
-	return new(PostgresFlags)
+// NewFlags returns a default Flags instance.
+func (m *Module) NewFlags() interface{} {
+	return new(Flags)
 }
 
-func (m *PostgresModule) NewScanner() zgrab2.Scanner {
-	return new(PostgresScanner)
+// NewScanner returns the module's zgrab2.Scanner implementation.
+func (m *Module) NewScanner() zgrab2.Scanner {
+	return new(Scanner)
 }
 
-func (f *PostgresFlags) Validate(args []string) error {
+// Validate checks the arguments; on success, returns nil.
+func (f *Flags) Validate(args []string) error {
 	return nil
 }
 
-func (f *PostgresFlags) Help() string {
+// Help returns the module's help string.
+func (f *Flags) Help() string {
 	return ""
 }
 
-func (s *PostgresScanner) Init(flags zgrab2.ScanFlags) error {
-	f, _ := flags.(*PostgresFlags)
+// Init initializes the scanner with the given flags.
+func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+	f, _ := flags.(*Flags)
 	s.Config = f
 	return nil
 }
 
-func (s *PostgresScanner) InitPerSender(senderID int) error {
+// InitPerSender does nothing in this module.
+func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-func (s *PostgresScanner) GetName() string {
+// GetName returns the name from the parameters.
+func (s *Scanner) GetName() string {
 	return s.Config.Name
 }
 
-func (s *PostgresScanner) GetPort() uint {
+// GetPort returns the port being scanned.
+func (s *Scanner) GetPort() uint {
 	return s.Config.Port
 }
 
-// PostgresScanner.DoSSL() attempts to upgrade the connection to SSL, returning an error on failure.
-func (s *PostgresScanner) DoSSL(sql *Connection) error {
+// DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
+func (s *Scanner) DoSSL(sql *Connection) error {
 	var conn *zgrab2.TLSConnection
 	var err error
 	if conn, err = s.Config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
@@ -260,8 +313,8 @@ func (s *PostgresScanner) DoSSL(sql *Connection) error {
 	return nil
 }
 
-// PostgresScanner.newConnection() opens up a new connection to the ScanTarget, and if necessary, attempts to update the connection to SSL
-func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool) (*Connection, *zgrab2.ScanError) {
+// newConnection opens up a new connection to the ScanTarget, and if necessary, attempts to update the connection to SSL
+func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool) (*Connection, *zgrab2.ScanError) {
 	var conn net.Conn
 	var err error
 	// Open a managed connection to the ScanTarget, register it for automatic cleanup
@@ -287,18 +340,33 @@ func (s *PostgresScanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionMan
 }
 
 // Return the default KVPs used for all Startup messages
-func (s *PostgresScanner) getDefaultKVPs() map[string]string {
+func (s *Scanner) getDefaultKVPs() map[string]string {
 	return map[string]string{
 		"client_encoding": "UTF8",
 		"datestyle":       "ISO, MDY",
 	}
 }
 
-// PostgresScanner.Scan() does the actual scanning. It opens two connections:
-// With the first it sends a bogus protocol version in hopes of getting a list of supported protcols back.
-// With the second, it sends a standard StartupMessage, but without the required "user" field.
-func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	var results PostgresResults
+// Scan does the actual scanning. It opens up to four connections:
+// 1. Sends a bogus protocol version in hopes of getting a list of
+//    supported protcols back. Results here are supported_versions and
+//    and tls (* if applicable).
+// 2. Send a too-high protocol version (255.255) to get full error
+//    message, including line numbers, which could be useful for probing
+//    server version. This is where it gets the protcol_error result.
+// 3. Send a StartupMessage with a valid protocol version (by default
+//    3.0, but this can be overridden on the command line), but omit the
+//    user field. This is where it gets the startup_error result.
+// 4. Only sent if at least one of user/database/application-name
+//    command line flags are provided. Does the same as #3, but includes
+//    any/all of user/database/application-name. This is where it gets
+//    backend_key_data, server_parameters, authentication_mode,
+//    transaction_status and user_startup_error.
+//
+// * NOTE: TLS is only used for the first connection, and then only if
+//   both client and server support it.
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+	var results Results
 
 	mgr := newConnectionManager()
 	defer mgr.cleanUp()
@@ -376,27 +444,29 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 
 	// Send a StartupMessage with a valid protocol version number, but omit the user field
 	{
+		var err error
+		var response *ServerPacket
+		var readErr *zgrab2.ScanError
 		sql, connectErr := s.newConnection(&t, mgr, true)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
-		if err := sql.SendStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs()); err != nil {
+		if err = sql.SendStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs()); err != nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
-		if response, err := sql.ReadPacket(); err != nil {
+		if response, readErr = sql.ReadPacket(); err != nil {
 			log.Debugf("Error reading response after StartupMessage: %v", err)
-			return err.Unpack(&results)
+			return readErr.Unpack(&results)
+		}
+		if response.Type == 'E' {
+			results.StartupError = decodeError(response.Body)
 		} else {
-			if response.Type == 'E' {
-				results.StartupError = decodeError(response.Body)
-			} else {
-				// No server should allow a missing User field -- but if it does, log and continue
-				log.Debugf("Unexpected response from server: %s", response.ToString())
-			}
+			// No server should allow a missing User field -- but if it does, log and continue
+			log.Debugf("Unexpected response from server: %s", response.ToString())
 		}
 		// TODO: use any packets returned to fill out results? There probably won't be any, and they will probably be overwritten if Config.User etc is set...
-		if _, err := sql.ReadAll(); err != nil {
-			return err.Unpack(&results)
+		if _, readErr = sql.ReadAll(); err != nil {
+			return readErr.Unpack(&results)
 		}
 		sql.Close()
 	}
@@ -432,9 +502,10 @@ func (s *PostgresScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, r
 	return zgrab2.SCAN_SUCCESS, &results, thrown
 }
 
-// Called by modules/postgres.go's init()
+// RegisterModule is called by modules/postgres.go's init(), to register
+// the postgres module with the zgrab2 framework.
 func RegisterModule() {
-	var module PostgresModule
+	var module Module
 	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
 	log.SetLevel(log.DebugLevel)
 	if err != nil {
