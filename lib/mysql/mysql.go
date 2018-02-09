@@ -115,8 +115,11 @@ func flagsToSet(flags uint64, consts []string) (ret map[string]bool) {
 	return ret
 }
 
-// Get the constants corresponding to the given server status flags
-func getServerStatusFlags(flags uint16) map[string]bool {
+// GetServerStatusFlags returns a map[string]bool representation of the
+// given flags. The keys are the constant names defined in the MySQL
+// docs, and the values are true (flags that are not set have no 
+// corresponding map entry).
+func GetServerStatusFlags(flags uint16) map[string]bool {
 	consts := []string{
 		"SERVER_STATUS_IN_TRANS",
 		"SERVER_STATUS_AUTOCOMMIT",
@@ -136,8 +139,11 @@ func getServerStatusFlags(flags uint16) map[string]bool {
 	return flagsToSet(uint64(flags), consts)
 }
 
-// Get the constants corresponding to th egiven client capability flags
-func getClientCapabilityFlags(flags uint32) map[string]bool {
+// GetClientCapabilityFlags returns a map[string]bool representation of
+// the given flags. The keys are the constant names defined in the MySQL
+// docs, and the values are true (flags that are not set have no 
+// corresponding map entry).
+func GetClientCapabilityFlags(flags uint32) map[string]bool {
 	consts := []string{
 		"CLIENT_LONG_PASSWORD",
 		"CLIENT_FOUND_ROWS",
@@ -292,8 +298,8 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 		*Alias
 	}{
 		ReservedOmitted: reserved,
-		CapabilityFlags: getClientCapabilityFlags(p.CapabilityFlags),
-		StatusFlags:     getServerStatusFlags(p.StatusFlags),
+		CapabilityFlags: GetClientCapabilityFlags(p.CapabilityFlags),
+		StatusFlags:     GetServerStatusFlags(p.StatusFlags),
 		Alias:           (*Alias)(p),
 	})
 }
@@ -365,7 +371,7 @@ func (p *OKPacket) MarshalJSON() ([]byte, error) {
 		StatusFlags map[string]bool `json:"status_flags"`
 		*Alias
 	}{
-		StatusFlags: getServerStatusFlags(p.StatusFlags),
+		StatusFlags: GetServerStatusFlags(p.StatusFlags),
 		Alias:       (*Alias)(p),
 	})
 }
@@ -479,7 +485,7 @@ func (p *SSLRequestPacket) MarshalJSON() ([]byte, error) {
 		*Alias
 	}{
 		ReservedOmitted: reserved,
-		CapabilityFlags: getClientCapabilityFlags(p.CapabilityFlags),
+		CapabilityFlags: GetClientCapabilityFlags(p.CapabilityFlags),
 		Alias:           (*Alias)(p),
 	})
 }

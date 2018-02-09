@@ -13,8 +13,60 @@ import (
 // HandshakeLog contains detailed information about each step of the
 // MySQL handshake, and can be encoded to JSON.
 type MySQLScanResults struct {
-	mysql.ConnectionLog
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	ProtocolVersion byte            `json:"protocol_version"`
+	ServerVersion   string          `json:"server_version"`
+	ConnectionID    uint32          `json:"connection_id" zgrab:"debug"`
+	AuthPluginData  []byte          `json:"auth_plugin_data" zgrab:"debug"`
+	CharacterSet    byte            `json:"character_set" zgrab:"debug"`
+	StatusFlags     map[string]bool `json:"status_flags"`
+	CapabilityFlags map[string]bool `json:"capability_flags"`
+	AuthPluginName  string          `json:"auth_plugin_name,omitempty" zgrab:"debug"`
+	ErrorCode       *int             `json:"error_code,omitempty"`
+	ErrorMessage    string          `json:"error_message,omitempty"`
+	RawPackets      []string 				`json:"raw_packets,omitempty"`
+	TLSLog          *zgrab2.TLSLog  `json:"tls,omitempty"`
+}
+
+func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *MySQLScanResults {
+	ret := MySQLScanResults{}
+	if connectionLog == nil {
+		return &ret
+	}
+	if connectionLog.Handshake != nil {
+		ret.RawPackets = append(ret.RawPackets, connectionLog.Handshake.Raw)
+		switch handshake := connectionLog.Handshake.Parsed.(type) {
+		case mysql.HandshakePacket:
+			ret.ProtocolVersion = handshake.ProtocolVersion
+			ret.ConnectionID = handshake.ConnectionID
+			len1 := len(handshake.AuthPluginData1)
+			ret.AuthPluginData = make([]byte, len1 + len(handshake.AuthPluginData2))
+			copy(ret.AuthPluginData[0:len1], handshake.AuthPluginData1)
+			copy(ret.AuthPluginData[len1:], handshake.AuthPluginData2)
+			ret.CharacterSet = handshake.CharacterSet
+			ret.StatusFlags = mysql.GetServerStatusFlags(handshake.StatusFlags)
+			ret.CapabilityFlags = mysql.GetClientCapabilityFlags(handshake.CapabilityFlags)
+			ret.AuthPluginName = handshake.AuthPluginName
+		default:
+			log.Fatalf("Unreachable code -- ConnectionLog.Handshake was set to a non-handshake packet")
+		}
+	}
+	if connectionLog.Error != nil {
+		ret.RawPackets = append(ret.RawPackets, connectionLog.Error.Raw)
+		switch err := connectionLog.Error.Parsed.(type) {
+		case mysql.ERRPacket:
+			temp := int(err.ErrorCode)
+			ret.ErrorCode = &temp
+			ret.ErrorMessage = err.ErrorMessage
+		default:
+			temp := -1
+			ret.ErrorCode = &temp
+			ret.ErrorMessage = "Unexpected error packet type"
+		}
+	}
+	if connectionLog.SSLRequest != nil {
+		ret.RawPackets = append(ret.RawPackets, connectionLog.SSLRequest.Raw)
+	}
+	return &ret
 }
 
 type MySQLFlags struct {
@@ -30,7 +82,7 @@ type MySQLScanner struct {
 	config *MySQLFlags
 }
 
-func init() {
+func RegisterModule() {
 	var module MySQLModule
 	_, err := zgrab2.AddCommand("mysql", "MySQL", "Grab a MySQL handshake", 3306, &module)
 	if err != nil {
@@ -74,7 +126,6 @@ func (s *MySQLScanner) GetPort() uint {
 
 func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 	sql := mysql.NewConnection(&mysql.Config{})
-	result = &MySQLScanResults{}
 	defer func() {
 		recovered := recover()
 		if recovered != nil {
@@ -82,7 +133,7 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, resu
 			status = zgrab2.TryGetScanStatus(thrown)
 			// TODO FIXME: do more to distinguish errors
 		}
-		result.(*MySQLScanResults).ConnectionLog = sql.ConnectionLog
+		result = readResultsFromConnectionLog(&sql.ConnectionLog)
 	}()
 	defer sql.Disconnect()
 	var err error
@@ -109,6 +160,6 @@ func (s *MySQLScanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, resu
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		sql.Connection = conn
 	}
-	// If we made it this far, the scan was a success.
-	return zgrab2.SCAN_SUCCESS, result, nil
+	// If we made it this far, the scan was a success. The result will be grabbed in the defer block above.
+	return zgrab2.SCAN_SUCCESS, nil, nil
 }
