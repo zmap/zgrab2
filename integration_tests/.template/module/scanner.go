@@ -7,7 +7,7 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-// ScanResults is the output of the scan.
+// ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
 	// TODO: Add protocol
 
@@ -15,7 +15,8 @@ type ScanResults struct {
 	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// Flags is #{MODULE_NAME}-specific command-line flags.
+// Flags holds the command-line configuration for the HTTP scan module.
+// Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
 	// TODO: Add more protocol-specific flags
@@ -24,18 +25,18 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
-// Module implements the zgrab2.Module interface
+// Module implements the zgrab2.Module interface.
 type Module struct {
 	// TODO: Add any module-global state
 }
 
-// Scanner implements the zgrab2.Scanner interface
+// Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
 	// TODO: Add scan state
 }
 
-// RegisterModule() registers the zgrab2 module
+// RegisterModule() registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
 	// FIXME: Set default port
@@ -45,44 +46,46 @@ func RegisterModule() {
 	}
 }
 
-// NewFlags provides an empty instance of the flags that will be filled in by the framework
+// NewFlags returns a default Flags object.
 func (module *Module) NewFlags() interface{} {
 	return new(Flags)
 }
 
-// NewScanner provides a new scanner instance
+// NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
 
-// Validate checks that the flags are valid
+// Validate checks that the flags are valid.
+// On success, returns nil.
+// On failure, returns an error instance describing the error.
 func (flags *Flags) Validate(args []string) error {
 	return nil
 }
 
-// Help returns the module's help string
+// Help returns the module's help string.
 func (flags *Flags) Help() string {
 	return ""
 }
 
-// Init initializes the scanner
+// Init initializes the Scanner.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	return nil
 }
 
-// InitPerSender initializes the scanner for a given sender
+// InitPerSender initializes the scanner for a given sender.
 func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-// GetName returns the name of the scanner
+// GetName returns the Scanner name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
 }
 
-// GetPort returns the port being scanned
+// GetPort returns the port being scanned.
 func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
