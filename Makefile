@@ -5,10 +5,14 @@ else
 endif
 
 GO_FILES = $(shell find . -type f -name '*.go')
+TEST_MODULES ?= 
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean docker-runner container-clean
+.PHONY: all clean integration-test integration-test-clean docker-runner container-clean gofmt
+
+gofmt:
+	goimports -w -l $(GO_FILES)
 
 zgrab2: $(GO_FILES)
 	cd cmd/zgrab2 && go build && cd ../..
@@ -20,7 +24,7 @@ docker-runner: zgrab2
 
 integration-test: docker-runner
 	rm -rf zgrab-output
-	./integration_tests/test.sh
+	TEST_MODULES=$(TEST_MODULES) ./integration_tests/test.sh
 
 integration-test-clean:
 	rm -rf zgrab-output
@@ -30,7 +34,7 @@ integration-test-clean:
 # This is the target for re-building from source in the container
 container-clean:
 	rm -f zgrab2
-	cd cmd/zgrab2 && go get -v ./... && go build -v -a && cd ../..
+	cd cmd/zgrab2 && go build -v -a . && cd ../..
 	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
 clean:

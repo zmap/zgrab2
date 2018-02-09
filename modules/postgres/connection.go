@@ -14,31 +14,42 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-// Connection wraps the state of a given connection to a server
+// Connection wraps the state of a given connection to a server.
 type Connection struct {
+	// Connection is the underlying TCP (or TLS) stream.
 	Connection net.Conn
-	Config     *PostgresFlags
-	IsSSL      bool
+
+	// Config contains the flags from the command line.
+	Config *Flags
+
+	// IsSSL is true if Connection is a TLS connection.
+	IsSSL bool
 }
 
-// ServerPacket is a direct representation of the response packet returned by the server (See e.g. https://www.postgresql.org/docs/9.6/static/protocol-message-formats.html)
+// ServerPacket is a direct representation of the response packet
+// returned by the server.
+// See e.g. https://www.postgresql.org/docs/9.6/static/protocol-message-formats.html
 // The first byte is a message type, an alphanumeric character.
 // The following four bytes are the length of the message body.
 // The following <length> bytes are the message itself.
-// In certain special cases, the Length can be 0; for instance, a response to an SSLRequest is only a S/N Type with no length / body, while pre-startup errors can be a E Type followed by a \n\0-terminated string.
+// In certain special cases, the Length can be 0; for instance, a
+// response to an SSLRequest is only a S/N Type with no length / body,
+// while pre-startup errors can be a E Type followed by a \n\0-
+// terminated string.
 type ServerPacket struct {
 	Type   byte
 	Length uint32
 	Body   []byte
 }
 
-// ServerPacket.ToString() is used in logging, to get a human-readable representation of the packet.
+// ToString is used in logging, to get a human-readable representation
+// of the packet.
 func (p *ServerPacket) ToString() string {
 	// TODO: Don't hex-encode human-readable bodies?
 	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: [[\n%s\n]] } }", &p, p.Type, p.Length, hex.Dump(p.Body))
 }
 
-// Connection.Send() sends a client packet: a big-endian uint32 length followed by the body.
+// Send a client packet: a big-endian uint32 length followed by a body.
 func (c *Connection) Send(body []byte) error {
 	toSend := make([]byte, len(body)+4)
 	copy(toSend[4:], body)
@@ -50,7 +61,7 @@ func (c *Connection) Send(body []byte) error {
 	return err
 }
 
-// Connection.SendU32() sends an uint32 packet to the server.
+// SendU32 sends an uint32 packet to the server.
 func (c *Connection) SendU32(val uint32) error {
 	toSend := make([]byte, 8)
 	binary.BigEndian.PutUint32(toSend[0:], uint32(8))
@@ -60,12 +71,12 @@ func (c *Connection) SendU32(val uint32) error {
 	return err
 }
 
-// Connection.Close() closes out the underlying TCP connection to the server.
+// Close out the underlying TCP connection to the server.
 func (c *Connection) Close() error {
 	return c.Connection.Close()
 }
 
-// Connection.tryReadPacket() attempts to read a packet length + body from the given connection.
+// tryReadPacket tries to read a length + body from the connection.
 func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanError) {
 	ret := ServerPacket{Type: header}
 	var length [4]byte
@@ -87,9 +98,8 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 			ret.Length = 0
 			ret.Body = append(length[:], ret.Body...)
 			return &ret, nil
-		} else {
-			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
 		}
+		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
 	}
 	ret.Body = make([]byte, ret.Length-4) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, ret.Body)
@@ -99,7 +109,9 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 	return &ret, nil
 }
 
-// Connection.RequestSSL() sends an SSLRequest packet to the server, and returns true iff the server reports that it is SSL-capable. Otherwise it returns false and possibly an error.
+// RequestSSL sends an SSLRequest packet to the server, and returns true
+// if and only if the server reports that it is SSL-capable. Otherwise
+// it returns false and possibly an error.
 func (c *Connection) RequestSSL() (bool, *zgrab2.ScanError) {
 	// NOTE: The SSLRequest request type was introduced in version 7.2, released in 2002 (though the oldest supported version is 9.3, released 2013-09-09)
 	if err := c.SendU32(postgresSSLRequest); err != nil {
@@ -136,7 +148,7 @@ func (c *Connection) RequestSSL() (bool, *zgrab2.ScanError) {
 	}
 }
 
-// Connection.ReadPacket() reads a ServerPacket from the server.
+// ReadPacket reads a ServerPacket from the server.
 func (c *Connection) ReadPacket() (*ServerPacket, *zgrab2.ScanError) {
 	var header [1]byte
 	_, err := io.ReadFull(c.Connection, header[0:1])
@@ -151,7 +163,8 @@ func (c *Connection) ReadPacket() (*ServerPacket, *zgrab2.ScanError) {
 	return c.tryReadPacket(header[0])
 }
 
-// Connection.GetTLSLog() gets the connection's TLSLog, or nil if the connection has not yet been set up as TLS
+// GetTLSLog gets the connection's TLSLog, or nil if the connection has
+// not yet been set up as TLS.
 func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
 	if !c.IsSSL {
 		return nil
@@ -159,7 +172,8 @@ func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
 	return c.Connection.(*zgrab2.TLSConnection).GetLog()
 }
 
-// encodeMap() encodes a map into a byte array of the form "key0\0value\0key1\0value1\0...keyN\0valueN\0\0"
+// encodeMap encodes a map into a byte array of the form
+// "key0\0value\0key1\0value1\0...keyN\0valueN\0\0"
 func encodeMap(dict map[string]string) []byte {
 	var strs []string
 	for k, v := range dict {
@@ -169,7 +183,8 @@ func encodeMap(dict map[string]string) []byte {
 	return append([]byte(strings.Join(strs, "\x00")), 0x00, 0x00)
 }
 
-// Connection.SendStartupMessage() creates and sends a StartupMessage: uint16 Major + uint16 Minor + (key/value pairs)
+// SendStartupMessage creates and sends a StartupMessage.
+// The format is uint16 Major + uint16 Minor + (key/value pairs).
 func (c *Connection) SendStartupMessage(version string, kvps map[string]string) error {
 	dict := encodeMap(kvps)
 	ret := make([]byte, len(dict)+4)
@@ -179,11 +194,11 @@ func (c *Connection) SendStartupMessage(version string, kvps map[string]string) 
 	}
 	major, err := strconv.ParseUint(parts[0], 0, 16)
 	if err != nil {
-		log.Fatalf("Error parsing major version %s as a uint16:", parts[0], err)
+		log.Fatalf("Error parsing major version %s as a uint16: %v", parts[0], err)
 	}
 	minor, err := strconv.ParseUint(parts[1], 0, 16)
 	if err != nil {
-		log.Fatalf("Error parsing minor version as a uint16:", parts[1], err)
+		log.Fatalf("Error parsing minor version %s as a uint16: %v", parts[1], err)
 	}
 	binary.BigEndian.PutUint16(ret[0:2], uint16(major))
 	binary.BigEndian.PutUint16(ret[2:4], uint16(minor))
@@ -192,17 +207,17 @@ func (c *Connection) SendStartupMessage(version string, kvps map[string]string) 
 	return c.Send(ret)
 }
 
-// Connection.ReadAll() reads packets from the given connection until it hits a timeout, EOF, or a 'Z' packet.
+// ReadAll reads packets from the given connection until it hits a
+// timeout, EOF, or a 'Z' packet.
 func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
-	var ret []*ServerPacket = nil
+	var ret []*ServerPacket
 	for {
 		response, readError := c.ReadPacket()
 		if readError != nil {
 			if readError.Status == zgrab2.SCAN_IO_TIMEOUT || readError.Err == io.EOF {
 				return ret, nil
-			} else {
-				return ret, readError
 			}
+			return ret, readError
 		}
 		ret = append(ret, response)
 		if response.Type == 'Z' {
@@ -211,18 +226,19 @@ func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 	}
 }
 
-// connectionManager is a utility for getting connections and ensuring that they all get closed
-// TODO: Is there something like this in the standard libraries??
+// connectionManager is a utility for getting connections and ensuring
+// that they all get closed.
+// TODO: Is there something like this in the standard libraries?
 type connectionManager struct {
 	connections []io.Closer
 }
 
-// Add a connection to be cleaned up
+// addConnection adds a managed connection.
 func (m *connectionManager) addConnection(c io.Closer) {
 	m.connections = append(m.connections, c)
 }
 
-// Close all managed connections
+// cleanUp closes all managed connections.
 func (m *connectionManager) cleanUp() {
 	for _, v := range m.connections {
 		// Close them all even if there is a panic with one
@@ -235,7 +251,7 @@ func (m *connectionManager) cleanUp() {
 	}
 }
 
-// Get a new connectionmanager instance
+// Get a new connectionmanager instance.
 func newConnectionManager() *connectionManager {
 	return &connectionManager{}
 }
