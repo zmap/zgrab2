@@ -1,4 +1,8 @@
-package modules
+// package mysql provides the mysql implementation of the zgrab2.Module.
+// Grabs the HandshakePacket (or ERRPacket) that the server sends
+// immediately upon connecting, and then if applicable negotiate an SSL
+// connection.
+package mysql
 
 import (
 	log "github.com/sirupsen/logrus"
