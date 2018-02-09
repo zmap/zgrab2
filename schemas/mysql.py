@@ -9,15 +9,7 @@ import schemas.zgrab2 as zgrab2
 
 from schemas.zgrab2 import DebugOnly
 
-# zgrab2/lib/mysql/mysql.go: ConnectionLogEntry
-mysql_packet = SubRecord({
-    "length": DebugOnly(Unsigned32BitInteger()),
-    "sequence_number": DebugOnly(Unsigned8BitInteger()),
-    "raw": DebugOnly(String()),
-    "parsed": SubRecord({})
-})
-
-# zgrab2/lib/mysql/mysql.go: getServerStatusFlags()
+# zgrab2/lib/mysql/mysql.go: GetServerStatusFlags()
 mysql_server_status_flags = {
 		"SERVER_STATUS_IN_TRANS": Boolean(),
 		"SERVER_STATUS_AUTOCOMMIT": Boolean(),
@@ -35,7 +27,7 @@ mysql_server_status_flags = {
 		"SERVER_SESSION_STATE_CHANGED": Boolean()
 }
 
-# zgrab2/lib/mysql/mysql.go: getClientCapabilityFlags()
+# zgrab2/lib/mysql/mysql.go: GetClientCapabilityFlags()
 mysql_capability_flags = {
 		"CLIENT_LONG_PASSWORD": Boolean(),
 		"CLIENT_FOUND_ROWS": Boolean(),
@@ -64,65 +56,21 @@ mysql_capability_flags = {
 		"CLIENT_DEPRECATED_EOF": Boolean()
 }
 
-# zgrab2/lib/mysql/mysql.go: HandshakePacket
-mysql_handshake = SubRecord({
-    "parsed": SubRecord({
-        "protocol_version": Unsigned8BitInteger(required = True),
-        "server_version": String(required = True),
-        "connection_id": DebugOnly(Unsigned32BitInteger()),
-        "auth_plugin_data_part_1": DebugOnly(Binary()),
-        "capability_flags": SubRecord(mysql_capability_flags, required = True),
-        "character_set": DebugOnly(Unsigned8BitInteger()),
-        "short_handshake": DebugOnly(Boolean()),
-        "status_flags": SubRecord(mysql_server_status_flags, required = False),
-        "auth_plugin_data_len": DebugOnly(Unsigned8BitInteger()),
-        "reserved": DebugOnly(Binary()),
-        "auth_plugin_data_part_2": DebugOnly(Binary()),
-        "auth_plugin_name": DebugOnly(String())
-    })
-}, extends = mysql_packet)
-
-# zgrab2/lib/mysql/mysql.go: OKPacket
-mysql_ok = SubRecord({
-    "parsed": SubRecord({
-        "header": DebugOnly(Unsigned8BitInteger()),
-        "affected_rows": DebugOnly(Signed64BitInteger()), # FIXME: Unsigned 64-bit integers not supported...? 
-        "last_insert_id": Signed64BitInteger(),
-        "status_flags": SubRecord(mysql_server_status_flags, required = False),
-        "warnings": Unsigned16BitInteger(),
-        "info": String(),
-        "session_state_changes": DebugOnly(String())
-    })
-}, extends = mysql_packet)
-
-# zgrab2/lib/mysql/mysql.go: ERRPacket
-mysql_error = SubRecord({
-    "parsed": SubRecord({
-        "header": DebugOnly(Unsigned8BitInteger()),
-        "error_code": Unsigned16BitInteger(),
-        "sql_state_marker": DebugOnly(Integer()),
-        "sql_state": DebugOnly(String()),
-        "error_message": String()
-    })
-}, extends = mysql_packet)
-
-# zgrab2/lib/mysql/mysql.go: SSLRequestPacket
-mysql_ssl_request = SubRecord({
-    "parsed": SubRecord({
-        "capability_flags": SubRecord(mysql_capability_flags, required = True),
-        "max_packet_size": DebugOnly(Unsigned32BitInteger()),
-        "character_set": DebugOnly(Unsigned8BitInteger()),
-        "reserved": DebugOnly(Binary())
-    })
-}, extends = mysql_packet)
-
 # zgrab2/modules/mysql.go: MySQLScanResults
 mysql_scan_response = SubRecord({
     "result": SubRecord({
+        "protocol_version": Unsigned8BitInteger(required = True),
+        "server_version": String(required = True),
+        "connection_id": DebugOnly(Unsigned32BitInteger()),
+        "auth_plugin_data": DebugOnly(Binary()),
+        "capability_flags": SubRecord(mysql_capability_flags, required = True),
+        "character_set": DebugOnly(Unsigned8BitInteger()),
+        "status_flags": SubRecord(mysql_server_status_flags, required = False),
+        "auth_plugin_name": DebugOnly(String()),
+        "error_code": Signed32BitInteger(),
+        "error_message": String(),
+        "raw_packets": ListOf(Binary()),
         "tls": zgrab2.tls_log,
-        "handshake": mysql_handshake,
-        "error": mysql_error,
-        "ssl_request": mysql_ssl_request
     })
 }, extends = zgrab2.base_scan_response)
 
