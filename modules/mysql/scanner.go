@@ -188,7 +188,7 @@ func (s *Scanner) GetPort() uint {
 
 // Scan probles the target for a MySQL server.
 // 1. Connects and waits to receive the handshake packet.
-// 2. If the server supports SSL, send an SSLRequest packet, then 
+// 2. If the server supports SSL, send an SSLRequest packet, then
 //    perform the standard TLS actions.
 // 3. Process and return the results.
 func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
