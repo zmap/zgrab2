@@ -6,16 +6,16 @@ import zschema.registry
 
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
- 
+
 # modules/ftp.go - FTPScanResults
 ftp_scan_response = SubRecord({
     "result": SubRecord({
         "tls": zgrab2.tls_log,
         "banner": String(),
         "auth_tls": String(),
-        "auth_ssl": String()
+        "auth_ssl": String(),
     })
-}, extends = zgrab2.base_scan_response)
+}, extends=zgrab2.base_scan_response)
 
 zschema.registry.register_schema("zgrab2-ftp", ftp_scan_response)
 
