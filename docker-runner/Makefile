@@ -9,13 +9,13 @@ all: docker-runner.id
 .PHONY: clean clean-all
 
 service-base-image.id: service-base.Dockerfile
-	docker build -t zgrab2_service_base:latest -f service-base.Dockerfile -q . > service-base-image.id || rm -f service-base-image.id
+	docker build -t zgrab2_service_base:latest -f service-base.Dockerfile -q . > service-base-image.id || (rm -f service-base-image.id && exit 1)
 
 runner-base-image.id: runner-base.Dockerfile
-	docker build -t zgrab2_runner_base:latest -f runner-base.Dockerfile -q . > runner-base-image.id || rm -f runner-base-image.id
+	docker build -t zgrab2_runner_base:latest -f runner-base.Dockerfile -q . > runner-base-image.id || (rm -f runner-base-image.id && exit 1)
 
 docker-runner.id: Dockerfile ../cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) runner-base-image.id service-base-image.id
-	docker build -t zgrab2_runner:latest -f Dockerfile -q .. > docker-runner.id || rm -f docker-runner.id
+	docker build -t zgrab2_runner:latest -f Dockerfile -q .. > docker-runner.id || (rm -f docker-runner.id && exit 1)
 
 clean:
 	if [ -f docker-runner.id ]; then docker rmi -f $$(cat docker-runner.id) && rm -f docker-runner.id; fi
