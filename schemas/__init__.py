@@ -6,3 +6,4 @@ import schemas.http
 import schemas.ftp
 import schemas.ntp
 import schemas.mssql
+import schemas.redis
