@@ -58,9 +58,9 @@ type Result struct {
 	// in inline format (e.g. COMMAND arg1 "arg 2" arg3)
 	Commands []string `json:"commands,omitempty" zgrab:"debug"`
 
-	// CommandOutput is the output returned by the server for each command sent;
-	// the index in CommandOutput matches the index in Commands.
-	CommandOutput [][]byte `json:"command_output,omitempty" zgrab:"debug"`
+	// RawCommandOutput is the output returned by the server for each command sent;
+	// the index in RawCommandOutput matches the index in Commands.
+	RawCommandOutput [][]byte `json:"raw_command_output,omitempty" zgrab:"debug"`
 
 	// PingResponse is the response from the server, should be the simple string
 	// "PONG".
@@ -153,7 +153,7 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	scan.result.CommandOutput = append(scan.result.CommandOutput, ret.Encode())
+	scan.result.RawCommandOutput = append(scan.result.RawCommandOutput, ret.Encode())
 	return ret, nil
 }
 

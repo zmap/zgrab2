@@ -10,7 +10,7 @@ import schemas.zgrab2 as zgrab2
 redis_scan_response = SubRecord({
     "result": SubRecord({
         "commands": ListOf(String()),
-        "command_output": ListOf(Binary()),
+        "raw_command_output": ListOf(Binary()),
         "ping_response": String(),
         "info_response": String(),
         "auth_response": String(),
