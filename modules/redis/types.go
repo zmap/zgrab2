@@ -82,7 +82,11 @@ func (err ErrorMessage) Encode() []byte {
 // ErrorPrefix returns the first word of the error message, which can be
 // interpreted as a sort of error code.
 func (err ErrorMessage) ErrorPrefix() string {
-	return strings.SplitN(string(err), " ", 2)[0]
+	serr := string(err)
+	if len(serr) == 0 {
+		return ""
+	}
+	return strings.SplitN(serr, " ", 2)[0]
 }
 
 // ErrorMessage returns the "message": if there is a prefix, return everything
