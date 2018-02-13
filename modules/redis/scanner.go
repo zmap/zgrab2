@@ -42,8 +42,8 @@ type Scanner struct {
 	config *Flags
 }
 
-// Scan holds the state for the scan of an individual target
-type Scan struct {
+// scan holds the state for the scan of an individual target
+type scan struct {
 	scanner *Scanner
 	result  *Result
 	target  *zgrab2.ScanTarget
@@ -143,7 +143,7 @@ func (scanner *Scanner) GetPort() uint {
 
 // SendCommand sends the given command/args to the server, using the scanner's
 // configuration, and drop the command/output into the result.
-func (scan *Scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
+func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 	exec := scan.conn.SendCommand
 	scan.result.Commands = append(scan.result.Commands, getInlineCommand(cmd, args...))
 	if scan.scanner.config.DoInline {
@@ -158,12 +158,12 @@ func (scan *Scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it
-func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*Scan, error) {
+func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return nil, err
 	}
-	return &Scan{
+	return &scan{
 		target:  target,
 		scanner: scanner,
 		result:  &Result{},
