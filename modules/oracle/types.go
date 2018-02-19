@@ -32,6 +32,10 @@ const (
 	PacketTypeControlInformation            = 14
 )
 
+var (
+	ErrInvalidData error = errors.New("server returned invalid data")
+)
+
 // Implementation of io.Reader that returns data from a slice.
 // Lets Decode methods re-use Read methods.
 type sliceReader struct {
@@ -135,10 +139,10 @@ func DecodeTNSHeader(ret *TNSHeader, buf []byte) (*TNSHeader, []byte, error) {
 	return ret, rest, nil
 }
 
-func ReadTNSHeader(header *TNSHeader, reader io.Reader) (*TNSHeader, error) {
+func ReadTNSHeader(reader io.Reader) (*TNSHeader, error) {
 	buf := make([]byte, 8)
 	_, err := io.ReadFull(reader, buf)
-	ret, _, err := DecodeTNSHeader(header, buf)
+	ret, _, err := DecodeTNSHeader(nil, buf)
 	return ret, err
 }
 
@@ -203,8 +207,6 @@ var DefaultByteOrder = [2]byte{1, 0}
 
 // If len(packet) > 255, send a packet with data="", followed by data
 type TNSConnect struct {
-	// 00..07
-	TNSHeader
 	// 08..09: 0x0136 / 0x0134?
 	// TODO: Find Version format (10r2 = 0x0139? 9r2 = 0x0138? 9i = 0x0137? 8 = 0x0136?)
 	Version uint16
@@ -295,8 +297,8 @@ func (packet *TNSConnect) Encode() []byte {
 		return append(packet.Encode(), []byte(temp)...)
 	}
 
-	ret := packet.TNSHeader.EncodeTo(make([]byte, length))
-	next := ret[8:]
+	ret := make([]byte, length-8)
+	next := ret
 	next = pushU16(next, packet.Version)
 	next = pushU16(next, packet.MinVersion)
 	next = pushU16(next, uint16(packet.GlobalServiceOptions))
@@ -339,16 +341,13 @@ func unpanic() error {
 	return nil
 }
 
-func ReadTNSConnect(reader io.Reader) (ret *TNSConnect, thrown error) {
+func ReadTNSConnect(reader io.Reader, header *TNSHeader) (ret *TNSConnect, thrown error) {
 	defer func() {
 		if err := unpanic(); err != nil {
 			thrown = err
 		}
 	}()
 	ret = new(TNSConnect)
-	if _, err := ReadTNSHeader(&ret.TNSHeader, reader); err != nil {
-		return nil, err
-	}
 	ret.Version = readU16(reader)
 	ret.MinVersion = readU16(reader)
 	ret.GlobalServiceOptions = ServiceOptions(readU16(reader))
@@ -387,26 +386,20 @@ func ReadTNSConnect(reader io.Reader) (ret *TNSConnect, thrown error) {
 
 // TNSResend is just a header with type = PacketTypeResend (0x0b == 11)
 type TNSResend struct {
-	TNSHeader
 }
 
 func (packet *TNSResend) Encode() []byte {
-	return packet.TNSHeader.EncodeTo(make([]byte, 8))
+	return []byte{}
 }
 
-func ReadTNSResend(reader io.Reader) (*TNSResend, error) {
+func ReadTNSResend(reader io.Reader, header *TNSHeader) (*TNSResend, error) {
 	ret := TNSResend{}
-	if _, err := ReadTNSHeader(&ret.TNSHeader, reader); err != nil {
-		return nil, err
-	}
 	return &ret, nil
 }
 
 // TODO: TNSConnect.Decode()
 
 type TNSAccept struct {
-	// 00..07
-	TNSHeader
 	// 08..09: 0x0136 / 0x0134?
 	Version uint16
 	// 0A..0B: 0x0801
@@ -450,13 +443,16 @@ func popN(buf []byte, n int) ([]byte, []byte) {
 }
 
 func (packet *TNSAccept) Encode() []byte {
-	ret := packet.TNSHeader.EncodeTo(make([]byte, packet.TNSHeader.Length))
-	next := ret[8:]
+	length := 16 + len(packet.Unknown18) + len(packet.AcceptData)
+	ret := make([]byte, length)
+	next := ret
 	next = pushU16(next, packet.Version)
 	next = pushU16(next, uint16(packet.GlobalServiceOptions))
 	next = pushU16(next, packet.SDU)
 	next = pushU16(next, packet.TDU)
 	next = push(next, packet.ByteOrder[:])
+	// packet.DataLength = len(packet.AcceptData)
+	// packet.DataOffset = 8 + 16 + len(packet.Unknown18) // TNSHeader + accept header + unknown
 	next = pushU16(next, packet.DataLength)
 	next = pushU16(next, packet.DataOffset)
 	next = pushU8(next, uint8(packet.ConnectFlags0))
@@ -493,16 +489,13 @@ func readU32(reader io.Reader) uint32 {
 	return binary.BigEndian.Uint32(buf)
 }
 
-func ReadTNSAccept(reader io.Reader) (ret *TNSAccept, thrown error) {
+func ReadTNSAccept(reader io.Reader, header *TNSHeader) (ret *TNSAccept, thrown error) {
 	defer func() {
 		if err := unpanic(); err != nil {
 			thrown = err
 		}
 	}()
 	ret = new(TNSAccept)
-	if _, err := ReadTNSHeader(&ret.TNSHeader, reader); err != nil {
-		return nil, err
-	}
 	ret.Version = readU16(reader)
 	ret.GlobalServiceOptions = ServiceOptions(readU16(reader))
 	ret.SDU = readU16(reader)
@@ -514,7 +507,7 @@ func ReadTNSAccept(reader io.Reader) (ret *TNSAccept, thrown error) {
 	ret.DataOffset = readU16(reader)
 	ret.ConnectFlags0 = ConnectFlags(readU8(reader))
 	ret.ConnectFlags1 = ConnectFlags(readU8(reader))
-	unknownLen := ret.DataOffset - 0x18
+	unknownLen := ret.DataOffset - 16 - 8
 	ret.Unknown18 = make([]byte, unknownLen)
 	if _, err := io.ReadFull(reader, ret.Unknown18); err != nil {
 		return nil, err
@@ -529,8 +522,6 @@ func ReadTNSAccept(reader io.Reader) (ret *TNSAccept, thrown error) {
 type RefuseReason uint8
 
 type TNSRefuse struct {
-	// 00..07
-	TNSHeader
 	// 08: 01
 	AppReason RefuseReason
 	// 09: 00
@@ -562,8 +553,6 @@ const (
 )
 
 type TNSData struct {
-	// 00..07
-	TNSHeader
 	// 08..09
 	DataFlags DataFlags
 	// 0A..0B
@@ -582,8 +571,6 @@ const (
 )
 
 type TNSDataSetProtocolRequest struct {
-	// 00..07
-	TNSHeader
 	// 08..09
 	DataFlags DataFlags
 	// 0A
@@ -595,8 +582,6 @@ type TNSDataSetProtocolRequest struct {
 }
 
 type TNSDataSetProtocolResponse struct {
-	// 00..07
-	TNSHeader
 	// 08..09
 	DataFlags DataFlags
 	// 0A
@@ -610,7 +595,6 @@ type TNSDataSetProtocolResponse struct {
 }
 
 type TNSDataANOPacket struct {
-	TNSHeader
 	DataFlags     DataFlags
 	DataType      DataType
 	ClientVersion [4]byte
@@ -618,16 +602,16 @@ type TNSDataANOPacket struct {
 }
 
 func (packet *TNSDataANOPacket) Encode() []byte {
-	ret := packet.TNSHeader.EncodeTo(make([]byte, packet.TNSHeader.Length))
+	ret := make([]byte, 7+len(packet.Data))
 	next := ret
 	next = pushU16(next, uint16(packet.DataFlags))
 	next = pushU8(next, uint8(packet.DataType))
-	copy(next, packet.ClientVersion[0:3])
+	copy(next, packet.ClientVersion[0:4])
 	copy(next[4:], packet.Data[:])
 	return ret
 }
 
-func ReadTNSDataANOPacket(reader io.Reader) (ret *TNSDataANOPacket, thrown error) {
+func ReadTNSDataANOPacket(reader io.Reader, header *TNSHeader) (ret *TNSDataANOPacket, thrown error) {
 	defer func() {
 		rerr := recover()
 		if rerr != nil {
@@ -640,17 +624,53 @@ func ReadTNSDataANOPacket(reader io.Reader) (ret *TNSDataANOPacket, thrown error
 		}
 	}()
 	ret = new(TNSDataANOPacket)
-	if _, err := ReadTNSHeader(&ret.TNSHeader, reader); err != nil {
-		return nil, err
-	}
 	ret.DataFlags = DataFlags(readU16(reader))
 	ret.DataType = DataType(readU8(reader))
 	if _, err := io.ReadFull(reader, ret.ClientVersion[:]); err != nil {
 		return nil, err
 	}
-	ret.Data = make([]byte, ret.TNSHeader.Length-8-2-1-4)
+	ret.Data = make([]byte, header.Length-8-7)
 	if _, err := io.ReadFull(reader, ret.Data); err != nil {
 		return nil, err
 	}
 	return ret, nil
+}
+
+type TNSPacketBody interface {
+	Encode() []byte
+}
+
+type TNSPacket struct {
+	Header *TNSHeader
+	Body   TNSPacketBody
+}
+
+func (packet *TNSPacket) Encode() []byte {
+	header := packet.Header.Encode()
+	body := packet.Body.Encode()
+	return append(header, body...)
+}
+
+func ReadTNSPacket(reader io.Reader) (*TNSPacket, error) {
+	var body TNSPacketBody
+	var err error
+
+	header, err := ReadTNSHeader(reader)
+	if err != nil {
+		return nil, err
+	}
+	switch header.Type {
+	case PacketTypeConnect:
+		body, err = ReadTNSConnect(reader, header)
+	case PacketTypeAccept:
+		body, err = ReadTNSAccept(reader, header)
+	case PacketTypeResend:
+		body, err = ReadTNSResend(reader, header)
+	default:
+		err = ErrInvalidData
+	}
+	return &TNSPacket{
+		Header: header,
+		Body:   body,
+	}, err
 }

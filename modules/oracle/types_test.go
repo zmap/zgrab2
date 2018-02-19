@@ -52,8 +52,10 @@ var validHeaders = map[string]TNSHeader{
 
 type TestCase struct {
 	ConnectEncoding string
+	ConnectHeader   *TNSHeader
 	ConnectValue    *TNSConnect
 	AcceptEncoding  string
+	AcceptHeader    *TNSHeader
 	AcceptValue     *TNSAccept
 }
 
@@ -72,9 +74,8 @@ var validTNSConnect = map[string]TestCase{
 			"52 4f 54 4f 43 4f 4c 3d  54 43 50 29 28 48 4f 53 " + /* ROTOCOL=TCP)(HOS */
 			"54 3d 31 30 2e 31 2e 35  30 2e 31 34 29 28 50 4f " + /* T=10.1.50.14)(PO */
 			"52 54 3d 31 35 32 31 29  29 29 ", /* RT=1521))) */
-
+		ConnectHeader: &TNSHeader{Length: 0x00ca, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 		ConnectValue: &TNSConnect{
-			TNSHeader:            TNSHeader{Length: 0x00ca, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Version:              0x013a,
 			MinVersion:           0x012c,
 			GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
@@ -97,8 +98,8 @@ var validTNSConnect = map[string]TestCase{
 		},
 		AcceptEncoding: "00 20 00 00 02 00 00 00  01 39 00 00 08 00 7f ff " + /* . .......9...... */
 			"01 00 00 00 00 20 61 61  00 00 00 00 00 00 00 00 ", /* ..... aa........ */
+		AcceptHeader: &TNSHeader{Length: 0x0020, PacketChecksum: 0, Type: PacketTypeAccept, Flags: 0, HeaderChecksum: 0},
 		AcceptValue: &TNSAccept{
-			TNSHeader:            TNSHeader{Length: 0x0020, PacketChecksum: 0, Type: PacketTypeAccept, Flags: 0, HeaderChecksum: 0},
 			Version:              0x0139,
 			GlobalServiceOptions: 0,
 			SDU:                  0x0800,
@@ -129,8 +130,8 @@ var validTNSConnect = map[string]TestCase{
 			"73 2e 65 78 65 29 28 48  4f 53 54 3d 46 41 4e 47 " + /* s.exe)(HOST=FANG */
 			"48 4f 4e 47 5a 48 41 4f  29 28 55 53 45 52 3d 41 " + /* HONGZHAO)(USER=A */
 			"64 6d 69 6e 69 73 74 72  61 74 6f 72 29 29 29 29 ", /* dministrator)))) */
+		ConnectHeader: &TNSHeader{Length: 0x0100, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 		ConnectValue: &TNSConnect{
-			TNSHeader:            TNSHeader{Length: 0x0100, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 			Version:              0x0138,
 			MinVersion:           0x012c,
 			GlobalServiceOptions: 0,
@@ -168,8 +169,8 @@ var validTNSConnect = map[string]TestCase{
 			"71 6c 70 6c 75 73 2e 65  78 65 29 28 48 4f 53 54 " + /* qlplus.exe)(HOST */
 			"3d 48 49 4e 47 45 2d 48  41 4e 59 46 29 28 55 53 " + /* =HINGE-HANYF)(US */
 			"45 52 3d 68 61 6e 79 66  29 29 29 29 ", /* ER=hanyf)))) */
+		ConnectHeader: &TNSHeader{Length: 0x00EC, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 		ConnectValue: &TNSConnect{
-			TNSHeader:            TNSHeader{Length: 0x00EC, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 			Version:              0x0138,
 			MinVersion:           0x012c,
 			GlobalServiceOptions: 0,
@@ -206,8 +207,8 @@ var validTNSConnect = map[string]TestCase{
 			"43 4f 4c 3d 54 43 50 29  28 48 4f 53 54 3d 31 30 " + /* COL=TCP)(HOST=10 */
 			"2e 30 2e 37 32 2e 31 31  33 29 28 50 4f 52 54 3d " + /* .0.72.113)(PORT= */
 			"31 35 32 31 29 29 29 ",
+		ConnectHeader: &TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 		ConnectValue: &TNSConnect{
-			TNSHeader:            TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Version:              0x013b,
 			MinVersion:           0x012c,
 			GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
@@ -231,6 +232,9 @@ var validTNSConnect = map[string]TestCase{
 	},
 }
 
+var oldValidTNSHeader = map[string]TNSHeader{
+	"old1": TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
+}
 var oldValidTNSConnect = map[string]TNSConnect{
 
 	"00 d7 00 00 01 00 00 00  01 3b 01 2c 0c 41 20 00 " + /* .........;.,.A . */
@@ -247,7 +251,6 @@ var oldValidTNSConnect = map[string]TNSConnect{
 		"43 4f 4c 3d 54 43 50 29  28 48 4f 53 54 3d 31 30 " + /* COL=TCP)(HOST=10 */
 		"2e 30 2e 37 32 2e 31 31  33 29 28 50 4f 52 54 3d " + /* .0.72.113)(PORT= */
 		"31 35 32 31 29 29 29 ": TNSConnect{
-		TNSHeader:            TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 		Version:              0x013b,
 		MinVersion:           0x012c,
 		GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
@@ -370,17 +373,25 @@ func TestTNSConnect(t *testing.T) {
 	for tag, info := range validTNSConnect {
 		bin := fromHex(info.ConnectEncoding)
 		if info.ConnectValue != nil {
-			packet := info.ConnectValue
+			packet := &TNSPacket{
+				Header: info.ConnectHeader,
+				Body:   info.ConnectValue,
+			}
 			encoded := packet.Encode()
 			if !bytes.Equal(bin, encoded) {
 				t.Errorf("%s: TNSConnect.Encode mismatch: %s", tag, getExpectedActual(string(bin), string(encoded)))
 			}
 			reader := getSliceReader(bin)
-			decoded, err := ReadTNSConnect(reader)
+			response, err := ReadTNSPacket(reader)
 			if err != nil {
-				t.Fatalf("%s: Error decoding connect packet: %v", tag, err)
+				t.Fatalf("%s: Error reading TNSConnect packet: %v", tag, err)
 			}
-			jsonPacket := serialize(*packet)
+			// TODO: check header
+			decoded, ok := response.Body.(*TNSConnect)
+			if !ok {
+				t.Fatalf("%s: Read wrong packet: %v", tag, response.Body)
+			}
+			jsonPacket := serialize(packet.Body)
 			jsonDecoded := serialize(decoded)
 			if !bytes.Equal(jsonPacket, jsonDecoded) {
 				t.Errorf("%s: TNSConnect.Read mismatch: %s", tag, getExpectedActual(string(jsonPacket), string(jsonDecoded)))
@@ -399,7 +410,10 @@ func TestTNSAccept(t *testing.T) {
 		} else {
 			fmt.Println("testing ", tag)
 			bin := fromHex(info.AcceptEncoding)
-			packet := info.AcceptValue
+			packet := &TNSPacket{
+				Header: info.AcceptHeader,
+				Body:   info.AcceptValue,
+			}
 			encoded := packet.Encode()
 			if !bytes.Equal(bin, encoded) {
 				fmt.Println("expected=[\n", string(hex.Dump(bin)), "]")
@@ -407,14 +421,19 @@ func TestTNSAccept(t *testing.T) {
 				t.Errorf("%s: TNSAccept.Encode mismatch: %s", tag, getExpectedActual(string(bin), string(encoded)))
 			}
 			reader := getSliceReader(bin)
-			decoded, err := ReadTNSAccept(reader)
+			response, err := ReadTNSPacket(reader)
 			if err != nil {
-				t.Fatalf("%s: Error decoding TNSAccept packet: %v", tag, err)
+				t.Fatalf("%s: Error reading TNSAccept packet: %v", tag, err)
 			}
-			jsonPacket := serialize(*packet)
+			// TODO: check header
+			decoded, ok := response.Body.(*TNSAccept)
+			if !ok {
+				t.Fatalf("%s: Read wrong packet: %v", tag, response.Body)
+			}
+			jsonPacket := serialize(packet.Body)
 			jsonDecoded := serialize(decoded)
 			if !bytes.Equal(jsonPacket, jsonDecoded) {
-				dump(tag+":expected", *packet)
+				dump(tag+":expected", packet.Body)
 				dump(tag+":actual", decoded)
 				t.Errorf("%s: TNSAccept.Read mismatch: %s", tag, getExpectedActual(string(jsonPacket), string(jsonDecoded)))
 			}
