@@ -3,6 +3,7 @@
 package oracle
 
 import (
+	"github.com/jb/tcpwrap"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -21,8 +22,16 @@ type Flags struct {
 	zgrab2.BaseFlags
 	// TODO: Add more protocol-specific flags
 	// Protocols that support TLS should include zgrab2.TLSFlags
-
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	// TODO: Find version number mappings and take a string here instead
+	Version                uint16 `long:"version" description:"The client version number to send." default:"312"`
+	MinVersion             uint16 `long:"min-version" description:"The minimum supported client version to send in the connect packet." default:"300"`
+	ReleaseVersion         string `long:"release-version" description:"The dotted-decimal release version used during the SNS negoatiation. Must contain five components (e.g. 1.2.3.4.5)." default:"11.2.0.4.0"`
+	GlobalServiceOptions   string `long:"global-service-options" description:"The Global Service Options flags to send in the connect packet." default:"0x0C41"`
+	SDU                    string `long:"sdu" description:"The SDU value to send in the connect packet." default:"0x2000"`
+	TDU                    string `long:"tdu" description:"The TDU value to send in the connect packet." default:"0xFFFF"`
+	ProtocolCharacterisics string `long:"protocol-characteristics" description:"The Protocol Characteristics flags to send in the connect packet." default:"0x7F08"`
+	ConnectFlags           string `long:"connect-flags" description:"The connect flags for the connect packet." default:"0x4141"`
+	Verbose                bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -92,16 +101,19 @@ func (scanner *Scanner) GetPort() uint {
 
 // Scan() TODO: describe what is scanned
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	/*
-		sock, err := t.Open(&scanner.config.BaseFlags)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-			conn := Connection{
-				conn:    sock,
-				scanner: scanner,
-				target:  &t,
-			}
-	*/
-	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
+	sock, err := t.Open(&scanner.config.BaseFlags)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	conn := Connection{
+		conn:    tcpwrap.Wrap(sock),
+		scanner: scanner,
+		target:  &t,
+	}
+	connectionString := "(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=)(CID=(PROGRAM=C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe)(HOST=DESKTOP-8ONLTVE)(USER=localadmin)))(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=11521)))"
+	ret, err := conn.Connect(connectionString)
+	if err != nil {
+		panic(err)
+	}
+	return zgrab2.SCAN_SUCCESS, ret, nil
 }

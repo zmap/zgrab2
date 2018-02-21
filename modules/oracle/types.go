@@ -1,12 +1,14 @@
 package oracle
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"runtime/debug"
+	"strconv"
 	"strings"
 )
 
@@ -18,22 +20,54 @@ import (
 type PacketType uint8
 
 const (
-	PacketTypeConnect            PacketType = 1
-	PacketTypeAccept                        = 2
-	PacketTypeAcknowledge                   = 3
-	PacketTypeRefuse                        = 4
-	PacketTypeRedirect                      = 5
-	PacketTypeData                          = 6
-	PacketTypeNull                          = 7
-	PacketTypeAbort                         = 9
-	PacketTypeResend                        = 11
-	PacketTypeMarker                        = 12
-	PacketTypeAttention                     = 13
-	PacketTypeControlInformation            = 14
+	PacketTypeConnect     PacketType = 1
+	PacketTypeAccept                 = 2
+	PacketTypeAcknowledge            = 3
+	PacketTypeRefuse                 = 4
+	PacketTypeRedirect               = 5
+	PacketTypeData                   = 6
+	PacketTypeNull                   = 7
+	PacketTypeAbort                  = 9
+	PacketTypeResend                 = 11
+	PacketTypeMarker                 = 12
+	PacketTypeAttention              = 13
+	PacketTypeControl                = 14
 )
 
+var packetTypeToName = map[PacketType]string{
+	PacketTypeConnect:     "CONNECT",
+	PacketTypeAccept:      "ACCEPT",
+	PacketTypeAcknowledge: "ACKNOWLEDGE",
+	PacketTypeRefuse:      "REFUSE",
+	PacketTypeRedirect:    "REDIRECT",
+	PacketTypeData:        "DATA",
+	PacketTypeNull:        "NULL",
+	PacketTypeAbort:       "ABORT",
+	PacketTypeResend:      "RESEND",
+	PacketTypeMarker:      "MARKER",
+	PacketTypeAttention:   "ATTENTION",
+	PacketTypeControl:     "CONTROL",
+}
+
+var nameToPacketType = map[string]PacketType{}
+
+func GetPacketTypeName(packetType PacketType) string {
+	return packetTypeToName[packetType]
+}
+
+func GetNamedPacketType(name string) PacketType {
+	if nameToPacketType == nil {
+		for k, v := range packetTypeToName {
+			nameToPacketType[v] = k
+		}
+	}
+	return nameToPacketType[name]
+}
+
 var (
-	ErrInvalidData error = errors.New("server returned invalid data")
+	ErrInvalidData        error = errors.New("server returned invalid data")
+	ErrInvalidInput             = errors.New("caller provided invalid input")
+	ErrUnexpectedResponse       = errors.New("server returned unexpected response")
 )
 
 // Implementation of io.Reader that returns data from a slice.
@@ -141,7 +175,13 @@ func DecodeTNSHeader(ret *TNSHeader, buf []byte) (*TNSHeader, []byte, error) {
 
 func ReadTNSHeader(reader io.Reader) (*TNSHeader, error) {
 	buf := make([]byte, 8)
-	_, err := io.ReadFull(reader, buf)
+	n, err := reader.Read(buf)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(buf) {
+		return nil, ErrInvalidData
+	}
 	ret, _, err := DecodeTNSHeader(nil, buf)
 	return ret, err
 }
@@ -149,6 +189,14 @@ func ReadTNSHeader(reader io.Reader) (*TNSHeader, error) {
 // Flags taken from Wireshark
 
 type ServiceOptions uint16
+
+func (flags ServiceOptions) Set() map[string]bool {
+	// TODO FIXME IMPLEMENT
+	// TODO FIXME IMPLEMENT
+	return map[string]bool{
+		fmt.Sprintf("0x%x", flags): true,
+	}
+}
 
 const (
 	SOBrokenConnectNotify ServiceOptions = 0x2000
@@ -166,6 +214,13 @@ const (
 	SOCanSendAttention                   = 0x0002
 	SOUnknown0001                        = 0x0001
 )
+
+var soNames = map[ServiceOptions]string{
+	SOBrokenConnectNotify: "BROKEN_CONNECT_NOTIFY",
+	SOPacketChecksum:      "PACKET_CHECKSUM",
+	SOHeaderChecksum:      "HEADER_CHECKSUM",
+	// TODO FIXME Finish these
+}
 
 type NTProtocolCharacteristics uint16
 
@@ -200,6 +255,13 @@ const (
 	CFUnknown40                        = 0x40
 	CFUnknown20                        = 0x20
 )
+
+func (flags ConnectFlags) Set() map[string]bool {
+	// TODO FIXME IMPLEMENT
+	return map[string]bool{
+		fmt.Sprintf("0x%x", flags): true,
+	}
+}
 
 // DefaultByteOrder is the little-endian encoding of the uint16 integer 1 --
 // the server takes this value in some packets.
@@ -384,12 +446,20 @@ func ReadTNSConnect(reader io.Reader, header *TNSHeader) (ret *TNSConnect, throw
 	return ret, nil
 }
 
+func (packet *TNSConnect) GetType() PacketType {
+	return PacketTypeConnect
+}
+
 // TNSResend is just a header with type = PacketTypeResend (0x0b == 11)
 type TNSResend struct {
 }
 
 func (packet *TNSResend) Encode() []byte {
 	return []byte{}
+}
+
+func (packet *TNSResend) GetType() PacketType {
+	return PacketTypeResend
 }
 
 func ReadTNSResend(reader io.Reader, header *TNSHeader) (*TNSResend, error) {
@@ -460,6 +530,10 @@ func (packet *TNSAccept) Encode() []byte {
 	next = push(next, packet.Unknown18)
 	copy(next, packet.AcceptData)
 	return ret
+}
+
+func (packet *TNSAccept) GetType() PacketType {
+	return PacketTypeAccept
 }
 
 func readU8(reader io.Reader) uint8 {
@@ -537,6 +611,46 @@ type TNSRedirect struct {
 	Data       []byte
 }
 
+type ReleaseVersion uint32
+
+func (v ReleaseVersion) String() string {
+	// 0xAAbcddee -> A.b.c.d.e, major.maintenance.appserver.component.platform
+	// See https://docs.oracle.com/cd/B28359_01/server.111/b28310/dba004.htm
+	return fmt.Sprintf("%d.%d.%d.%d.%d", v>>24, v>>20&0x0F, v>>16&0x0F, v>>8&0xFF, v&0xFF)
+}
+
+func (v ReleaseVersion) Bytes() []byte {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, uint32(v))
+	return buf
+}
+
+func EncodeReleaseVersion(value string) ReleaseVersion {
+	parts := strings.Split(value, ".")
+	if len(parts) != 5 {
+		panic(ErrInvalidInput)
+	}
+	numbers := make([]uint32, 5)
+	maxValue := []int{
+		255,
+		15,
+		15,
+		255,
+		255,
+	}
+	for i, v := range parts {
+		n, err := strconv.ParseUint(v, 10, 16)
+		if err != nil {
+			panic(ErrInvalidInput)
+		}
+		if int(n) > maxValue[i] {
+			panic(ErrInvalidInput)
+		}
+		numbers[i] = uint32(n)
+	}
+	return ReleaseVersion((numbers[0] << 24) | (numbers[1] << 20) | (numbers[2] << 16) | (numbers[3] << 8) | numbers[4])
+}
+
 type DataFlags uint16
 
 const (
@@ -555,12 +669,8 @@ const (
 type TNSData struct {
 	// 08..09
 	DataFlags DataFlags
-	// 0A..0B
-	Unknown0A uint16
-	// 0C
-	TNSCounter uint8
-	// 0D..0E
-	Unknown0D uint16
+	// 0A...
+	Data []byte
 }
 
 type DataType uint8
@@ -569,6 +679,346 @@ const (
 	DataTypeSetProtocol           DataType = 0x01
 	DataTypeSecureNetworkServices          = 0x06
 )
+
+const (
+	DataIDNSN uint32 = 0xdeadbeef
+)
+
+func (packet *TNSData) GetID() uint32 {
+	if len(packet.Data) < 4 {
+		return 0
+	}
+	return binary.BigEndian.Uint32(packet.Data[0:4])
+}
+
+func (packet *TNSData) Encode() []byte {
+	ret := make([]byte, len(packet.Data)+2)
+	next := pushU16(ret, uint16(packet.DataFlags))
+	copy(next, packet.Data)
+	return ret
+}
+
+func (packet *TNSData) GetType() PacketType {
+	return PacketTypeData
+}
+
+func ReadTNSData(reader io.Reader, header *TNSHeader) (ret *TNSData, thrown error) {
+	defer func() {
+		if err := unpanic(); err != nil {
+			thrown = err
+		}
+	}()
+	ret = new(TNSData)
+	ret.DataFlags = DataFlags(readU16(reader))
+	ret.Data = make([]byte, header.Length-8-2)
+	n, err := reader.Read(ret.Data)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(ret.Data) {
+		return nil, ErrInvalidData
+	}
+	return ret, nil
+}
+
+type NSNServiceType uint16
+
+const (
+	NSNServiceAuthentication NSNServiceType = 1
+	NSNServiceEncryption                    = 2
+	NSNServiceDataIntegrity                 = 3
+	NSNServiceSupervisor                    = 4
+)
+
+var nsnServiceTypeToName = map[NSNServiceType]string{
+	NSNServiceAuthentication: "Authentication",
+	NSNServiceEncryption:     "Encryption",
+	NSNServiceDataIntegrity:  "DataIntegrity",
+	NSNServiceSupervisor:     "Supervisor",
+}
+
+func (typ NSNServiceType) String() string {
+	ret, ok := nsnServiceTypeToName[typ]
+	if !ok {
+		return fmt.Sprintf("Unknown(0x%x)", uint16(typ))
+	}
+	return ret
+}
+
+func (typ NSNServiceType) IsUnknown() bool {
+	_, ok := nsnServiceTypeToName[typ]
+	return !ok
+}
+
+// NSN packets somewhat described here: https://docs.oracle.com/cd/B19306_01/network.102/b14212/troublestng.htm
+type NSNService struct {
+	Type   NSNServiceType
+	Values []NSNValue
+	Marker uint32
+}
+
+func (service *NSNService) GetSize() uint16 {
+	ret := uint32(8) // uint16(Type) + uint16(#values) + uint32(marker)
+	for _, v := range service.Values {
+		ret += uint32(len(v.Value) + 4)
+	}
+	if ret > 0xffff {
+		// This cannot happen when reading data from the server, only when
+		// constructing data to send to it.
+		panic(ErrInvalidInput)
+	}
+	return uint16(ret)
+}
+
+func (service *NSNService) Encode() []byte {
+	// Absolute minimum, if each value had zero length
+	ret := make([]byte, service.GetSize())
+	next := pushU16(ret, uint16(service.Type))
+	if len(service.Values) > 0xffff {
+		// This is covered by GetSize, but if that were to change, catch this
+		// separate issue
+		panic(ErrInvalidInput)
+	}
+	next = pushU16(next, uint16(len(service.Values)))
+	next = pushU32(next, service.Marker)
+	for _, value := range service.Values {
+		next = push(next, value.Encode())
+	}
+	return ret
+}
+
+func ReadNSNService(reader io.Reader, ret *NSNService) (*NSNService, error) {
+	if ret == nil {
+		ret = &NSNService{}
+	}
+	ret.Type = NSNServiceType(readU16(reader))
+	n := int(readU16(reader))
+	if n > 0x0400 {
+		// Arbitrary but sufficiently huge cut off. Typical values are single
+		// digits. The total encoded size must fit into 16 bits.
+		return nil, ErrInvalidData
+	}
+	ret.Marker = readU32(reader)
+	// Check if Marker == 0?
+	ret.Values = make([]NSNValue, n)
+	for i := 0; i < n; i++ {
+		_, err := ReadNSNValue(reader, &ret.Values[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ret, nil
+}
+
+type NSNValueType uint16
+
+const (
+	NSNValueTypeString  NSNValueType = 0
+	NSNValueTypeBytes                = 1
+	NSNValueTypeUB1                  = 2
+	NSNValueTypeUB2                  = 3
+	NSNValueTypeUB4                  = 4
+	NSNValueTypeVersion              = 5
+	NSNValueTypeStatus               = 6
+)
+
+type NSNValue struct {
+	Type  NSNValueType
+	Value []byte
+}
+
+func (value *NSNValue) String() string {
+	switch value.Type {
+	case NSNValueTypeString:
+		return string(value.Value)
+	case NSNValueTypeBytes:
+		return base64.StdEncoding.EncodeToString(value.Value)
+	case NSNValueTypeUB1:
+		return fmt.Sprintf("%d", value.Value[0])
+	case NSNValueTypeUB4:
+		return fmt.Sprintf("%d", binary.BigEndian.Uint32(value.Value))
+	case NSNValueTypeVersion:
+		return ReleaseVersion(binary.BigEndian.Uint32(value.Value)).String()
+	case NSNValueTypeStatus:
+		fallthrough
+	case NSNValueTypeUB2:
+		return fmt.Sprintf("%d", binary.BigEndian.Uint16(value.Value))
+	default:
+		return base64.StdEncoding.EncodeToString(value.Value)
+	}
+}
+
+func (value *NSNValue) MarshalJSON() ([]byte, error) {
+	type Aux struct {
+		Type  NSNValueType
+		Value interface{}
+	}
+	ret := Aux{
+		Type: value.Type,
+	}
+	switch value.Type {
+	case NSNValueTypeString:
+		ret.Value = string(value.Value)
+	case NSNValueTypeBytes:
+		ret.Value = value.Value
+	case NSNValueTypeUB1:
+		ret.Value = value.Value[0]
+	case NSNValueTypeUB4:
+		ret.Value = binary.BigEndian.Uint32(value.Value)
+	case NSNValueTypeVersion:
+		ret.Value = ReleaseVersion(binary.BigEndian.Uint32(value.Value)).String()
+	case NSNValueTypeStatus:
+		fallthrough
+	case NSNValueTypeUB2:
+		ret.Value = binary.BigEndian.Uint16(value.Value)
+	default:
+		ret.Value = value.Value
+	}
+	return json.Marshal(ret)
+}
+
+func NSNValueVersion(v string) *NSNValue {
+	return &NSNValue{
+		Type:  5,
+		Value: EncodeReleaseVersion(v).Bytes(),
+	}
+}
+
+func NSNValueBytes(bytes []byte) *NSNValue {
+	return &NSNValue{
+		Type:  1,
+		Value: bytes,
+	}
+}
+
+func NSNValueUB1(val uint8) *NSNValue {
+	return &NSNValue{
+		Type:  2,
+		Value: []byte{val},
+	}
+}
+
+func NSNValueUB2(val uint16) *NSNValue {
+	ret := make([]byte, 2)
+	binary.BigEndian.PutUint16(ret, val)
+	return &NSNValue{
+		Type:  3,
+		Value: ret,
+	}
+}
+
+func NSNValueStatus(val uint16) *NSNValue {
+	ret := NSNValueUB2(val)
+	ret.Type = 6
+	return ret
+}
+
+func NSNValueString(val string) *NSNValue {
+	return &NSNValue{
+		Type:  0,
+		Value: []byte(val),
+	}
+}
+
+func (value *NSNValue) Encode() []byte {
+	if len(value.Value) > 0xffff {
+		panic(ErrInvalidInput)
+	}
+	ret := make([]byte, 4+len(value.Value))
+	if len(value.Value) > 0xffff {
+		panic(ErrInvalidInput)
+	}
+	rest := pushU16(ret, uint16(len(value.Value)))
+	rest = pushU16(rest, uint16(value.Type))
+	copy(rest, value.Value)
+	return ret
+}
+
+func ReadNSNValue(reader io.Reader, ret *NSNValue) (*NSNValue, error) {
+	if ret == nil {
+		ret = &NSNValue{}
+	}
+	size := readU16(reader)
+	ret.Type = NSNValueType(readU16(reader))
+	ret.Value = make([]byte, size)
+	n, err := reader.Read(ret.Value)
+	if err != nil {
+		return nil, err
+	}
+	if n != len(ret.Value) {
+		return nil, ErrInvalidData
+	}
+	return ret, nil
+}
+
+type NSNOptions uint8
+
+type TNSDataNSN struct {
+	Version  ReleaseVersion
+	Options  NSNOptions
+	Services []NSNService
+}
+
+func (packet *TNSDataNSN) GetSize() uint16 {
+	ret := uint32(13) // uint32(id) + uint16(len) + uint32(version) + uint16(#services) + uint8(options)
+	for _, v := range packet.Services {
+		ret += uint32(v.GetSize())
+	}
+	if ret > 0xffff {
+		// This cannot happen when reading data from the server, only when
+		// constructing data to send to it.
+		panic(ErrInvalidInput)
+	}
+	return uint16(ret)
+}
+
+func (packet *TNSDataNSN) Encode() []byte {
+	size := packet.GetSize()
+	ret := make([]byte, size)
+	next := pushU32(ret, uint32(DataIDNSN))
+	next = pushU16(next, size)
+	next = pushU32(next, uint32(packet.Version))
+	if len(packet.Services) > 0xffff {
+		panic(ErrInvalidInput)
+	}
+	next = pushU16(next, uint16(len(packet.Services)))
+	next = pushU8(next, uint8(packet.Options))
+	for _, v := range packet.Services {
+		next = push(next, v.Encode())
+	}
+	return ret
+}
+
+func DecodeTNSDataNSN(data []byte) (*TNSDataNSN, error) {
+	reader := getSliceReader(data)
+	ret := TNSDataNSN{}
+	tag := readU32(reader)
+	if tag != DataIDNSN {
+		return nil, ErrUnexpectedResponse
+	}
+	length := readU16(reader)
+	if len(data) != int(length) {
+		// if we have 0xdeadbeef, but the length is incorrect, that would
+		// indicate truncation or corruption
+		return nil, ErrInvalidData
+	}
+	ret.Version = ReleaseVersion(readU32(reader))
+	n := int(readU16(reader))
+	if n > 0x0400 {
+		// arbitrary but certainly sufficiently-high value.
+		return nil, ErrInvalidData
+	}
+	ret.Options = NSNOptions(readU8(reader))
+	// TODO: Check for valid options?
+	ret.Services = make([]NSNService, n)
+	for i := 0; i < n; i++ {
+		_, err := ReadNSNService(reader, &ret.Services[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &ret, nil
+}
 
 type TNSDataSetProtocolRequest struct {
 	// 08..09
@@ -594,49 +1044,8 @@ type TNSDataSetProtocolResponse struct {
 	Data []byte
 }
 
-type TNSDataANOPacket struct {
-	DataFlags     DataFlags
-	DataType      DataType
-	ClientVersion [4]byte
-	Data          []byte
-}
-
-func (packet *TNSDataANOPacket) Encode() []byte {
-	ret := make([]byte, 7+len(packet.Data))
-	next := ret
-	next = pushU16(next, uint16(packet.DataFlags))
-	next = pushU8(next, uint8(packet.DataType))
-	copy(next, packet.ClientVersion[0:4])
-	copy(next[4:], packet.Data[:])
-	return ret
-}
-
-func ReadTNSDataANOPacket(reader io.Reader, header *TNSHeader) (ret *TNSDataANOPacket, thrown error) {
-	defer func() {
-		rerr := recover()
-		if rerr != nil {
-			switch err := rerr.(type) {
-			case error:
-				thrown = err
-			default:
-				panic(rerr)
-			}
-		}
-	}()
-	ret = new(TNSDataANOPacket)
-	ret.DataFlags = DataFlags(readU16(reader))
-	ret.DataType = DataType(readU8(reader))
-	if _, err := io.ReadFull(reader, ret.ClientVersion[:]); err != nil {
-		return nil, err
-	}
-	ret.Data = make([]byte, header.Length-8-7)
-	if _, err := io.ReadFull(reader, ret.Data); err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
 type TNSPacketBody interface {
+	GetType() PacketType
 	Encode() []byte
 }
 
@@ -645,16 +1054,34 @@ type TNSPacket struct {
 	Body   TNSPacketBody
 }
 
+type InputTNSPacket struct {
+	TNSPacket
+	Raw []byte
+}
+
 func (packet *TNSPacket) Encode() []byte {
-	header := packet.Header.Encode()
 	body := packet.Body.Encode()
+	if packet.Header == nil {
+		packet.Header = &TNSHeader{
+			Length:         0,
+			PacketChecksum: 0,
+			Type:           packet.Body.GetType(),
+			// Flags -- aka Reserved Byte -- is "04" in some Connect packets?
+			Flags:          0,
+			HeaderChecksum: 0,
+		}
+	}
+	if packet.Header.Length == 0 {
+		// It is up to the user to check the body length for overflows before calling Encode
+		packet.Header.Length = uint16(len(body) + 8)
+	}
+	header := packet.Header.Encode()
 	return append(header, body...)
 }
 
 func ReadTNSPacket(reader io.Reader) (*TNSPacket, error) {
 	var body TNSPacketBody
 	var err error
-
 	header, err := ReadTNSHeader(reader)
 	if err != nil {
 		return nil, err
@@ -666,6 +1093,8 @@ func ReadTNSPacket(reader io.Reader) (*TNSPacket, error) {
 		body, err = ReadTNSAccept(reader, header)
 	case PacketTypeResend:
 		body, err = ReadTNSResend(reader, header)
+	case PacketTypeData:
+		body, err = ReadTNSData(reader, header)
 	default:
 		err = ErrInvalidData
 	}
