@@ -42,11 +42,11 @@ func ExampleMapFlagsToSet_error() {
 }
 
 func ExampleFlagsToSet() {
-	output, unknowns := FlagsToSet(0x5, map[uint64]string{
+	output, unknowns := FlagsToSet(0x5, WidenMapKeys(map[int]string{
 		0x1: "bit0",
 		0x2: "bit1",
 		0x8: "bit3",
-	})
+	}))
 	for k, v := range output {
 		fmt.Printf("%s: %v\n", k, v)
 	}
