@@ -219,7 +219,17 @@ var soNames = map[ServiceOptions]string{
 	SOBrokenConnectNotify: "BROKEN_CONNECT_NOTIFY",
 	SOPacketChecksum:      "PACKET_CHECKSUM",
 	SOHeaderChecksum:      "HEADER_CHECKSUM",
-	// TODO FIXME Finish these
+	SOFullDuplex:          "FULL_DUPLEX",
+	SOHalfDuplex:          "HALF_DUPLEX",
+	SOUnknown0100:         "UNKNOWN_0100",
+	SOUnknown0080:         "UNKNOWN_0080",
+	SOUnknown0040:         "UNKNOWN_0040",
+	SOUnknown0020:         "UNKNOWN_0020",
+	SODirectIO:            "DIRECT_IO",
+	SOAttentionProcessing: "ATTENTION_PROCESSING",
+	SOCanReceiveAttention: "CAN_RECEIVE_ATTENTION",
+	SOCanSendAttention:    "CAN_SEND_ATTENTION",
+	SOUnknown0001:         "UNKNOWN_0001",
 }
 
 type NTProtocolCharacteristics uint16
