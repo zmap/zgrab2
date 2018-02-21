@@ -34,7 +34,7 @@ func MapFlagsToSet(flags uint64, mapping FlagMap) (map[string]bool, []uint64) {
 	return ret, unknowns
 }
 
-// GetFlagMapFromMapping returns a FlagMap function that uses mapping to do the
+// GetFlagMapFromMap returns a FlagMap function that uses mapping to do the
 // mapping. Values not present in the map are treated as unknown, and a non-nil
 // error is returned in those cases.
 func GetFlagMapFromMap(mapping map[uint64]string) FlagMap {
@@ -81,4 +81,44 @@ func FlagsToSet(flags uint64, mapping map[uint64]string) (map[string]bool, []uin
 func ListFlagsToSet(flags uint64, labels []string) (map[string]bool, []uint64) {
 	mapper := GetFlagMapFromList(labels)
 	return MapFlagsToSet(flags, mapper)
+}
+
+// WidenMapKeys8 copies a map with uint8 keys into an equivalent map with uint64
+// keys for use in the FlagsToSet function.
+func WidenMapKeys8(input map[uint8]string) map[uint64]string {
+	ret := make(map[uint64]string, len(input))
+	for k, v := range input {
+		ret[uint64(k)] = v
+	}
+	return ret
+}
+
+// WidenMapKeys16 copies a map with uint8 keys into an equivalent map with
+// uint64 keys for use in the FlagsToSet function.
+func WidenMapKeys16(input map[uint16]string) map[uint64]string {
+	ret := make(map[uint64]string, len(input))
+	for k, v := range input {
+		ret[uint64(k)] = v
+	}
+	return ret
+}
+
+// WidenMapKeys32 copies a map with uint8 keys into an equivalent map with
+// uint64 keys for use in the FlagsToSet function.
+func WidenMapKeys32(input map[uint32]string) map[uint64]string {
+	ret := make(map[uint64]string, len(input))
+	for k, v := range input {
+		ret[uint64(k)] = v
+	}
+	return ret
+}
+
+// WidenMapKeys copies a map with int keys into an equivalent map with uint64
+// keys for use in the FlagsToSet function.
+func WidenMapKeys(input map[int]string) map[uint64]string {
+	ret := make(map[uint64]string, len(input))
+	for k, v := range input {
+		ret[uint64(k)] = v
+	}
+	return ret
 }
