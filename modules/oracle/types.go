@@ -7,9 +7,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"runtime/debug"
 	"strconv"
 	"strings"
+
+	"github.com/zmap/zgrab2"
+)
+
+var (
+	// ErrInvalidData is returned when the server returns syntactically-invalid
+	// (or very unlikely / problematic) data.
+	ErrInvalidData error = errors.New("server returned invalid data")
+
+	// ErrInvalidInput is returned when user-supplied data is not valid.
+	ErrInvalidInput = errors.New("caller provided invalid input")
+
+	// ErrUnexpectedResponse is returned when the server returns a valid TNS
+	// response but it is not the expected type.
+	ErrUnexpectedResponse = errors.New("server returned unexpected response")
+
+	// ErrBufferTooSmall is returned when the caller provides a buffer that is
+	// too small for the required data.
+	ErrBufferTooSmall error = errors.New("buffer too small")
 )
 
 // References:
@@ -17,24 +35,54 @@ import (
 // https://blog.pythian.com/repost-oracle-protocol/
 // http://www.nyoug.org/Presentations/2008/Sep/Harris_Listening%20In.pdf
 
+// PacketType is the type identifier used in the TNS header to identify the
+// format of the packet.
 type PacketType uint8
 
 const (
-	PacketTypeConnect     PacketType = 1
-	PacketTypeAccept                 = 2
-	PacketTypeAcknowledge            = 3
-	PacketTypeRefuse                 = 4
-	PacketTypeRedirect               = 5
-	PacketTypeData                   = 6
-	PacketTypeNull                   = 7
-	PacketTypeAbort                  = 9
-	PacketTypeResend                 = 11
-	PacketTypeMarker                 = 12
-	PacketTypeAttention              = 13
-	PacketTypeControl                = 14
+	// PacketTypeConnect identifies a Connect packet (first packet sent by the
+	// client, containing the connection string).
+	PacketTypeConnect PacketType = 1
+
+	// PacketTypeAccept identifies an Accept packet (the server's response to
+	// a Connect packet, contains some server configuration flags).
+	PacketTypeAccept = 2
+
+	// PacketTypeAcknowledge identifies an Acknowledge packet.
+	PacketTypeAcknowledge = 3
+
+	// PacketTypeRefuse identifies a Refuse packet.
+	PacketTypeRefuse = 4
+
+	// PacketTypeRedirect idenfies a Redirect packet. The server can respond to
+	// a Connect packet with a Redirect containing a new connection string.
+	PacketTypeRedirect = 5
+
+	// PacketTypeData identifies a Data packet. The packet's payload may have
+	// further structure.
+	PacketTypeData = 6
+
+	// PacketTypeNull identifies a Null packet.
+	PacketTypeNull = 7
+
+	// PacketTypeAbort identifies an Abort packet.
+	PacketTypeAbort = 9
+
+	// PacketTypeResend identifies a Resend packet. When the server sends this
+	// packet, the client sends the exact data that it sent previously.
+	PacketTypeResend = 11
+
+	// PacketTypeMarker identifies a Marker packet.
+	PacketTypeMarker = 12
+
+	// PacketTypeAttention identifies an Attention packet.
+	PacketTypeAttention = 13
+
+	// PacketTypeControl identifies a Control packet.
+	PacketTypeControl = 14
 )
 
-var packetTypeToName = map[PacketType]string{
+var packetTypeNames = map[PacketType]string{
 	PacketTypeConnect:     "CONNECT",
 	PacketTypeAccept:      "ACCEPT",
 	PacketTypeAcknowledge: "ACKNOWLEDGE",
@@ -49,26 +97,15 @@ var packetTypeToName = map[PacketType]string{
 	PacketTypeControl:     "CONTROL",
 }
 
-var nameToPacketType = map[string]PacketType{}
-
-func GetPacketTypeName(packetType PacketType) string {
-	return packetTypeToName[packetType]
-}
-
-func GetNamedPacketType(name string) PacketType {
-	if nameToPacketType == nil {
-		for k, v := range packetTypeToName {
-			nameToPacketType[v] = k
-		}
+// String returns the string representation of the PacketType.
+func (packetType PacketType) String() string {
+	ret, ok := packetTypeNames[packetType]
+	if !ok {
+		// These must be individually allowed in the schema
+		return fmt.Sprintf("UNKNOWN(0x%02x)", packetType)
 	}
-	return nameToPacketType[name]
+	return ret
 }
-
-var (
-	ErrInvalidData        error = errors.New("server returned invalid data")
-	ErrInvalidInput             = errors.New("caller provided invalid input")
-	ErrUnexpectedResponse       = errors.New("server returned unexpected response")
-)
 
 // Implementation of io.Reader that returns data from a slice.
 // Lets Decode methods re-use Read methods.
@@ -78,29 +115,6 @@ type sliceReader struct {
 
 func getSliceReader(data []byte) *sliceReader {
 	return &sliceReader{Data: data}
-}
-
-func getStack() string {
-	v := string(debug.Stack())
-	parts := strings.Split(v, "\n")
-	ret := make([]string, 0)
-	for _, v := range parts {
-		if !strings.Contains(v, "/Go/src/") {
-			// c:/Go/src
-			a := strings.LastIndex(v, "/")
-			if a != -1 {
-				s := v[a+1:]
-				b := strings.IndexAny(s, " (")
-				if b != -1 {
-					val := s[:b]
-					if strings.Contains(val, ".go") {
-						ret = append(ret, val)
-					}
-				}
-			}
-		}
-	}
-	return strings.Join(ret, ", ")
 }
 
 func (reader *sliceReader) Read(output []byte) (int, error) {
@@ -116,44 +130,44 @@ func (reader *sliceReader) Read(output []byte) (int, error) {
 	return n, nil
 }
 
-var (
-	ErrBufferTooSmall error = errors.New("buffer too small")
-)
-
+// TNSFlags is the type for the TNS header's flags.
 type TNSFlags uint8
 
+// TNSHeader is the 8-byte header that precedes all TNS packets.
 type TNSHeader struct {
-	// 00..01
+	// Length is the big-endian length of the entire packet, including the 8
+	// bytes of the header itself.
 	Length uint16
-	// 02..03
+
+	// PacketChecksum is in practice set to 0.
 	PacketChecksum uint16
-	// 04
+
+	// PacketType identifies the type of packet data.
 	Type PacketType
-	// 05
+
+	// Flags is called "Reserved Byte" in Wireshark.
 	Flags TNSFlags
-	// 06..07
+
+	// HeaderChecksum is in practice set to 0.
 	HeaderChecksum uint16
 }
 
-func (header *TNSHeader) EncodeTo(ret []byte) []byte {
-	// 1 g m/s^2 / m^2
-	// | . | 0 1 0 -- p + q = P + Q
-	if ret == nil {
-		ret = make([]byte, 8)
-	}
-	next := ret
-	next = pushU16(ret, header.Length)
-	next = pushU16(next, header.PacketChecksum)
-	next = pushU8(next, byte(header.Type))
-	next = pushU8(next, byte(header.Flags))
-	next = pushU16(next, header.HeaderChecksum)
+// Encode returns the encoded TNSHeader.
+func (header *TNSHeader) Encode() []byte {
+	ret := make([]byte, 8)
+	next := outputBuffer(ret)
+	next.pushU16(header.Length)
+	next.pushU16(header.PacketChecksum)
+	next.pushU8(byte(header.Type))
+	next.pushU8(byte(header.Flags))
+	next.pushU16(header.HeaderChecksum)
 	return ret
 }
 
-func (header *TNSHeader) Encode() []byte {
-	return header.EncodeTo(nil)
-}
-
+// DecodeTNSHeader reads the header from the first 8 bytes of buf. If no header
+// is provided, a new one is allocated.
+// The decoded header is returned as well as a slice pointing past the end of
+// the header in buf. On failure, returns nil/nil/error.
 func DecodeTNSHeader(ret *TNSHeader, buf []byte) (*TNSHeader, []byte, error) {
 	if len(buf) < 8 {
 		return nil, nil, ErrBufferTooSmall
@@ -173,6 +187,8 @@ func DecodeTNSHeader(ret *TNSHeader, buf []byte) (*TNSHeader, []byte, error) {
 	return ret, rest, nil
 }
 
+// ReadTNSHeader reads / decodes a TNSHeader from the first 8 bytes of the
+// stream.
 func ReadTNSHeader(reader io.Reader) (*TNSHeader, error) {
 	buf := make([]byte, 8)
 	n, err := reader.Read(buf)
@@ -186,17 +202,20 @@ func ReadTNSHeader(reader io.Reader) (*TNSHeader, error) {
 	return ret, err
 }
 
-// Flags taken from Wireshark
-
+// ServiceOptions are flags used by the client and server in negotiating the
+// connection settings.
 type ServiceOptions uint16
 
+// Set gets a set representation of the ServiceOptions flags.
 func (flags ServiceOptions) Set() map[string]bool {
-	// TODO FIXME IMPLEMENT
-	// TODO FIXME IMPLEMENT
-	return map[string]bool{
-		fmt.Sprintf("0x%x", flags): true,
-	}
+	ret, _ := zgrab2.MapFlagsToSet(uint64(flags), func(bit uint64) (string, error) {
+		return soNames[ServiceOptions(bit)], nil
+	})
+	// there are no unknowns since all 16 flags are accounted for in soNames
+	return ret
 }
+
+// TODO -- identify what these actually do (names taken from Wireshark)
 
 const (
 	SOBrokenConnectNotify ServiceOptions = 0x2000
@@ -213,6 +232,8 @@ const (
 	SOCanReceiveAttention                = 0x0004
 	SOCanSendAttention                   = 0x0002
 	SOUnknown0001                        = 0x0001
+	SOUnknown4000                        = 0x4000
+	SOUnknown8000                        = 0x8000
 )
 
 var soNames = map[ServiceOptions]string{
@@ -232,7 +253,11 @@ var soNames = map[ServiceOptions]string{
 	SOUnknown0001:         "UNKNOWN_0001",
 }
 
+// NTProtocolCharacteristics are flags used by the client and the server to
+// negotiate connection settings.
 type NTProtocolCharacteristics uint16
+
+// TODO -- identify what these actually do (names taken from Wireshark)
 
 const (
 	NTPCHangon           NTProtocolCharacteristics = 0x8000
@@ -253,67 +278,133 @@ const (
 	NTPCTestOperation                              = 0x0001
 )
 
-type ConnectFlags uint8
-
-const (
-	CFServicesRequired    ConnectFlags = 0x10
-	CFServicesLinkedIn                 = 0x08
-	CFServicesEnabled                  = 0x04
-	CFInterchangeInvolved              = 0x02
-	CFServicesWanted                   = 0x01
-	CFUnknown80                        = 0x80
-	CFUnknown40                        = 0x40
-	CFUnknown20                        = 0x20
-)
-
-func (flags ConnectFlags) Set() map[string]bool {
-	// TODO FIXME IMPLEMENT
-	return map[string]bool{
-		fmt.Sprintf("0x%x", flags): true,
-	}
+var ntpcNames = map[NTProtocolCharacteristics]string{
+	NTPCHangon:           "HANG_ON",
+	NTPCConfirmedRelease: "CONFIRMED_RELEASE",
+	NTPCTDUBasedIO:       "TDU_BASED_UI",
+	NTPCSpawnerRunning:   "SPAWNER_RUNNING",
+	NTPCDataTest:         "DATA_TEST",
+	NTPCCallbackIO:       "CALLBACK_IO",
+	NTPCAsyncIO:          "ASYNC_IO",
+	NTPCPacketIO:         "PACKET_IO",
+	NTPCCanGrant:         "CAN_GRANT",
+	NTPCCanHandoff:       "CAN_HANDOFF",
+	NTPCGenerateSIGIO:    "GENERATE_SIGIO",
+	NTPCGenerateSIGPIPE:  "GENERATE_SIGPIPE",
+	NTPCGenerateSIGURG:   "GENERATE_SIGURG",
+	NTPCUrgentIO:         "URGENT_IO",
+	NTPCFullDuplex:       "FULL_DUPLEX",
+	NTPCTestOperation:    "TEST_OPERATION",
 }
 
-// DefaultByteOrder is the little-endian encoding of the uint16 integer 1 --
-// the server takes this value in some packets.
-var DefaultByteOrder = [2]byte{1, 0}
+// Set gets a set representation of the NTProtocolCharacteristics flags.
+func (flags NTProtocolCharacteristics) Set() map[string]bool {
+	ret, _ := zgrab2.MapFlagsToSet(uint64(flags), func(bit uint64) (string, error) {
+		return ntpcNames[NTProtocolCharacteristics(bit)], nil
+	})
+	// there are no unknowns since all 16 flags are accounted for in ntpcNames
+	return ret
 
+}
+
+// ConnectFlags are flags used by the client and the server to negotiate
+// connection settings.
+type ConnectFlags uint8
+
+// TODO -- identify what these actually do (names taken from Wireshark)
+
+const (
+	CFServicesWanted      ConnectFlags = 0x01
+	CFInterchangeInvolved              = 0x02
+	CFServicesEnabled                  = 0x04
+	CFServicesLinkedIn                 = 0x08
+	CFServicesRequired                 = 0x10
+	CFUnknown20                        = 0x20
+	CFUnknown40                        = 0x40
+	CFUnknown80                        = 0x80
+)
+
+var cfNames = map[ConnectFlags]string{
+	CFServicesWanted:      "SERVICES_WANTED",
+	CFInterchangeInvolved: "INTERCHANGE_INVOLVED",
+	CFServicesEnabled:     "SERVICES_ENABLED",
+	CFServicesLinkedIn:    "SERVICES_LINKED_IN",
+	CFServicesRequired:    "SERVICES_REQUIRED",
+	CFUnknown20:           "UNKNOWN_20",
+	CFUnknown40:           "UNKNOWN_40",
+	CFUnknown80:           "UNKNOWN_80",
+}
+
+// Set gets a set representation of the ConnectFlags.
+func (flags ConnectFlags) Set() map[string]bool {
+	ret, _ := zgrab2.MapFlagsToSet(uint64(flags), func(bit uint64) (string, error) {
+		return cfNames[ConnectFlags(bit)], nil
+	})
+	// no unknowns since all 8 bits are accounted for in cfNames
+	return ret
+}
+
+// defaultByteOrder is the little-endian encoding of the uint16 integer 1 --
+// the server takes this value in some packets.
+var defaultByteOrder = [2]byte{1, 0}
+
+// TNSConnect is sent by the client to request a connection with the server.
+// The server may respond with (at least) Accept, Resend or Redirect.
 // If len(packet) > 255, send a packet with data="", followed by data
 type TNSConnect struct {
-	// 08..09: 0x0136 / 0x0134?
+	// Version is the client's version.
 	// TODO: Find Version format (10r2 = 0x0139? 9r2 = 0x0138? 9i = 0x0137? 8 = 0x0136?)
 	Version uint16
-	// 0A..0B: 0x012c? 0x013b?
+
+	// MinVersion is the lowest version the client supports.
 	MinVersion uint16
-	// 0C..0D: 0x0c01
+
+	// GlobalServiceOptions specify connection settings (TODO: details).
 	GlobalServiceOptions ServiceOptions
-	// 0E..0F: 0x0800
+
+	// SDU gives the requested Session Data Unit size. (often 0x0000)
 	SDU uint16
-	// 10..11: 0x7fff
+
+	// TDU gives the requested Transfer Data Unit size. (often 0x7fff)
 	TDU uint16
-	// 12..13: 0x4380 / 0x4f98
+
+	// ProtocolCharacteristics specify connection settings (TODO: details).
 	ProtocolCharacteristics NTProtocolCharacteristics
-	// 14..15: 0
+
+	// TODO
 	MaxBeforeAck uint16
-	// 16..17: 01 00
+
+	// ByteOrder gives the encoding of the integer 1 as a 16-bit integer with
+	// the client's desired endianness.
 	ByteOrder [2]byte
-	// 18..19: 0x0081
+
+	// DataLength gives the length of the connection string.
 	DataLength uint16
-	// 1A..1B: 0x003a? Found to be 0x0046..
+
+	// DataOffset gives the offset (from the start of the header) of the
+	// connection string.
 	DataOffset uint16
-	// 1C..1F: 0x0000 0800
+
+	// MaxResponseSize gives the client's desired maximum response size.
 	MaxResponseSize uint32
 
-	// 20..21: 0x0101
+	// ConnectFlags0 specifies connection settings (TODO: details).
 	ConnectFlags0 ConnectFlags
+
+	// ConnectFlags1 specifies connection settings (TODO: details).
 	ConnectFlags1 ConnectFlags
-	// 22..25: 0x0000 0000
+
+	// TODO
 	CrossFacility0 uint32
-	// 26..29: 0x0000 0000
+	// TODO
 	CrossFacility1 uint32
-	// 2A..31: 00 00 7b 8b  00 00 00 18
+
+	// TODO
 	ConnectionID0 [8]byte
-	// 32..39: 00 00 00 00  00 00 00 00
+
+	// TODO
 	ConnectionID1 [8]byte
+
 	// Unknown3A is the data between the last trace unique connection ID and the
 	// connection string, starting from offset 0x3A.
 	// The DataOffset points past this, and the DataLength counts from there, so
@@ -321,18 +412,51 @@ type TNSConnect struct {
 	// On recent versions of MSSQL this is 12 bytes.
 	// On older versions, it is 0 bytes.
 	Unknown3A []byte
-	// (DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=target)(Port=1521))(CONNECT_DATA=(SID=thesid)(CID=(PROGRAM=)(HOST=me)(USER=theuser))))
+
+	// ConnectionString is the packet's payload, a nested sequence of
+	// (KEY=(KEY1=...)(KEY2=...)).
 	ConnectionString string
 }
 
-func (header *TNSHeader) String() string {
-	ret, err := json.Marshal(*header)
-	if err != nil {
-		return fmt.Sprintf("(error encoding %v: %v)", header, err)
+// outputBuffer provides helper methods to write data to a pre-allocated buffer.
+type outputBuffer []byte
+
+func (buf *outputBuffer) Write(data []byte) (int, error) {
+	if len(data) > len(*buf) {
+		return 0, ErrBufferTooSmall
 	}
-	return string(ret)
+	buf.push(data)
+	return len(data), nil
 }
 
+func (buf *outputBuffer) push(data []byte) *outputBuffer {
+	current := *buf
+	copy(current[0:len(data)], data)
+	*buf = current[len(data):]
+	return buf
+}
+
+func (buf *outputBuffer) pushU8(v uint8) *outputBuffer {
+	(*buf)[0] = v
+	*buf = (*buf)[1:]
+	return buf
+}
+
+func (buf *outputBuffer) pushU16(v uint16) *outputBuffer {
+	current := *buf
+	binary.BigEndian.PutUint16(current, v)
+	*buf = current[2:]
+	return buf
+}
+
+func (buf *outputBuffer) pushU32(v uint32) *outputBuffer {
+	current := *buf
+	binary.BigEndian.PutUint32(current, v)
+	*buf = current[4:]
+	return buf
+}
+
+// Copy data to dest, return the byte immediately following dest
 func push(dest []byte, data []byte) []byte {
 	copy(dest[0:len(data)], data)
 	return dest[len(data):]
@@ -353,11 +477,6 @@ func pushU8(dest []byte, v uint8) []byte {
 	return dest[1:]
 }
 
-func pushSZ(dest []byte, s string) []byte {
-	dest = push(dest, []byte(s))
-	return pushU8(dest, 0)
-}
-
 func (packet *TNSConnect) Encode() []byte {
 	length := 0x3A + len(packet.Unknown3A) + len(packet.ConnectionString)
 	if length > 255 {
@@ -370,26 +489,27 @@ func (packet *TNSConnect) Encode() []byte {
 	}
 
 	ret := make([]byte, length-8)
-	next := ret
-	next = pushU16(next, packet.Version)
-	next = pushU16(next, packet.MinVersion)
-	next = pushU16(next, uint16(packet.GlobalServiceOptions))
-	next = pushU16(next, packet.SDU)
-	next = pushU16(next, packet.TDU)
-	next = pushU16(next, uint16(packet.ProtocolCharacteristics))
-	next = pushU16(next, packet.MaxBeforeAck)
-	next = push(next, packet.ByteOrder[:])
-	next = pushU16(next, packet.DataLength)
-	next = pushU16(next, packet.DataOffset)
-	next = pushU32(next, packet.MaxResponseSize)
-	next = pushU8(next, uint8(packet.ConnectFlags0))
-	next = pushU8(next, uint8(packet.ConnectFlags1))
-	next = pushU32(next, packet.CrossFacility0)
-	next = pushU32(next, packet.CrossFacility1)
-	next = push(next, packet.ConnectionID0[:])
-	next = push(next, packet.ConnectionID1[:])
-	next = push(next, packet.Unknown3A)
-	push(next, []byte(packet.ConnectionString))
+	next := outputBuffer(ret)
+
+	next.pushU16(packet.Version)
+	next.pushU16(packet.MinVersion)
+	next.pushU16(uint16(packet.GlobalServiceOptions))
+	next.pushU16(packet.SDU)
+	next.pushU16(packet.TDU)
+	next.pushU16(uint16(packet.ProtocolCharacteristics))
+	next.pushU16(packet.MaxBeforeAck)
+	next.push(packet.ByteOrder[:])
+	next.pushU16(packet.DataLength)
+	next.pushU16(packet.DataOffset)
+	next.pushU32(packet.MaxResponseSize)
+	next.pushU8(uint8(packet.ConnectFlags0))
+	next.pushU8(uint8(packet.ConnectFlags1))
+	next.pushU32(packet.CrossFacility0)
+	next.pushU32(packet.CrossFacility1)
+	next.push(packet.ConnectionID0[:])
+	next.push(packet.ConnectionID1[:])
+	next.push(packet.Unknown3A)
+	next.push([]byte(packet.ConnectionString))
 	return ret
 }
 
@@ -525,20 +645,20 @@ func popN(buf []byte, n int) ([]byte, []byte) {
 func (packet *TNSAccept) Encode() []byte {
 	length := 16 + len(packet.Unknown18) + len(packet.AcceptData)
 	ret := make([]byte, length)
-	next := ret
-	next = pushU16(next, packet.Version)
-	next = pushU16(next, uint16(packet.GlobalServiceOptions))
-	next = pushU16(next, packet.SDU)
-	next = pushU16(next, packet.TDU)
-	next = push(next, packet.ByteOrder[:])
+	next := outputBuffer(ret)
+	next.pushU16(packet.Version)
+	next.pushU16(uint16(packet.GlobalServiceOptions))
+	next.pushU16(packet.SDU)
+	next.pushU16(packet.TDU)
+	next.push(packet.ByteOrder[:])
 	// packet.DataLength = len(packet.AcceptData)
 	// packet.DataOffset = 8 + 16 + len(packet.Unknown18) // TNSHeader + accept header + unknown
-	next = pushU16(next, packet.DataLength)
-	next = pushU16(next, packet.DataOffset)
-	next = pushU8(next, uint8(packet.ConnectFlags0))
-	next = pushU8(next, uint8(packet.ConnectFlags1))
-	next = push(next, packet.Unknown18)
-	copy(next, packet.AcceptData)
+	next.pushU16(packet.DataLength)
+	next.pushU16(packet.DataOffset)
+	next.pushU8(uint8(packet.ConnectFlags0))
+	next.pushU8(uint8(packet.ConnectFlags1))
+	next.push(packet.Unknown18)
+	next.push(packet.AcceptData)
 	return ret
 }
 
@@ -674,7 +794,40 @@ const (
 	DFConfirmImmediately            = 0x0080
 	DFRequestToSend                 = 0x0100
 	DFSendNTTrailer                 = 0x0200
+	DFUnknown0400                   = 0x0400
+	DFUnknown0800                   = 0x0800
+	DFUnknown1000                   = 0x1000
+	DFUnknown2000                   = 0x2000
+	DFUnknown4000                   = 0x4000
+	DFUnknown8000                   = 0x8000
 )
+
+var dfNames = map[DataFlags]string{
+	DFSendToken:           "SEND_TOKEN",
+	DFRequestConfirmation: "REQUEST_CONFIRMATION",
+	DFConfirmation:        "CONFIRMATION",
+	DFReserved:            "RESERVED",
+	DFUnknown0010:         "UNKNOWN_0010",
+	DFMoreData:            "MORE_DATA",
+	DFEOF:                 "EOF",
+	DFConfirmImmediately:  "CONFIRM_IMMEDIATELY",
+	DFRequestToSend:       "RTS",
+	DFSendNTTrailer:       "SEND_NT_TRAILER",
+	DFUnknown0400:         "UNKNOWN_0400",
+	DFUnknown0800:         "UNKNOWN_0800",
+	DFUnknown1000:         "UNKNOWN_1000",
+	DFUnknown2000:         "UNKNOWN_2000",
+	DFUnknown4000:         "UNKNOWN_4000",
+	DFUnknown8000:         "UNKNOWN_8000",
+}
+
+func (flags DataFlags) Set() map[string]bool {
+	ret, _ := zgrab2.MapFlagsToSet(uint64(flags), func(bit uint64) (string, error) {
+		return dfNames[DataFlags(bit)], nil
+	})
+	// there are no unknowns since all 16 flags are accounted for in dfNames
+	return ret
+}
 
 type TNSData struct {
 	// 08..09
@@ -703,8 +856,9 @@ func (packet *TNSData) GetID() uint32 {
 
 func (packet *TNSData) Encode() []byte {
 	ret := make([]byte, len(packet.Data)+2)
-	next := pushU16(ret, uint16(packet.DataFlags))
-	copy(next, packet.Data)
+	next := outputBuffer(ret)
+	next.pushU16(uint16(packet.DataFlags))
+	next.push(packet.Data)
 	return ret
 }
 
@@ -783,16 +937,17 @@ func (service *NSNService) GetSize() uint16 {
 func (service *NSNService) Encode() []byte {
 	// Absolute minimum, if each value had zero length
 	ret := make([]byte, service.GetSize())
-	next := pushU16(ret, uint16(service.Type))
+	next := outputBuffer(ret)
+	next.pushU16(uint16(service.Type))
 	if len(service.Values) > 0xffff {
 		// This is covered by GetSize, but if that were to change, catch this
 		// separate issue
 		panic(ErrInvalidInput)
 	}
-	next = pushU16(next, uint16(len(service.Values)))
-	next = pushU32(next, service.Marker)
+	next.pushU16(uint16(len(service.Values)))
+	next.pushU32(service.Marker)
 	for _, value := range service.Values {
-		next = push(next, value.Encode())
+		next.push(value.Encode())
 	}
 	return ret
 }
@@ -938,9 +1093,10 @@ func (value *NSNValue) Encode() []byte {
 	if len(value.Value) > 0xffff {
 		panic(ErrInvalidInput)
 	}
-	rest := pushU16(ret, uint16(len(value.Value)))
-	rest = pushU16(rest, uint16(value.Type))
-	copy(rest, value.Value)
+	next := outputBuffer(ret)
+	next.pushU16(uint16(len(value.Value)))
+	next.pushU16(uint16(value.Type))
+	next.push(value.Value)
 	return ret
 }
 
@@ -985,16 +1141,17 @@ func (packet *TNSDataNSN) GetSize() uint16 {
 func (packet *TNSDataNSN) Encode() []byte {
 	size := packet.GetSize()
 	ret := make([]byte, size)
-	next := pushU32(ret, uint32(DataIDNSN))
-	next = pushU16(next, size)
-	next = pushU32(next, uint32(packet.Version))
+	next := outputBuffer(ret)
+	next.pushU32(uint32(DataIDNSN))
+	next.pushU16(size)
+	next.pushU32(uint32(packet.Version))
 	if len(packet.Services) > 0xffff {
 		panic(ErrInvalidInput)
 	}
-	next = pushU16(next, uint16(len(packet.Services)))
-	next = pushU8(next, uint8(packet.Options))
+	next.pushU16(uint16(len(packet.Services)))
+	next.pushU8(uint8(packet.Options))
 	for _, v := range packet.Services {
-		next = push(next, v.Encode())
+		next.push(v.Encode())
 	}
 	return ret
 }
