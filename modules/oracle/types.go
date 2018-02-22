@@ -164,42 +164,33 @@ func (header *TNSHeader) Encode() []byte {
 	return ret
 }
 
-// DecodeTNSHeader reads the header from the first 8 bytes of buf. If no header
-// is provided, a new one is allocated.
+// DecodeTNSHeader reads the header from the first 8 bytes of buf.
 // The decoded header is returned as well as a slice pointing past the end of
 // the header in buf. On failure, returns nil/nil/error.
-func DecodeTNSHeader(ret *TNSHeader, buf []byte) (*TNSHeader, []byte, error) {
+func DecodeTNSHeader(buf []byte) (*TNSHeader, []byte, error) {
 	if len(buf) < 8 {
 		return nil, nil, ErrBufferTooSmall
 	}
-	if ret == nil {
-		ret = new(TNSHeader)
+	ret, err := ReadTNSHeader(getSliceReader(buf))
+	if err != nil {
+		return nil, nil, err
 	}
-	var u8 uint8
-	rest := buf
-	ret.Length, rest = popU16(rest)
-	ret.PacketChecksum, rest = popU16(rest)
-	u8, rest = popU8(rest)
-	ret.Type = PacketType(u8)
-	u8, rest = popU8(rest)
-	ret.Flags = TNSFlags(u8)
-	ret.HeaderChecksum, rest = popU16(rest)
-	return ret, rest, nil
+	return ret, buf[8:], nil
 }
 
-// ReadTNSHeader reads / decodes a TNSHeader from the first 8 bytes of the
-// stream.
+// ReadTNSHeader reads/decodes a TNSHeader from the first 8 bytes of the stream.
 func ReadTNSHeader(reader io.Reader) (*TNSHeader, error) {
-	buf := make([]byte, 8)
-	n, err := reader.Read(buf)
-	if err != nil {
+	ret := TNSHeader{}
+	next := startReading(reader)
+	next.read(&ret.Length)
+	next.read(&ret.PacketChecksum)
+	next.read(&ret.Type)
+	next.read(&ret.Flags)
+	next.read(&ret.HeaderChecksum)
+	if err := next.Error(); err != nil {
 		return nil, err
 	}
-	if n != len(buf) {
-		return nil, ErrInvalidData
-	}
-	ret, _, err := DecodeTNSHeader(nil, buf)
-	return ret, err
+	return &ret, nil
 }
 
 // ServiceOptions are flags used by the client and server in negotiating the
@@ -456,27 +447,9 @@ func (buf *outputBuffer) pushU32(v uint32) *outputBuffer {
 	return buf
 }
 
-// Copy data to dest, return the byte immediately following dest
-func push(dest []byte, data []byte) []byte {
-	copy(dest[0:len(data)], data)
-	return dest[len(data):]
-}
-
-func pushU16(dest []byte, v uint16) []byte {
-	binary.BigEndian.PutUint16(dest[0:2], v)
-	return dest[2:]
-}
-
-func pushU32(dest []byte, v uint32) []byte {
-	binary.BigEndian.PutUint32(dest[0:4], v)
-	return dest[4:]
-}
-
-func pushU8(dest []byte, v uint8) []byte {
-	dest[0] = v
-	return dest[1:]
-}
-
+// Encode the TNSConnect packet body into a newly-allocated buffer. If the
+// packet would be longer than 255 bytes, the data is empty and the connection
+// string immediately follows.
 func (packet *TNSConnect) Encode() []byte {
 	length := 0x3A + len(packet.Unknown3A) + len(packet.ConnectionString)
 	if length > 255 {
@@ -513,18 +486,93 @@ func (packet *TNSConnect) Encode() []byte {
 	return ret
 }
 
-func (header *TNSConnect) String() string {
-	ret, err := json.Marshal(*header)
-	if err != nil {
-		return fmt.Sprintf("(error encoding %v: %v)", header, err)
-	}
-	return string(ret)
+// chainedReader is a helper for decoding binary data from a stream, primarily
+// to remove the need to check for an error after each read. If an error occurs,
+// subsequent calls are all noops.
+type chainedReader struct {
+	reader    io.Reader
+	byteOrder binary.ByteOrder
+	err       error
 }
 
+// startReading returns a new BigEndian chainedReader for the given io.Reader.
+func startReading(reader io.Reader) *chainedReader {
+	return &chainedReader{reader: reader, byteOrder: binary.BigEndian}
+}
+
+// read the value from the stream, unless there was a previous error on the
+// reader. Uses binary.Read() to decode the data. dest must be a pointer.
+func (reader *chainedReader) read(dest interface{}) *chainedReader {
+	if reader.err != nil {
+		return reader
+	}
+	reader.err = binary.Read(reader.reader, binary.BigEndian, dest)
+	return reader
+}
+
+// readNew allocates a new buffer to read size bytes from the stream and stores
+// the buffer in *dest, unless there was a previous error on the reader.
+func (reader *chainedReader) readNew(dest *[]byte, size int) *chainedReader {
+	if reader.err != nil {
+		return reader
+	}
+	ret := make([]byte, size)
+	_, err := io.ReadFull(reader.reader, ret)
+	reader.err = err
+	*dest = ret
+	return reader
+}
+
+// readNew allocates a new buffer to read size bytes from the stream and stores
+// the buffer in *dest as a string, unless there was a previous error on the
+// reader.
+func (reader *chainedReader) readNewString(dest *string, size int) *chainedReader {
+	if reader.err != nil {
+		return reader
+	}
+	var data []byte
+	reader.readNew(&data, size)
+	*dest = string(data)
+	return reader
+}
+
+// Error returns nil if there were no errors during reading, otherwise, it
+// returns the error.
+func (reader *chainedReader) Error() error {
+	return reader.err
+}
+
+// readU16 reads and returns an unsigned 16-bit integer, unless there was an
+// error, in which case the error is returned.
+func (reader *chainedReader) readU16() (uint16, error) {
+	var ret uint16
+	reader.read(&ret)
+	return ret, reader.err
+}
+
+// Read implements the io.Reader interface for the chainedReader; forwards the
+// call to the underlying reader, unless there was a previous error, in which
+// case the error is returned immediately.
+// If the underlying reader.Read call fails, that error is returned to the
+// caller and also stored in the stream's err property.
+func (reader *chainedReader) Read(buf []byte) (int, error) {
+	if reader.err != nil {
+		return 0, reader.err
+	}
+	n, err := reader.reader.Read(buf)
+	reader.err = err
+	return n, err
+}
+
+// readError is a special error type to distinguish read errors (which should be
+// converted to a return value) from other panics.
+type readError error
+
+// Helper to convert readErrors into return values.
 func unpanic() error {
 	if rerr := recover(); rerr != nil {
 		switch err := rerr.(type) {
-		case error:
+		case readError:
 			return err
 		default:
 			panic(rerr)
@@ -533,115 +581,112 @@ func unpanic() error {
 	return nil
 }
 
-func ReadTNSConnect(reader io.Reader, header *TNSHeader) (ret *TNSConnect, thrown error) {
-	defer func() {
-		if err := unpanic(); err != nil {
-			thrown = err
-		}
-	}()
-	ret = new(TNSConnect)
-	ret.Version = readU16(reader)
-	ret.MinVersion = readU16(reader)
-	ret.GlobalServiceOptions = ServiceOptions(readU16(reader))
-	ret.SDU = readU16(reader)
-	ret.TDU = readU16(reader)
-	ret.ProtocolCharacteristics = NTProtocolCharacteristics(readU16(reader))
-	ret.MaxBeforeAck = readU16(reader)
-	if _, err := io.ReadFull(reader, ret.ByteOrder[:]); err != nil {
-		return nil, err
-	}
-	ret.DataLength = readU16(reader)
-	ret.DataOffset = readU16(reader)
-	ret.MaxResponseSize = readU32(reader)
-	ret.ConnectFlags0 = ConnectFlags(readU8(reader))
-	ret.ConnectFlags1 = ConnectFlags(readU8(reader))
-	ret.CrossFacility0 = readU32(reader)
-	ret.CrossFacility1 = readU32(reader)
-	if _, err := io.ReadFull(reader, ret.ConnectionID0[:]); err != nil {
-		return nil, err
-	}
-	if _, err := io.ReadFull(reader, ret.ConnectionID1[:]); err != nil {
-		return nil, err
-	}
+// ReadTNSConnect reads a TNSConnect packet from the reader, which should point
+// to the first byte after the end of the TNSHeader.
+func ReadTNSConnect(reader io.Reader, header *TNSHeader) (*TNSConnect, error) {
+	ret := new(TNSConnect)
+	next := startReading(reader)
+	next.read(&ret.Version)
+	next.read(&ret.MinVersion)
+	next.read(&ret.GlobalServiceOptions)
+	next.read(&ret.SDU)
+	next.read(&ret.TDU)
+	next.read(&ret.ProtocolCharacteristics)
+	next.read(&ret.MaxBeforeAck)
+	next.read(&ret.ByteOrder)
+	next.read(&ret.DataLength)
+	next.read(&ret.DataOffset)
+	next.read(&ret.MaxResponseSize)
+	next.read(&ret.ConnectFlags0)
+	next.read(&ret.ConnectFlags1)
+	next.read(&ret.CrossFacility0)
+	next.read(&ret.CrossFacility1)
+	next.read(&ret.ConnectionID0)
+	next.read(&ret.ConnectionID1)
 	unknownLen := ret.DataOffset - 0x3A
-	ret.Unknown3A = make([]byte, unknownLen)
-	if _, err := io.ReadFull(reader, ret.Unknown3A); err != nil {
+	next.readNew(&ret.Unknown3A, int(unknownLen))
+	next.readNewString(&ret.ConnectionString, int(ret.DataLength))
+	if err := next.Error(); err != nil {
 		return nil, err
 	}
-	data := make([]byte, ret.DataLength)
-	if _, err := io.ReadFull(reader, data); err != nil {
-		return nil, err
-	}
-	ret.ConnectionString = string(data)
 	return ret, nil
 }
 
+// GetType identifies the packet as a PacketTypeConnect.
 func (packet *TNSConnect) GetType() PacketType {
 	return PacketTypeConnect
 }
 
-// TNSResend is just a header with type = PacketTypeResend (0x0b == 11)
+// TNSResend is empty -- the entire packet is just a header with a type of
+// PacketTypeResend (0x0b == 11).
 type TNSResend struct {
 }
 
+// Encode the packet body (which for a Resend packet just means returning an
+// empty byte slice).
 func (packet *TNSResend) Encode() []byte {
 	return []byte{}
 }
 
+// GetType identifies the packet as a PacketTypeResend.
 func (packet *TNSResend) GetType() PacketType {
 	return PacketTypeResend
 }
 
+// ReadTNSResend reads a TNSResend packet from the reader, which should point
+// to the first byte after the end of the header -- so in this case, it reads
+// nothing and returns an empty TNSResend{} instance.
 func ReadTNSResend(reader io.Reader, header *TNSHeader) (*TNSResend, error) {
 	ret := TNSResend{}
 	return &ret, nil
 }
 
-// TODO: TNSConnect.Decode()
-
+// TNSAccept is the server's response to a successful TNSConnect request from
+// the client.
 type TNSAccept struct {
-	// 08..09: 0x0136 / 0x0134?
+	// Version is the protocol version the server is using. TODO: find the
+	// actual format.
 	Version uint16
-	// 0A..0B: 0x0801
+
+	// GlobalServiceOptions specify connection settings (TODO: details).
 	GlobalServiceOptions ServiceOptions
-	// 0C..0D: 0x0800
+
+	// SDU gives the Session Data Unit size for this connection.
 	SDU uint16
-	// 0E..0F: 0x7fff
+
+	// TDU gives the Transfer Data Unit size for this connection.
 	TDU uint16
-	// 10..11: 01 00
+
+	// ByteOrder gives the encoding of the integer 1 as a 16-bit integer
+	// (NOTE: clients and servers seem to routinely send a little-endian 1,
+	// while clearly using big-endian encoding for integers, at least at the
+	// TNS layer...?)
 	ByteOrder [2]byte
-	// 12..13: 0x0000
+
+	// DataLength is the length of the AcceptData payload.
 	DataLength uint16
-	// 14..15: 0x0020
+
+	// DataOffset is the offset from the start of the packet (including the
+	// 8 bytes of the header) of the AcceptData. Always (?) 0x20.
 	DataOffset uint16
-	// 16..17: 0x0101
+
+	// ConnectFlags0 specifies connection settings (TODO: details).
 	ConnectFlags0 ConnectFlags
+
+	// ConnectFlags1 specifies connection settings (TODO: details).
 	ConnectFlags1 ConnectFlags
 
 	// Unknown18 provides support for case like TNSConnect, where there is
 	// "data" after the end of the known packet but before the start of the
 	// AcceptData pointed to by DataOffset.
 	// Currently this is always 8 bytes.
-	Unknown18  []byte
+	Unknown18 []byte
+
+	// AcceptData is the packet payload (TODO: details).
 	AcceptData []byte
 }
 
-func popU8(buf []byte) (uint8, []byte) {
-	return uint8(buf[0]), buf[1:]
-}
-
-func popU16(buf []byte) (uint16, []byte) {
-	return binary.BigEndian.Uint16(buf[0:2]), buf[2:]
-}
-
-func popU32(buf []byte) (uint32, []byte) {
-	return binary.BigEndian.Uint32(buf[0:4]), buf[4:]
-}
-
-func popN(buf []byte, n int) ([]byte, []byte) {
-	return buf[0:n], buf[n:]
-}
-
+// Encode the TNSAccept packet body into a newly-allocated byte slice.
 func (packet *TNSAccept) Encode() []byte {
 	length := 16 + len(packet.Unknown18) + len(packet.AcceptData)
 	ret := make([]byte, length)
@@ -651,8 +696,6 @@ func (packet *TNSAccept) Encode() []byte {
 	next.pushU16(packet.SDU)
 	next.pushU16(packet.TDU)
 	next.push(packet.ByteOrder[:])
-	// packet.DataLength = len(packet.AcceptData)
-	// packet.DataOffset = 8 + 16 + len(packet.Unknown18) // TNSHeader + accept header + unknown
 	next.pushU16(packet.DataLength)
 	next.pushU16(packet.DataOffset)
 	next.pushU8(uint8(packet.ConnectFlags0))
@@ -662,6 +705,7 @@ func (packet *TNSAccept) Encode() []byte {
 	return ret
 }
 
+// GetType identifies the packet as a PacketTypeAccept.
 func (packet *TNSAccept) GetType() PacketType {
 	return PacketTypeAccept
 }
@@ -670,7 +714,7 @@ func readU8(reader io.Reader) uint8 {
 	buf := make([]byte, 1)
 	_, err := io.ReadFull(reader, buf)
 	if err != nil {
-		panic(err)
+		panic(readError(err))
 	}
 	return buf[0]
 }
@@ -679,7 +723,7 @@ func readU16(reader io.Reader) uint16 {
 	buf := make([]byte, 2)
 	_, err := io.ReadFull(reader, buf)
 	if err != nil {
-		panic(err)
+		panic(readError(err))
 	}
 	return binary.BigEndian.Uint16(buf)
 }
@@ -688,73 +732,119 @@ func readU32(reader io.Reader) uint32 {
 	buf := make([]byte, 4)
 	_, err := io.ReadFull(reader, buf)
 	if err != nil {
-		panic(err)
+		panic(readError(err))
 	}
 	return binary.BigEndian.Uint32(buf)
 }
 
-func ReadTNSAccept(reader io.Reader, header *TNSHeader) (ret *TNSAccept, thrown error) {
-	defer func() {
-		if err := unpanic(); err != nil {
-			thrown = err
-		}
-	}()
-	ret = new(TNSAccept)
-	ret.Version = readU16(reader)
-	ret.GlobalServiceOptions = ServiceOptions(readU16(reader))
-	ret.SDU = readU16(reader)
-	ret.TDU = readU16(reader)
-	if _, err := io.ReadFull(reader, ret.ByteOrder[:]); err != nil {
-		return nil, err
-	}
-	ret.DataLength = readU16(reader)
-	ret.DataOffset = readU16(reader)
-	ret.ConnectFlags0 = ConnectFlags(readU8(reader))
-	ret.ConnectFlags1 = ConnectFlags(readU8(reader))
+// ReadTNSAccept reads a TNSAccept packet body from the stream. reader should
+// point to the first byte after the TNSHeader.
+func ReadTNSAccept(reader io.Reader, header *TNSHeader) (*TNSAccept, error) {
+	ret := new(TNSAccept)
+	next := startReading(reader)
+	next.read(&ret.Version)
+	next.read(&ret.GlobalServiceOptions)
+	next.read(&ret.SDU)
+	next.read(&ret.TDU)
+	next.read(&ret.ByteOrder)
+	next.read(&ret.DataLength)
+	next.read(&ret.DataOffset)
+	next.read(&ret.ConnectFlags0)
+	next.read(&ret.ConnectFlags1)
 	unknownLen := ret.DataOffset - 16 - 8
-	ret.Unknown18 = make([]byte, unknownLen)
-	if _, err := io.ReadFull(reader, ret.Unknown18); err != nil {
-		return nil, err
-	}
-	ret.AcceptData = make([]byte, ret.DataLength)
-	if _, err := io.ReadFull(reader, ret.AcceptData); err != nil {
+	next.readNew(&ret.Unknown18, int(unknownLen))
+	next.readNew(&ret.AcceptData, int(ret.DataLength))
+	if err := next.Error(); err != nil {
 		return nil, err
 	}
 	return ret, nil
 }
 
+// RefuseReason is an enumeration describing the reason the request was refused.
+// TODO: details.
 type RefuseReason uint8
 
+// TNSRefuse is returned by the server when (...TODO: details -- not returned on
+// failed auth from TNSConnect).
 type TNSRefuse struct {
-	// 08: 01
+	// TODO: details
 	AppReason RefuseReason
-	// 09: 00
+
+	// TODO: details
 	SysReason RefuseReason
-	// 0A..0B: 0010
+
+	// DataLength is the length of the packet's Data payload
 	DataLength uint16
-	// 0C...
+
+	// Data is the packet's payload. TODO: details
 	Data []byte
 }
 
+// TNSRedirect is returned by the server in response to a TNSConnect when it
+// needs to direct the caller elsewhere. Its Data is a new connection string
+// for the caller to use.
 type TNSRedirect struct {
+	// DataLength is the length of the packet's Data payload.
 	DataLength uint16
-	Data       []byte
+
+	// Data is the TNSRedirect's payload -- it contains a new connection string
+	// for the client to use in a subsequent TNSConnect call.
+	Data []byte
 }
 
+// Encode the TNSRedirect packet body into a newly-allocated buffer.
+func (packet *TNSRedirect) Encode() []byte {
+	ret := make([]byte, len(packet.Data)+2)
+	next := outputBuffer(ret)
+	next.pushU16(uint16(packet.DataLength))
+	next.push(packet.Data)
+	return ret
+}
+
+// GetType identifies the packet as PacketTypeRedirect.
+func (packet *TNSRedirect) GetType() PacketType {
+	return PacketTypeRedirect
+}
+
+// ReadTNSRedirect reads a TNSRedirect packet from the stream, which should
+// point to the first byte after the TNSHeader.
+func ReadTNSRedirect(reader io.Reader, header *TNSHeader) (*TNSRedirect, error) {
+	ret := new(TNSRedirect)
+	next := startReading(reader)
+	next.read(&ret.DataLength)
+	next.readNew(&ret.Data, int(header.Length-8-2))
+	if err := next.Error(); err != nil {
+		return nil, err
+	}
+	if len(ret.Data) != int(ret.DataLength) {
+		return nil, ErrInvalidData
+	}
+	return ret, nil
+}
+
+// ReleaseVersion is a packed version number describing the release version of
+// a specific (sub-)component. Logically it has five components, described at
+// https://docs.oracle.com/cd/B28359_01/server.111/b28310/dba004.htm:
+// major.maintenance.appserver.component.platform. The number of bits allocated
+// to each are respectively 8.4.4.8.8, so 0x01230405 would denote "1.2.3.4.5".
 type ReleaseVersion uint32
 
+// String returns the dotted-decimal representation of the release version:
+// major.maintenance.appserver.component.platform.
 func (v ReleaseVersion) String() string {
-	// 0xAAbcddee -> A.b.c.d.e, major.maintenance.appserver.component.platform
-	// See https://docs.oracle.com/cd/B28359_01/server.111/b28310/dba004.htm
 	return fmt.Sprintf("%d.%d.%d.%d.%d", v>>24, v>>20&0x0F, v>>16&0x0F, v>>8&0xFF, v&0xFF)
 }
 
+// Bytes returns the big-endian binary encoding of the release version.
 func (v ReleaseVersion) Bytes() []byte {
 	buf := make([]byte, 4)
 	binary.BigEndian.PutUint32(buf, uint32(v))
 	return buf
 }
 
+// EncodeReleaseVersion gets a ReleaseVersion instance from its dotted-decimal
+// representation, e.g.:
+// EncodeReleaseVersion("64.3.2.1.0") = ReleaseVersion(0x40320100).
 func EncodeReleaseVersion(value string) ReleaseVersion {
 	parts := strings.Split(value, ".")
 	if len(parts) != 5 {
@@ -781,8 +871,10 @@ func EncodeReleaseVersion(value string) ReleaseVersion {
 	return ReleaseVersion((numbers[0] << 24) | (numbers[1] << 20) | (numbers[2] << 16) | (numbers[3] << 8) | numbers[4])
 }
 
+// DataFlags is a 16-bit flags field used in the TNSData packet.
 type DataFlags uint16
 
+// TODO: details
 const (
 	DFSendToken           DataFlags = 0x0001
 	DFRequestConfirmation           = 0x0002
@@ -821,6 +913,7 @@ var dfNames = map[DataFlags]string{
 	DFUnknown8000:         "UNKNOWN_8000",
 }
 
+// Set gets a set representation of the DataFlags.
 func (flags DataFlags) Set() map[string]bool {
 	ret, _ := zgrab2.MapFlagsToSet(uint64(flags), func(bit uint64) (string, error) {
 		return dfNames[DataFlags(bit)], nil
@@ -829,24 +922,25 @@ func (flags DataFlags) Set() map[string]bool {
 	return ret
 }
 
+// TNSData is the packet type used to send (more or less) arbitrary data between
+// client and server. All packets have the DataFlags, and for many, the first
+// four bytes of the data have a 32-bit value identifying the type of data.
 type TNSData struct {
-	// 08..09
+	// DataFlags gives information on the data (TODO: details)
 	DataFlags DataFlags
-	// 0A...
+
+	// Data is the packet's payload. Its length is equal to the header's length
+	// less 10 bytes (8 for the header itself, 2 for the DataFlags).
 	Data []byte
 }
 
-type DataType uint8
-
 const (
-	DataTypeSetProtocol           DataType = 0x01
-	DataTypeSecureNetworkServices          = 0x06
-)
-
-const (
+	// DataIDNSN identifies a Native Security Negotiation data payload.
 	DataIDNSN uint32 = 0xdeadbeef
 )
 
+// GetID returns a TNSData's ID (the first four bytes of the data), if available
+// otherwise returns 0.
 func (packet *TNSData) GetID() uint32 {
 	if len(packet.Data) < 4 {
 		return 0
@@ -854,6 +948,7 @@ func (packet *TNSData) GetID() uint32 {
 	return binary.BigEndian.Uint32(packet.Data[0:4])
 }
 
+// Encode the TNSData packet body into a newly-allocated buffer.
 func (packet *TNSData) Encode() []byte {
 	ret := make([]byte, len(packet.Data)+2)
 	next := outputBuffer(ret)
@@ -862,36 +957,42 @@ func (packet *TNSData) Encode() []byte {
 	return ret
 }
 
+// GetType identifies the packet as PacketTypeData.
 func (packet *TNSData) GetType() PacketType {
 	return PacketTypeData
 }
 
-func ReadTNSData(reader io.Reader, header *TNSHeader) (ret *TNSData, thrown error) {
-	defer func() {
-		if err := unpanic(); err != nil {
-			thrown = err
-		}
-	}()
-	ret = new(TNSData)
-	ret.DataFlags = DataFlags(readU16(reader))
-	ret.Data = make([]byte, header.Length-8-2)
-	n, err := reader.Read(ret.Data)
-	if err != nil {
+// ReadTNSData reads a TNSData packet from the stream, which should point to the
+// first byte after the TNSHeader.
+func ReadTNSData(reader io.Reader, header *TNSHeader) (*TNSData, error) {
+	ret := new(TNSData)
+	next := startReading(reader)
+	next.read(&ret.DataFlags)
+	next.readNew(&ret.Data, int(header.Length-8-2))
+	if err := next.Error(); err != nil {
 		return nil, err
-	}
-	if n != len(ret.Data) {
-		return nil, ErrInvalidData
 	}
 	return ret, nil
 }
 
+// NSNServiceType is an enumerated type identifying the "service" types inside
+// a NSN packet.
 type NSNServiceType uint16
 
 const (
+	// NSNServiceAuthentication identifies an Authentication service
+	// (TODO: details).
 	NSNServiceAuthentication NSNServiceType = 1
-	NSNServiceEncryption                    = 2
-	NSNServiceDataIntegrity                 = 3
-	NSNServiceSupervisor                    = 4
+
+	// NSNServiceEncryption identifies an Encryption service (TODO: details).
+	NSNServiceEncryption = 2
+
+	// NSNServiceDataIntegrity identifies a Data Integrity service
+	// (TODO: details).
+	NSNServiceDataIntegrity = 3
+
+	// NSNServiceSupervisor identifies a Supervisor service (TODO: details).
+	NSNServiceSupervisor = 4
 )
 
 var nsnServiceTypeToName = map[NSNServiceType]string{
@@ -901,6 +1002,7 @@ var nsnServiceTypeToName = map[NSNServiceType]string{
 	NSNServiceSupervisor:     "Supervisor",
 }
 
+// String gives the string representation of the service type.
 func (typ NSNServiceType) String() string {
 	ret, ok := nsnServiceTypeToName[typ]
 	if !ok {
@@ -909,18 +1011,25 @@ func (typ NSNServiceType) String() string {
 	return ret
 }
 
+// IsUnknown returns true iff the service type value is not one of the
+// recognized enum values.
 func (typ NSNServiceType) IsUnknown() bool {
 	_, ok := nsnServiceTypeToName[typ]
 	return !ok
 }
 
-// NSN packets somewhat described here: https://docs.oracle.com/cd/B19306_01/network.102/b14212/troublestng.htm
+// NSNService is an individual "packet" inside the NSN data payload; it consists
+// in an identifier and a list of values or "sub-packets" giving configuration
+// settings for that service type. These are somewhat described here:
+// https://docs.oracle.com/cd/B19306_01/network.102/b14212/troublestng.htm
 type NSNService struct {
 	Type   NSNServiceType
 	Values []NSNValue
 	Marker uint32
 }
 
+// GetSize returns the encoded size of the NSNService. Rather than overflowing,
+// causes a panic if this is larger than 16 bits.
 func (service *NSNService) GetSize() uint16 {
 	ret := uint32(8) // uint16(Type) + uint16(#values) + uint32(marker)
 	for _, v := range service.Values {
@@ -934,6 +1043,8 @@ func (service *NSNService) GetSize() uint16 {
 	return uint16(ret)
 }
 
+// Encode returns the encoded NSNService in a newly allocated buffer.
+// If the length of the encoded value would be larger than 16 bits, panics.
 func (service *NSNService) Encode() []byte {
 	// Absolute minimum, if each value had zero length
 	ret := make([]byte, service.GetSize())
@@ -952,6 +1063,9 @@ func (service *NSNService) Encode() []byte {
 	return ret
 }
 
+// ReadNSNService reads an NSNService packet from the stream. On failure to
+// read a service, returns nil + an error (though the stream will be in a bad
+// state).
 func ReadNSNService(reader io.Reader, ret *NSNService) (*NSNService, error) {
 	if ret == nil {
 		ret = &NSNService{}
@@ -975,23 +1089,44 @@ func ReadNSNService(reader io.Reader, ret *NSNService) (*NSNService, error) {
 	return ret, nil
 }
 
+// NSNValueType is a 16-bit enumerated value identifying the different data
+// types of the values or "sub-packets" in the NSNService packets. NOTE: this
+// list may not be comprehensive.
 type NSNValueType uint16
 
 const (
-	NSNValueTypeString  NSNValueType = 0
-	NSNValueTypeBytes                = 1
-	NSNValueTypeUB1                  = 2
-	NSNValueTypeUB2                  = 3
-	NSNValueTypeUB4                  = 4
-	NSNValueTypeVersion              = 5
-	NSNValueTypeStatus               = 6
+	// NSNValueTypeString identifies a string value type.
+	NSNValueTypeString NSNValueType = 0
+
+	// NSNValueTypeBytes identifies a binary value type (an array of bytes).
+	NSNValueTypeBytes = 1
+
+	// NSNValueTypeUB1 identifies an unsigned 8-bit integer.
+	NSNValueTypeUB1 = 2
+
+	// NSNValueTypeUB2 identifies an unsigned 16-bit big-endian integer.
+	NSNValueTypeUB2 = 3
+
+	// NSNValueTypeUB2 identifies an unsigned 32-bit big-endian integer.
+	NSNValueTypeUB4 = 4
+
+	// NSNValueTypeVersion identifies a 32-bit ReleaseVersion value.
+	NSNValueTypeVersion = 5
+
+	// NSNValueTypeStatus identifies a 16-bit status value.
+	NSNValueTypeStatus = 6
 )
 
+// NSNValue represents a single value or "sub-packet" within an NSNService. It
+// consists of a type identifier and the value itself.
 type NSNValue struct {
 	Type  NSNValueType
 	Value []byte
 }
 
+// String gives the friendly encoding of the sub-packet value; integers are
+// given in decimal, versions in dotted decimal format, binary data as base64,
+// strings as strings.
 func (value *NSNValue) String() string {
 	switch value.Type {
 	case NSNValueTypeString:
@@ -1013,10 +1148,11 @@ func (value *NSNValue) String() string {
 	}
 }
 
+// MarshalJSON encodes the NSNValue as a JSON object: a type/value pair.
 func (value *NSNValue) MarshalJSON() ([]byte, error) {
 	type Aux struct {
-		Type  NSNValueType
-		Value interface{}
+		Type  NSNValueType `json:"type"`
+		Value interface{}  `json:"value"`
 	}
 	ret := Aux{
 		Type: value.Type,
@@ -1042,42 +1178,49 @@ func (value *NSNValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ret)
 }
 
+// NSNValueVersion returns a NSNValue of type Version whose value is given in
+// dotted-decimal format.
 func NSNValueVersion(v string) *NSNValue {
 	return &NSNValue{
-		Type:  5,
+		Type:  NSNValueTypeVersion,
 		Value: EncodeReleaseVersion(v).Bytes(),
 	}
 }
 
+// NSNValueBytes returns a NSNValue of type Bytes with the given value.
 func NSNValueBytes(bytes []byte) *NSNValue {
 	return &NSNValue{
-		Type:  1,
+		Type:  NSNValueTypeBytes,
 		Value: bytes,
 	}
 }
 
+// NSNValueUB1 returns a NSNValue of type UB1 with the given value.
 func NSNValueUB1(val uint8) *NSNValue {
 	return &NSNValue{
-		Type:  2,
+		Type:  NSNValueTypeUB1,
 		Value: []byte{val},
 	}
 }
 
+// NSNValueUB2 returns a NSNValue of type UB2 with the given value.
 func NSNValueUB2(val uint16) *NSNValue {
 	ret := make([]byte, 2)
 	binary.BigEndian.PutUint16(ret, val)
 	return &NSNValue{
-		Type:  3,
+		Type:  NSNValueTypeUB2,
 		Value: ret,
 	}
 }
 
+// NSNValueStatus returns a NSNValue of type Status with the given value.
 func NSNValueStatus(val uint16) *NSNValue {
 	ret := NSNValueUB2(val)
-	ret.Type = 6
+	ret.Type = NSNValueTypeStatus
 	return ret
 }
 
+// NSNValueString returns a NSNValue of type String with the given value.
 func NSNValueString(val string) *NSNValue {
 	return &NSNValue{
 		Type:  0,
@@ -1085,6 +1228,8 @@ func NSNValueString(val string) *NSNValue {
 	}
 }
 
+// Encode returns the encoding of the NSNValue in a newly-allocated byte slice.
+// Causes a panic if the length of the value would be longer than 16 bits.
 func (value *NSNValue) Encode() []byte {
 	if len(value.Value) > 0xffff {
 		panic(ErrInvalidInput)
@@ -1100,6 +1245,8 @@ func (value *NSNValue) Encode() []byte {
 	return ret
 }
 
+// ReadNSNValue reads a NSNValue from the stream, returns nil/error if one
+// cannot be read (leaving the stream in a bad state).
 func ReadNSNValue(reader io.Reader, ret *NSNValue) (*NSNValue, error) {
 	if ret == nil {
 		ret = &NSNValue{}
@@ -1117,16 +1264,32 @@ func ReadNSNValue(reader io.Reader, ret *NSNValue) (*NSNValue, error) {
 	return ret, nil
 }
 
+// NSNOptions is an 8-bit flags value describing the Native Security Negotiation
+// options (TODO: details).
 type NSNOptions uint8
 
+// TNSDataNSN represents the decoded body of a TNSData packet for a Native
+// Security Negotiation payload.
 type TNSDataNSN struct {
-	Version  ReleaseVersion
-	Options  NSNOptions
+	// ID is the TNSData identifier for NSN (0xdeadbeef)
+	ID uint32
+
+	// Version is the ReleaseVersion, which seems to often be 0 in practice.
+	Version ReleaseVersion
+
+	// Options is an 8-bit flags value giving options for the connection (TODO:
+	// details).
+	Options NSNOptions
+
+	// Services is an array of NSNService values, giving the configuration for
+	// that service type.
 	Services []NSNService
 }
 
+// GetSize returns the encoded size of the TNSDataNSN body. Causes a panic if
+// the data length would be longer than 16 bits.
 func (packet *TNSDataNSN) GetSize() uint16 {
-	ret := uint32(13) // uint32(id) + uint16(len) + uint32(version) + uint16(#services) + uint8(options)
+	ret := uint32(13) // uint32(ID) + uint16(len) + uint32(version) + uint16(#services) + uint8(options)
 	for _, v := range packet.Services {
 		ret += uint32(v.GetSize())
 	}
@@ -1138,11 +1301,12 @@ func (packet *TNSDataNSN) GetSize() uint16 {
 	return uint16(ret)
 }
 
+// Encode returns the encoded TNSDataNSN data in a newly-allocated buffer.
 func (packet *TNSDataNSN) Encode() []byte {
 	size := packet.GetSize()
 	ret := make([]byte, size)
 	next := outputBuffer(ret)
-	next.pushU32(uint32(DataIDNSN))
+	next.pushU32(uint32(packet.ID))
 	next.pushU16(size)
 	next.pushU32(uint32(packet.Version))
 	if len(packet.Services) > 0xffff {
@@ -1156,76 +1320,85 @@ func (packet *TNSDataNSN) Encode() []byte {
 	return ret
 }
 
+// DecodeTNSDataNSN reads a TNSDataNSN packet from a TNSData body.
 func DecodeTNSDataNSN(data []byte) (*TNSDataNSN, error) {
 	reader := getSliceReader(data)
+
+	ret, err := ReadTNSDataNSN(reader)
+	if err != nil {
+		return nil, err
+	}
+	if len(reader.Data) > 0 {
+		// there should be no leftover data
+		return nil, ErrInvalidData
+	}
+	return ret, nil
+}
+
+// ReadTNSDataNSN reads a TNSDataNSN packet from a stream pointing to the start
+// of the NSN data.
+func ReadTNSDataNSN(reader io.Reader) (*TNSDataNSN, error) {
 	ret := TNSDataNSN{}
-	tag := readU32(reader)
-	if tag != DataIDNSN {
+	next := startReading(reader)
+
+	next.read(&ret.ID)
+	if ret.ID != DataIDNSN {
 		return nil, ErrUnexpectedResponse
 	}
-	length := readU16(reader)
-	if len(data) != int(length) {
-		// if we have 0xdeadbeef, but the length is incorrect, that would
-		// indicate truncation or corruption
+
+	length, err := next.readU16()
+	if err != nil {
+		return nil, err
+	}
+
+	if length < 4+2+4+2 {
+		// length covers the entire data field, so it should cover 0xdeadbeef,
+		// the length, the version and the number of services, at a minimum.
 		return nil, ErrInvalidData
 	}
-	ret.Version = ReleaseVersion(readU32(reader))
-	n := int(readU16(reader))
-	if n > 0x0400 {
-		// arbitrary but certainly sufficiently-high value.
+	next.read(&ret.Version)
+	n, err := next.readU16()
+	if n >= 0x0100 {
+		// arbitrary but certainly sufficiently-high value -- n here is the
+		// number of "services", which is typically 4.
 		return nil, ErrInvalidData
 	}
-	ret.Options = NSNOptions(readU8(reader))
+	next.read(&ret.Options)
 	// TODO: Check for valid options?
+
+	if err := next.Error(); err != nil {
+		return nil, err
+	}
+
 	ret.Services = make([]NSNService, n)
-	for i := 0; i < n; i++ {
+	for i := 0; i < int(n); i++ {
 		_, err := ReadNSNService(reader, &ret.Services[i])
 		if err != nil {
 			return nil, err
 		}
 	}
+	if length != ret.GetSize() {
+		return nil, ErrInvalidData
+	}
 	return &ret, nil
 }
 
-type TNSDataSetProtocolRequest struct {
-	// 08..09
-	DataFlags DataFlags
-	// 0A
-	DataType DataType
-	// 0B...(null)
-	AcceptedVersions []byte
-	// ...
-	ClientPlatform string
-}
-
-type TNSDataSetProtocolResponse struct {
-	// 08..09
-	DataFlags DataFlags
-	// 0A
-	DataType DataType
-	// 0B...(null)
-	AcceptedVersions []byte
-	// ...(null)
-	ServerBanner string
-	// ...
-	Data []byte
-}
-
+// TNSPacketBody is the interface for the "body" of a TNSPacket (that is,
+// everything after the header).
 type TNSPacketBody interface {
 	GetType() PacketType
 	Encode() []byte
 }
 
+// TNSPacket is a TNSHeader + a body.
 type TNSPacket struct {
 	Header *TNSHeader
 	Body   TNSPacketBody
 }
 
-type InputTNSPacket struct {
-	TNSPacket
-	Raw []byte
-}
-
+// Encode the packet (header + body). If header is nil, create one with no flags
+// and the type set to the body's type. If header.Length == 0, set it to the
+// appropriate value (length of encoded body + 8).
 func (packet *TNSPacket) Encode() []byte {
 	body := packet.Body.Encode()
 	if packet.Header == nil {
@@ -1246,6 +1419,8 @@ func (packet *TNSPacket) Encode() []byte {
 	return append(header, body...)
 }
 
+// ReadTNSPacket reads a TNSPacket from the stream, or returns nil + an error
+// if one cannot be read.
 func ReadTNSPacket(reader io.Reader) (*TNSPacket, error) {
 	var body TNSPacketBody
 	var err error

@@ -1,8 +1,6 @@
 package oracle
 
 import (
-	"fmt"
-	"io"
 	"net"
 	"strconv"
 
@@ -16,67 +14,53 @@ const (
 	logIndexNSNResponse     = 3
 )
 
+// HandshakeLog gives the results of the initial connection handshake in a form
+// suitable for zgrab2 output.
 type HandshakeLog struct {
-	RawAccept            []byte             `json:"raw_accept,omitempty" zgrab:"debug"`
-	AcceptVersion        uint16             `json:"accept_version"`
-	GlobalServiceOptions map[string]bool    `json:"global_service_options,omitempty"`
-	ConnectFlags         [2]map[string]bool `json:"connect_flags,omitempty"`
+	// AcceptVersion is the protocol version value from the Accept packet.
+	AcceptVersion uint16 `json:"accept_version"`
 
+	// GlobalServiceOptions is the set of GlobalServiceOptions flags that the
+	// server returns in the Accept packet.
+	GlobalServiceOptions map[string]bool `json:"global_service_options,omitempty"`
+
+	// ConnectFlags is the ste of ConnectFlags values that the server returns
+	// in the Accept packet. Both are included in the array.
+	ConnectFlags [2]map[string]bool `json:"connect_flags,omitempty"`
+
+	// DidResend is true if the server sent a Resend packet in response to the
+	// client's first Connect packet.
 	DidResend bool `json:"did_resend"`
 
-	RawNSN             []byte            `json:"raw_nsn,omitempty" zgrab:"debug"`
-	NSNVersion         string            `json:"nsn_version,omitempty"`
+	// RedirectTarget is the connection string returned by the server in the
+	// Redirect packet, if one is sent. Otherwise it is empty/omitted.
+	RedirectTarget string `json:"redirect_target,omitempty"`
+
+	// DidResend is set to true if the server sent a Resend packet after the
+	// first Connect packet.
+
+	// NSNVersion is the ReleaseVersion string (in dotted decimal format) in the
+	// root of the Native Service Negotiation packet.
+	NSNVersion string `json:"nsn_version,omitempty"`
+
+	// NSNServiceVersions is a map from the Native Service Negotiation service
+	// name to the ReleaseVersion in that service packet.
 	NSNServiceVersions map[string]string `json:"nsn_service_versions,omitempty"`
 }
 
-type PacketLogEntry struct {
-	Outgoing bool
-	Data     []byte
-}
-
-type loggedReader struct {
-	reader io.Reader
-	data   []byte
-}
-
-func logReader(reader io.Reader) *loggedReader {
-	return &loggedReader{reader: reader}
-}
-
-func (reader *loggedReader) Read(data []byte) (int, error) {
-	n, err := reader.reader.Read(data)
-	if err != nil {
-		reader.data = append(reader.data, data[0:n]...)
-	}
-	return n, err
-}
-
+// Connection holds the state for a scan connection to the Oracle server.
 type Connection struct {
-	conn      net.Conn
-	target    *zgrab2.ScanTarget
-	scanner   *Scanner
-	resent    bool
-	packetLog []PacketLogEntry
-	reader    *loggedReader
-}
-
-func (conn *Connection) getLastPacket(outgoing bool) []byte {
-	for i := range conn.packetLog {
-		r := len(conn.packetLog) - i - 1
-		v := conn.packetLog[r]
-		if v.Outgoing == outgoing {
-			return v.Data
-		}
-	}
-	return nil
+	conn     net.Conn
+	target   *zgrab2.ScanTarget
+	scanner  *Scanner
+	resent   bool
+	redirect string
 }
 
 func (conn *Connection) send(data []byte) error {
-	conn.appendLogEntry(true, data)
 	rest := data
 	n := 0
 	for n < len(rest) {
-		fmt.Println("n=", n, "rest=", len(rest))
 		n, err := conn.conn.Write(rest)
 		if err != nil {
 			return err
@@ -86,18 +70,8 @@ func (conn *Connection) send(data []byte) error {
 	return nil
 }
 
-func (conn *Connection) appendLogEntry(outgoing bool, data []byte) {
-	conn.packetLog = append(conn.packetLog, PacketLogEntry{
-		Outgoing: outgoing,
-		Data:     data,
-	})
-}
-
 func (conn *Connection) readPacket() (*TNSPacket, error) {
-	wrapped := logReader(conn.conn)
-	ret, err := ReadTNSPacket(wrapped)
-	conn.appendLogEntry(false, wrapped.data)
-	return ret, err
+	return ReadTNSPacket(conn.conn)
 }
 
 func (conn *Connection) SendPacket(packet TNSPacketBody) (TNSPacketBody, error) {
@@ -135,21 +109,13 @@ func u16Flag(v string) uint16 {
 	return uint16(ret)
 }
 
-/*
-func dump(tag string, val interface{}) {
-	j, err := json.MarshalIndent(val, "  ", "  ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(tag + "=[[" + string(j) + "]]")
-
-}
-*/
 func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) {
 	result := HandshakeLog{}
-	if len(connectionString) > 0x7fff {
+	extraData := []byte{}
+	if len(connectionString)+len(extraData)+0x3A > 0x7fff {
 		return nil, ErrInvalidInput
 	}
+
 	// TODO: Variable fields in the connection string (e.g. host?)
 	connectPacket := &TNSConnect{
 		Version:              conn.scanner.config.Version,
@@ -159,9 +125,9 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 		TDU:                  u16Flag(conn.scanner.config.TDU),
 		ProtocolCharacteristics: NTProtocolCharacteristics(u16Flag(conn.scanner.config.ProtocolCharacterisics)),
 		MaxBeforeAck:            0,
-		ByteOrder:               DefaultByteOrder,
+		ByteOrder:               defaultByteOrder,
 		DataLength:              uint16(len(connectionString)),
-		DataOffset:              0x003A,
+		DataOffset:              uint16(0x003A + len(extraData)),
 		MaxResponseSize:         0x00000800,
 		ConnectFlags0:           ConnectFlags(u16Flag(conn.scanner.config.ConnectFlags) & 0xff),
 		ConnectFlags1:           ConnectFlags(u16Flag(conn.scanner.config.ConnectFlags) >> 8),
@@ -169,22 +135,30 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 		CrossFacility1:          0,
 		ConnectionID0:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 		ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
-		Unknown3A:               []byte{},
+		Unknown3A:               extraData,
 		ConnectionString:        connectionString,
 	}
 	response, err := conn.SendPacket(connectPacket)
+	// TODO: handle redirect
 	if err != nil {
 		return nil, err
 	}
 	if conn.resent {
 		result.DidResend = true
 	}
-	result.RawAccept = conn.getLastPacket(false)
-
-	accept, ok := response.(*TNSAccept)
-	if !ok {
+	var accept *TNSAccept
+	switch resp := response.(type) {
+	case *TNSAccept:
+		accept = resp
+		break
+	case *TNSRedirect:
+		result.RedirectTarget = string(resp.Data)
+		// TODO: Follow redirects?
+		return &result, nil
+	default:
 		return &result, ErrUnexpectedResponse
 	}
+
 	// TODO: Unclear what these do. Taken from my client.
 	result.AcceptVersion = accept.Version
 	result.GlobalServiceOptions = accept.GlobalServiceOptions.Set()
@@ -221,6 +195,7 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 	nsnRequest := &TNSData{
 		DataFlags: 0,
 		Data: (&TNSDataNSN{
+			ID:      0xdeadbeef,
 			Version: EncodeReleaseVersion(conn.scanner.config.ReleaseVersion),
 			Options: NSNOptions(0),
 			Services: []NSNService{
@@ -267,8 +242,6 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 	if err != nil {
 		return &result, err
 	}
-
-	result.RawNSN = conn.getLastPacket(false)
 
 	wrappedNSNResponse, ok := response.(*TNSData)
 	if !ok {
