@@ -41,7 +41,7 @@ type PacketType uint8
 
 const (
 	// PacketTypeConnect identifies a Connect packet (first packet sent by the
-	// client, containing the connection string).
+	// client, containing the connect descriptor).
 	PacketTypeConnect PacketType = 1
 
 	// PacketTypeAccept identifies an Accept packet (the server's response to
@@ -51,11 +51,12 @@ const (
 	// PacketTypeAcknowledge identifies an Acknowledge packet.
 	PacketTypeAcknowledge = 3
 
-	// PacketTypeRefuse identifies a Refuse packet.
+	// PacketTypeRefuse identifies a Refuse packet. Sent when e.g. the connect
+	// descriptor is incorrect.
 	PacketTypeRefuse = 4
 
 	// PacketTypeRedirect idenfies a Redirect packet. The server can respond to
-	// a Connect packet with a Redirect containing a new connection string.
+	// a Connect packet with a Redirect containing a new connect descriptor.
 	PacketTypeRedirect = 5
 
 	// PacketTypeData identifies a Data packet. The packet's payload may have
@@ -137,6 +138,8 @@ type TNSFlags uint8
 type TNSHeader struct {
 	// Length is the big-endian length of the entire packet, including the 8
 	// bytes of the header itself.
+	// For versions prior to 12(c?), the length is a uint16. For newer versions,
+	// it is a uint32 (taking the place of the PacketChecksum)
 	Length uint16
 
 	// PacketChecksum is in practice set to 0.
@@ -369,11 +372,11 @@ type TNSConnect struct {
 	// the client's desired endianness.
 	ByteOrder [2]byte
 
-	// DataLength gives the length of the connection string.
+	// DataLength gives the length of the connect descriptor.
 	DataLength uint16
 
 	// DataOffset gives the offset (from the start of the header) of the
-	// connection string.
+	// connect descriptor -- i.e. 0x3A + len(Unknown3A).
 	DataOffset uint16
 
 	// MaxResponseSize gives the client's desired maximum response size.
@@ -387,6 +390,7 @@ type TNSConnect struct {
 
 	// TODO
 	CrossFacility0 uint32
+
 	// TODO
 	CrossFacility1 uint32
 
@@ -397,16 +401,17 @@ type TNSConnect struct {
 	ConnectionID1 [8]byte
 
 	// Unknown3A is the data between the last trace unique connection ID and the
-	// connection string, starting from offset 0x3A.
+	// connect descriptor, starting from offset 0x3A.
 	// The DataOffset points past this, and the DataLength counts from there, so
 	// this is indeed part of the "header".
 	// On recent versions of MSSQL this is 12 bytes.
 	// On older versions, it is 0 bytes.
 	Unknown3A []byte
 
-	// ConnectionString is the packet's payload, a nested sequence of
-	// (KEY=(KEY1=...)(KEY2=...)).
-	ConnectionString string
+	// ConnectDescriptor is the packet's payload, a nested sequence of
+	// (KEY=(KEY1=...)(KEY2=...)). See Oracle's "About Connect Descriptors" at
+	// https://docs.oracle.com/cd/E11882_01/network.112/e41945/concepts.htm#NETAG253
+	ConnectDescriptor string
 }
 
 // outputBuffer provides helper methods to write data to a pre-allocated buffer.
@@ -451,13 +456,13 @@ func (buf *outputBuffer) pushU32(v uint32) *outputBuffer {
 // packet would be longer than 255 bytes, the data is empty and the connection
 // string immediately follows.
 func (packet *TNSConnect) Encode() []byte {
-	length := 0x3A + len(packet.Unknown3A) + len(packet.ConnectionString)
+	length := 0x3A + len(packet.Unknown3A) + len(packet.ConnectDescriptor)
 	if length > 255 {
-		temp := packet.ConnectionString
+		temp := packet.ConnectDescriptor
 		defer func() {
-			packet.ConnectionString = temp
+			packet.ConnectDescriptor = temp
 		}()
-		packet.ConnectionString = ""
+		packet.ConnectDescriptor = ""
 		return append(packet.Encode(), []byte(temp)...)
 	}
 
@@ -482,7 +487,7 @@ func (packet *TNSConnect) Encode() []byte {
 	next.push(packet.ConnectionID0[:])
 	next.push(packet.ConnectionID1[:])
 	next.push(packet.Unknown3A)
-	next.push([]byte(packet.ConnectionString))
+	next.push([]byte(packet.ConnectDescriptor))
 	return ret
 }
 
@@ -605,7 +610,7 @@ func ReadTNSConnect(reader io.Reader, header *TNSHeader) (*TNSConnect, error) {
 	next.read(&ret.ConnectionID1)
 	unknownLen := ret.DataOffset - 0x3A
 	next.readNew(&ret.Unknown3A, int(unknownLen))
-	next.readNewString(&ret.ConnectionString, int(ret.DataLength))
+	next.readNewString(&ret.ConnectDescriptor, int(ret.DataLength))
 	if err := next.Error(); err != nil {
 		return nil, err
 	}
@@ -780,14 +785,48 @@ type TNSRefuse struct {
 	Data []byte
 }
 
+// Encode the TNSRefuse packet body into a newly-allocated buffer.
+func (packet *TNSRefuse) Encode() []byte {
+	ret := make([]byte, len(packet.Data)+4)
+	next := outputBuffer(ret)
+	next.pushU8(uint8(packet.AppReason))
+	next.pushU8(uint8(packet.SysReason))
+	next.pushU16(uint16(packet.DataLength))
+	next.push(packet.Data)
+	return ret
+}
+
+// GetType identifies the packet as PacketTypeRefuse.
+func (packet *TNSRefuse) GetType() PacketType {
+	return PacketTypeRedirect
+}
+
+// ReadTNSRefuse reads a TNSRefuse packet from the stream, which should
+// point to the first byte after the TNSHeader.
+func ReadTNSRefuse(reader io.Reader, header *TNSHeader) (*TNSRefuse, error) {
+	ret := new(TNSRefuse)
+	next := startReading(reader)
+	next.read(&ret.AppReason)
+	next.read(&ret.SysReason)
+	next.read(&ret.DataLength)
+	next.readNew(&ret.Data, int(ret.DataLength))
+	if err := next.Error(); err != nil {
+		return nil, err
+	}
+	if ret.DataLength != header.Length-8-4 {
+		return nil, ErrInvalidData
+	}
+	return ret, nil
+}
+
 // TNSRedirect is returned by the server in response to a TNSConnect when it
-// needs to direct the caller elsewhere. Its Data is a new connection string
+// needs to direct the caller elsewhere. Its Data is a new connect descriptor
 // for the caller to use.
 type TNSRedirect struct {
 	// DataLength is the length of the packet's Data payload.
 	DataLength uint16
 
-	// Data is the TNSRedirect's payload -- it contains a new connection string
+	// Data is the TNSRedirect's payload -- it contains a new connect descriptor
 	// for the client to use in a subsequent TNSConnect call.
 	Data []byte
 }
@@ -1433,6 +1472,8 @@ func ReadTNSPacket(reader io.Reader) (*TNSPacket, error) {
 		body, err = ReadTNSConnect(reader, header)
 	case PacketTypeAccept:
 		body, err = ReadTNSAccept(reader, header)
+	case PacketTypeRefuse:
+		body, err = ReadTNSRefuse(reader, header)
 	case PacketTypeResend:
 		body, err = ReadTNSResend(reader, header)
 	case PacketTypeData:
@@ -1444,4 +1485,108 @@ func ReadTNSPacket(reader io.Reader) (*TNSPacket, error) {
 		Header: header,
 		Body:   body,
 	}, err
+}
+
+// DescriptorEntry is a simple key-value pair representing a single primitive
+// value in the descriptor string. The key is a dotted string representation
+// of the path to the value, e.g. for "(A=(B=(C=ABC1)(C=ABC2)(D=ABD1))(E=AE1))", the
+// DescriptorEntries would be
+// {"A.B.C", "ABC1"}, {"A.B.C", "ABC2"}, {"A.B.D", "ABD1" }, {"A.E", "AE1"}.
+type DescriptorEntry struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// Oracle "Descriptors" are nested series of parens, used for e.g.
+// connect descriptors and for error strings.
+// To simplify their usage in searches, they are stored in a flattened form.
+// Since duplicate keys are allowed, a simple map will not work, so instead
+// it stores an list of key/value pairs, in the order they appear in the string.
+// NOTE: This is insufficient to re-construct the input (since there is no way
+// to tell "array elements" stop), so there is no Encode method.
+type Descriptor []DescriptorEntry
+
+// GetValues returns an array containing all Values in the descriptor that
+// exactly match the given Key (key is in dotted string format).
+func (descriptor Descriptor) GetValues(key string) []string {
+	ret := []string{}
+	for _, kvp := range descriptor {
+		if kvp.Key == key {
+			ret = append(ret, kvp.Value)
+		}
+	}
+	return ret
+}
+
+// GetValue gets the unique Value for the given Key (in dotted string format).
+// If a unique Value cannot be found (that is, there are no matches, or there is
+// more than one match), returns "", ErrUnexpectedResponse.
+func (descriptor *Descriptor) GetValue(key string) (string, error) {
+	ret := descriptor.GetValues(key)
+	if len(ret) != 1 {
+		return "", ErrUnexpectedResponse
+	}
+	return ret[0], nil
+}
+
+// DecodeDescriptor takes a descriptor in native Oracle format and returns a
+// flattened map.
+func DecodeDescriptor(descriptor string) (Descriptor, error) {
+	ret := make(Descriptor, 0)
+	path := make([]string, 0)
+	rest := strings.TrimSpace(descriptor)
+
+	// Each case consumes at least one character
+	for len(rest) > 0 {
+		v := rest[0]
+		switch v {
+		case '(':
+			// Open paren: start a new 'object' whose key name precedes the '='
+			eq := strings.Index(rest, "=")
+			if eq == -1 {
+				return nil, ErrInvalidData
+			}
+			path = append(path, strings.TrimSpace(rest[1:eq]))
+			// Consume the key (everything prior to the '=')
+			rest = strings.TrimSpace(rest[eq:])
+		case ')':
+			// Close paren: pop off the last 'object' suffix
+			path = path[0 : len(path)-1]
+			// Consume the ')'
+			rest = strings.TrimSpace(rest[1:])
+		case '=':
+			rest = strings.TrimSpace(rest[1:])
+			if rest[0] != '(' {
+				// What follows is a primitive
+				closer := -1
+				if rest[0] == '\'' || rest[0] == '"' {
+					// If the primitive is quoted, it ends after the first
+					// unescaped closing quote
+					for i := 1; i < len(rest); i++ {
+						if rest[i] == rest[0] && rest[i-1] != '\\' {
+							closer = i + 1
+							break
+						}
+					}
+				} else {
+					// Otherwise, it ends with the ')'
+					closer = strings.Index(rest, ")")
+				}
+				if closer == -1 {
+					return nil, ErrInvalidData
+				}
+				value := rest[0:closer]
+				key := strings.Join(path, ".")
+				// Store the primitive at the key for the current path
+				ret = append(ret, DescriptorEntry{key, value})
+				// Consume the value
+				rest = strings.TrimSpace(rest[closer:])
+			} else {
+				// What follows is a list -- already consumed the =
+			}
+		default:
+			return nil, ErrInvalidData
+		}
+	}
+	return ret, nil
 }
