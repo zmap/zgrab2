@@ -242,7 +242,7 @@ var validTNSConnect = map[string]TestCase{
 				ConnectionID0:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				Unknown3A:               []byte{},
-				ConnectionString:        "(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=ckdb)(CID=(PROGRAM=gsql)(HOST=McAfee)(USER=root)))(ADDRESS=(PROTOCOL=TCP)(HOST=10.1.50.14)(PORT=1521)))",
+				ConnectDescriptor:       "(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=ckdb)(CID=(PROGRAM=gsql)(HOST=McAfee)(USER=root)))(ADDRESS=(PROTOCOL=TCP)(HOST=10.1.50.14)(PORT=1521)))",
 			},
 		},
 	},
@@ -284,7 +284,7 @@ var validTNSConnect = map[string]TestCase{
 				ConnectionID0:           [8]byte{0x00, 0x00, 0x04, 0x10, 0x00, 0x00, 0x00, 0x03},
 				ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				Unknown3A:               []byte{},
-				ConnectionString:        "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.1.221)(PORT=1521))(CONNECT_DATA=(SID=void)(SERVER=DEDICATED)(CID=(PROGRAM=F:\\oracle\\ora92\\bin\\sqlplus.exe)(HOST=FANGHONGZHAO)(USER=Administrator))))",
+				ConnectDescriptor:       "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=192.168.1.221)(PORT=1521))(CONNECT_DATA=(SID=void)(SERVER=DEDICATED)(CID=(PROGRAM=F:\\oracle\\ora92\\bin\\sqlplus.exe)(HOST=FANGHONGZHAO)(USER=Administrator))))",
 			},
 		},
 	},
@@ -325,7 +325,7 @@ var validTNSConnect = map[string]TestCase{
 				ConnectionID0:           [8]byte{0x00, 0x00, 0x10, 0xec, 0x00, 0x00, 0x00, 0x05},
 				ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				Unknown3A:               []byte{},
-				ConnectionString:        "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=AA)(PORT=1521))(CONNECT_DATA=(SID=void)(SERVER=DEDICATED)(CID=(PROGRAM=D:\\oracle\\ora92\\bin\\sqlplus.exe)(HOST=HINGE-HANYF)(USER=hanyf))))",
+				ConnectDescriptor:       "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=AA)(PORT=1521))(CONNECT_DATA=(SID=void)(SERVER=DEDICATED)(CID=(PROGRAM=D:\\oracle\\ora92\\bin\\sqlplus.exe)(HOST=HINGE-HANYF)(USER=hanyf))))",
 			},
 		},
 	},
@@ -365,7 +365,7 @@ var validTNSConnect = map[string]TestCase{
 				ConnectionID0:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				Unknown3A:               []byte{0x00, 0x00, 0x20, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-				ConnectionString:        "(DESCRIPTION=(CONNECT_DATA=(SID=orcl11g)(CID=(PROGRAM=sqlplus@kali)(HOST=kali)(USER=root)))(ADDRESS=(PROTOCOL=TCP)(HOST=10.0.72.113)(PORT=1521)))",
+				ConnectDescriptor:       "(DESCRIPTION=(CONNECT_DATA=(SID=orcl11g)(CID=(PROGRAM=sqlplus@kali)(HOST=kali)(USER=root)))(ADDRESS=(PROTOCOL=TCP)(HOST=10.0.72.113)(PORT=1521)))",
 			},
 		},
 	},
@@ -405,7 +405,7 @@ var validTNSConnect = map[string]TestCase{
 				ConnectionID0:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 				Unknown3A:               []byte{0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xfe, 0xdc, 0xba, 0x98, 0x76},
-				ConnectionString:        "(DESCRIPTION=(CONNECT_DATA=(SID=orcl11g)(CID=(PROGRAM=sqlplus@kali)(HOST=kali)(USER=root)))(ADDRESS=(PROTOCOL=TCP)(HOST=10.0.72.113)(PORT=1521)))",
+				ConnectDescriptor:       "(DESCRIPTION=(CONNECT_DATA=(SID=orcl11g)(CID=(PROGRAM=sqlplus@kali)(HOST=kali)(USER=root)))(ADDRESS=(PROTOCOL=TCP)(HOST=10.0.72.113)(PORT=1521)))",
 			},
 		},
 	},
@@ -435,6 +435,8 @@ var validTNSAccept = map[string]TestCase{
 }
 
 func serialize(val interface{}) []byte {
+	// According to the comments in json.Marshal, JSON object keys are sorted,
+	// so this is suitable for comparison.
 	ret, err := json.Marshal(val)
 	if err != nil {
 		panic(err)
@@ -554,6 +556,195 @@ func TestTNSData(t *testing.T) {
 		}
 		if len(reader.Data) > 0 {
 			t.Errorf("%s: TNSData.Read: %d bytes left over", tag, len(reader.Data))
+		}
+	}
+}
+
+var descriptorValues = map[string]Descriptor{
+	//"()": Descriptor{},
+	"(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))(ERROR=(CODE=303)(EMFI=1))))": Descriptor{
+		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
+		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "4"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.ARGS", "'()'"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "303"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
+	},
+	"(DESCRIPTION=\n\t(ERR=1153)\n\t(VSNNUM=186647040)\n\t(ERROR_STACK=\n\t\t(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))\n\t\t(ERROR=(CODE=303)(EMFI=1))\n\t)\n)\n": Descriptor{
+		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
+		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "4"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.ARGS", "'()'"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "303"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
+	},
+	"    (DESCRIPTION=\r\n  (ERR=1153)\r\n  (VSNNUM=186647040)\r\n  (ERROR_STACK=\r\n    (ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))\r\n    (ERROR=(CODE=303)(EMFI=1))\r\n  )\r\n)    ": Descriptor{
+		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
+		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "4"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.ARGS", "'()'"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "303"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
+	},
+	"(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='(embedded \\'quotes\\')'))(ERROR=(CODE=  \"  (23)  \"  )(EMFI=1))))": Descriptor{
+		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
+		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "4"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.ARGS", "'(embedded \\'quotes\\')'"},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "\"  (23)  \""},
+		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
+	},
+	"(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=)(CID=(PROGRAM=C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe)(HOST=win10pc)(USER=localadmin)))(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521)))": Descriptor{
+		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.SERVICE_NAME", ""},
+		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.CID.PROGRAM", "C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe"},
+		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.CID.HOST", "win10pc"},
+		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.CID.USER", "localadmin"},
+		DescriptorEntry{"DESCRIPTION.ADDRESS.PROTOCOL", "TCP"},
+		DescriptorEntry{"DESCRIPTION.ADDRESS.HOST", "127.0.0.1"},
+		DescriptorEntry{"DESCRIPTION.ADDRESS.PORT", "1521"},
+	},
+}
+
+var descriptorGetValuesTests = map[string]map[string][]string{
+	"(A=(B=(C=ABC1)(C=ABC2)(D=ABD))(E=AE)(F=))": map[string][]string{
+		"A.B.C":          []string{"ABC1", "ABC2"},
+		"A.B.D":          []string{"ABD"},
+		"A.E":            []string{"AE"},
+		"does.not.exist": []string{},
+		"A.F":            []string{""},
+	},
+	"(A=(B=(C=ABC1)(D=ABD1))(B=(C=ABC2)(D=ABD2))(B=(E=ABE)(D=ABD3))(F=(G=(H=AFGH)))(I=)(I=iii)(I=)(I=))": map[string][]string{
+		"A.B.C":          []string{"ABC1", "ABC2"},
+		"A.B.D":          []string{"ABD1", "ABD2", "ABD3"},
+		"A.B.E":          []string{"ABE"},
+		"A.F.G.H":        []string{"AFGH"},
+		"does.not.exist": []string{},
+		"A.I":            []string{"", "iii", "", ""},
+	},
+}
+
+func TestDescriptorGetValues(t *testing.T) {
+	for descriptor, keyToValues := range descriptorGetValuesTests {
+		parsed, err := DecodeDescriptor(descriptor)
+		if err != nil {
+			t.Fatalf("Unexpected Error parsing descriptor '%s': %v", descriptor, err)
+		}
+		for key, expected := range keyToValues {
+			actual := parsed.GetValues(key)
+			if !stringSlicesEqual(expected, actual) {
+				t.Errorf("Descriptor.GetValues(%s) mismatch: expected [ %s ], got [ %s ]", key, strings.Join(expected, ", "), strings.Join(actual, ", "))
+			}
+		}
+	}
+}
+
+type GetValueTestResult struct {
+	Value string
+	Error error
+}
+
+var descriptorGetValueTests = map[string]map[string]GetValueTestResult{
+	"(A=(B=(C=ABC1)(C=ABC2)(D=ABD))(E=AE)(F=))": map[string]GetValueTestResult{
+		"A.B.C":          {Value: "", Error: ErrUnexpectedResponse},
+		"A.B.D":          {Value: "ABD", Error: nil},
+		"A.E":            {Value: "AE", Error: nil},
+		"does.not.exist": {Value: "", Error: ErrUnexpectedResponse},
+		"A.F":            {Value: "", Error: nil},
+	},
+	"(A=(B=(C=ABC1)(D=ABD1))(B=(C=ABC2)(D=ABD2))(B=(E=ABE)(D=ABD3))(F=(G=(H=AFGH)))(I=)(I=))": map[string]GetValueTestResult{
+		"A.B.C":          {Value: "", Error: ErrUnexpectedResponse},
+		"A.B.D":          {Value: "", Error: ErrUnexpectedResponse},
+		"A.B.E":          {Value: "ABE", Error: nil},
+		"A.F.G.H":        {Value: "AFGH", Error: nil},
+		"does.not.exist": {Value: "", Error: ErrUnexpectedResponse},
+		"A.I":            {Value: "", Error: ErrUnexpectedResponse},
+	},
+}
+
+func TestDescriptorGetValue(t *testing.T) {
+	for descriptor, keyToValue := range descriptorGetValueTests {
+		parsed, err := DecodeDescriptor(descriptor)
+		if err != nil {
+			t.Fatalf("Unexpected Error parsing descriptor '%s': %v", descriptor, err)
+		}
+		for key, expected := range keyToValue {
+			actual, err := parsed.GetValue(key)
+			if expected.Value != actual || expected.Error != err {
+				t.Errorf("Descriptor.GetValue(%s) mismatch: expected %s / %v, got %s / %v", key, expected.Value, expected.Error, actual, err)
+			}
+		}
+	}
+}
+
+func removeSpace(s string) string {
+	ret := strings.Replace(s, "\r", "", -1)
+	ret = strings.Replace(s, "\n", "", -1)
+	ret = strings.Replace(s, "\t", "", -1)
+	ret = strings.Replace(s, " ", "", -1)
+	return ret
+}
+
+func stringSlicesEqual(lhs, rhs []string) bool {
+	if len(lhs) != len(rhs) {
+		return false
+	}
+	for i, l := range lhs {
+		r := rhs[i]
+		if l != r {
+			return false
+		}
+	}
+	return true
+}
+
+func TestDecodeDescriptor(t *testing.T) {
+	for descriptor, expected := range descriptorValues {
+		parsed, err := DecodeDescriptor(descriptor)
+		if err != nil {
+			t.Fatalf("Failed to parse [[%s]]: %v", descriptor, err)
+		}
+		jsonParsed := serialize(parsed)
+		jsonExpected := serialize(expected)
+		if !bytes.Equal(jsonParsed, jsonExpected) {
+			t.Errorf("Descriptor mismatch for [[%s]]:[\n%s\n]", descriptor, interleave(jsonExpected, jsonParsed))
+		}
+		for _, kvp := range expected {
+			evs := expected.GetValues(kvp.Key)
+			avs := parsed.GetValues(kvp.Key)
+			if !stringSlicesEqual(evs, avs) {
+				t.Errorf("Descriptor.GetValues(%s) mismatch: expected [ %s ], got [ %s ]", kvp.Key, strings.Join(evs, ", "), strings.Join(avs, ", "))
+			}
+			if len(evs) == 1 {
+				ev, err := expected.GetValue(kvp.Key)
+				if err != nil {
+					t.Fatalf("Expected.GetValue(%s) failed: %v", kvp.Key, err)
+				}
+				av, err := parsed.GetValue(kvp.Key)
+				if err != nil {
+					t.Fatalf("Parsed.GetValue(%s) failed: %v", kvp.Key, err)
+				}
+				if ev != av {
+					t.Errorf("Descriptor.GetValue(%s) mismatch: expected %s, got %s", kvp.Key, ev, av)
+				}
+			} else {
+				av, err := parsed.GetValue(kvp.Key)
+				if err == nil {
+					t.Errorf("Descriptor.GetValue(%s) did not return error for duplicated key: %s / %v", kvp.Key, av, err)
+				}
+			}
+			badKey := "key.that.definitely.does.not.exist.in.any.test.data"
+			av, err := parsed.GetValue(badKey)
+			if err == nil {
+				t.Errorf("Descriptor.GetValue(%s) did not return error for bad key: %s / %v", badKey, av, err)
+			}
+			avs = parsed.GetValues(badKey)
+			if len(avs) != 0 {
+				t.Errorf("Descriptor.GetValues(%s) returned non-empty list: %s", badKey, strings.Join(avs, ", "))
+			}
 		}
 	}
 }
