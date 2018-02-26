@@ -10,18 +10,20 @@ import (
 
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
-	// TODO: Add protocol
+	// Handshake is the log of the TNS handshake between client and server.
+	Handshake *HandshakeLog `json:"handshake,omitempty"`
 
-	// Protocols that support TLS should include
-	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
+	// TLSLog contains the log of the TLS handshake (and any additional
+	// configured TLS scan operations).
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
-	// TODO: Add more protocol-specific flags
-	// Protocols that support TLS should include zgrab2.TLSFlags
+	zgrab2.TLSFlags
+
 	// TODO: Find version number mappings and take a string here instead
 	Version                uint16 `long:"version" description:"The client version number to send." default:"312"`
 	MinVersion             uint16 `long:"min-version" description:"The minimum supported client version to send in the connect packet." default:"300"`
@@ -31,6 +33,8 @@ type Flags struct {
 	TDU                    string `long:"tdu" description:"The TDU value to send in the connect packet." default:"0xFFFF"`
 	ProtocolCharacterisics string `long:"protocol-characteristics" description:"The Protocol Characteristics flags to send in the connect packet." default:"0x7F08"`
 	ConnectFlags           string `long:"connect-flags" description:"The connect flags for the connect packet." default:"0x4141"`
+	ConnectDescriptor      string `long:"connect-descriptor" description:"The connect descriptor to use in the connect packet. TODO: find a good default"`
+	TCPS                   bool   `long:"tcps" description:"Wrap the connection with a TLS handshake."`
 	Verbose                bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
@@ -100,20 +104,53 @@ func (scanner *Scanner) GetPort() uint {
 }
 
 // Scan() TODO: describe what is scanned
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	var results *ScanResults = nil
+
 	sock, err := t.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	if scanner.config.TCPS {
+		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(sock)
+		if err != nil {
+			// GetTLSConnection can only fail if the input flags are bad
+			panic(err)
+		}
+		results = new(ScanResults)
+		results.TLSLog = tlsConn.GetLog()
+		err = tlsConn.Handshake()
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+		sock = tlsConn
 	}
 	conn := Connection{
 		conn:    tcpwrap.Wrap(sock),
 		scanner: scanner,
 		target:  &t,
 	}
-	connectionString := "(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=)(CID=(PROGRAM=C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe)(HOST=DESKTOP-8ONLTVE)(USER=localadmin)))(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=11521)))"
-	ret, err := conn.Connect(connectionString)
-	if err != nil {
-		panic(err)
+	connectDescriptor := scanner.config.ConnectDescriptor
+	if connectDescriptor == "" {
+		// In local testing, omitting the SERVICE_NAME allowed the server to
+		// choose an appropriate default. CID.PROGRAM added strictly for logging
+		// purposes.
+		connectDescriptor = "(DESCRIPTION=(CONNECT_DATA=(CID=(PROGRAM=zgrab2))))"
 	}
-	return zgrab2.SCAN_SUCCESS, ret, nil
+	handshakeLog, err := conn.Connect(connectDescriptor)
+	if handshakeLog != nil {
+		// Ensure that any handshake logs, even if incomplete, get returned.
+		if results == nil {
+			// If the results were not created previously to store the TLS log,
+			// create it now
+			results = new(ScanResults)
+		}
+		results.Handshake = handshakeLog
+	}
+
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), results, err
+	}
+
+	return zgrab2.SCAN_SUCCESS, results, nil
 }
