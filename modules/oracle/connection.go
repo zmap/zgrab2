@@ -1,17 +1,11 @@
 package oracle
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
 	"github.com/zmap/zgrab2"
-)
-
-const (
-	logIndexConnect     int = 0
-	logIndexAccept          = 1
-	logIndexNSNRequest      = 2
-	logIndexNSNResponse     = 3
 )
 
 // HandshakeLog gives the results of the initial connection handshake in a form
@@ -32,9 +26,17 @@ type HandshakeLog struct {
 	// client's first Connect packet.
 	DidResend bool `json:"did_resend"`
 
-	// RedirectTarget is the connection string returned by the server in the
+	// RedirectTarget is the connect descriptor returned by the server in the
 	// Redirect packet, if one is sent. Otherwise it is empty/omitted.
 	RedirectTarget string `json:"redirect_target,omitempty"`
+
+	// RefuseError is the Data from the Refuse packet returned by the server;
+	// it is empty if the server does not return a Refuse packet.
+	RefuseError string `json:"refuse_error,omitempty"`
+
+	// RefuseReason describes the reason the request was refused as given in the
+	// Refuse packet from the server. TODO: finalize format.
+	RefuseReason string `json:"refuse_reason,omitempty"`
 
 	// DidResend is set to true if the server sent a Resend packet after the
 	// first Connect packet.
@@ -57,6 +59,7 @@ type Connection struct {
 	redirect string
 }
 
+// send ensures everything gets written
 func (conn *Connection) send(data []byte) error {
 	rest := data
 	n := 0
@@ -70,10 +73,15 @@ func (conn *Connection) send(data []byte) error {
 	return nil
 }
 
+// readPacket tries to read/parse a packet from the connection.
 func (conn *Connection) readPacket() (*TNSPacket, error) {
 	return ReadTNSPacket(conn.conn)
 }
 
+// SendPacket sends the given packet body to the server (prefixing the
+// appropriate header -- with flags == 0), and read / parse the response.
+// Automatically handles Resend responses; the caller is responsible for
+// handling other exceptional cases.
 func (conn *Connection) SendPacket(packet TNSPacketBody) (TNSPacketBody, error) {
 	toSend := (&TNSPacket{Body: packet}).Encode()
 
@@ -100,6 +108,7 @@ func (conn *Connection) SendPacket(packet TNSPacketBody) (TNSPacketBody, error) 
 	return response.Body, nil
 }
 
+// Handle numeric args in any radix.
 func u16Flag(v string) uint16 {
 	ret, err := strconv.ParseUint(v, 0, 16)
 
@@ -109,14 +118,15 @@ func u16Flag(v string) uint16 {
 	return uint16(ret)
 }
 
-func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) {
+// Connect to the server and do a handshake with the given config.
+func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error) {
 	result := HandshakeLog{}
 	extraData := []byte{}
-	if len(connectionString)+len(extraData)+0x3A > 0x7fff {
+	if len(connectDescriptor)+len(extraData)+0x3A > 0x7fff {
 		return nil, ErrInvalidInput
 	}
 
-	// TODO: Variable fields in the connection string (e.g. host?)
+	// TODO: Variable fields in the connect descriptor (e.g. host?)
 	connectPacket := &TNSConnect{
 		Version:              conn.scanner.config.Version,
 		MinVersion:           conn.scanner.config.MinVersion,
@@ -126,7 +136,7 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 		ProtocolCharacteristics: NTProtocolCharacteristics(u16Flag(conn.scanner.config.ProtocolCharacterisics)),
 		MaxBeforeAck:            0,
 		ByteOrder:               defaultByteOrder,
-		DataLength:              uint16(len(connectionString)),
+		DataLength:              uint16(len(connectDescriptor)),
 		DataOffset:              uint16(0x003A + len(extraData)),
 		MaxResponseSize:         0x00000800,
 		ConnectFlags0:           ConnectFlags(u16Flag(conn.scanner.config.ConnectFlags) & 0xff),
@@ -136,7 +146,7 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 		ConnectionID0:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 		ConnectionID1:           [8]byte{0, 0, 0, 0, 0, 0, 0, 0},
 		Unknown3A:               extraData,
-		ConnectionString:        connectionString,
+		ConnectDescriptor:       connectDescriptor,
 	}
 	response, err := conn.SendPacket(connectPacket)
 	// TODO: handle redirect
@@ -150,10 +160,14 @@ func (conn *Connection) Connect(connectionString string) (*HandshakeLog, error) 
 	switch resp := response.(type) {
 	case *TNSAccept:
 		accept = resp
-		break
 	case *TNSRedirect:
 		result.RedirectTarget = string(resp.Data)
 		// TODO: Follow redirects?
+		return &result, nil
+	case *TNSRefuse:
+		result.RefuseError = string(resp.Data)
+		// TODO: do better
+		result.RefuseReason = fmt.Sprintf("AppReason: 0x%02x; SysReason: 0x%02x", resp.AppReason, resp.SysReason)
 		return &result, nil
 	default:
 		return &result, ErrUnexpectedResponse
