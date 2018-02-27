@@ -34,8 +34,8 @@ Module specific options must be included after the module. Application specific 
 
 To run a scan with multiple modules, a `.ini` file must be used with the `multiple` module. Below is an example `.ini` file with the corresponding zgrab2 command. 
 
-```
 ***multiple.ini***
+```
 [Application Options]
 output-file="output.txt"
 input-file="input.txt"

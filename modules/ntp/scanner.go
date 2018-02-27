@@ -1,10 +1,14 @@
 // Package ntp provides a zgrab2 module that probes for the NTP service.
 // NOTE: unlike most modules, this scans on UDP.
+//
 // The default scan does a standard get time request.
+//
 // Passing the monlist flag will check for the DDoS-amplifying MONLIST command.
+//
 // The results of the scan are the version number and the time returned by the
-// Server, and if verbose results are enabled, the entire parsed response
+// server, and if verbose results are enabled, the entire parsed response
 // packet(s).
+//
 // For more details on NTP, see https://tools.ietf.org/html/rfc5905.
 package ntp
 
@@ -764,19 +768,26 @@ func decodePrivatePacketHeader(buf []byte) (*PrivatePacketHeader, error) {
 
 // Results is the struct that is returned to the zgrab2 framework from Scan()
 type Results struct {
-	// Version is the version number returned in the time response header. Absent if --skip-get-time is set.
+	// Version is the version number returned in the get time response header.
+	// Absent if --skip-get-time is set.
 	Version *uint8 `json:"version,omitempty"`
 
-	// Time is the time returned by the Server (specifically, the ReceiveTimestamp). Converted into standard golang time. Absent if --skip-get-time is set.
+	// Time is the time returned by the server (specifically, the
+	// ReceiveTimestamp) in response to the get time call. Converted into a
+	// standard golang time.
+	// Absent if --skip-get-time is set.
 	Time *time.Time `json:"time,omitempty"`
 
-	// TimeResponse is the full header returned by the get time call. Absent if --skip-get-time is set.
+	// TimeResponse is the full header returned by the get time call.
+	// Absent if --skip-get-time is set. Debug only.
 	TimeResponse *NTPHeader `json:"time_response,omitempty" zgrab:"debug"`
 
-	// MonListResponse is the data returned by the call to monlist. Only present if --monlist is set.
+	// MonListResponse is the raw data returned by the call to monlist.
+	// Only present if --monlist is set.
 	MonListResponse []byte `json:"monlist_response,omitempty"`
 
-	// MonListHeader is the header returned by the call to monlist. Only present if --monlist is set.
+	// MonListHeader is the header returned by the call to monlist.
+	// Only present if --monlist is set. Debug only.
 	MonListHeader *PrivatePacketHeader `json:"monlist_header,omitempty" zgrab:"debug"`
 }
 
@@ -974,7 +985,17 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 	return inPacket, nil
 }
 
-// Scan scans the configured server with the settings provided by the command line arguments
+// Scan scans the configured server with the settings provided by the command
+// line arguments as follows:
+// 1. If SkipGetTime is not set, send a GetTime packet to the server and read
+//    the response packet into the result.
+// 2. If MonList is set, send a MONLIST packet to the server and read the
+//    response packet into the result.
+// The presence of an NTP service at the target can be inferred by a non-nil
+// result -- if the service does not return any data or if the response is not
+// a valid NTP packet, then the result will be nil.
+// The presence of a DDoS-amplifying target can be inferred by
+// result.MonListReponse being present.
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	sock, err := t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
 	if err != nil {
