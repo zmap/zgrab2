@@ -52,11 +52,12 @@ type HandshakeLog struct {
 
 // Connection holds the state for a scan connection to the Oracle server.
 type Connection struct {
-	conn     net.Conn
-	target   *zgrab2.ScanTarget
-	scanner  *Scanner
-	resent   bool
-	redirect string
+	conn      net.Conn
+	target    *zgrab2.ScanTarget
+	scanner   *Scanner
+	resent    bool
+	redirect  string
+	tnsDriver *TNSDriver
 }
 
 // send ensures everything gets written
@@ -75,7 +76,7 @@ func (conn *Connection) send(data []byte) error {
 
 // readPacket tries to read/parse a packet from the connection.
 func (conn *Connection) readPacket() (*TNSPacket, error) {
-	return ReadTNSPacket(conn.conn)
+	return conn.tnsDriver.ReadTNSPacket(conn.conn)
 }
 
 // SendPacket sends the given packet body to the server (prefixing the
@@ -83,7 +84,7 @@ func (conn *Connection) readPacket() (*TNSPacket, error) {
 // Automatically handles Resend responses; the caller is responsible for
 // handling other exceptional cases.
 func (conn *Connection) SendPacket(packet TNSPacketBody) (TNSPacketBody, error) {
-	toSend := (&TNSPacket{Body: packet}).Encode()
+	toSend := conn.tnsDriver.EncodePacket(&TNSPacket{Body: packet})
 
 	if err := conn.send(toSend); err != nil {
 		return nil, err
@@ -210,7 +211,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		DataFlags: 0,
 		Data: (&TNSDataNSN{
 			ID:      0xdeadbeef,
-			Version: EncodeReleaseVersion(conn.scanner.config.ReleaseVersion),
+			Version: encodeReleaseVersion(conn.scanner.config.ReleaseVersion),
 			Options: NSNOptions(0),
 			Services: []NSNService{
 				NSNService{
