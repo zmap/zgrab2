@@ -1,4 +1,4 @@
-// Package #{MODULE_NAME} provides a zgrab2 module that proves for #{MODULE_NAME}.
+// Package #{MODULE_NAME} provides a zgrab2 module that scans for #{MODULE_NAME}.
 // TODO: Describe module, the flags, the probe, the output, etc.
 package #{MODULE_NAME}
 
