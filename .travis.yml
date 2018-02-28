@@ -11,7 +11,7 @@ before_install:
 - pip install --user zschema
 - docker ps -a
 install:
-- make clean zgrab2
+- make clean zgrab2 test
 script:
 - make integration-test
 after_script:
