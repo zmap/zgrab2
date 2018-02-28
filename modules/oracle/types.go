@@ -154,7 +154,10 @@ type TNSDriver struct {
 // with no flags and the type set to the body's type. If header.Length == 0, set
 // it to the appropriate value (length of encoded body + 8).
 func (driver *TNSDriver) EncodePacket(packet *TNSPacket) ([]byte, error) {
-	body := packet.Body.Encode()
+	body, err := packet.Body.Encode()
+	if err != nil {
+		return nil, err
+	}
 	if packet.Header == nil {
 		packet.Header = &TNSHeader{
 			mode:           driver.Mode,
@@ -521,7 +524,7 @@ func (buf *outputBuffer) pushU32(v uint32) *outputBuffer {
 // Encode the TNSConnect packet body into a newly-allocated buffer. If the
 // packet would be longer than 255 bytes, the data is empty and the connection
 // string immediately follows.
-func (packet *TNSConnect) Encode() []byte {
+func (packet *TNSConnect) Encode() ([]byte, error) {
 	length := 0x3A + len(packet.Unknown3A) + len(packet.ConnectDescriptor)
 	if length > 255 {
 		temp := packet.ConnectDescriptor
@@ -529,7 +532,11 @@ func (packet *TNSConnect) Encode() []byte {
 			packet.ConnectDescriptor = temp
 		}()
 		packet.ConnectDescriptor = ""
-		return append(packet.Encode(), []byte(temp)...)
+		ret, err := packet.Encode()
+		if err != nil {
+			return nil, err
+		}
+		return append(ret, []byte(temp)...), nil
 	}
 
 	ret := make([]byte, length-8)
@@ -554,7 +561,7 @@ func (packet *TNSConnect) Encode() []byte {
 	next.push(packet.ConnectionID1[:])
 	next.push(packet.Unknown3A)
 	next.push([]byte(packet.ConnectDescriptor))
-	return ret
+	return ret, nil
 }
 
 // chainedReader is a helper for decoding binary data from a stream, primarily
@@ -678,8 +685,8 @@ type TNSResend struct {
 
 // Encode the packet body (which for a Resend packet just means returning an
 // empty byte slice).
-func (packet *TNSResend) Encode() []byte {
-	return []byte{}
+func (packet *TNSResend) Encode() ([]byte, error) {
+	return []byte{}, nil
 }
 
 // GetType identifies the packet as a PacketTypeResend.
@@ -741,8 +748,11 @@ type TNSAccept struct {
 }
 
 // Encode the TNSAccept packet body into a newly-allocated byte slice.
-func (packet *TNSAccept) Encode() []byte {
+func (packet *TNSAccept) Encode() ([]byte, error) {
 	length := 16 + len(packet.Unknown18) + len(packet.AcceptData)
+	if length > 0xffff {
+		return nil, ErrInvalidData
+	}
 	ret := make([]byte, length)
 	next := outputBuffer(ret)
 	next.pushU16(packet.Version)
@@ -756,7 +766,7 @@ func (packet *TNSAccept) Encode() []byte {
 	next.pushU8(uint8(packet.ConnectFlags1))
 	next.push(packet.Unknown18)
 	next.push(packet.AcceptData)
-	return ret
+	return ret, nil
 }
 
 // GetType identifies the packet as a PacketTypeAccept.
@@ -813,14 +823,17 @@ type TNSRefuse struct {
 }
 
 // Encode the TNSRefuse packet body into a newly-allocated buffer.
-func (packet *TNSRefuse) Encode() []byte {
+func (packet *TNSRefuse) Encode() ([]byte, error) {
+	if len(packet.Data)+4 > 0xffff {
+		return nil, ErrInvalidData
+	}
 	ret := make([]byte, len(packet.Data)+4)
 	next := outputBuffer(ret)
 	next.pushU8(uint8(packet.AppReason))
 	next.pushU8(uint8(packet.SysReason))
 	next.pushU16(uint16(packet.DataLength))
 	next.push(packet.Data)
-	return ret
+	return ret, nil
 }
 
 // GetType identifies the packet as PacketTypeRefuse.
@@ -859,12 +872,15 @@ type TNSRedirect struct {
 }
 
 // Encode the TNSRedirect packet body into a newly-allocated buffer.
-func (packet *TNSRedirect) Encode() []byte {
+func (packet *TNSRedirect) Encode() ([]byte, error) {
+	if len(packet.Data)+2 > 0xffff {
+		return nil, ErrInvalidData
+	}
 	ret := make([]byte, len(packet.Data)+2)
 	next := outputBuffer(ret)
 	next.pushU16(uint16(packet.DataLength))
 	next.push(packet.Data)
-	return ret
+	return ret, nil
 }
 
 // GetType identifies the packet as PacketTypeRedirect.
@@ -1023,12 +1039,15 @@ func (packet *TNSData) GetID() uint32 {
 }
 
 // Encode the TNSData packet body into a newly-allocated buffer.
-func (packet *TNSData) Encode() []byte {
+func (packet *TNSData) Encode() ([]byte, error) {
+	if len(packet.Data)+2 > 0xffff {
+		return nil, ErrInvalidData
+	}
 	ret := make([]byte, len(packet.Data)+2)
 	next := outputBuffer(ret)
 	next.pushU16(uint16(packet.DataFlags))
 	next.push(packet.Data)
-	return ret
+	return ret, nil
 }
 
 // GetType identifies the packet as PacketTypeData.
@@ -1104,37 +1123,37 @@ type NSNService struct {
 
 // GetSize returns the encoded size of the NSNService. Rather than overflowing,
 // causes a panic if this is larger than 16 bits.
-func (service *NSNService) GetSize() uint16 {
+func (service *NSNService) GetSize() (uint16, error) {
 	ret := uint32(8) // uint16(Type) + uint16(#values) + uint32(marker)
 	for _, v := range service.Values {
 		ret += uint32(len(v.Value) + 4)
 	}
 	if ret > 0xffff {
-		// This cannot happen when reading data from the server, only when
-		// constructing data to send to it.
-		panic(ErrInvalidInput)
+		return 0, ErrInvalidInput
 	}
-	return uint16(ret)
+	return uint16(ret), nil
 }
 
 // Encode returns the encoded NSNService in a newly allocated buffer.
 // If the length of the encoded value would be larger than 16 bits, panics.
-func (service *NSNService) Encode() []byte {
-	// Absolute minimum, if each value had zero length
-	ret := make([]byte, service.GetSize())
+func (service *NSNService) Encode() ([]byte, error) {
+	size, err := service.GetSize()
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]byte, size)
 	next := outputBuffer(ret)
 	next.pushU16(uint16(service.Type))
-	if len(service.Values) > 0xffff {
-		// This is covered by GetSize, but if that were to change, catch this
-		// separate issue
-		panic(ErrInvalidInput)
-	}
 	next.pushU16(uint16(len(service.Values)))
 	next.pushU32(service.Marker)
 	for _, value := range service.Values {
-		next.push(value.Encode())
+		if enc, err := value.Encode(); err != nil {
+			return nil, err
+		} else {
+			next.push(enc)
+		}
 	}
-	return ret
+	return ret, nil
 }
 
 // ReadNSNService reads an NSNService packet from the stream. On failure to
@@ -1311,19 +1330,16 @@ func NSNValueString(val string) *NSNValue {
 
 // Encode returns the encoding of the NSNValue in a newly-allocated byte slice.
 // Causes a panic if the length of the value would be longer than 16 bits.
-func (value *NSNValue) Encode() []byte {
-	if len(value.Value) > 0xffff {
-		panic(ErrInvalidInput)
+func (value *NSNValue) Encode() ([]byte, error) {
+	if len(value.Value)+4 > 0xffff {
+		return nil, ErrInvalidInput
 	}
 	ret := make([]byte, 4+len(value.Value))
-	if len(value.Value) > 0xffff {
-		panic(ErrInvalidInput)
-	}
 	next := outputBuffer(ret)
 	next.pushU16(uint16(len(value.Value)))
 	next.pushU16(uint16(value.Type))
 	next.push(value.Value)
-	return ret
+	return ret, nil
 }
 
 // ReadNSNValue reads a NSNValue from the stream, returns nil/error if one
@@ -1369,36 +1385,42 @@ type TNSDataNSN struct {
 
 // GetSize returns the encoded size of the TNSDataNSN body. Causes a panic if
 // the data length would be longer than 16 bits.
-func (packet *TNSDataNSN) GetSize() uint16 {
+func (packet *TNSDataNSN) GetSize() (uint16, error) {
 	ret := uint32(13) // uint32(ID) + uint16(len) + uint32(version) + uint16(#services) + uint8(options)
 	for _, v := range packet.Services {
-		ret += uint32(v.GetSize())
+		if subSize, err := v.GetSize(); err != nil {
+			return 0, err
+		} else {
+			ret += uint32(subSize)
+		}
 	}
 	if ret > 0xffff {
-		// This cannot happen when reading data from the server, only when
-		// constructing data to send to it.
-		panic(ErrInvalidInput)
+		return 0, ErrInvalidInput
 	}
-	return uint16(ret)
+	return uint16(ret), nil
 }
 
 // Encode returns the encoded TNSDataNSN data in a newly-allocated buffer.
-func (packet *TNSDataNSN) Encode() []byte {
-	size := packet.GetSize()
+func (packet *TNSDataNSN) Encode() ([]byte, error) {
+	size, err := packet.GetSize()
+	if err != nil {
+		return nil, err
+	}
 	ret := make([]byte, size)
 	next := outputBuffer(ret)
 	next.pushU32(uint32(packet.ID))
 	next.pushU16(size)
 	next.pushU32(uint32(packet.Version))
-	if len(packet.Services) > 0xffff {
-		panic(ErrInvalidInput)
-	}
 	next.pushU16(uint16(len(packet.Services)))
 	next.pushU8(uint8(packet.Options))
 	for _, v := range packet.Services {
-		next.push(v.Encode())
+		if enc, err := v.Encode(); err != nil {
+			return nil, err
+		} else {
+			next.push(enc)
+		}
 	}
-	return ret
+	return ret, nil
 }
 
 // DecodeTNSDataNSN reads a TNSDataNSN packet from a TNSData body.
@@ -1461,7 +1483,11 @@ func ReadTNSDataNSN(reader io.Reader) (*TNSDataNSN, error) {
 			return nil, err
 		}
 	}
-	if length != ret.GetSize() {
+	calculatedSize, err := ret.GetSize()
+	if err != nil {
+		return nil, err
+	}
+	if length != calculatedSize {
 		return nil, ErrInvalidData
 	}
 	return &ret, nil
@@ -1471,7 +1497,7 @@ func ReadTNSDataNSN(reader io.Reader) (*TNSDataNSN, error) {
 // everything after the header).
 type TNSPacketBody interface {
 	GetType() PacketType
-	Encode() []byte
+	Encode() ([]byte, error)
 }
 
 // TNSPacket is a TNSHeader + a body.

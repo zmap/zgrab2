@@ -87,6 +87,13 @@ type TestCase struct {
 	Encoding string
 }
 
+func orPanic(ret []byte, err error) []byte {
+	if err != nil {
+		panic(err)
+	}
+	return ret
+}
+
 var validTNSData = map[string]TestCase{
 	"00.empty": TestCase{
 		Encoding: "00 0A 00 00 06 00 00 00  80 00",
@@ -142,7 +149,7 @@ var validTNSData = map[string]TestCase{
 			},
 			Body: &TNSData{
 				DataFlags: 0,
-				Data: (&TNSDataNSN{
+				Data: orPanic((&TNSDataNSN{
 					ID:      DataIDNSN,
 					Version: encodeReleaseVersion("10.2.0.3.0"),
 					Options: NSNOptions(0),
@@ -201,7 +208,7 @@ var validTNSData = map[string]TestCase{
 							},
 						},
 					},
-				}).Encode(),
+				}).Encode()),
 			},
 		},
 	},

@@ -240,50 +240,56 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 	// Drivers?
 	dataIntegrityBytes := []byte{0x00, 0x03, 0x01}
 
-	nsnRequest := &TNSData{
-		DataFlags: 0,
-		Data: (&TNSDataNSN{
-			ID:      DataIDNSN,
-			Version: encodeReleaseVersion(conn.scanner.config.ReleaseVersion),
-			Options: NSNOptions(0),
-			Services: []NSNService{
-				NSNService{
-					Type: NSNServiceSupervisor,
-					Values: []NSNValue{
-						*NSNValueVersion(conn.scanner.config.ReleaseVersion),
-						*NSNValueBytes(supervisorBytes0),
-						*NSNValueBytes(supervisorBytes1),
-					},
-					Marker: 0,
+	encoded, err := (&TNSDataNSN{
+		ID:      DataIDNSN,
+		Version: encodeReleaseVersion(conn.scanner.config.ReleaseVersion),
+		Options: NSNOptions(0),
+		Services: []NSNService{
+			NSNService{
+				Type: NSNServiceSupervisor,
+				Values: []NSNValue{
+					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
+					*NSNValueBytes(supervisorBytes0),
+					*NSNValueBytes(supervisorBytes1),
 				},
-				NSNService{
-					Type: NSNServiceAuthentication,
-					Values: []NSNValue{
-						*NSNValueVersion(conn.scanner.config.ReleaseVersion),
-						*NSNValueUB2(authUB2),
-						*NSNValueStatus(authStatus),
-						*NSNValueUB1(authUB1),
-						*NSNValueString(authString),
-					},
-					Marker: 0,
+				Marker: 0,
+			},
+			NSNService{
+				Type: NSNServiceAuthentication,
+				Values: []NSNValue{
+					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
+					*NSNValueUB2(authUB2),
+					*NSNValueStatus(authStatus),
+					*NSNValueUB1(authUB1),
+					*NSNValueString(authString),
 				},
-				NSNService{
-					Type: NSNServiceEncryption,
-					Values: []NSNValue{
-						*NSNValueVersion(conn.scanner.config.ReleaseVersion),
-						*NSNValueBytes(encryptionBytes),
-					},
-					Marker: 0,
+				Marker: 0,
+			},
+			NSNService{
+				Type: NSNServiceEncryption,
+				Values: []NSNValue{
+					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
+					*NSNValueBytes(encryptionBytes),
 				},
-				NSNService{
-					Type: NSNServiceDataIntegrity,
-					Values: []NSNValue{
-						*NSNValueVersion(conn.scanner.config.ReleaseVersion),
-						*NSNValueBytes(dataIntegrityBytes),
-					},
+				Marker: 0,
+			},
+			NSNService{
+				Type: NSNServiceDataIntegrity,
+				Values: []NSNValue{
+					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
+					*NSNValueBytes(dataIntegrityBytes),
 				},
 			},
-		}).Encode(),
+		},
+	}).Encode()
+
+	if err != nil {
+		return &result, err
+	}
+
+	nsnRequest := &TNSData{
+		DataFlags: 0,
+		Data:      encoded,
 	}
 
 	response, err = conn.SendPacket(nsnRequest)
