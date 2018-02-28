@@ -143,7 +143,7 @@ var validTNSData = map[string]TestCase{
 			Body: &TNSData{
 				DataFlags: 0,
 				Data: (&TNSDataNSN{
-					ID:      0xdeadbeef,
+					ID:      DataIDNSN,
 					Version: encodeReleaseVersion("10.2.0.3.0"),
 					Options: NSNOptions(0),
 					Services: []NSNService{
@@ -463,7 +463,10 @@ func TestTNSHeaderEncode(t *testing.T) {
 	driver := getTNSDriver()
 	for hex, header := range validHeaders {
 		bin := fromHex(hex)
-		encoded := header.Encode()
+		encoded, err := header.Encode()
+		if err != nil {
+			t.Fatalf("TNSHeader.Encode error: %v", err)
+		}
 		if !bytes.Equal(bin, encoded) {
 			t.Errorf("TNSHeader.Encode mismatch:[\n%s\n]", interleave(bin, encoded))
 		}

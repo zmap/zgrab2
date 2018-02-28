@@ -177,8 +177,11 @@ func (driver *TNSDriver) EncodePacket(packet *TNSPacket) ([]byte, error) {
 			packet.Header.Length = uint32(len(body) + 8)
 		}
 	}
-	header := packet.Header.Encode()
-	return append(header, body...), nil
+	if header, err := packet.Header.Encode(); err != nil {
+		return nil, err
+	} else {
+		return append(header, body...), nil
+	}
 }
 
 // TNSFlags is the type for the TNS header's flags.
@@ -186,6 +189,7 @@ type TNSFlags uint8
 
 // TNSHeader is the 8-byte header that precedes all TNS packets.
 type TNSHeader struct {
+	// mode used for encoding / decoding this packet.
 	mode TNSMode
 
 	// Length is the big-endian length of the entire packet, including the 8
@@ -208,13 +212,13 @@ type TNSHeader struct {
 }
 
 // Encode returns the encoded TNSHeader.
-func (header *TNSHeader) Encode() []byte {
+func (header *TNSHeader) Encode() ([]byte, error) {
 	ret := make([]byte, 8)
 	next := outputBuffer(ret)
 	switch header.mode {
 	case TNSModeOld:
 		if header.Length > 0xffff {
-			panic(ErrInvalidData)
+			return nil, ErrInvalidInput
 		}
 		next.pushU16(uint16(header.Length))
 		next.pushU16(header.PacketChecksum)
@@ -227,9 +231,9 @@ func (header *TNSHeader) Encode() []byte {
 		next.pushU8(byte(header.Flags))
 		next.pushU16(header.HeaderChecksum)
 	default:
-		panic(fmt.Errorf("Bad TNSDriver mode 0x%x", header.mode))
+		return nil, ErrInvalidInput
 	}
-	return ret
+	return ret, nil
 }
 
 // ReadTNSHeader reads/decodes a TNSHeader from the first 8 bytes of the stream.
@@ -631,23 +635,6 @@ func (reader *chainedReader) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-// readError is a special error type to distinguish read errors (which should be
-// converted to a return value) from other panics.
-type readError error
-
-// Helper to convert readErrors into return values.
-func unpanic() error {
-	if rerr := recover(); rerr != nil {
-		switch err := rerr.(type) {
-		case readError:
-			return err
-		default:
-			panic(rerr)
-		}
-	}
-	return nil
-}
-
 // ReadTNSConnect reads a TNSConnect packet from the reader, which should point
 // to the first byte after the end of the TNSHeader.
 func ReadTNSConnect(reader io.Reader, header *TNSHeader) (*TNSConnect, error) {
@@ -777,33 +764,6 @@ func (packet *TNSAccept) GetType() PacketType {
 	return PacketTypeAccept
 }
 
-func readU8(reader io.Reader) uint8 {
-	buf := make([]byte, 1)
-	_, err := io.ReadFull(reader, buf)
-	if err != nil {
-		panic(readError(err))
-	}
-	return buf[0]
-}
-
-func readU16(reader io.Reader) uint16 {
-	buf := make([]byte, 2)
-	_, err := io.ReadFull(reader, buf)
-	if err != nil {
-		panic(readError(err))
-	}
-	return binary.BigEndian.Uint16(buf)
-}
-
-func readU32(reader io.Reader) uint32 {
-	buf := make([]byte, 4)
-	_, err := io.ReadFull(reader, buf)
-	if err != nil {
-		panic(readError(err))
-	}
-	return binary.BigEndian.Uint32(buf)
-}
-
 // ReadTNSAccept reads a TNSAccept packet body from the stream. reader should
 // point to the first byte after the TNSHeader.
 func ReadTNSAccept(reader io.Reader, header *TNSHeader) (*TNSAccept, error) {
@@ -836,8 +796,8 @@ func (reason RefuseReason) String() string {
 	return fmt.Sprintf("0x%02x", uint8(reason))
 }
 
-// TNSRefuse is returned by the server when (...TODO: details -- not returned on
-// failed auth from TNSConnect).
+// TNSRefuse is returned by the server when an error occurs (for instance, an
+// invalid connect descriptor).
 type TNSRefuse struct {
 	// TODO: details
 	AppReason RefuseReason
@@ -1184,21 +1144,28 @@ func ReadNSNService(reader io.Reader, ret *NSNService) (*NSNService, error) {
 	if ret == nil {
 		ret = &NSNService{}
 	}
-	ret.Type = NSNServiceType(readU16(reader))
-	n := int(readU16(reader))
+	next := startReading(reader)
+	next.read(&ret.Type)
+	n, err := next.readU16()
+	if err != nil {
+		return nil, err
+	}
 	if n > 0x0400 {
 		// Arbitrary but sufficiently huge cut off. Typical values are single
 		// digits. The total encoded size must fit into 16 bits.
 		return nil, ErrInvalidData
 	}
-	ret.Marker = readU32(reader)
+	next.read(&ret.Marker)
 	// Check if Marker == 0?
-	ret.Values = make([]NSNValue, n)
-	for i := 0; i < n; i++ {
+	ret.Values = make([]NSNValue, int(n))
+	for i := 0; i < int(n); i++ {
 		_, err := ReadNSNValue(reader, &ret.Values[i])
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := next.Error(); err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
@@ -1365,15 +1332,15 @@ func ReadNSNValue(reader io.Reader, ret *NSNValue) (*NSNValue, error) {
 	if ret == nil {
 		ret = &NSNValue{}
 	}
-	size := readU16(reader)
-	ret.Type = NSNValueType(readU16(reader))
-	ret.Value = make([]byte, size)
-	n, err := reader.Read(ret.Value)
+	next := startReading(reader)
+	size, err := next.readU16()
 	if err != nil {
 		return nil, err
 	}
-	if n != len(ret.Value) {
-		return nil, ErrInvalidData
+	next.read(&ret.Type)
+	next.readNew(&ret.Value, int(size))
+	if err := next.Error(); err != nil {
+		return nil, err
 	}
 	return ret, nil
 }
@@ -1511,32 +1478,6 @@ type TNSPacketBody interface {
 type TNSPacket struct {
 	Header *TNSHeader
 	Body   TNSPacketBody
-}
-
-// Encode the packet (header + body). If header is nil, create one with no flags
-// and the type set to the body's type. If header.Length == 0, set it to the
-// appropriate value (length of encoded body + 8).
-func (packet *TNSPacket) oldEncode() []byte {
-	body := packet.Body.Encode()
-	if packet.Header == nil {
-		packet.Header = &TNSHeader{
-			Length:         0,
-			PacketChecksum: 0,
-			Type:           packet.Body.GetType(),
-			// Flags -- aka Reserved Byte -- is "04" in some Connect packets?
-			Flags:          0,
-			HeaderChecksum: 0,
-		}
-	}
-	if packet.Header.Length == 0 {
-		if len(body)+8 > 0xffff {
-			panic(fmt.Errorf("Body too large to fit into 16-bit length (%d bytes)", len(body)))
-		}
-		// It is up to the user to check the body length for overflows before calling Encode
-		packet.Header.Length = uint32(len(body) + 8)
-	}
-	header := packet.Header.Encode()
-	return append(header, body...)
 }
 
 // ReadTNSPacket reads a TNSPacket from the stream, or returns nil + an error

@@ -243,7 +243,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 	nsnRequest := &TNSData{
 		DataFlags: 0,
 		Data: (&TNSDataNSN{
-			ID:      0xdeadbeef,
+			ID:      DataIDNSN,
 			Version: encodeReleaseVersion(conn.scanner.config.ReleaseVersion),
 			Options: NSNOptions(0),
 			Services: []NSNService{

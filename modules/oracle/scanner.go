@@ -1,5 +1,24 @@
-// Package oracle provides a zgrab2 module that proves for oracle.
-// TODO: Describe module, the flags, the probe, the output, etc.
+// Package oracle provides the zgrab2 scanner module for Oracle's TNS protocol.
+// Default Port: 1521 (TCP)
+//
+// The scan does the first part of a TNS handshake, prior to the point where
+// any actual authentication is required; the happy case goes
+//  ->  Connect(--client-version, --min-server-version, --connect-descriptor)
+// <-   Resend
+//  ->  Connect(exact same data)
+// <-   Accept(server_version)
+//  ->  Data: Native Service Negotiation
+// <-   Data: Native Service Negotiation(component release versions)
+//
+// The default scan uses a generic connect descriptor with no explicit connect
+// data / service name, so it relies on the server to choose the destination.
+//
+// Sending an intentionally invalid --connect-descriptor can force a Refuse
+// response, which should include a version number.
+//
+// The output includes the server's protocol version and any component release
+// versions that are returned.
+
 package oracle
 
 import (
