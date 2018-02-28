@@ -1121,8 +1121,8 @@ type NSNService struct {
 	Marker uint32
 }
 
-// GetSize returns the encoded size of the NSNService. Rather than overflowing,
-// causes a panic if this is larger than 16 bits.
+// GetSize returns the encoded size of the NSNService. Returns an error rather
+// than overflowing.
 func (service *NSNService) GetSize() (uint16, error) {
 	ret := uint32(8) // uint16(Type) + uint16(#values) + uint32(marker)
 	for _, v := range service.Values {
@@ -1135,7 +1135,8 @@ func (service *NSNService) GetSize() (uint16, error) {
 }
 
 // Encode returns the encoded NSNService in a newly allocated buffer.
-// If the length of the encoded value would be larger than 16 bits, panics.
+// If the length of the encoded value would be larger than 16 bits, returns an
+// error.
 func (service *NSNService) Encode() ([]byte, error) {
 	size, err := service.GetSize()
 	if err != nil {
@@ -1329,7 +1330,7 @@ func NSNValueString(val string) *NSNValue {
 }
 
 // Encode returns the encoding of the NSNValue in a newly-allocated byte slice.
-// Causes a panic if the length of the value would be longer than 16 bits.
+// Returns an error if the length of the value would be longer than 16 bits.
 func (value *NSNValue) Encode() ([]byte, error) {
 	if len(value.Value)+4 > 0xffff {
 		return nil, ErrInvalidInput
@@ -1383,7 +1384,7 @@ type TNSDataNSN struct {
 	Services []NSNService
 }
 
-// GetSize returns the encoded size of the TNSDataNSN body. Causes a panic if
+// GetSize returns the encoded size of the TNSDataNSN body. Returns an error if
 // the data length would be longer than 16 bits.
 func (packet *TNSDataNSN) GetSize() (uint16, error) {
 	ret := uint32(13) // uint32(ID) + uint16(len) + uint32(version) + uint16(#services) + uint8(options)
