@@ -466,7 +466,7 @@ type TNSConnect struct {
 	// connect descriptor, starting from offset 0x3A.
 	// The DataOffset points past this, and the DataLength counts from there, so
 	// this is indeed part of the "header".
-	// On recent versions of MSSQL this is 12 bytes.
+	// On recent versions of Oracle this is 12 bytes.
 	// On older versions, it is 0 bytes.
 	Unknown3A []byte
 
