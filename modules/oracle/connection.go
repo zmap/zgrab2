@@ -1,7 +1,6 @@
 package oracle
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 
@@ -18,9 +17,13 @@ type HandshakeLog struct {
 	// server returns in the Accept packet.
 	GlobalServiceOptions map[string]bool `json:"global_service_options,omitempty"`
 
-	// ConnectFlags is the ste of ConnectFlags values that the server returns
-	// in the Accept packet. Both are included in the array.
-	ConnectFlags [2]map[string]bool `json:"connect_flags,omitempty"`
+	// ConnectFlags0 is the first set of ConnectFlags values that the server
+	// returns in the Accept packet for the first.
+	ConnectFlags0 map[string]bool `json:"connect_flags0,omitempty"`
+
+	// ConnectFlags1 is the second set of ConnectFlags values that the server
+	// returns in the Accept packet for the first.
+	ConnectFlags1 map[string]bool `json:"connect_flags1,omitempty"`
 
 	// DidResend is true if the server sent a Resend packet in response to the
 	// client's first Connect packet.
@@ -28,15 +31,28 @@ type HandshakeLog struct {
 
 	// RedirectTarget is the connect descriptor returned by the server in the
 	// Redirect packet, if one is sent. Otherwise it is empty/omitted.
-	RedirectTarget string `json:"redirect_target,omitempty"`
+	RedirectTargetRaw string `json:"redirect_target_raw,omitempty"`
 
-	// RefuseError is the Data from the Refuse packet returned by the server;
+	RedirectTarget Descriptor `json:"redirect_target,omitempty"`
+
+	// RefuseErrorRaW is the Data from the Refuse packet returned by the server;
 	// it is empty if the server does not return a Refuse packet.
-	RefuseError string `json:"refuse_error,omitempty"`
+	RefuseErrorRaw string `json:"refuse_error_raw,omitempty"`
 
-	// RefuseReason describes the reason the request was refused as given in the
-	// Refuse packet from the server. TODO: finalize format.
-	RefuseReason string `json:"refuse_reason,omitempty"`
+	RefuseError Descriptor `json:"refuse_error,omitempty"`
+
+	// RefuseReasonApp is the "AppReason" returned by the server in a Refused
+	// response packet.
+	RefuseReasonApp string `json:"refuse_reason_app,omitempty"`
+
+	// RefuseReasonSys is the "SysReason" returned by the server in a Refused
+	// response packet.
+	RefuseReasonSys string `json:"refuse_reason_sys,omitempty"`
+
+	// RefuseVersion is the parsed DESCRIPTION.VSNNUM field from the RefuseError
+	// string returned by the server in the Refuse packet, in dotted-decimal
+	// format.
+	RefuseVersion string `json:"refuse_version,omitempty"`
 
 	// DidResend is set to true if the server sent a Resend packet after the
 	// first Connect packet.
@@ -84,7 +100,10 @@ func (conn *Connection) readPacket() (*TNSPacket, error) {
 // Automatically handles Resend responses; the caller is responsible for
 // handling other exceptional cases.
 func (conn *Connection) SendPacket(packet TNSPacketBody) (TNSPacketBody, error) {
-	toSend := conn.tnsDriver.EncodePacket(&TNSPacket{Body: packet})
+	toSend, err := conn.tnsDriver.EncodePacket(&TNSPacket{Body: packet})
+	if err != nil {
+		return nil, err
+	}
 
 	if err := conn.send(toSend); err != nil {
 		return nil, err
@@ -162,13 +181,26 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 	case *TNSAccept:
 		accept = resp
 	case *TNSRedirect:
-		result.RedirectTarget = string(resp.Data)
+		result.RedirectTargetRaw = string(resp.Data)
+		if parsed, err := DecodeDescriptor(result.RedirectTargetRaw); err != nil {
+			result.RedirectTarget = parsed
+		}
 		// TODO: Follow redirects?
 		return &result, nil
 	case *TNSRefuse:
-		result.RefuseError = string(resp.Data)
-		// TODO: do better
-		result.RefuseReason = fmt.Sprintf("AppReason: 0x%02x; SysReason: 0x%02x", resp.AppReason, resp.SysReason)
+		result.RefuseErrorRaw = string(resp.Data)
+		result.RefuseReasonApp = resp.AppReason.String()
+		result.RefuseReasonSys = resp.SysReason.String()
+		if desc, err := DecodeDescriptor(result.RefuseErrorRaw); err == nil {
+			result.RefuseError = desc
+			if versions := desc.GetValues("DESCRIPTION.VSNNUM"); len(versions) > 0 {
+				// If there are multiple VSNNUMs, we only care about the first.
+				decVersion := versions[0]
+				if intVersion, err := strconv.ParseUint(decVersion, 10, 32); err == nil {
+					result.RefuseVersion = ReleaseVersion(intVersion).String()
+				}
+			}
+		}
 		return &result, nil
 	default:
 		return &result, ErrUnexpectedResponse
@@ -177,12 +209,13 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 	// TODO: Unclear what these do. Taken from my client.
 	result.AcceptVersion = accept.Version
 	result.GlobalServiceOptions = accept.GlobalServiceOptions.Set()
-	result.ConnectFlags = [2]map[string]bool{
-		accept.ConnectFlags0.Set(),
-		accept.ConnectFlags1.Set(),
-	}
+	result.ConnectFlags0 = accept.ConnectFlags0.Set()
+	result.ConnectFlags1 = accept.ConnectFlags1.Set()
+
 	// uint32 PID + uint32 ??
-	supervisorBytes0 := []byte{0x00, 0x00, 0x04, 0xec, 0x19, 0x2c, 0x7b, 0x4c}
+	// In real clients, seems to be a small u32 followed by some kind of u32
+	// counter/timestamp.
+	supervisorBytes0 := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	supervisorBytes1 := []byte{
 		0xde, 0xad, 0xbe, 0xef,

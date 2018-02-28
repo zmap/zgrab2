@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"strconv"
@@ -482,7 +483,10 @@ func TestTNSConnect(t *testing.T) {
 	driver := getTNSDriver()
 	for tag, info := range validTNSConnect {
 		bin := fromHex(info.Encoding)
-		encoded := driver.EncodePacket(info.Value)
+		encoded, err := driver.EncodePacket(info.Value)
+		if err != nil {
+			t.Fatalf("%s: TNSConnect Error encoding packet: %v", tag, err)
+		}
 		if !bytes.Equal(bin, encoded) {
 			t.Errorf("%s: TNSConnect.Encode mismatch:[\n%s\n]", tag, interleave(bin, encoded))
 		}
@@ -511,7 +515,10 @@ func TestTNSAccept(t *testing.T) {
 	driver := getTNSDriver()
 	for tag, info := range validTNSAccept {
 		bin := fromHex(info.Encoding)
-		encoded := driver.EncodePacket(info.Value)
+		encoded, err := driver.EncodePacket(info.Value)
+		if err != nil {
+			t.Fatalf("%s: TNSAccept Error encoding packet: %v", tag, err)
+		}
 		if !bytes.Equal(bin, encoded) {
 			t.Errorf("%s: TNSAccept.Encode mismatch:[\n%s\n]", tag, interleave(bin, encoded))
 		}
@@ -540,7 +547,10 @@ func TestTNSData(t *testing.T) {
 	driver := getTNSDriver()
 	for tag, info := range validTNSData {
 		bin := fromHex(info.Encoding)
-		encoded := driver.EncodePacket(info.Value)
+		encoded, err := driver.EncodePacket(info.Value)
+		if err != nil {
+			t.Fatalf("%s: TNSData Error encoding packet: %v", tag, err)
+		}
 		if !bytes.Equal(bin, encoded) {
 			t.Errorf("%s: TNSData.Encode mismatch:[\n%s\n]", tag, interleave(bin, encoded))
 		}
@@ -750,6 +760,55 @@ func TestDecodeDescriptor(t *testing.T) {
 			if len(avs) != 0 {
 				t.Errorf("Descriptor.GetValues(%s) returned non-empty list: %s", badKey, strings.Join(avs, ", "))
 			}
+		}
+	}
+}
+
+var releaseVersions = map[string]ReleaseVersion{
+	"1.2.3.4.5":         ReleaseVersion(0x01230405),
+	"0.0.0.0.0":         ReleaseVersion(0),
+	"255.15.15.255.255": ReleaseVersion(0xFFFFFFFF),
+}
+
+var badReleaseVersions = []string{
+	"",
+	"1",
+	"1.2",
+	"1.2.3",
+	"1.2.3.4",
+	"256.0.0.0.0",
+	"0.16.0.0.0",
+	"0.0.16.0.0",
+	"0.0.0.256.0",
+	"0.0.0.0.256",
+	"a.b.c.d.e",
+	"A.B.C.D.E",
+	"p.q.r.s.t",
+}
+
+func TestReleaseVersion(t *testing.T) {
+	expectedBytes := make([]byte, 4)
+	for stringValue, version := range releaseVersions {
+		actualString := version.String()
+		if stringValue != actualString {
+			t.Errorf("ReleaseVersion.String() failed: 0x%08x gave %s, expected %s", uint32(version), actualString, stringValue)
+		}
+		binary.BigEndian.PutUint32(expectedBytes, uint32(version))
+		actualBytes := version.Bytes()
+		if !bytes.Equal(expectedBytes, actualBytes) {
+			t.Errorf("ReleaseVersion.Bytes() failed: 0x%08x gave %v, expected %v", uint32(version), actualBytes, expectedBytes)
+		}
+		encoded, err := EncodeReleaseVersion(stringValue)
+		if err != nil {
+			t.Fatalf("EncodeReleaseVersion(%s) failed: %v", stringValue, err)
+		}
+		if encoded != version {
+			t.Errorf("EncodeReleaseVersion(%s) failed: got 0x%08x, expected 0x%08x", stringValue, uint32(encoded), uint32(version))
+		}
+	}
+	for _, bad := range badReleaseVersions {
+		if ret, err := EncodeReleaseVersion(bad); err == nil {
+			t.Errorf("Successfully encoded bad ReleaseVersion %s: 0x%08x", bad, uint32(ret))
 		}
 	}
 }

@@ -40,23 +40,32 @@ connect_flags = [
 ]
 
 nsn_services = [
-  "Authentication",
-  "Encryption",
-  "DataIntegrity",
-  "Supervisor",
+    "Authentication",
+    "Encryption",
+    "DataIntegrity",
+    "Supervisor",
 ]
+
+parsed_descriptor = ListOf(SubRecord({
+    "key": String(),
+    "value": String(),
+}))
 
 oracle_scan_response = SubRecord({
     "result": SubRecord({
         "handshake": SubRecord({
             "accept_version": Unsigned16BitInteger(),
             "global_service_options": flagsSet(global_service_options),
-            "connect_flags": List(flagsSet(connect_flags)),
+            "connect_flags0": flagsSet(connect_flags),
+            "connect_flags1": flagsSet(connect_flags),
             "did_resend": Boolean(),
-            "redirect_target": String(),
-            "refuse_error": String(),
-            # TODO: Finalize format of refuse_reason
-            "refuse_reason": String(),
+            "redirect_target_raw": String(),
+            "redirect_target": parsed_descriptor,
+            "refuse_error_raw": String(),
+            "refuse_error": parsed_descriptor,
+            "refuse_version": String(),
+            "refuse_reason_app": String(),
+            "refuse_reason_sys": String(),
             "nsn_version": String(),
             "nsn_service_versions": SubRecord({
                 "Authentication": String(),

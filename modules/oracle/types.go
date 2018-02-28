@@ -153,7 +153,7 @@ type TNSDriver struct {
 // EncodePacket encodes the packet (header + body). If header is nil, create one
 // with no flags and the type set to the body's type. If header.Length == 0, set
 // it to the appropriate value (length of encoded body + 8).
-func (driver *TNSDriver) EncodePacket(packet *TNSPacket) []byte {
+func (driver *TNSDriver) EncodePacket(packet *TNSPacket) ([]byte, error) {
 	body := packet.Body.Encode()
 	if packet.Header == nil {
 		packet.Header = &TNSHeader{
@@ -170,7 +170,7 @@ func (driver *TNSDriver) EncodePacket(packet *TNSPacket) []byte {
 		// It is up to the user to check the body length for overflows before calling Encode
 		if driver.Mode == TNSModeOld {
 			if (len(body) + 8) > 0xffff {
-				panic(fmt.Errorf("Body too large to fit into 16-bit length (%d bytes)", len(body)))
+				return nil, ErrInvalidInput
 			}
 			packet.Header.Length = uint32(len(body) + 8)
 		} else {
@@ -178,7 +178,7 @@ func (driver *TNSDriver) EncodePacket(packet *TNSPacket) []byte {
 		}
 	}
 	header := packet.Header.Encode()
-	return append(header, body...)
+	return append(header, body...), nil
 }
 
 // TNSFlags is the type for the TNS header's flags.
@@ -830,6 +830,11 @@ func ReadTNSAccept(reader io.Reader, header *TNSHeader) (*TNSAccept, error) {
 // RefuseReason is an enumeration describing the reason the request was refused.
 // TODO: details.
 type RefuseReason uint8
+
+func (reason RefuseReason) String() string {
+	// TODO: Get better const error mappings. AppReason = 0x22 = syntax error?
+	return fmt.Sprintf("0x%02x", uint8(reason))
+}
 
 // TNSRefuse is returned by the server when (...TODO: details -- not returned on
 // failed auth from TNSConnect).
