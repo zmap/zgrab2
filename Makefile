@@ -9,7 +9,12 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean docker-runner container-clean gofmt
+.PHONY: all clean integration-test integration-test-clean docker-runner container-clean gofmt test
+
+# Test currently only runs on the modules folder because some of the 
+# third-party libraries in lib (e.g. http) are failing.
+test:
+	cd modules && go test -v ./...
 
 gofmt:
 	goimports -w -l $(GO_FILES)
