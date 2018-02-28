@@ -103,7 +103,7 @@ func (packetType PacketType) String() string {
 	ret, ok := packetTypeNames[packetType]
 	if !ok {
 		// These must be individually allowed in the schema
-		return fmt.Sprintf("UNKNOWN(0x%02x)", packetType)
+		return fmt.Sprintf("UNKNOWN(0x%02x)", uint8(packetType))
 	}
 	return ret
 }
@@ -180,11 +180,11 @@ func (driver *TNSDriver) EncodePacket(packet *TNSPacket) ([]byte, error) {
 			packet.Header.Length = uint32(len(body) + 8)
 		}
 	}
-	if header, err := packet.Header.Encode(); err != nil {
+	header, err := packet.Header.Encode()
+	if err != nil {
 		return nil, err
-	} else {
-		return append(header, body...), nil
 	}
+	return append(header, body...), nil
 }
 
 // TNSFlags is the type for the TNS header's flags.
@@ -1148,11 +1148,11 @@ func (service *NSNService) Encode() ([]byte, error) {
 	next.pushU16(uint16(len(service.Values)))
 	next.pushU32(service.Marker)
 	for _, value := range service.Values {
-		if enc, err := value.Encode(); err != nil {
+		enc, err := value.Encode()
+		if err != nil {
 			return nil, err
-		} else {
-			next.push(enc)
 		}
+		next.push(enc)
 	}
 	return ret, nil
 }
@@ -1389,11 +1389,11 @@ type TNSDataNSN struct {
 func (packet *TNSDataNSN) GetSize() (uint16, error) {
 	ret := uint32(13) // uint32(ID) + uint16(len) + uint32(version) + uint16(#services) + uint8(options)
 	for _, v := range packet.Services {
-		if subSize, err := v.GetSize(); err != nil {
+		subSize, err := v.GetSize()
+		if err != nil {
 			return 0, err
-		} else {
-			ret += uint32(subSize)
 		}
+		ret += uint32(subSize)
 	}
 	if ret > 0xffff {
 		return 0, ErrInvalidInput
@@ -1415,11 +1415,11 @@ func (packet *TNSDataNSN) Encode() ([]byte, error) {
 	next.pushU16(uint16(len(packet.Services)))
 	next.pushU8(uint8(packet.Options))
 	for _, v := range packet.Services {
-		if enc, err := v.Encode(); err != nil {
+		enc, err := v.Encode()
+		if err != nil {
 			return nil, err
-		} else {
-			next.push(enc)
 		}
+		next.push(enc)
 	}
 	return ret, nil
 }

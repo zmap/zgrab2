@@ -18,7 +18,6 @@
 //
 // The output includes the server's protocol version and any component release
 // versions that are returned.
-
 package oracle
 
 import (
