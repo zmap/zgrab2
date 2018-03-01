@@ -29,16 +29,20 @@ type HandshakeLog struct {
 	// client's first Connect packet.
 	DidResend bool `json:"did_resend"`
 
-	// RedirectTarget is the connect descriptor returned by the server in the
+	// RedirectTargetRaw is the connect descriptor returned by the server in the
 	// Redirect packet, if one is sent. Otherwise it is empty/omitted.
 	RedirectTargetRaw string `json:"redirect_target_raw,omitempty"`
 
+	// RedirectTarget is the parsed connect descriptor returned by the server in
+	// the Redirect packet, if one is sent. Otherwise it is empty/omitted.
 	RedirectTarget Descriptor `json:"redirect_target,omitempty"`
 
-	// RefuseErrorRaW is the Data from the Refuse packet returned by the server;
+	// RefuseErrorRaw is the Data from the Refuse packet returned by the server;
 	// it is empty if the server does not return a Refuse packet.
 	RefuseErrorRaw string `json:"refuse_error_raw,omitempty"`
 
+	// RefuseError is the parsed descriptor returned by the server in the Refuse
+	// packet; it is empty if the server does not return a Refuse packet.
 	RefuseError Descriptor `json:"refuse_error,omitempty"`
 
 	// RefuseReasonApp is the "AppReason" returned by the server in a Refused
@@ -169,7 +173,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		ConnectDescriptor:       connectDescriptor,
 	}
 	response, err := conn.SendPacket(connectPacket)
-	// TODO: handle redirect
+
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +210,8 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		return &result, ErrUnexpectedResponse
 	}
 
-	// TODO: Unclear what these do. Taken from my client.
+	// TODO: Unclear what all of these values these do. Defaults taken from the
+	// values sent by the Oracle SQLPlus 11.2 client.
 	result.AcceptVersion = accept.Version
 	result.GlobalServiceOptions = accept.GlobalServiceOptions.Set()
 	result.ConnectFlags0 = accept.ConnectFlags0.Set()
