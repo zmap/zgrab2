@@ -17,11 +17,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zgrab2"
 )
 
 const (
@@ -92,20 +92,6 @@ type Config struct {
 	ReservedData       []byte
 }
 
-// flagsToSet() converts an integer flags variable to a set of consts corresponding to each bit.
-// The result is a map from the labels to bool (true).
-// Example: flagsToSet(0x12, { "a", "b", "c", "d", "e" }) returns { "b": true, "e": true }.
-func flagsToSet(flags uint64, consts []string) (ret map[string]bool) {
-	ret = make(map[string]bool)
-	for i, label := range consts {
-		v := uint64(math.Pow(2, float64(i)))
-		if uint64(flags)&v == v {
-			ret[label] = true
-		}
-	}
-	return ret
-}
-
 // GetServerStatusFlags returns a map[string]bool representation of the
 // given flags. The keys are the constant names defined in the MySQL
 // docs, and the values are true (flags that are not set have no
@@ -127,7 +113,8 @@ func GetServerStatusFlags(flags uint16) map[string]bool {
 		"SERVER_STATUS_IN_TRANS_READONLY",
 		"SERVER_SESSION_STATE_CHANGED",
 	}
-	return flagsToSet(uint64(flags), consts)
+	ret, _ := zgrab2.ListFlagsToSet(uint64(flags), consts)
+	return ret
 }
 
 // GetClientCapabilityFlags returns a map[string]bool representation of
@@ -162,7 +149,8 @@ func GetClientCapabilityFlags(flags uint32) map[string]bool {
 		"CLIENT_SESSION_TRACK",
 		"CLIENT_DEPRECATED_EOF",
 	}
-	return flagsToSet(uint64(flags), consts)
+	ret, _ := zgrab2.ListFlagsToSet(uint64(flags), consts)
+	return ret
 }
 
 // InitConfig fills in a (possibly newly-created) Config instance with
