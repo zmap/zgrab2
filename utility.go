@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ajholland/zflags"
+	"github.com/zmap/zflags"
 )
 
 var parser *flags.Parser
