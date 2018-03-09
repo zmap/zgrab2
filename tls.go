@@ -250,6 +250,9 @@ func (z *TLSConnection) Handshake() error {
 		}()
 		// TODO - CheckHeartbleed does not bubble errors from Handshake
 		_, err := z.CheckHeartbleed(buf)
+		if err == tls.HeartbleedError {
+			err = nil
+		}
 		return err
 	} else {
 		defer func() {
