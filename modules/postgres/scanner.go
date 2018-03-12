@@ -288,6 +288,11 @@ func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "postgres"
+}
+
 // GetName returns the name from the parameters.
 func (s *Scanner) GetName() string {
 	return s.Config.Name

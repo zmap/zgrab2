@@ -195,6 +195,11 @@ func forceToString(val RedisValue) string {
 	}
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "redis"
+}
+
 // Scan executes the following commands:
 // 1. PING
 // 2. (only if --password is provided) AUTH <password>

@@ -98,6 +98,11 @@ func (f *Flags) Help() string {
 	return ""
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "ftp"
+}
+
 // Init initializes the Scanner instance with the flags from the command
 // line.
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {

@@ -40,6 +40,7 @@ STATUS_VALUES = [
 # zgrab2/module.go: ScanResponse
 base_scan_response = SubRecord({
     "status": Enum(values = STATUS_VALUES, required = True),
+    "protocol": String(required = True),
     "timestamp": DateTime(required = True),
     "result": SubRecord({}, required = False), # This is overridden by the protocols' implementations
     "error": String(required = False)
