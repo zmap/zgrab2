@@ -12,14 +12,22 @@ type Scanner interface {
 	// Returns the name passed at init
 	GetName() string
 
+	// Protocol returns the protocol identifier for the scan.
+	Protocol() string
+
 	// Scan connects to a host. The result should be JSON-serializable
 	Scan(t ScanTarget) (ScanStatus, interface{}, error)
 }
 
 // ScanResponse is the result of a scan on a single host
 type ScanResponse struct {
-	// Status is required for all responses. Other fields are optional.
-	Status    ScanStatus  `json:"status"`
+	// Status is required for all responses.
+	Status ScanStatus `json:"status"`
+
+	// Protocol is the identifier if the protocol that did the scan. In the case of a complex scan, this may differ from
+	// the scan name.
+	Protocol string `json:"protocol"`
+
 	Result    interface{} `json:"result,omitempty"`
 	Timestamp string      `json:"timestamp,omitempty"`
 	Error     *string     `json:"error,omitempty"`

@@ -853,6 +853,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "ntp"
+}
+
 // GetName returns the module's name
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
