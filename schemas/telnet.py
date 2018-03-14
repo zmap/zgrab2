@@ -9,7 +9,7 @@ import schemas.zgrab2 as zgrab2
 
 telnet_option = SubRecord({
     "name": String(),
-    "value": String(),
+    "value": Unsigned16BitInteger(),
 })
 
 telnet_scan_response = SubRecord({
