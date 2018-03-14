@@ -7,13 +7,18 @@ import zschema.registry
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
 
+telnet_option = SubRecord({
+    "name": String(),
+    "value": String(),
+})
+
 telnet_scan_response = SubRecord({
     "result": SubRecord({
         "banner": String(),
-        "will": ListOf(String()),
-        "do": ListOf(String()),
-        "wont": ListOf(String()),
-        "dont": ListOf(String()),
+        "will": ListOf(telnet_option()),
+        "do": ListOf(telnet_option()),
+        "wont": ListOf(telnet_option()),
+        "dont": ListOf(telnet_option()),
     })
 }, extends=zgrab2.base_scan_response)
 
