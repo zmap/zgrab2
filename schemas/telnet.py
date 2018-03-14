@@ -15,10 +15,10 @@ telnet_option = SubRecord({
 telnet_scan_response = SubRecord({
     "result": SubRecord({
         "banner": String(),
-        "will": ListOf(telnet_option()),
-        "do": ListOf(telnet_option()),
-        "wont": ListOf(telnet_option()),
-        "dont": ListOf(telnet_option()),
+        "will": ListOf(telnet_option),
+        "do": ListOf(telnet_option),
+        "wont": ListOf(telnet_option),
+        "dont": ListOf(telnet_option),
     })
 }, extends=zgrab2.base_scan_response)
 
