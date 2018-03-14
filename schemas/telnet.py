@@ -9,11 +9,11 @@ import schemas.zgrab2 as zgrab2
 
 telnet_scan_response = SubRecord({
     "result": SubRecord({
-        "Banner": String(),
-        "Will": ListOf(String()),
-        "Do": ListOf(String()),
-        "Wont": ListOf(String()),
-        "Dont": ListOf(String()),
+        "banner": String(),
+        "will": ListOf(String()),
+        "do": ListOf(String()),
+        "wont": ListOf(String()),
+        "dont": ListOf(String()),
     })
 }, extends=zgrab2.base_scan_response)
 
