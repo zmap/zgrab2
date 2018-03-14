@@ -1,46 +1,42 @@
-// Package #{MODULE_NAME} provides a zgrab2 module that scans for #{MODULE_NAME}.
-// TODO: Describe module, the flags, the probe, the output, etc.
-package #{MODULE_NAME}
+// Package telnet provides a zgrab2 module that scans for telnet daemons.
+// Default Port: 23 (TCP)
+//
+// The --max-read-size flag allows setting a ceiling to the number of bytes
+// that will be read for the banner.
+//
+// The scan negotiates the options and attempts to grab the banner, using the
+// same behavior as the original zgrab.
+//
+// The output contains the banner and the negotiated options, in the same
+// format as the original zgrab.
+package telnet
 
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
 
-// ScanResults instances are returned by the module's Scan function.
-type ScanResults struct {
-	// TODO: Add protocol
-
-	// Protocols that support TLS should include
-	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
-}
-
-// Flags holds the command-line configuration for the #{MODULE_NAME} scan module.
+// Flags holds the command-line configuration for the Telnet scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
-	// TODO: Add more protocol-specific flags
-	// Protocols that support TLS should include zgrab2.TLSFlags
-
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	MaxReadSize int  `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
+	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
 type Module struct {
-	// TODO: Add any module-global state
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
-	// TODO: Add scan state
 }
 
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	// FIXME: Set default port
-	_, err := zgrab2.AddCommand("#{MODULE_NAME}", "#{MODULE_NAME}", "Probe for #{MODULE_NAME}", FIXME_DEFAULT_PORT, &module)
+	_, err := zgrab2.AddCommand("telnet", "telnet", "Probe for telnet", 23, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +83,7 @@ func (scanner *Scanner) GetName() string {
 
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
-	return "#{MODULE_NAME}"
+	return "telnet"
 }
 
 // GetPort returns the port being scanned.
@@ -95,8 +91,15 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-// Scan TODO: describe what is scanned
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	// TODO: implement
-	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
+// Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	conn, err := target.Open(&scanner.config.BaseFlags)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	result := new(TelnetLog)
+	if err := GetTelnetBanner(result, conn, scanner.config.MaxReadSize); err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	return zgrab2.SCAN_SUCCESS, result, nil
 }
