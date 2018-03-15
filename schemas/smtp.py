@@ -11,8 +11,10 @@ smtp_scan_response = SubRecord({
     "result": SubRecord({
         "banner": String(),
         "ehlo": String(),
-        "smtp_help": String(),
+        "helo": String(),
+        "help": String(),
         "starttls": String(),
+        "quit": String(),
         "tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)
