@@ -13,9 +13,9 @@ OUTPUT_ROOT=$ZGRAB_OUTPUT/pop3
 
 echo "pop3/test: Tests runner for pop3"
 CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 > $OUTPUT_ROOT/banner.json
-CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 --quit > $OUTPUT_ROOT/banner.quit.json
-CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 --help --quit > $OUTPUT_ROOT/help.banner.quit.json
-CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 -noop --help --quit > $OUTPUT_ROOT/noop.help.banner.quit.json
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 --send-quit > $OUTPUT_ROOT/banner.quit.json
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 --send-help --send-quit > $OUTPUT_ROOT/help.banner.quit.json
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh pop3 --send-noop --send-help --send-quit > $OUTPUT_ROOT/noop.help.banner.quit.json
 
 # TODO: the pop3 container does not support STARTTLS; they suggest 
 # wrapping it in stunnel (which would handle the --pop3s case).
