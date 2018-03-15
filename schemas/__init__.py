@@ -7,5 +7,6 @@ import schemas.ftp
 import schemas.ntp
 import schemas.mssql
 import schemas.redis
+import schemas.smtp
 import schemas.telnet
 import schemas.pop3
