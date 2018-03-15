@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-#############################
-## FIXME: REMOVE -p 110:110 #
-#############################
-
 echo "pop3/setup: Tests setup for pop3"
 
 CONTAINER_TAG="zgrab_pop3"
@@ -17,11 +13,11 @@ fi
 
 # If it is not running, try launching it -- on success, use that. 
 echo "pop3/setup: Trying to launch $CONTAINER_NAME..."
-if ! docker run -p 110:110 --rm --name $CONTAINER_NAME -td $CONTAINER_TAG; then
+if ! docker run --rm --name $CONTAINER_NAME -td $CONTAINER_TAG; then
     echo "pop3/setup: Building docker image $CONTAINER_TAG..."
     # If it fails, build it from ./container/Dockerfile
     docker build -t $CONTAINER_TAG ./container
     # Try again
     echo "pop3/setup: Launching $CONTAINER_NAME..."
-    docker run --rm --name $CONTAINER_NAME -p 110:110 -td $CONTAINER_TAG
+    docker run --rm --name $CONTAINER_NAME -td $CONTAINER_TAG
 fi
