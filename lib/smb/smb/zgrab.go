@@ -80,6 +80,9 @@ type SMBLog struct {
 	// SupportV1 is true if the server's protocol ID indicates support for version 1.
 	SupportV1 bool `json:"smbv1_support"`
 
+	// HasNTLM is true if the server supports the NTLM authentication method.
+	HasNTLM bool `json:"has_ntml"`
+
 	// NegotiationLog, if present, contains the server's response to the negotiation request.
 	NegotiationLog *NegotiationLog `json:"negotiation_log"`
 
@@ -136,7 +139,30 @@ func GetSMBLog(conn net.Conn) (*SMBLog, error) {
 		},
 	}
 
-	err := s.LoggedNegotiateProtocol()
+	err := s.LoggedNegotiateProtocol(true)
+	return s.Log, err
+}
+
+// GetSMBBanner sends a single negotiate packet to the server to perform a scan equivalent to the original ZGrab.
+func GetSMBBanner(conn net.Conn) (*SMBLog, error) {
+	opt := Options{}
+
+	s := &LoggedSession{
+		Session: Session{
+			IsSigningRequired: false,
+			IsAuthenticated:   false,
+			debug:             true,
+			securityMode:      0,
+			messageID:         0,
+			sessionID:         0,
+			dialect:           0,
+			conn:              conn,
+			options:           opt,
+			trees:             make(map[string]uint32),
+		},
+	}
+
+	err := s.LoggedNegotiateProtocol(false)
 	return s.Log, err
 }
 
@@ -152,7 +178,9 @@ func wstring(input []byte) string {
 
 // LoggedNegotiateProtocol performs the same operations as Session.NegotiateProtocol() up to the point where user
 // credentials would be required, and logs the server's responses.
-func (ls *LoggedSession) LoggedNegotiateProtocol() error {
+// If setup is false, stop after reading the response to Negotiate.
+// If setup is true, send a SessionSetup1 request.
+func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	s := &ls.Session
 	negReq := s.NewNegotiateReq()
 	s.Debug("Sending LoggedNegotiateProtocol request", nil)
@@ -205,15 +233,12 @@ func (ls *LoggedSession) LoggedNegotiateProtocol() error {
 		return err
 	}
 	logStruct.NegotiationLog.AuthenticationTypes = make([]string, len(negRes.SecurityBlob.Data.MechTypes))
-	hasNTLMSSP := false
+	logStruct.HasNTLM = false
 	for i, mechType := range negRes.SecurityBlob.Data.MechTypes {
 		logStruct.NegotiationLog.AuthenticationTypes[i] = mechType.String()
 		if mechType.Equal(asn1.ObjectIdentifier(ntlmsspOID)) {
-			hasNTLMSSP = true
+			logStruct.HasNTLM = true
 		}
-	}
-	if !hasNTLMSSP {
-		return errors.New("Server does not support NTLMSSP")
 	}
 
 	s.securityMode = negRes.SecurityMode
