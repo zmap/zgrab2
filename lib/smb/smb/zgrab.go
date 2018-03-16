@@ -81,7 +81,7 @@ type SMBLog struct {
 	SupportV1 bool `json:"smbv1_support"`
 
 	// HasNTLM is true if the server supports the NTLM authentication method.
-	HasNTLM bool `json:"has_ntml"`
+	HasNTLM bool `json:"has_ntlm"`
 
 	// NegotiationLog, if present, contains the server's response to the negotiation request.
 	NegotiationLog *NegotiationLog `json:"negotiation_log"`

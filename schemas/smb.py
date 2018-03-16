@@ -15,6 +15,7 @@ header_log = {
     'flags': Unsigned32BitInteger(),
 }
 
+
 # Return a (shallow) copy of base, with the fields of new merged atop it
 def extended(base, new):
     copy = {
@@ -23,6 +24,7 @@ def extended(base, new):
     for k, v in new.items():
         copy[k] = v
     return copy
+
 
 negotiate_log = SubRecord(extended(header_log, {
     'security_mode': Unsigned16BitInteger(),
@@ -41,13 +43,14 @@ session_setup_log = SubRecord(extended(header_log, {
 }))
 
 smb_scan_response = SubRecord({
-    "result": SubRecord({
-        "smbv1_support": Boolean(),
-        "negotiation_log": negotiate_log,
-        "session_setup_log": session_setup_log,
+    'result': SubRecord({
+        'smbv1_support': Boolean(),
+        'negotiation_log': negotiate_log,
+        'has_ntlm': Boolean(),
+        'session_setup_log': session_setup_log,
     })
 }, extends=zgrab2.base_scan_response)
 
-zschema.registry.register_schema("zgrab2-smb", smb_scan_response)
+zschema.registry.register_schema('zgrab2-smb', smb_scan_response)
 
-zgrab2.register_scan_response_type("smb", smb_scan_response)
+zgrab2.register_scan_response_type('smb', smb_scan_response)
