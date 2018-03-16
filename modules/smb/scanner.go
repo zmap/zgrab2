@@ -3,10 +3,10 @@
 package smb
 
 import (
+	"github.com/jb/tcpwrap"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/smb/smb"
-	"github.com/jb/tcpwrap"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -93,7 +93,7 @@ func (scanner *Scanner) GetPort() uint {
 // 2. Call smb.GetSMBBanner() on the connection
 // 3. Return the result.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	conn, err:= target.Open(&scanner.config.BaseFlags)
+	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}

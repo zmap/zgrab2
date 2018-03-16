@@ -7,9 +7,44 @@ import zschema.registry
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
 
+header_log = {
+    'protocol_id': Binary(),
+    'status': Unsigned32BitInteger(),
+    'command': Unsigned16BitInteger(),
+    'credits': Unsigned16BitInteger(),
+    'flags': Unsigned32BitInteger(),
+}
+
+# Return a (shallow) copy of base, with the fields of new merged atop it
+def extended(base, new):
+    copy = {
+        k: v for k, v in base.items()
+    }
+    for k, v in new.items():
+        copy[k] = v
+    return copy
+
+negotiate_log = SubRecord(extended(header_log, {
+    'security_mode': Unsigned16BitInteger(),
+    'dialect_revision': Unsigned16BitInteger(),
+    'server_guid': Binary(),
+    'capabilities': Unsigned32BitInteger(),
+    'system_time': Unsigned32BitInteger(),
+    'server_start_time': Unsigned32BitInteger(),
+    'authentication_types': ListOf(String()),
+}))
+
+session_setup_log = SubRecord(extended(header_log, {
+    'setup_flags': Unsigned16BitInteger(),
+    'target_name': String(),
+    'negotiate_flags': Unsigned32BitInteger(),
+}))
+
 smb_scan_response = SubRecord({
     "result": SubRecord({
         "smbv1_support": Boolean(),
+        "negotiation_log": negotiate_log,
+        "session_setup_log": session_setup_log,
     })
 }, extends=zgrab2.base_scan_response)
 
