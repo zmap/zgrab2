@@ -3,10 +3,10 @@
 package smb
 
 import (
-	"github.com/jb/tcpwrap"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/smb/smb"
+	"github.com/jb/tcpwrap"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -97,7 +97,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	conn = tcpwrap.Wrap(conn)
 
 	result, err := smb.GetSMBLog(conn)
 	if err != nil {
