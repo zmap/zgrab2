@@ -1,0 +1,4 @@
+Pulled from github.com/stacktitan/smb on 2018/03/16.
+
+Added smb/zgrab.go to achieve similar behavior to original zgrab scan,
+which directly modified NegotiateProtocol.
