@@ -121,14 +121,14 @@ func fillHeaderLog(src *Header, dest *HeaderLog) *HeaderLog {
 }
 
 // GetSMBLog attempts to negotiate a SMB session on the given connection.
-func GetSMBLog(conn net.Conn) (*SMBLog, error) {
+func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
 	opt := Options{}
 
 	s := &LoggedSession{
 		Session: Session{
 			IsSigningRequired: false,
 			IsAuthenticated:   false,
-			debug:             true,
+			debug:             debug,
 			securityMode:      0,
 			messageID:         0,
 			sessionID:         0,
@@ -144,14 +144,14 @@ func GetSMBLog(conn net.Conn) (*SMBLog, error) {
 }
 
 // GetSMBBanner sends a single negotiate packet to the server to perform a scan equivalent to the original ZGrab.
-func GetSMBBanner(conn net.Conn) (*SMBLog, error) {
+func GetSMBBanner(conn net.Conn, debug bool) (*SMBLog, error) {
 	opt := Options{}
 
 	s := &LoggedSession{
 		Session: Session{
 			IsSigningRequired: false,
 			IsAuthenticated:   false,
-			debug:             true,
+			debug:             debug,
 			securityMode:      0,
 			messageID:         0,
 			sessionID:         0,
@@ -239,6 +239,10 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 		if mechType.Equal(asn1.ObjectIdentifier(ntlmsspOID)) {
 			logStruct.HasNTLM = true
 		}
+	}
+
+	if !setup {
+		return nil
 	}
 
 	s.securityMode = negRes.SecurityMode
