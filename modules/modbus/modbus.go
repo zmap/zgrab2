@@ -15,7 +15,6 @@ package modbus
  */
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -288,10 +287,13 @@ type ModbusRequest struct {
 	Data []byte
 }
 
-// MarshalBinary marshals the request for transport to the server.
-func (r *ModbusRequest) MarshalBinary() (data []byte, err error) {
+// MarshalRequest marshals the request for transport to the server.
+func (c *Conn) MarshalRequest(r *ModbusRequest) (data []byte, err error) {
 	data = make([]byte, 7+1+len(r.Data))
-	copy(data[0:4], ModbusHeaderBytes)
+	// Request ID: default ZG
+	binary.BigEndian.PutUint16(data[0:2], c.scanner.config.RequestID)
+	// Protocol: must be 0
+	binary.BigEndian.PutUint16(data[2:4], 0)
 	msglen := len(r.Data) + 2 // unit ID and function
 	binary.BigEndian.PutUint16(data[4:6], uint16(msglen))
 	// leaving UnitID == 0 keeps the original zgrab behavior (which hangs on the modbus simulator -- "station #0 so no
@@ -330,10 +332,14 @@ func (c *Conn) GetModbusResponse() (*ModbusResponse, error) {
 	}
 
 	// first 4 bytes should be known, verify them
-	if !bytes.Equal(header[0:4], ModbusHeaderBytes) {
-		return nil, fmt.Errorf("modbus: not a modbus response")
+	requestID := binary.BigEndian.Uint16(header[0:2])
+	if requestID != c.scanner.config.RequestID {
+		return nil, fmt.Errorf("modbus: requestID did not match (got 0x%02x, expected 0x%02x)", requestID, c.scanner.config.RequestID)
 	}
-
+	protocolID := binary.BigEndian.Uint16(header[2:4])
+	if protocolID != 0 {
+		return nil, fmt.Errorf("modbus: protocol ID did not match (got 0x%02x, expected 0x00)", protocolID)
+	}
 	msglen := int(binary.BigEndian.Uint16(header[4:6]))
 	unitID := int(header[6])
 	body := make([]byte, msglen-1)
@@ -384,12 +390,6 @@ func (c FunctionCode) ExceptionFunctionCode() ExceptionFunctionCode {
 // IsException checks if the given function code is an exception (i.e. its high bit is set).
 func (c FunctionCode) IsException() bool {
 	return (byte(c) & 0x80) == 0x80
-}
-
-// ModbusHeaderBytes is the header prepended to each packet -- both server and client.
-var ModbusHeaderBytes = []byte{
-	0x13, 0x37, // do not matter, will just be verifying they are the same
-	0x00, 0x00, // must be 0
 }
 
 // ModbusFunctionEncapsulatedInterface identifies the MEI read function.
