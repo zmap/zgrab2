@@ -13,3 +13,4 @@ import schemas.pop3
 import schemas.smb
 import schemas.modbus
 import schemas.bacnet
+import schemas.dnp3
