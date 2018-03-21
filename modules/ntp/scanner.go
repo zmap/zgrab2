@@ -1006,6 +1006,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	defer sock.Close()
 	result := &Results{}
 	if !scanner.config.SkipGetTime {
 		inPacket, err := scanner.GetTime(sock)

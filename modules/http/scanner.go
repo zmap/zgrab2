@@ -76,6 +76,7 @@ type Scanner struct {
 // scan holds the state for a single scan. This may entail multiple connections.
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
+	connections []net.Conn
 	scanner   *Scanner
 	target    *zgrab2.ScanTarget
 	transport *http.Transport
@@ -126,6 +127,15 @@ func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
 }
 
+// Cleanup closes any connections that have been opened during the scan
+func (scan *scan) Cleanup() {
+	if scan.connections != nil {
+		for _, conn := range scan.connections {
+			defer conn.Close()
+		}
+	}
+}
+
 // getTLSDialer returns a Dial function that connects using the
 // zgrab2.GetTLSConnection()
 func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
@@ -134,6 +144,7 @@ func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
+		scan.connections = append(scan.connections, outer)
 		tlsConn, err := scan.scanner.config.TLSFlags.GetTLSConnection(outer)
 		if err != nil {
 			return nil, err
@@ -293,6 +304,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	scan := scanner.newHTTPScan(&t)
+	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
 		return err.Unpack(&scan.results)
