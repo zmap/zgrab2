@@ -1,46 +1,36 @@
-// Package #{MODULE_NAME} provides a zgrab2 module that scans for #{MODULE_NAME}.
-// TODO: Describe module, the flags, the probe, the output, etc.
-package #{MODULE_NAME}
+// Package dnp3 provides a zgrab2 module that scans for dnp3.
+// Default port: 20000 (TCP)
+//
+// Copied unmodified from the original zgrab.
+// Connects, and reads the banner. Returns the raw response.
+package dnp3
 
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
 
-// ScanResults instances are returned by the module's Scan function.
-type ScanResults struct {
-	// TODO: Add protocol
-
-	// Protocols that support TLS should include
-	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
-}
-
-// Flags holds the command-line configuration for the #{MODULE_NAME} scan module.
+// Flags holds the command-line configuration for the dnp3 scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
-	// TODO: Add more protocol-specific flags
-	// Protocols that support TLS should include zgrab2.TLSFlags
-
+	// TODO: Support UDP?
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
 type Module struct {
-	// TODO: Add any module-global state
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
-	// TODO: Add scan state
 }
 
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	// FIXME: Set default port
-	_, err := zgrab2.AddCommand("#{MODULE_NAME}", "#{MODULE_NAME}", "Probe for #{MODULE_NAME}", FIXME_DEFAULT_PORT, &module)
+	_, err := zgrab2.AddCommand("dnp3", "dnp3", "Probe for dnp3", 20000, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +77,7 @@ func (scanner *Scanner) GetName() string {
 
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
-	return "#{MODULE_NAME}"
+	return "dnp3"
 }
 
 // GetPort returns the port being scanned.
@@ -95,13 +85,18 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-// Scan TODO: describe what is scanned
+// Scan probes for a DNP3 service.
+// Connects to the configured TCP port (default 20000) and reads the banner.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	// TODO: Allow UDP?
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer conn.Close()
-	// TODO: implement
-	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
+	ret := new(DNP3Log)
+	if err := GetDNP3Banner(ret, conn); err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	return zgrab2.SCAN_SUCCESS, ret, nil
 }
