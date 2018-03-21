@@ -25,8 +25,6 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-import "github.com/jb/tcpwrap"
-
 // Flags holds the command-line configuration for the modbus scan module.
 // Populated by the framework.
 type Flags struct {
@@ -137,7 +135,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	defer conn.Close()
 
-	c := Conn{Conn: tcpwrap.Wrap(conn)}
+	c := Conn{Conn: conn}
 	req := ModbusRequest{
 		UnitID:   int(scanner.config.UnitID),
 		Function: ModbusFunctionEncapsulatedInterface,
