@@ -13,18 +13,17 @@ type ScanStatus string
 
 // TODO: Conform to standard string const format (names, capitalization, hyphens/underscores, etc)
 // TODO: Enumerate further status types
+// TODO: lump connection closed / io timeout?
+// TODO: Add SCAN_TLS_PROTOCOL_ERROR? For purely TLS-wrapped protocols, SCAN_PROTOCOL_ERROR is fine -- but for protocols that have a non-TLS bootstrap (e.g. a STARTTLS procedure), SCAN_PROTOCOL_ERROR is misleading, since it did get far-enough into the application protocol to start TLS handshaking -- but a garbled TLS handshake is certainly not a SCAN_APPLICATION_ERROR
 const (
-	SCAN_SUCCESS            = "success"            // The protocol in question was positively identified and the scan encountered no errors
-	SCAN_CONNECTION_REFUSED = "connection-refused" // TCP connection was actively rejected
-	SCAN_CONNECTION_TIMEOUT = "connection-timeout" // No response to TCP connection request
-
-	// TODO: lump connection closed / io timeout?
-	SCAN_CONNECTION_CLOSED = "connection-closed" // The TCP connection was unexpectedly closed
-	SCAN_IO_TIMEOUT        = "io-timeout"        // Timed out waiting on data
-	SCAN_PROTOCOL_ERROR    = "protocol-error"    // Received data incompatible with the target protocol
-	// TODO: Add SCAN_TLS_PROTOCOL_ERROR? For purely TLS-wrapped protocols, SCAN_PROTOCOL_ERROR is fine -- but for protocols that have a non-TLS bootstrap (e.g. a STARTTLS procedure), SCAN_PROTOCOL_ERROR is misleading, since it did get far-enough into the application protocol to start TLS handshaking -- but a garbled TLS handshake is certainly not a SCAN_APPLICATION_ERROR
-	SCAN_APPLICATION_ERROR = "application-error" // The application reported an error
-	SCAN_UNKNOWN_ERROR     = "unknown-error"     // Catch-all for unrecognized errors
+	SCAN_SUCCESS            ScanStatus = "success"            // The protocol in question was positively identified and the scan encountered no errors
+	SCAN_CONNECTION_REFUSED            = "connection-refused" // TCP connection was actively rejected
+	SCAN_CONNECTION_TIMEOUT            = "connection-timeout" // No response to TCP connection request
+	SCAN_CONNECTION_CLOSED             = "connection-closed"  // The TCP connection was unexpectedly closed
+	SCAN_IO_TIMEOUT                    = "io-timeout"         // Timed out waiting on data
+	SCAN_PROTOCOL_ERROR                = "protocol-error"     // Received data incompatible with the target protocol
+	SCAN_APPLICATION_ERROR             = "application-error"  // The application reported an error
+	SCAN_UNKNOWN_ERROR                 = "unknown-error"      // Catch-all for unrecognized errors
 )
 
 // ScanError an error that also includes a ScanStatus.

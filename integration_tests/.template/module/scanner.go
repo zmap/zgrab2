@@ -96,7 +96,11 @@ func (scanner *Scanner) GetPort() uint {
 }
 
 // Scan TODO: describe what is scanned
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	conn, err := target.Open(&scanner.config.BaseFlags)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
 	// TODO: implement
 	return zgrab2.SCAN_UNKNOWN_ERROR, nil, nil
 }
