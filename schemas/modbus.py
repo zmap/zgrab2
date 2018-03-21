@@ -19,7 +19,9 @@ mei_object_names = [
 
 # IDs without an explicit name are encoded as oid_(decimal id).
 mei_object_set = SubRecord({
-    i < len(mei_object_names) and mei_object_names[i] or 'oid_' + str(i): String() for i in range(0, 256)
+    i < len(mei_object_names) and mei_object_names[i]
+    or 'oid_' + str(i): String()
+    for i in range(0, 256)
 })
 
 mei_response = SubRecord({
@@ -28,6 +30,11 @@ mei_response = SubRecord({
     'next_object_id': Unsigned8BitInteger(),
     'object_count': Unsigned8BitInteger(),
     'objects': mei_object_set,
+})
+
+exception_response = SubRecord({
+    'exception_function': Unsigned8BitInteger(),
+    'exception_type': Unsigned8BitInteger(),
 })
 
 modbus_scan_response = SubRecord({
