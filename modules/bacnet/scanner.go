@@ -107,6 +107,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	defer conn.Close()
 	ret := new(Log)
 	// TODO: if one fails, try others?
 	// TODO: distinguish protocol vs app errors

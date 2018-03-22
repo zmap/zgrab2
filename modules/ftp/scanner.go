@@ -232,6 +232,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	defer conn.Close()
 	ftp := Connection{conn: conn, config: s.config, results: ScanResults{}}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
