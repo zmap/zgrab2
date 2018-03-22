@@ -14,3 +14,4 @@ import schemas.smb
 import schemas.modbus
 import schemas.bacnet
 import schemas.dnp3
+import schemas.fox
