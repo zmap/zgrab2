@@ -179,7 +179,7 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 		log.Fatalf("--signature-algorithms not implemented")
 	}
 
-	if t.HeartbeatEnabled {
+	if t.HeartbeatEnabled || t.Heartbleed {
 		ret.HeartbeatEnabled = true
 	} else {
 		ret.HeartbeatEnabled = false
