@@ -2,7 +2,6 @@ package zgrab2
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -10,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	json "github.com/zmap/zgrab2/lib/json"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -104,7 +104,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	}
 
 	a := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
-	result, err := json.Marshal(a)
+	result, err := json.Marshal(a, false)
 	if err != nil {
 		log.Fatalf("unable to marshal data: %s", err)
 	}
