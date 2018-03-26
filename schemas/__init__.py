@@ -8,6 +8,7 @@ import schemas.modbus
 import schemas.mssql
 import schemas.mysql
 import schemas.ntp
+import schemas.oracle
 import schemas.pop3
 import schemas.postgres
 import schemas.redis
