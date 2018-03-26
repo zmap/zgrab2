@@ -102,3 +102,8 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	status := zgrab2.TryGetScanStatus(err)
 	return status, data, err
 }
+
+// Protocol returns the protocol identifer for the scanner.
+func (s *SSHScanner) Protocol() string {
+	return "ssh"
+}

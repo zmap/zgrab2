@@ -1,10 +1,19 @@
 # Ensure that all of the modules get executed so that they are registered
-import schemas.mysql
-import schemas.ssh
-import schemas.postgres
-import schemas.http
+import schemas.bacnet
+import schemas.dnp3
+import schemas.fox
 import schemas.ftp
-import schemas.ntp
+import schemas.http
+import schemas.modbus
 import schemas.mssql
-import schemas.redis
+import schemas.mysql
+import schemas.ntp
 import schemas.oracle
+import schemas.pop3
+import schemas.postgres
+import schemas.redis
+import schemas.siemens
+import schemas.smb
+import schemas.smtp
+import schemas.ssh
+import schemas.telnet

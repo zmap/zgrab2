@@ -853,6 +853,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "ntp"
+}
+
 // GetName returns the module's name
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
@@ -1001,6 +1006,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	defer sock.Close()
 	result := &Results{}
 	if !scanner.config.SkipGetTime {
 		inPacket, err := scanner.GetTime(sock)

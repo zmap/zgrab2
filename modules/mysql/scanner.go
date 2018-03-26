@@ -176,6 +176,11 @@ func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "mysql"
+}
+
 // GetName returns the name from the command line flags.
 func (s *Scanner) GetName() string {
 	return s.config.Name

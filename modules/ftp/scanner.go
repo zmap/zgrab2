@@ -98,6 +98,11 @@ func (f *Flags) Help() string {
 	return ""
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "ftp"
+}
+
 // Init initializes the Scanner instance with the flags from the command
 // line.
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
@@ -227,6 +232,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	defer conn.Close()
 	ftp := Connection{conn: conn, config: s.config, results: ScanResults{}}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {

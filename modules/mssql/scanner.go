@@ -85,6 +85,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
+// Protocol returns the protocol identifer for the scanner.
+func (s *Scanner) Protocol() string {
+	return "mssql"
+}
+
 // GetName returns the configured scanner name.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
