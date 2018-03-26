@@ -9,7 +9,9 @@ import schemas.zgrab2 as zgrab2
 
 # Get a dict of all keys, mapping key -> true 
 def flagsSet(keys):
-    return SubRecord(dict((key, Boolean()) for key in keys))
+    return SubRecord({
+        key: Boolean() for key in keys
+    })
 
 global_service_options = [
     "BROKEN_CONNECT_NOTIFY",
@@ -68,10 +70,7 @@ oracle_scan_response = SubRecord({
             "refuse_reason_sys": String(),
             "nsn_version": String(),
             "nsn_service_versions": SubRecord({
-                "Authentication": String(),
-                "Encryption": String(),
-                "DataIntegrity": String(),
-                "Supervisor": String()
+                service: String() for service in nsn_services
             }),
         }),
         "tls": zgrab2.tls_log,

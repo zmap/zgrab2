@@ -3,12 +3,12 @@
 //
 // The scan does the first part of a TNS handshake, prior to the point where
 // any actual authentication is required; the happy case goes
-//  ->  Connect(--client-version, --min-server-version, --connect-descriptor)
-// <-   Resend
-//  ->  Connect(exact same data)
-// <-   Accept(server_version)
-//  ->  Data: Native Service Negotiation
-// <-   Data: Native Service Negotiation(component release versions)
+// 1. client-to-server: Connect(--client-version, --min-server-version, --connect-descriptor)
+// 2. server-to-client: Resend
+// 3. client-to-server: Connect(exact same data)
+// 4. server-to-client: Accept(server_version)
+// 5. client-to-server: Data: Native Service Negotiation
+// 6. server-to-client: Data: Native Service Negotiation(component release versions)
 //
 // The default scan uses a generic connect descriptor with no explicit connect
 // data / service name, so it relies on the server to choose the destination.
