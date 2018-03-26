@@ -170,6 +170,11 @@ func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
 }
 
+// Protocol returns the protocol identifier of the scan.
+func (scanner *Scanner) Protocol() string {
+	return "oracle"
+}
+
 // GetPort returns the port being scanned.
 func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
