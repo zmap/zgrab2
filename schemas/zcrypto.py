@@ -457,6 +457,7 @@ tls_handshake = SubRecord({
                 "length": Integer(),
             }),
         }),
+        "digest": Binary(),
         "signature": SubRecord({
             "raw": Binary(),
             "type": String(),
