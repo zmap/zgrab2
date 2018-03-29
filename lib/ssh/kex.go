@@ -266,9 +266,11 @@ func (group *dhGroup) Client(c packetConn, randSource io.Reader, magics *handsha
 	K := make([]byte, intLength(kInt))
 	marshalInt(K, kInt)
 	h.Write(K)
+	H := h.Sum(nil)
+	group.JsonLog.ServerSignature.H = H
 
 	return &kexResult{
-		H:         h.Sum(nil),
+		H:         H,
 		K:         K,
 		HostKey:   kexDHReply.HostKey,
 		Signature: kexDHReply.Signature,
@@ -442,9 +444,11 @@ func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics, c
 	K := make([]byte, intLength(secret))
 	marshalInt(K, secret)
 	h.Write(K)
+	H := h.Sum(nil)
+	kex.JsonLog.ServerSignature.H = H
 
 	return &kexResult{
-		H:         h.Sum(nil),
+		H:         H,
 		K:         K,
 		HostKey:   reply.HostKey,
 		Signature: reply.Signature,
@@ -690,9 +694,11 @@ func (kex *curve25519sha256) Client(c packetConn, rand io.Reader, magics *handsh
 	K := make([]byte, intLength(kInt))
 	marshalInt(K, kInt)
 	h.Write(K)
+	H := h.Sum(nil)
+	kex.JsonLog.ServerSignature.H = H
 
 	return &kexResult{
-		H:         h.Sum(nil),
+		H:         H,
 		K:         K,
 		HostKey:   reply.HostKey,
 		Signature: reply.Signature,

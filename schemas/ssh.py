@@ -52,6 +52,7 @@ xssh_signature = SubRecord({
         "value":Binary(),
     }),
     "raw":Binary(),
+    "h":Binary(),
 })
 
 # zgrab/ztools/keys/ecdhe.go: ECDHPrivateParams
