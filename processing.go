@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zgrab2/lib/output"
 )
 
 // Grab contains all scan responses for a single host
@@ -104,7 +105,9 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	}
 
 	a := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
-	result, err := json.Marshal(a)
+	stripped, err := output.Process(a)
+
+	result, err := json.Marshal(stripped)
 	if err != nil {
 		log.Fatalf("unable to marshal data: %s", err)
 	}
