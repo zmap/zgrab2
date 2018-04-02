@@ -69,17 +69,28 @@ func isPrimitiveKind(kind reflect.Kind) bool {
 type OutputProcessor struct {
 	// Verbose indicates that debug fields should not be stripped out.
 	Verbose bool
+	depth   int
+	mutex   sync.Locker
 }
 
 // NewOutputProcessor gets a new OutputProcessor with the default settings.
 func NewOutputProcessor() *OutputProcessor {
 	return &OutputProcessor{
+		mutex:   &sync.Mutex{},
 		Verbose: false,
 	}
 }
 
 // Process the input using the options in the given OutputProcessor.
 func (processor *OutputProcessor) Process(v interface{}) (interface{}, error) {
+	processor.mutex.Lock()
+	defer func() {
+		if processor.depth != 0 {
+			logrus.Warnf("process exited at nonzero depth %d", processor.depth)
+			processor.depth = 0
+		}
+		processor.mutex.Unlock()
+	}()
 	ret, err := processor.process(v)
 	if err != nil {
 		return nil, err
@@ -216,9 +227,20 @@ type structProcessor struct {
 	fieldEncs []processorFunc
 }
 
+func setToNil(value reflect.Value) {
+	value.Set(reflect.Zero(value.Type()))
+}
+
 // structProcessor.process processes each field in se.fields (unless omitted).
 func (se *structProcessor) process(processor *OutputProcessor, v reflect.Value) reflect.Value {
 	ret := reflect.New(v.Type()).Elem()
+	// Attempt a naive copy, to pick up any 'hidden' fields (debug fields will
+	// be zeroed out later).
+	ret.Set(v)
+	processor.depth++
+	defer func() {
+		processor.depth--
+	}()
 	for i, f := range se.fields {
 		fv := fieldByIndex(v, f.index)
 		if !fv.IsValid() {
@@ -227,10 +249,17 @@ func (se *structProcessor) process(processor *OutputProcessor, v reflect.Value) 
 		}
 
 		if f.zgrabTag.Debug && !processor.Verbose {
-			// ignore
+			// overwrite the field with the zero value
+			rfv := writableFieldByIndex(ret, f.index)
+			if rfv.CanSet() {
+				setToNil(rfv)
+			} else {
+				logrus.Warnf("zgrab output process: Cannot nil over field %s (%v)", f.name, rfv)
+			}
 		} else {
 			// get output field
 			rfv := writableFieldByIndex(ret, f.index)
+
 			if rfv.CanSet() {
 				// set output field to processed value
 				rfv.Set(se.fieldEncs[i](processor, fv))
