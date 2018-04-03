@@ -1,5 +1,7 @@
 package test
 
+// FIXME: This is in its own package to work around import loops.
+
 import (
 	"encoding/json"
 	"fmt"
@@ -15,20 +17,26 @@ import (
 
 	"strings"
 
+	"io/ioutil"
+	"os/exec"
+
 	"github.com/sirupsen/logrus"
 	jsonKeys "github.com/zmap/zcrypto/json"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
 	"github.com/zmap/zcrypto/x509/pkix"
+	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/output"
-	"github.com/zmap/zgrab2/lib/output/types"
 )
+
+const doFailDiffs = false
 
 // The tests operate by manually constructing the stripped versions of the output.
 type Strippable interface {
 	Stripped() string
 }
 
+// JSON encode the value, then decode it as a map[string]interface{}.
 func toMap(v interface{}) map[string]interface{} {
 	ret, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -42,25 +50,29 @@ func toMap(v interface{}) map[string]interface{} {
 	return *theMap
 }
 
-func mapPath(v interface{}, keys ...string) (interface{}, error) {
+// Get v[key0][key1]...[keyN], or return nil, error if any values along the way
+// are nil / not present / not maps.
+func mapPath(theMap interface{}, keys ...string) (interface{}, error) {
 	for i, key := range keys {
-		cast, ok := v.(map[string]interface{})
+		cast, ok := theMap.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("%s in map is not a map", strings.Join(keys[0:i], "."))
 		}
-		v = cast
+		theMap = cast
 		next, ok := cast[key]
 		if !ok {
 			return nil, fmt.Errorf("map does not contain %s", strings.Join(keys[0:i+1], "."))
 		}
-		v = next
+		theMap = next
 	}
-	return v, nil
+	return theMap, nil
 }
 
-func nilOut(v map[string]interface{}, keys ...string) error {
+// Set theMap[key0][key1]...[keyN] = value, or return error if any values along
+// the way are nil / not present / not maps.
+func setMapValue(theMap map[string]interface{}, value interface{}, keys ...string) error {
 	lastIndex := len(keys) - 1
-	out, err := mapPath(v, keys[0:lastIndex]...)
+	out, err := mapPath(theMap, keys[0:lastIndex]...)
 	if err != nil {
 		return err
 	}
@@ -68,7 +80,23 @@ func nilOut(v map[string]interface{}, keys ...string) error {
 	if !ok {
 		return fmt.Errorf("%s in map is not a map", strings.Join(keys[0:lastIndex], "."))
 	}
-	cast[keys[lastIndex]] = nil
+	cast[keys[lastIndex]] = value
+	return nil
+}
+
+// delete the value at theMap[key0][key1]...[keyN], or return an error if any
+// values along the way are nil / not present / not maps.
+func delOut(theMap map[string]interface{}, keys ...string) error {
+	lastIndex := len(keys) - 1
+	out, err := mapPath(theMap, keys[0:lastIndex]...)
+	if err != nil {
+		return err
+	}
+	cast, ok := out.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("%s in map is not a map", strings.Join(keys[0:lastIndex], "."))
+	}
+	delete(cast, keys[lastIndex])
 	return nil
 }
 
@@ -85,14 +113,20 @@ func marshal(v interface{}) string {
 	return string(realRet)
 }
 
-// Helper to process then marshal the input using the given processor.
-func process(verbose bool, v interface{}) string {
-	proc := output.NewOutputProcessor()
+// Get the processed copy of v using the given verbosity value.
+func process(verbose bool, v interface{}) interface{} {
+	proc := output.NewProcessor()
 	proc.Verbose = verbose
-	theCopy, err := proc.Process(v)
+	ret, err := proc.Process(v)
 	if err != nil {
-		logrus.Fatalf("Error processing: %v", err)
+		panic(err)
 	}
+	return ret
+}
+
+// Return the marshalled  processed copy of v using the given verbosity value.
+func strip(verbose bool, v interface{}) string {
+	theCopy := process(verbose, v)
 	return marshal(theCopy)
 }
 
@@ -793,8 +827,16 @@ func getDeepAnon(id string, depth int) *DeepAnon {
 	}
 	return ret
 }
+
 func fail(t *testing.T, id string, expected string, actual string) {
 	t.Logf("%s: mismatch: expected %s, got %s", id, expected, actual)
+	if doFailDiffs {
+		ioutil.WriteFile(id+"-expected.json", []byte(expected), 0)
+		ioutil.WriteFile(id+"-actual.json", []byte(actual), 0)
+		cmd := exec.Command("diff", "-u", id+"-expected.json", id+"-actual.json")
+		ret, _ := cmd.Output()
+		ioutil.WriteFile(id+".diff", ret, 0)
+	}
 	t.Errorf("%s mismatch", id)
 }
 
@@ -802,13 +844,13 @@ func fail(t *testing.T, id string, expected string, actual string) {
 func TestProcess(t *testing.T) {
 	tests := map[string]Strippable{
 		"flat":           getFlat("flat"),
-		"deep":           getDeep("deep", 1),
-		"deepAnon":       getDeepAnon("deepAnon", 1),
-		"deepArray":      getDeepArray("deepArray", 1),
-		"deepIface":      getDeepIface("deepIface", 1),
-		"deepIfaceArray": getDeepIfaceArray("deepIfaceArray", 1),
-		"deepIfaceSlice": getDeepIfaceSlice("deepIfaceSlice", 1),
-		"deepSlice":      getDeepSlice("deepSlice", 1),
+		"deep":           getDeep("deep", 3),
+		"deepAnon":       getDeepAnon("deepAnon", 3),
+		"deepArray":      getDeepArray("deepArray", 3),
+		"deepIface":      getDeepIface("deepIface", 3),
+		"deepIfaceArray": getDeepIfaceArray("deepIfaceArray", 3),
+		"deepIfaceSlice": getDeepIfaceSlice("deepIfaceSlice", 3),
+		"deepSlice":      getDeepSlice("deepSlice", 3),
 	}
 
 	doTest := func(verbose bool, id string, input Strippable) {
@@ -824,7 +866,7 @@ func TestProcess(t *testing.T) {
 		} else {
 			expected = input.Stripped()
 		}
-		actual := process(verbose, input)
+		actual := strip(verbose, input)
 		if expected != actual {
 			fail(t, testID, expected, actual)
 		}
@@ -833,10 +875,12 @@ func TestProcess(t *testing.T) {
 		var done sync.WaitGroup
 		done.Add(len(tests))
 		for k, v := range tests {
+			//done.Add(1)
 			go func(id string, input Strippable) {
 				defer done.Done()
 				doTest(verbose, id, input)
 			}(k, v)
+			//done.Wait()
 		}
 		done.Wait()
 	}
@@ -886,7 +930,7 @@ type fakeMySQLScanResults struct {
 
 	// CharacterSet is the identifier for the character set the server is
 	// using. Returned in the initial HandshakePacket.
-	CharacterSet byte `json:"character_set" zgrab:"debug"`
+	CharacterSet byte `json:"character_set,omitempty" zgrab:"debug"`
 
 	// StatusFlags is the set of status flags the server returned in the
 	// initial HandshakePacket. Each true entry in the map corresponds to
@@ -917,7 +961,7 @@ type fakeMySQLScanResults struct {
 	RawPackets []string `json:"raw_packets,omitempty"`
 
 	// TLSLog contains the usual shared TLS logs.
-	TLSLog *types.TLSLog `json:"tls,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // TestMySQL builds a bogus MySQL result, and then manually checks that the
@@ -945,7 +989,7 @@ func TestMySQL(t *testing.T) {
 	results.StatusFlags = map[string]bool{
 		"SERVER_STATUS_AUTOCOMMIT": true,
 	}
-	results.TLSLog = new(types.TLSLog)
+	results.TLSLog = new(zgrab2.TLSLog)
 	results.TLSLog.HandshakeLog = &tls.ServerHandshake{
 		ClientFinished: &tls.Finished{
 			VerifyData: []byte("not real data"),
@@ -1047,14 +1091,9 @@ func TestMySQL(t *testing.T) {
 	mapVal := toMap(results)
 	mapVal["auth_plugin_data"] = nil
 	mapVal["connection_id"] = 0
+	delOut(mapVal, "tls", "handshake_log", "client_hello")
 	expected := marshal(mapVal)
-	p := output.NewOutputProcessor()
-	p.Verbose = false
-	output, err := p.Process(results)
-	if err != nil {
-		panic(err)
-	}
-	actual := marshal(output)
+	actual := strip(false, results)
 	if actual != expected {
 		fail(t, "fake-mysql", expected, actual)
 	}

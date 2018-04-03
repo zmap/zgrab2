@@ -27,16 +27,16 @@ type ScanResults struct {
 
 	// ConnectionID is the server's internal identifier for this client's
 	// connection, sent in the initial HandshakePacket.
-	ConnectionID uint32 `json:"connection_id" zgrab:"debug"`
+	ConnectionID uint32 `json:"connection_id,omitempty" zgrab:"debug"`
 
 	// AuthPluginData is optional plugin-specific data, whose meaning
 	// depends on the value of AuthPluginName. Returned in the initial
 	// HandshakePacket.
-	AuthPluginData []byte `json:"auth_plugin_data" zgrab:"debug"`
+	AuthPluginData []byte `json:"auth_plugin_data,omitempty" zgrab:"debug"`
 
 	// CharacterSet is the identifier for the character set the server is
 	// using. Returned in the initial HandshakePacket.
-	CharacterSet byte `json:"character_set" zgrab:"debug"`
+	CharacterSet byte `json:"character_set,omitempty" zgrab:"debug"`
 
 	// StatusFlags is the set of status flags the server returned in the
 	// initial HandshakePacket. Each true entry in the map corresponds to

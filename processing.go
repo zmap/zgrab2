@@ -104,8 +104,14 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 		ipstr = s
 	}
 
-	a := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
-	stripped, err := output.Process(a)
+	raw := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
+
+	// TODO FIXME: Move verbosity to global level, or add a Verbosity() method to the Module interface.
+	stripped, err := output.Process(raw)
+	if err != nil {
+		log.Warnf("Error processing results: %v", err)
+		stripped = raw
+	}
 
 	result, err := json.Marshal(stripped)
 	if err != nil {
