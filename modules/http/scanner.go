@@ -41,6 +41,7 @@ type Flags struct {
 	Method       string `long:"method" default:"GET" description:"Set HTTP request method type"`
 	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS   bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
@@ -133,6 +134,7 @@ func (scan *scan) Cleanup() {
 		for _, conn := range scan.connections {
 			defer conn.Close()
 		}
+		scan.connections = nil
 	}
 }
 
@@ -307,6 +309,17 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
+		if scanner.config.RetryHTTPS && !scanner.config.UseHTTPS {
+			scan.Cleanup()
+			scanner.config.UseHTTPS = true
+			retry := scanner.newHTTPScan(&t)
+			defer retry.Cleanup()
+			retryError := retry.Grab()
+			if retryError != nil {
+				return retryError.Unpack(&retry.results)
+			}
+			return zgrab2.SCAN_SUCCESS, &retry.results, nil
+		}
 		return err.Unpack(&scan.results)
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
