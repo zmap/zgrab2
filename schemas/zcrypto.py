@@ -558,16 +558,3 @@ heartbleed_log = SubRecord({
 
 # zcrypto/x509/chain.go: type CertificateChain []*Certificate
 certificate_chain = ListOf(parsed_certificate)
-
-# zcrypto/tls/common.go: ConnectionState (note: no `json` tags)
-tls_connection_state = SubRecord({
-    "Version": Unsigned16BitInteger(),
-    "HandshakeComplete": Boolean(),
-    "DidResume": Boolean(),
-    "CipherSuite": Unsigned16BitInteger(),
-    "NegotiatedProtocol": String(),
-    "NegotiatedProtocolIsMutual": Boolean(),
-    "ServerName": String(),
-    "PeerCertificate": parsed_certificate,
-    "VerifiedChains": ListOf(certificate_chain),
-})

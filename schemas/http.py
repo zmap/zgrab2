@@ -123,8 +123,6 @@ http_request_full = SubRecord({
     "post_form": http_form_values,
     "multipart_form": http_form_values,
     "trailers": http_headers,
-    # For compatibility, left tls -> tls.ConnectionState
-    "tls": zcrypto.tls_connection_state,
     # The new field tls_log contains the zgrab2 TLS logs.
     "tls_log": zgrab2.tls_log
 })
