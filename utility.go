@@ -171,7 +171,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	// The first read will use any pre-assigned deadlines.
 	n, err := conn.Read(buf[0:min(bufferSize, maxReadSize)])
 	ret = append(ret, buf[0:n]...)
-	if err != nil || n < bufferSize || n >= maxReadSize {
+	if err != nil || n >= maxReadSize {
 		return ret, err
 	}
 	maxReadSize -= n
@@ -190,11 +190,12 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 			if IsTimeoutError(err) {
 				err = nil
 			}
+			return ret, err
 		}
 		if err != nil {
 			return ret, err
 		}
-		if n < bufferSize || n >= maxReadSize {
+		if n >= maxReadSize {
 			return ret, err
 		}
 	}
