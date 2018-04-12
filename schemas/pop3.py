@@ -9,11 +9,11 @@ import schemas.zgrab2 as zgrab2
 
 pop3_scan_response = SubRecord({
     "result": SubRecord({
-        "banner": String(),
-        "noop": String(),
-        "help": String(),
-        "starttls": String(),
-        "quit": String(),
+        "banner": String(doc="The POP3 banner."),
+        "noop": String(doc="The server's response to the NOOP command."),
+        "help": String(doc="The server's response to the HELP command."),
+        "starttls": String(doc="The server's response to the STARTTLS command."),
+        "quit": String(doc="The server's response to the QUIT command."),
         "tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)
