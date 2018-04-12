@@ -1,5 +1,6 @@
 # zschema sub-schema for zgrab2's oracle module
 # Registers zgrab2-oracle globally, and oracle with the main zgrab2 schema.
+
 from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
@@ -7,11 +8,7 @@ import zschema.registry
 import schemas.zcrypto as zcrypto
 import schemas.zgrab2 as zgrab2
 
-# Get a dict of all keys, mapping key -> true 
-def flagsSet(keys):
-    return SubRecord({
-        key: Boolean() for key in keys
-    })
+FlagsSet = zgrab2.FlagsSet
 
 global_service_options = [
     "BROKEN_CONNECT_NOTIFY",
@@ -48,34 +45,41 @@ nsn_services = [
     "Supervisor",
 ]
 
-parsed_descriptor = ListOf(SubRecord({
-    "key": String(),
-    "value": String(),
-}))
+
+def parsed_descriptor(**kwargs):
+    return ListOf(SubRecord({
+        "key": String(),
+        "value": String(),
+    }), **kwargs)
+
 
 oracle_scan_response = SubRecord({
     "result": SubRecord({
         "handshake": SubRecord({
-            "accept_version": Unsigned16BitInteger(),
-            "global_service_options": flagsSet(global_service_options),
-            "connect_flags0": flagsSet(connect_flags),
-            "connect_flags1": flagsSet(connect_flags),
-            "did_resend": Boolean(),
-            "redirect_target_raw": String(),
-            "redirect_target": parsed_descriptor,
-            "refuse_error_raw": String(),
-            "refuse_error": parsed_descriptor,
-            "refuse_version": String(),
-            "refuse_reason_app": String(),
-            "refuse_reason_sys": String(),
-            "nsn_version": String(),
+            "accept_version": Unsigned16BitInteger(doc="The protocol version number from the Accept packet."),
+            "global_service_options": FlagsSet(global_service_options, doc="Set of flags that the server returns in the Accept packet."),
+            "connect_flags0": FlagsSet(connect_flags, doc="The first set of ConnectFlags returned in the Accept packet."),
+            "connect_flags1": FlagsSet(connect_flags, doc="The second set of ConnectFlags returned in the Accept packet."),
+            "did_resend": Boolean(doc="True if the server sent a Resend packet request in response to the client's first Connect packet."),
+            "redirect_target_raw": String(doc="The connect descriptor returned by the server in the Redirect packet, if one is sent. Otherwise, omitted.", examples=[
+                "(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=theServiceName)(CID=(PROGRAM=zgrab2)(HOST=targethost)(USER=targetuser)))(ADDRESS=(PROTOCOL=TCP)(HOST=1.2.3.4)(PORT=1521)))"
+            ]),
+            "redirect_target": parsed_descriptor(doc="The parsed connect descriptor returned by the server in the redirect packet, if one is sent. Otherwise, omitted. The parsed descriptor is a list of objects with key and value, where the keys strings like 'DESCRIPTION.CONNECT_DATA.SERVICE_NAME'."),
+            "refuse_error_raw": String(doc="The data from the Refuse packet returned by the server; it is empty if the server does not return a Refuse packet.", examples=[
+                "(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))(ERROR=(CODE=303)(EMFI=1))))"
+            ]),
+            "refuse_error": parsed_descriptor(doc="The parsed descriptor returned by the server in the Refuse packet; it is empty if the server does not return a Refuse packet. The keys are strings like 'DESCRIPTION.ERROR_STACK.ERROR.CODE'."),
+            "refuse_version": String(doc="The parsed DESCRIPTION.VSNNUM field from the RefuseError descriptor returned by the server in the Refuse packet, in dotted-decimal format.", examples=["11.2.0.2.0"]),
+            "refuse_reason_app": String(doc="The 'AppReason' returned by the server in the RefusePacket, as an 8-bit unsigned hex string. Omitted if the server did not send a Refuse packet.", examples=["0x22", "0x04"]),
+            "refuse_reason_sys": String(doc="The 'SysReason' returned by the server in the RefusePacket, as an 8-bit unsigned hex string. Omitted if the server did not send a Refuse packet.", examples=["0x00", "0x04"]),
+            "nsn_version": String(doc="The ReleaseVersion string (in dotted-decimal format) in the root of the Native Service Negotiation packet.", examples=["11.2.0.2.0"]),
             "nsn_service_versions": SubRecord({
                 service: String() for service in nsn_services
-            }),
-        }),
+            }, doc="A map from the native Service Negotation service names to the ReleaseVersion (in dotted-decimal format) in that service packet."),
+        }, doc="The log of the Oracle / TDS handshake process."),
         "tls": zgrab2.tls_log,
     })
-}, extends = zgrab2.base_scan_response)
+}, extends=zgrab2.base_scan_response)
 
 zschema.registry.register_schema("zgrab2-oracle", oracle_scan_response)
 
