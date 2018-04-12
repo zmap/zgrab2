@@ -16,7 +16,7 @@ class CensysString(WhitespaceAnalyzedString):
     INCLUDE_RAW = True
 
 # x509/pkix/pkix.go: Name
-distinguished_name = SubRecord({
+DistinguishedName = SubRecordType({
     "serial_number": ListOf(String()),
     "common_name": ListOf(CensysString()),
     "surname": ListOf(CensysString()),
@@ -57,7 +57,7 @@ alternate_name = SubRecord({
     "dns_names": ListOf(FQDN()),
     "email_addresses": ListOf(EmailAddress()),
     "ip_addresses": ListOf(IPAddress()),
-    "directory_names": ListOf(distinguished_name),
+    "directory_names": ListOf(DistinguishedName()),
     "edi_party_names": ListOf(edi_party_name),
     "other_names": ListOf(SubRecord({
         "id": OID(),
@@ -68,20 +68,20 @@ alternate_name = SubRecord({
 })
 
 # json/dhe.go: cryptoParameter / auxCryptoParameter
-crypto_parameter = SubRecord({
+CryptoParameter = SubRecordType({
     "value": IndexedBinary(),
     "length": Unsigned16BitInteger(),
 })
 
 # json/dhe.go: DHParams / auxDHParams:
 dh_params = SubRecord({
-    "prime": crypto_parameter.new(required=True),
-    "generator": crypto_parameter.new(required=True),
-    "server_public": crypto_parameter.new(required=False),
-    "server_private": crypto_parameter.new(required=False),
-    "client_public": crypto_parameter.new(required=False),
-    "client_private": crypto_parameter.new(required=False),
-    "session_key": crypto_parameter.new(required=False),
+    "prime": CryptoParameter(required=True),
+    "generator": CryptoParameter(required=True),
+    "server_public": CryptoParameter(required=False),
+    "server_private": CryptoParameter(required=False),
+    "client_public": CryptoParameter(required=False),
+    "client_private": CryptoParameter(required=False),
+    "session_key": CryptoParameter(required=False),
 })
 
 # json/rsa.go: RSAPublicKey/auxRSAPublicKey (alias for crypto/rsa/PublicKey)
@@ -98,30 +98,30 @@ rsa_client_params = SubRecord({
 })
 
 # json/ecdhe.go: TLSCurveID.MarshalJSON()
-tls_curve_id = SubRecord({
+TLSCurveID = SubRecordType({
     "name": String(),
     "id": Unsigned16BitInteger(),
 })
 
 # json/ecdhe.go: ECPoint.MarshalJSON()
-ec_point = SubRecord({
-    "x": crypto_parameter.new(),
-    "y": crypto_parameter.new(),
+ECPoint = SubRecordType({
+    "x": CryptoParameter(),
+    "y": CryptoParameter(),
 })
 
 # json/ecdhe.go: ECDHPrivateParams
-ecdh_private_params = SubRecord({
+ECDHPrivateParams = SubRecordType({
     "value": IndexedBinary(required=False),
     "length": Unsigned16BitInteger(required=False),
 })
 
 # json/ecdhe.go: ECDHParams
 ecdh_params = SubRecord({
-    "curve_id": tls_curve_id.new(required=False),
-    "server_public": ec_point.new(required=False),
-    "server_private": ecdh_private_params.new(required=False),
-    "client_public": ec_point.new(required=False),
-    "client_private": ecdh_private_params.new(required=False),
+    "curve_id": TLSCurveID(required=False),
+    "server_public": ECPoint(required=False),
+    "server_private": ECDHPrivateParams(required=False),
+    "client_public": ECPoint(required=False),
+    "client_private": ECDHPrivateParams(required=False),
 })
 
 # x509/json.go (mapped from crypto.dsa)
@@ -265,9 +265,9 @@ extended_key_usage = SubRecord({
 
 # x509/json.go jsonCertificate (mapped from x509.Certificate)
 parsed_certificate = SubRecord({
-    "subject": distinguished_name,
+    "subject": DistinguishedName(doc="The parsed subject name.", required=True),
     "subject_dn": CensysString(),
-    "issuer": distinguished_name,
+    "issuer": DistinguishedName(doc="The parsed issuer name.", required=True),
     "issuer_dn": CensysString(),
     "version": Unsigned8BitInteger(),
     "serial_number": String(doc="Serial number as an signed decimal integer. "\
@@ -345,13 +345,13 @@ parsed_certificate = SubRecord({
             # addresses on the host "example.com".
             "permitted_email_addresses": ListOf(CensysString()),
             "permitted_ip_addresses": ListOf(general_subtree_ip),
-            "permitted_directory_names": ListOf(distinguished_name),
+            "permitted_directory_names": ListOf(DistinguishedName()),
             "permitted_registered_ids": ListOf(OID()),
             "permitted_edi_party_names": ListOf(edi_party_name),
             "excluded_names": ListOf(FQDN()),
             "excluded_email_addresses": ListOf(CensysString()),
             "excluded_ip_addresses": ListOf(general_subtree_ip),
-            "excluded_directory_names": ListOf(distinguished_name),
+            "excluded_directory_names": ListOf(DistinguishedName()),
             "excluded_registered_ids": ListOf(String()),
             "excluded_edi_party_names": ListOf(edi_party_name),
         }),
@@ -555,7 +555,7 @@ key_material = SubRecord({
 })
 
 # tls/tls_handshake.go: ServerHandshake
-tls_handshake = SubRecord({
+TLSHandshake = SubRecordType({
     "client_hello": client_hello,
     "server_hello": server_hello,
     "server_certificates": SubRecord({
@@ -582,7 +582,7 @@ tls_handshake = SubRecord({
 })
 
 # zcrypto/tls/tls_heartbeat.go: Heartbleed
-heartbleed_log = SubRecord({
+HeartbleedLog = SubRecordType({
     "heartbleed_enabled": Boolean(),
     "heartbleed_vulnerable": Boolean()
 })
