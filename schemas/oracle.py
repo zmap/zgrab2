@@ -45,13 +45,10 @@ nsn_services = [
     "Supervisor",
 ]
 
-
-def parsed_descriptor(**kwargs):
-    return ListOf(SubRecord({
-        "key": String(),
-        "value": String(),
-    }), **kwargs)
-
+descriptor_entry = SubRecord({
+    "key": String(doc="The dot-separated path to the descriptor", examples=["DESCRIPTION.ERR", "DESCRIPTION.CONNECT_DATA.CID.PROGRAM"]),
+    "value": String(doc="The descriptor value."),
+})
 
 oracle_scan_response = SubRecord({
     "result": SubRecord({
@@ -64,11 +61,11 @@ oracle_scan_response = SubRecord({
             "redirect_target_raw": String(doc="The connect descriptor returned by the server in the Redirect packet, if one is sent. Otherwise, omitted.", examples=[
                 "(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=theServiceName)(CID=(PROGRAM=zgrab2)(HOST=targethost)(USER=targetuser)))(ADDRESS=(PROTOCOL=TCP)(HOST=1.2.3.4)(PORT=1521)))"
             ]),
-            "redirect_target": parsed_descriptor(doc="The parsed connect descriptor returned by the server in the redirect packet, if one is sent. Otherwise, omitted. The parsed descriptor is a list of objects with key and value, where the keys strings like 'DESCRIPTION.CONNECT_DATA.SERVICE_NAME'."),
+            "redirect_target": ListOf(descriptor_entry, doc="The parsed connect descriptor returned by the server in the redirect packet, if one is sent. Otherwise, omitted. The parsed descriptor is a list of objects with key and value, where the keys strings like 'DESCRIPTION.CONNECT_DATA.SERVICE_NAME'."),
             "refuse_error_raw": String(doc="The data from the Refuse packet returned by the server; it is empty if the server does not return a Refuse packet.", examples=[
                 "(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))(ERROR=(CODE=303)(EMFI=1))))"
             ]),
-            "refuse_error": parsed_descriptor(doc="The parsed descriptor returned by the server in the Refuse packet; it is empty if the server does not return a Refuse packet. The keys are strings like 'DESCRIPTION.ERROR_STACK.ERROR.CODE'."),
+            "refuse_error": ListOf(descriptor_entry, doc="The parsed descriptor returned by the server in the Refuse packet; it is empty if the server does not return a Refuse packet. The keys are strings like 'DESCRIPTION.ERROR_STACK.ERROR.CODE'."),
             "refuse_version": String(doc="The parsed DESCRIPTION.VSNNUM field from the RefuseError descriptor returned by the server in the Refuse packet, in dotted-decimal format.", examples=["11.2.0.2.0"]),
             "refuse_reason_app": String(doc="The 'AppReason' returned by the server in the RefusePacket, as an 8-bit unsigned hex string. Omitted if the server did not send a Refuse packet.", examples=["0x22", "0x04"]),
             "refuse_reason_sys": String(doc="The 'SysReason' returned by the server in the RefusePacket, as an 8-bit unsigned hex string. Omitted if the server did not send a Refuse packet.", examples=["0x00", "0x04"]),
