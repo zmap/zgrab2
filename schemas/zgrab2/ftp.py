@@ -4,8 +4,8 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import schemas.zcrypto as zcrypto
-import zgrab2 as zgrab2
+import zcrypto
+import zgrab2
 
 # modules/ftp.go - FTPScanResults
 ftp_scan_response = SubRecord({

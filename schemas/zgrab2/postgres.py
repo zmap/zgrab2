@@ -4,8 +4,8 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import schemas.zcrypto as zcrypto
-import zgrab2 as zgrab2
+import zcrypto
+import zgrab2
 
 # modules/postgres/scanner.go - decodeError() (TODO: Currently an unconstrained
 # map[string]string; it is possible to get "unknown (0x%x)" fields, but it

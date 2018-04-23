@@ -5,8 +5,8 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import schemas.zcrypto as zcrypto
-import zgrab2 as zgrab2
+import zcrypto
+import zgrab2
 
 # NOTE: Despite the fact that we have e.g. "supportedHostKeyAlgos",
 # "allSupportedCiphers", etc, including a different value is not syntactically
