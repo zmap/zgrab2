@@ -69,7 +69,7 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
         echo "Validating $target [{("
         cat $target
         echo ")}]:"
-        if ! python -m zschema validate schemas/__init__.py:zgrab2 $target; then
+        if ! python -m zschema validate zgrab2 $target --path . --module schemas.zgrab2 ; then
             echo "Schema validation failed for $protocol/$outfile"
             err="schema failure@$protocol/$outfile"
             if [[ $status -eq 0 ]]; then
