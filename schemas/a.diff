@@ -1,0 +1,591 @@
+diff --git a/schemas/__init__.py b/schemas/__init__.py
+index dbc1813..a026bb0 100644
+--- a/schemas/__init__.py
++++ b/schemas/__init__.py
+@@ -1,19 +1,19 @@
+ # Ensure that all of the modules get executed so that they are registered
+-import schemas.bacnet
+-import schemas.dnp3
+-import schemas.fox
+-import schemas.ftp
+-import schemas.http
+-import schemas.modbus
+-import schemas.mssql
+-import schemas.mysql
+-import schemas.ntp
+-import schemas.oracle
+-import schemas.pop3
+-import schemas.postgres
+-import schemas.redis
+-import schemas.siemens
+-import schemas.smb
+-import schemas.smtp
+-import schemas.ssh
+-import schemas.telnet
++import bacnet
++import dnp3
++import fox
++import ftp
++import http
++import modbus
++import mssql
++import mysql
++import ntp
++import oracle
++import pop3
++import postgres
++import redis
++import siemens
++import smb
++import smtp
++import ssh
++import telnet
+diff --git a/schemas/bacnet.py b/schemas/bacnet.py
+index e7326be..5975a2a 100644
+--- a/schemas/bacnet.py
++++ b/schemas/bacnet.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ bacnet_scan_response = SubRecord({
+     "result": SubRecord({
+diff --git a/schemas/dnp3.py b/schemas/dnp3.py
+index 4b0b12b..5970dab 100644
+--- a/schemas/dnp3.py
++++ b/schemas/dnp3.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ dnp3_scan_response = SubRecord({
+     "result": SubRecord({
+diff --git a/schemas/fox.py b/schemas/fox.py
+index 12821d2..7e5cd10 100644
+--- a/schemas/fox.py
++++ b/schemas/fox.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ fox_scan_response = SubRecord({
+     'result': SubRecord({
+diff --git a/schemas/ftp.py b/schemas/ftp.py
+index 08a2278..aca3c8c 100644
+--- a/schemas/ftp.py
++++ b/schemas/ftp.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ # modules/ftp.go - FTPScanResults
+ ftp_scan_response = SubRecord({
+diff --git a/schemas/http.py b/schemas/http.py
+index bcbdf29..fcd812d 100644
+--- a/schemas/http.py
++++ b/schemas/http.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ # lib/http/header.go: knownHeaders
+ http_known_headers = [
+diff --git a/schemas/imap.py b/schemas/imap.py
+index 7f7c86b..bf0c30a 100644
+--- a/schemas/imap.py
++++ b/schemas/imap.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ imap_scan_response = SubRecord({
+     "result": SubRecord({
+diff --git a/schemas/modbus.py b/schemas/modbus.py
+index 6c61263..30e8c36 100644
+--- a/schemas/modbus.py
++++ b/schemas/modbus.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ mei_object_names = [
+     'vendor',
+diff --git a/schemas/mssql.py b/schemas/mssql.py
+index 28d61f7..b854890 100644
+--- a/schemas/mssql.py
++++ b/schemas/mssql.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ ENCRYPT_MODES = [
+   "ENCRYPT_OFF",
+diff --git a/schemas/mysql.py b/schemas/mysql.py
+index b1150eb..84fb9c7 100644
+--- a/schemas/mysql.py
++++ b/schemas/mysql.py
+@@ -5,9 +5,9 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+-from schemas.zgrab2 import DebugOnly
++from zgrab2 import DebugOnly
+ 
+ # zgrab2/lib/mysql/mysql.go: GetServerStatusFlags()
+ mysql_server_status_flags = zgrab2.FlagsSet([
+diff --git a/schemas/ntp.py b/schemas/ntp.py
+index 482ed91..7412e17 100644
+--- a/schemas/ntp.py
++++ b/schemas/ntp.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ ntp_short = SubRecord({
+     "seconds": Unsigned16BitInteger(),
+diff --git a/schemas/oracle.py b/schemas/oracle.py
+index 1560560..6119a60 100644
+--- a/schemas/oracle.py
++++ b/schemas/oracle.py
+@@ -6,7 +6,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ FlagsSet = zgrab2.FlagsSet
+ 
+diff --git a/schemas/pop3.py b/schemas/pop3.py
+index b01ccef..6de93f0 100644
+--- a/schemas/pop3.py
++++ b/schemas/pop3.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ pop3_scan_response = SubRecord({
+     "result": SubRecord({
+diff --git a/schemas/postgres.py b/schemas/postgres.py
+index 0a8c37a..db8bb91 100644
+--- a/schemas/postgres.py
++++ b/schemas/postgres.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ # modules/postgres/scanner.go - decodeError() (TODO: Currently an unconstrained
+ # map[string]string; it is possible to get "unknown (0x%x)" fields, but it
+diff --git a/schemas/redis.py b/schemas/redis.py
+index 01a630b..c68c6b9 100644
+--- a/schemas/redis.py
++++ b/schemas/redis.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ redis_scan_response = SubRecord({
+     "result": SubRecord({
+diff --git a/schemas/siemens.py b/schemas/siemens.py
+index ba0ee26..a986401 100644
+--- a/schemas/siemens.py
++++ b/schemas/siemens.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ siemens_scan_response = SubRecord({
+     'result': SubRecord({
+diff --git a/schemas/smb.py b/schemas/smb.py
+index 19d9e23..37dc133 100644
+--- a/schemas/smb.py
++++ b/schemas/smb.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ header_log = {
+     'protocol_id': Binary(),
+diff --git a/schemas/smtp.py b/schemas/smtp.py
+index f87514f..003be12 100644
+--- a/schemas/smtp.py
++++ b/schemas/smtp.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ smtp_scan_response = SubRecord({
+     "result": SubRecord({
+diff --git a/schemas/ssh.py b/schemas/ssh.py
+index b0537c8..a59b0ad 100644
+--- a/schemas/ssh.py
++++ b/schemas/ssh.py
+@@ -5,36 +5,117 @@ from zschema.leaves import *
+ from zschema.compounds import *
+ import zschema.registry
+ 
+-from schemas.zcrypto import *
+-import schemas.zgrab2 as zgrab2
++import schemas.zcrypto as zcrypto
++import zgrab2 as zgrab2
++
++# NOTE: Despite the fact that we have e.g. "supportedHostKeyAlgos",
++# "allSupportedCiphers", etc, including a different value is not syntactically
++# incorrect...so all of the following algorithm identifiers are Strings with
++# examples=[...], rather tha Enums with values=[...].
++
++# lib/ssh/common.go -- allSupportedKexAlgos
++KexAlgorithm = String.with_args(
++    doc="An ssh key exchange algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-15 for standard values.",
++    examples=[
++        "diffie-hellman-group1-sha1",
++        "diffie-hellman-group14-sha1",
++        "ecdh-sha2-nistp256",
++        "ecdh-sha2-nistp384",
++        "ecdh-sha2-nistp521",
++        "curve25519-sha256@libssh.org",
++        "diffie-hellman-group-exchange-sha1",
++        "diffie-hellman-group-exchange-sha256",
++    ]
++)
++
++KexAlgorithms = ListOf.with_args(KexAlgorithm())
++
++# Defined in lib/ssh/common.go -- supportedHostKeyAlgos, though they are
++# generated via PublicKey.Type()
++KeyAlgorithm = String.with_args(
++    doc="An ssh public key algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-19 for standard values.",
++    examples=[
++        "ssh-rsa-cert-v01@openssh.com",
++        "ssh-dss-cert-v01@openssh.com",
++        "ecdsa-sha2-nistp256-cert-v01@openssh.com",
++        "ecdsa-sha2-nistp384-cert-v01@openssh.com",
++        "ecdsa-sha2-nistp521-cert-v01@openssh.com",
++        "ssh-ed25519-cert-v01@openssh.com",
++        "ssh-rsa",
++        "ssh-dss",
++        "ecdsa-sha2-nistp256",
++        "ecdsa-sha2-nistp384",
++        "ecdsa-sha2-nistp521",
++        "ssh-ed25519",
++    ]
++)
++
++KeyAlgorithms = ListOf.with_args(KeyAlgorithm())
++
++# From lib/ssh/common.go -- allSupportedCiphers
++CipherAlgorithm = String.with_args(
++    doc="An ssh cipher algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-16 for standard values.", 
++    examples=[
++        "aes128-ctr", "aes192-ctr", "aes256-ctr", "aes128-gcm@openssh.com",
++        "aes128-cbc", "3des-cbc", "arcfour256", "arcfour128", "arcfour",
++    ]
++)
++
++CipherAlgorithms = ListOf.with_args(CipherAlgorithm())
++
++# From lib/ssh/common.go -- supportedMACs. 
++MACAlgorithm = String.with_args(
++    doc="An ssh MAC algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-18 for standard values.",
++    examples=["hmac-sha2-256", "hmac-sha1", "hmac-sha1-96"]
++)
++MACAlgorithms = ListOf.with_args(MACAlgorithm())
++
++# From lib/ssh/common.go -- supportedCompressions
++CompressionAlgorithm = String.with_args(
++    doc="An ssh compression algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-20 for standard values.",
++    examples=["none", "zlib"]
++)
++CompressionAlgorithms = ListOf.with_args(CompressionAlgorithm())
++
++LanguageTag = String.with_args(doc="A language tag, as defined in https://www.ietf.org/rfc/rfc3066.txt.")
++LanguageTags = ListOf.with_args(LanguageTag(), doc="A name-list of language tags in order of preference.")
+ 
+ # zgrab2/lib/ssh/messages.go: (Json)kexInitMsg
+-zgrab2_ssh_kex_init_message = SubRecord({
++KexInitMessage = SubRecordType({
+     "cookie": Binary(),
+-    "kex_algorithms": ListOf(String()),
+-    "host_key_algorithms": ListOf(String()),
+-    "client_to_server_ciphers": ListOf(String()),
+-    "server_to_client_ciphers": ListOf(String()),
+-    "client_to_server_macs": ListOf(String()),
+-    "server_to_client_macs": ListOf(String()),
+-    "client_to_server_compression": ListOf(String()),
+-    "server_to_client_compression": ListOf(String()),
+-    "client_to_server_languages": ListOf(String()),
+-    "server_to_client_languages": ListOf(String()),
++    "kex_algorithms": KexAlgorithms(doc="Key exchange algorithms used in the handshake."),
++    "host_key_algorithms": KeyAlgorithms(doc="Asymmetric key algorithms for the host key supported by the client."),
++    "client_to_server_ciphers": CipherAlgorithms(),
++    "server_to_client_ciphers": CipherAlgorithms(),
++    "client_to_server_macs": MACAlgorithms(),
++    "server_to_client_macs": MACAlgorithms(),
++    "client_to_server_compression": CompressionAlgorithms(),
++    "server_to_client_compression": CompressionAlgorithms(),
++    "client_to_server_languages": LanguageTags(),
++    "server_to_client_languages": LanguageTags(),
+     "first_kex_follows": Boolean(),
+     "reserved": Unsigned32BitInteger(),
+ })
+ 
+ # zgrab2/lib/ssh/log.go: EndpointId
+-zgrab2_ssh_endpoint_id = SubRecord({
++EndpointID = SubRecordType({
+     "raw": String(),
+     "version": String(),
+     "software": String(),
+-    "comment": String()
++    "comment": String(),
++})
++
++# This could be merged into a single class with e.g. an analyzed param,
++# but it's probably clearer to just duplicate it.
++AnalyzedEndpointID = SubRecordType({
++    "raw": AnalyzedString(),
++    "version": String(),
++    "software": AnalyzedString(),
++    "comment": AnalyzedString(),
+ })
+ 
+ # zgrab2/lib/ssh/kex.go: kexResult
+-zgrab2_ssh_kex_result = SubRecord({
++KexResult = SubRecordType({
+     "H": Binary(),
+     "K": Binary(),
+     "session_id": Binary()
+@@ -45,47 +126,53 @@ ED25519PublicKey = SubRecordType({
+     "public_bytes": Binary(),
+ })
+ 
++# zgrab2/lib/ssh/kex.go: curve25519sha256JsonLogParameters (via curve25519sha256)
++Curve25519SHA256Params = SubRecordType({
++    "client_public": Binary(required=False),
++    "client_private": Binary(required=False),
++    "server_public": Binary(required=False),
++})
++
+ # zgrab2/lib/ssh/certs.go: JsonSignature
+-xssh_signature = SubRecord({
++Signature = SubRecordType({
+     "parsed": SubRecord({
+-        "algorithm": String(),
++        "algorithm": KeyAlgorithm(),
+         "value": Binary(),
+     }),
+     "raw": Binary(),
+     "h": Binary(),
+ })
+ 
+-# zgrab/ztools/keys/ecdhe.go: ECDHPrivateParams
+-golang_crypto_param = SubRecord({
+-    "value":Binary(),
+-    "length":Unsigned32BitInteger()
+-})
+-
+ # lib/ssh/kex.go: PublicKeyJsonLog, sans the certkey_public_key (since that would create a loop)
+ SSHPublicKey = SubRecordType({
+     "raw": Binary(),
+     "fingerprint_sha256": String(),
++    # TODO: Enum? Obviously must serialize to one of rsa/dsa/ecdsa/ed25519_public_key...
+     "algorithm": String(),
+-    "rsa_public_key": RSAPublicKey(),
+-    "dsa_public_key": DSAPublicKey(),
+-    "ecdsa_public_key": ECDSAPublicKey(),
++    # For compatiblity with ztag
++    "key_algorithm":String(),
++    "rsa_public_key": zcrypto.RSAPublicKey(),
++    "dsa_public_key": zcrypto.DSAPublicKey(),
++    "ecdsa_public_key": zcrypto.ECDSAPublicKey(),
+     "ed25519_public_key": ED25519PublicKey(),
+ })
+ 
++CertType = SubRecordType({
++    "id": Enum(values=[1, 2], doc="The numerical certificate type value. 1 identifies user certificates, 2 identifies host certificates."),
++    "name": Enum(values=["USER", "HOST", "unknown"], doc="The human-readable name for the certificate type."),
++})
++
+ # lib/ssh/certs.go: JsonCertificate
+-SSHPublicKeyCert = SubRecordType({
++SSHPublicKeyCert = SubRecord.with_args({
+     # TODO: Use / include our cert type here, or maybe somewhere else in the response?
+     "certkey_public_key": SubRecord({
+-        "nonce":Binary(),
+-        # This works, since SSHPublicKey() does not include certkey_public_key.
++        "nonce": Binary(),
++        # Note that this is not recursive, since SSHPublicKey() does not include certkey_public_key.
+         "key": SSHPublicKey(),
+-        "serial": String(),
+-        "cert_type": SubRecord({
+-            "id": Unsigned32BitInteger(),
+-            "name": String(),
+-        }),
+-        "key_id": String(),
+-        "valid_principals": ListOf(String()),
++        "serial": String(doc="The certificate serial number, encoded as a base-10 string."),
++        "cert_type": CertType(),
++        "key_id": String(doc="A free-form text field filled in by the CA at the time of signing, intended to identify the principal in log messages."),
++        "valid_principals": ListOf(String(), doc="Names for which this certificate is valid; hostnames for cert_type=HOST certificates and usernames for cert_type=USER certificates."),
+         "validity": SubRecord({
+             "valid_after": DateTime(doc="Timestamp of when certificate is first valid. Timezone is UTC."),
+             "valid_before": DateTime(doc="Timestamp of when certificate expires. Timezone is UTC."),
+@@ -93,7 +180,7 @@ SSHPublicKeyCert = SubRecordType({
+         }),
+         "reserved": Binary(),
+         "signature_key": SSHPublicKey(),
+-        "signature": xssh_signature,
++        "signature": Signature(),
+         "parse_error": String(),
+         "extensions": SubRecord({
+             "known": SubRecord({
+@@ -116,53 +203,47 @@ SSHPublicKeyCert = SubRecordType({
+ }, extends=SSHPublicKey())
+ 
+ 
++# zgrab2/lib/ssh/common.go: directionAlgorithms
++DirectionAlgorithms = SubRecordType({
++    "cipher": CipherAlgorithm(),
++    "mac": MACAlgorithm(),
++    "compression": CompressionAlgorithm(),
++})
++
++# zgrab2/lib/ssh/kex.go: interface kexAlgorithm
++# Searching usages of kexAlgorithm turns up:
++#   - dhGroup: dh_params, server_signature, server_host_key
++#   - ecdh: ecdh_params, server_signature, server_host_key
++#   - curve25519sha256: curve25519_sha256_params, server_signature, server_host_key
++#   - dhGEXSHA: dh_params, server_signature, server_host_key
++KeyExchange = SubRecordType({
++    "curve25519_sha256_params": Curve25519SHA256Params(),
++    "ecdh_params": zcrypto.ECDHParams(),
++    "dh_params": zcrypto.DHParams(),
++    "server_signature": Signature(),
++    "server_host_key": SSHPublicKeyCert(),
++})
++
++# zgrab2/lib/ssh/common.go: algorithms (aux in MarshalJSON)
++AlgorithmSelection = SubRecordType({
++    "dh_kex_algorithm": KexAlgorithm(),
++    "host_key_algorithm": KeyAlgorithm(),
++    "client_to_server_alg_group": DirectionAlgorithms(),
++    "server_to_client_alg_group": DirectionAlgorithms(),
++})
++
+ # zgrab2/lib/ssh/log.go: HandshakeLog
+ # TODO: Can ssh re-use any of the generic TLS model?
+ ssh_scan_response = SubRecord({
+     "result": SubRecord({
+-        "server_id": SubRecord({
+-            "raw": AnalyzedString(),
+-            "version": String(),
+-            "software": AnalyzedString(),
+-            "comment": AnalyzedString(),
+-        }),
+-        "client_id": zgrab2_ssh_endpoint_id,
+-        "server_key_exchange": zgrab2_ssh_kex_init_message,
+-        "client_key_exchange": zgrab2_ssh_kex_init_message,
+-        "algorithm_selection": SubRecord({
+-            "dh_kex_algorithm": String(),
+-            "host_key_algorithm": String(),
+-            "client_to_server_alg_group": SubRecord({
+-                "cipher": String(),
+-                "mac": String(),
+-                "compression": String(),
+-            }),
+-            "server_to_client_alg_group": SubRecord({
+-                "cipher": String(),
+-                "mac": String(),
+-                "compression": String(),
+-            }),
+-        }),
+-        "key_exchange": SubRecord({
+-            "curve25519_sha256_params": SubRecord({
+-                "server_public": Binary(),
+-            }),
+-            "ecdh_params": SubRecord({
+-                "server_public": SubRecord({
+-                    "x": golang_crypto_param,
+-                    "y": golang_crypto_param,
+-                }),
+-            }),
+-            "dh_params": SubRecord({
+-                "prime": golang_crypto_param,
+-                "generator": golang_crypto_param,
+-                "server_public": golang_crypto_param,
+-            }),
+-            "server_signature": xssh_signature,
+-            "server_host_key": SSHPublicKeyCert(),
+-        }),
++        "server_id": AnalyzedEndpointID(),
++        "client_id": EndpointID(),
++        "server_key_exchange": KexInitMessage(),
++        "client_key_exchange": KexInitMessage(),
++        "algorithm_selection": AlgorithmSelection(),
++        "key_exchange": KeyExchange(),
+         "userauth": ListOf(String()),
+-        "crypto": zgrab2_ssh_kex_result
++        "crypto": KexResult(),
+     })
+ }, extends=zgrab2.base_scan_response)
+ 
+diff --git a/schemas/telnet.py b/schemas/telnet.py
+index 2a28ae4..a06afe8 100644
+--- a/schemas/telnet.py
++++ b/schemas/telnet.py
+@@ -5,7 +5,7 @@ from zschema.compounds import *
+ import zschema.registry
+ 
+ import schemas.zcrypto as zcrypto
+-import schemas.zgrab2 as zgrab2
++import zgrab2 as zgrab2
+ 
+ telnet_option = SubRecord({
+     "name": String(),

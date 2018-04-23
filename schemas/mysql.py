@@ -5,9 +5,9 @@ from zschema.compounds import *
 import zschema.registry
 
 import schemas.zcrypto as zcrypto
-import schemas.zgrab2 as zgrab2
+import zgrab2 as zgrab2
 
-from schemas.zgrab2 import DebugOnly
+from zgrab2 import DebugOnly
 
 # zgrab2/lib/mysql/mysql.go: GetServerStatusFlags()
 mysql_server_status_flags = zgrab2.FlagsSet([
