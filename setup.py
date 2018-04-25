@@ -15,6 +15,7 @@ setup(
   author_email="team@zmap.io",
   url="https://github.com/zmap/zgrab2",
   keywords="zmap censys zgrab2 internet-wide scanning",
+  # packages=["schemas/zgrab2"],
   packages=find_packages(),
   include_package_data=True,
   zip_safe=False,
