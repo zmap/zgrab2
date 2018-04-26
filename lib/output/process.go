@@ -9,7 +9,7 @@ import (
 )
 
 // ZGrabTag holds the information from the `zgrab` tag. Currently only supports
-// the zgrab tag.
+// the "debug" value.
 type ZGrabTag struct {
 	// Debug means that the field should only be output when doing verbose output.
 	Debug bool
