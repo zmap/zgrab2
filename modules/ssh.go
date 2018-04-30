@@ -80,7 +80,8 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	rhost := net.JoinHostPort(t.IP.String(), port)
 
 	sshConfig := ssh.MakeSSHConfig()
-	sshConfig.Timeout = time.Duration(s.config.Timeout) * time.Second
+	parsedTime, err := time.ParseDuration(s.config.Timeout + "s")
+	sshConfig.Timeout = parsedTime * time.Second
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {
@@ -97,7 +98,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	sshConfig.GexMinBits = s.config.GexMinBits
 	sshConfig.GexMaxBits = s.config.GexMaxBits
 	sshConfig.GexPreferredBits = s.config.GexPreferredBits
-	_, err := ssh.Dial("tcp", rhost, sshConfig)
+	_, err = ssh.Dial("tcp", rhost, sshConfig)
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
 	return status, data, err

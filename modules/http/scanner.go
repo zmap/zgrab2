@@ -78,12 +78,12 @@ type Scanner struct {
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
 	connections []net.Conn
-	scanner   *Scanner
-	target    *zgrab2.ScanTarget
-	transport *http.Transport
-	client    *http.Client
-	results   Results
-	url       string
+	scanner     *Scanner
+	target      *zgrab2.ScanTarget
+	transport   *http.Transport
+	client      *http.Client
+	results     Results
+	url         string
 }
 
 // NewFlags returns an empty Flags object.
@@ -142,7 +142,11 @@ func (scan *scan) Cleanup() {
 // zgrab2.GetTLSConnection()
 func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(scan.scanner.config.BaseFlags.Timeout))
+		parsedTime, err := time.ParseDuration(scan.scanner.config.BaseFlags.Timeout + "s")
+		if err != nil {
+			return nil, err
+		}
+		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*parsedTime)
 		if err != nil {
 			return nil, err
 		}

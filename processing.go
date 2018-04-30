@@ -40,7 +40,11 @@ func (target ScanTarget) String() string {
 
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	timeout := time.Second * time.Duration(flags.Timeout)
+	parsedTime, err := time.ParseDuration(flags.Timeout + "s")
+	if err != nil {
+		return nil, err
+	}
+	timeout := time.Second * parsedTime
 	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
 	return DialTimeoutConnection("tcp", address, timeout)
 }
@@ -48,11 +52,13 @@ func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-	timeout := time.Second * time.Duration(flags.Timeout)
+	parsedTime, err := time.ParseDuration(flags.Timeout + "s")
+	if err != nil {
+		return nil, err
+	}
+	timeout := time.Second * parsedTime
 	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
 	var local *net.UDPAddr
-	var err error
-
 	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 		local = &net.UDPAddr{}
 		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
