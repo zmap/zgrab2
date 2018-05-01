@@ -146,7 +146,7 @@ func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*parsedTime)
+		outer, err := zgrab2.DialTimeoutConnection(net, addr, parsedTime)
 		if err != nil {
 			return nil, err
 		}

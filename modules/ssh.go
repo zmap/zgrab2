@@ -80,8 +80,8 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	rhost := net.JoinHostPort(t.IP.String(), port)
 
 	sshConfig := ssh.MakeSSHConfig()
-	parsedTime, err := time.ParseDuration(s.config.Timeout + "s")
-	sshConfig.Timeout = parsedTime * time.Second
+	timeout, err := time.ParseDuration(s.config.Timeout + "s")
+	sshConfig.Timeout = timeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {
