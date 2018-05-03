@@ -8,7 +8,6 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2/lib/output"
@@ -40,21 +39,13 @@ func (target ScanTarget) String() string {
 
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	timeout, err := time.ParseDuration(flags.Timeout + "s")
-	if err != nil {
-		return nil, err
-	}
 	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
-	return DialTimeoutConnection("tcp", address, timeout)
+	return DialTimeoutConnection("tcp", address, flags.Timeout)
 }
 
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-	timeout, err := time.ParseDuration(flags.Timeout + "s")
-	if err != nil {
-		return nil, err
-	}
 	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
 	var local *net.UDPAddr
 	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
@@ -76,7 +67,7 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 	}
 	return &TimeoutConnection{
 		Conn:    conn,
-		Timeout: timeout,
+		Timeout: flags.Timeout,
 	}, nil
 }
 

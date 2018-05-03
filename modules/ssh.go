@@ -4,7 +4,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -80,8 +79,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	rhost := net.JoinHostPort(t.IP.String(), port)
 
 	sshConfig := ssh.MakeSSHConfig()
-	timeout, err := time.ParseDuration(s.config.Timeout + "s")
-	sshConfig.Timeout = timeout
+	sshConfig.Timeout = s.config.Timeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {
@@ -98,7 +96,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	sshConfig.GexMinBits = s.config.GexMinBits
 	sshConfig.GexMaxBits = s.config.GexMaxBits
 	sshConfig.GexPreferredBits = s.config.GexPreferredBits
-	_, err = ssh.Dial("tcp", rhost, sshConfig)
+	_, err := ssh.Dial("tcp", rhost, sshConfig)
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
 	return status, data, err

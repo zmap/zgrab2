@@ -1,5 +1,7 @@
 package zgrab2
 
+import "time"
+
 // Scanner is an interface that represents all functions necessary to run a scan
 type Scanner interface {
 	// Init runs once for this module at library init time
@@ -58,9 +60,9 @@ type ScanFlags interface {
 
 // BaseFlags contains the options that every flags type must embed
 type BaseFlags struct {
-	Port    uint   `short:"p" long:"port" description:"Specify port to grab on"`
-	Name    string `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
-	Timeout string `short:"t" long:"timeout" description:"Set connection timeout in seconds (0 = no timeout)" default:"10"`
+	Port    uint          `short:"p" long:"port" description:"Specify port to grab on"`
+	Name    string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
+	Timeout time.Duration `short:"t" long:"timeout" description:"Set connection timeout in seconds (0 = no timeout)" default:"10"`
 }
 
 // UDPFlags contains the common options used for all UDP scans
