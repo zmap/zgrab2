@@ -8,12 +8,12 @@ before_install:
 - go get -t ./...
 # JMESPath is used to do context-specific validation of results
 - go get github.com/jmespath/jp && go build github.com/jmespath/jp
-- git clone https://github.com/zmap/zschema
+- git clone https://github.com/zmap/zschema && cd zschema && pip install -u .
 - docker ps -a
 install:
 - make clean zgrab2 test
 script:
-- PYTHONPATH=zschema:$PYTHONPATH make integration-test
+- make integration-test
 after_script:
 # Cleanup even if the integration tests fail
 - ./integration_tests/cleanup.sh
