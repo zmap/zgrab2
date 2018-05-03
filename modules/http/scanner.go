@@ -245,7 +245,8 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 		client: http.MakeNewClient(),
 	}
 	ret.transport.DialTLS = ret.getTLSDialer()
-	ret.transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
+	parsedTime, _ := time.ParseDuration(scanner.config.Timeout + "s")
+	ret.transport.DialContext = zgrab2.GetTimeoutConnectionDialer(parsedTime).DialContext
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
