@@ -5,7 +5,7 @@ from collections import defaultdict
 
 # Base / shared schema types for zgrab2
 
-import zcrypto
+import schemas.zcrypto
 
 # Map of protocol-name -> protocl-schema. This is wrapped in a SubRecord
 # Protocols are responsible for calling register_scan_response_type(protocol_name, schema).

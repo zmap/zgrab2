@@ -5,7 +5,7 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import zcrypto
+import schemas.zcrypto
 import zgrab2
 
 # NOTE: Despite the fact that we have e.g. "supportedHostKeyAlgos",

@@ -4,7 +4,7 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import zcrypto
+import schemas.zcrypto
 import zgrab2
 
 # modules/postgres/scanner.go - decodeError() (TODO: Currently an unconstrained
