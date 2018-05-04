@@ -1,0 +1,19 @@
+# Ensure that all of the modules get executed so that they are registered
+import bacnet
+import dnp3
+import fox
+import ftp
+import http
+import modbus
+import mssql
+import mysql
+import ntp
+import oracle
+import pop3
+import postgres
+import redis
+import siemens
+import smb
+import smtp
+import ssh
+import telnet
