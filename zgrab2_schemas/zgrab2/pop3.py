@@ -4,7 +4,7 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import schemas.zcrypto
+import zcrypto_schemas.zcrypto as zcrypto
 import zgrab2
 
 pop3_scan_response = SubRecord({
