@@ -30,10 +30,10 @@ for file in $(ls *.sh); do
 done
 popd
 
-cp "integration_tests/.template/schema.py" "schemas/zgrab2/$module_name.py"
-doReplacements "schemas/$module_name.py"
+cp "integration_tests/.template/schema.py" "zgrab2_schemas/zgrab2/$module_name.py"
+doReplacements "zgrab2_schemas/$module_name.py"
 
-echo "import $module_name" >> schemas/__init__.py
+echo "import $module_name" >> zgrab2_schemas/__init__.py
 
 cp "integration_tests/.template/module.go" "modules/$module_name.go"
 doReplacements "modules/$module_name.go"

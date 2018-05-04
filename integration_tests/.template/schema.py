@@ -4,7 +4,7 @@ from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
 
-import zcrypto
+import zcrypto_schemas.zcrypto as zcrypto
 import zgrab2
 
 #{MODULE_NAME}_scan_response = SubRecord({
