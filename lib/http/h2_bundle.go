@@ -45,7 +45,7 @@ import (
 	"github.com/zmap/zcrypto/tls"
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/net/idna"
-	"golang.org/x/net/lex/httplex"
+	"golang.org/x/net/http/httpguts"
 )
 
 // ClientConnPool manages a pool of HTTP/2 client connections.
@@ -1930,7 +1930,7 @@ func (fr *http2Framer) readMetaFrame(hf *http2HeadersFrame) (*http2MetaHeadersFr
 		if http2VerboseLogs && fr.logReads {
 			fr.debugReadLoggerf("http2: decoded hpack field %+v", hf)
 		}
-		if !httplex.ValidHeaderFieldValue(hf.Value) {
+		if !httpguts.ValidHeaderFieldValue(hf.Value) {
 			invalid = http2headerFieldValueError(hf.Value)
 		}
 		isPseudo := strings.HasPrefix(hf.Name, ":")
@@ -2567,7 +2567,7 @@ var (
 )
 
 // validWireHeaderFieldName reports whether v is a valid header field
-// name (key). See httplex.ValidHeaderName for the base rules.
+// name (key). See httpguts.ValidHeaderName for the base rules.
 //
 // Further, http2 says:
 //   "Just as in HTTP/1.x, header field names are strings of ASCII
@@ -2579,7 +2579,7 @@ func http2validWireHeaderFieldName(v string) bool {
 		return false
 	}
 	for _, r := range v {
-		if !httplex.IsTokenRune(r) {
+		if !httpguts.IsTokenRune(r) {
 			return false
 		}
 		if 'A' <= r && r <= 'Z' {
@@ -6376,7 +6376,7 @@ func (cc *http2ClientConn) encodeHeaders(req *Request, addGzipHeader bool, trail
 	if host == "" {
 		host = req.URL.Host
 	}
-	host, err := httplex.PunycodeHostPort(host)
+	host, err := httpguts.PunycodeHostPort(host)
 	if err != nil {
 		return nil, err
 	}
@@ -6398,11 +6398,11 @@ func (cc *http2ClientConn) encodeHeaders(req *Request, addGzipHeader bool, trail
 	}
 
 	for k, vv := range req.Header {
-		if !httplex.ValidHeaderFieldName(k) {
+		if !httpguts.ValidHeaderFieldName(k) {
 			return nil, fmt.Errorf("invalid HTTP header name %q", k)
 		}
 		for _, v := range vv {
-			if !httplex.ValidHeaderFieldValue(v) {
+			if !httpguts.ValidHeaderFieldValue(v) {
 				return nil, fmt.Errorf("invalid HTTP header value %q for header %q", v, k)
 			}
 		}
@@ -7321,7 +7321,7 @@ func (t *http2Transport) getBodyWriterState(cs *http2clientStream, body io.Reade
 	}
 	s.delay = t.expectContinueTimeout()
 	if s.delay == 0 ||
-		!httplex.HeaderValuesContainsToken(
+		!httpguts.HeaderValuesContainsToken(
 			cs.req.Header["Expect"],
 			"100-continue") {
 		return
@@ -7373,7 +7373,7 @@ func (s http2bodyWriterState) scheduleBodyWrite() {
 // isConnectionCloseRequest reports whether req should use its own
 // connection for a single request and then close the connection.
 func http2isConnectionCloseRequest(req *Request) bool {
-	return req.Close || httplex.HeaderValuesContainsToken(req.Header["Connection"], "close")
+	return req.Close || httpguts.HeaderValuesContainsToken(req.Header["Connection"], "close")
 }
 
 // writeFramer is implemented by any type that is used to write frames.
@@ -7705,7 +7705,7 @@ func http2encodeHeaders(enc *hpack.Encoder, h Header, keys []string) {
 		}
 		isTE := k == "transfer-encoding"
 		for _, v := range vv {
-			if !httplex.ValidHeaderFieldValue(v) {
+			if !httpguts.ValidHeaderFieldValue(v) {
 
 				continue
 			}
