@@ -386,7 +386,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(nil)
 		}
-		defer sql.Close()
+		defer mgr.closeConnection(sql)
 		if sql.IsSSL {
 			results.IsSSL = true
 			// This pointer will be populated as the connection is negotiated
@@ -417,7 +417,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if _, err := sql.ReadAll(); err != nil {
 			return err.Unpack(&results)
 		}
-		sql.Close()
+		mgr.closeConnection(sql)
 	}
 
 	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
@@ -426,6 +426,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
+		defer mgr.closeConnection(sql)
 
 		if err := sql.SendU32(0xff<<16 | 0xff); err != nil {
 			// Whatever the actual problem, a send error will be treated as a SCAN_PROTOCOL_ERROR since the scan got this far
@@ -447,7 +448,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if _, err := sql.ReadAll(); err != nil {
 			return err.Unpack(&results)
 		}
-		sql.Close()
+		mgr.closeConnection(sql)
 	}
 
 	// Send a StartupMessage with a valid protocol version number, but omit the user field
@@ -459,6 +460,8 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
+		defer mgr.closeConnection(sql)
+
 		if err = sql.SendStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs()); err != nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
@@ -476,7 +479,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if _, readErr = sql.ReadAll(); readErr != nil {
 			return readErr.Unpack(&results)
 		}
-		sql.Close()
+		mgr.closeConnection(sql)
 	}
 
 	// If user / database / application_name are provided, do a final scan with those
@@ -485,6 +488,8 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
+		defer mgr.closeConnection(sql)
+
 		kvps := s.getDefaultKVPs()
 		if s.Config.User != "" {
 			kvps["user"] = s.Config.User
@@ -499,7 +504,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
 		packets, err := sql.ReadAll()
-		sql.Close()
+		mgr.closeConnection(sql)
 		if packets != nil {
 			results.decodeServerResponse(packets)
 		}

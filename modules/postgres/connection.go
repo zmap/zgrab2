@@ -233,28 +233,43 @@ func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 // that they all get closed.
 // TODO: Is there something like this in the standard libraries?
 type connectionManager struct {
-	connections []io.Closer
+	connections map[io.Closer]bool
 }
 
 // addConnection adds a managed connection.
 func (m *connectionManager) addConnection(c io.Closer) {
-	m.connections = append(m.connections, c)
+	m.connections[c] = true
+}
+
+func (m *connectionManager) closeConnection(c io.Closer) {
+	if m.connections[c] {
+		m.connections[c] = false
+		err := c.Close()
+		if err != nil {
+			log.Debugf("Got error closing connection: %v", err)
+		}
+	}
 }
 
 // cleanUp closes all managed connections.
 func (m *connectionManager) cleanUp() {
-	for _, v := range m.connections {
+	// first in, last out: emptry out the map
+	defer func() {
+		for conn, _ := range m.connections {
+			delete(m.connections, conn)
+		}
+	}()
+	for connection, _ := range m.connections {
 		// Close them all even if there is a panic with one
 		defer func(c io.Closer) {
-			err := c.Close()
-			if err != nil {
-				log.Debugf("Got error closing connection: %v", err)
-			}
-		}(v)
+			m.closeConnection(c)
+		}(connection)
 	}
 }
 
 // Get a new connectionmanager instance.
 func newConnectionManager() *connectionManager {
-	return &connectionManager{}
+	return &connectionManager{
+		connections: make(map[io.Closer]bool),
+	}
 }

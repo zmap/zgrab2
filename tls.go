@@ -276,6 +276,11 @@ func (z *TLSConnection) Handshake() error {
 	}
 }
 
+// Close the underlying connection.
+func (conn *TLSConnection) Close() error {
+	return conn.Conn.Close()
+}
+
 func (t *TLSFlags) GetTLSConnection(conn net.Conn) (*TLSConnection, error) {
 	cfg, err := t.GetTLSConfig()
 	if err != nil {
