@@ -26,7 +26,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"github.com/Sirupsen/logrus"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -159,7 +158,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	if f.Verbose {
-		logrus.SetLevel(logrus.DebugLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 	return nil
 }

@@ -14,7 +14,6 @@ package mssql
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"github.com/Sirupsen/logrus"
 )
 
 // ScanResults contains detailed information about each step of the
@@ -79,7 +78,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	if f.Verbose {
-		logrus.SetLevel(logrus.DebugLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 	return nil
 }

@@ -17,7 +17,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"github.com/Sirupsen/logrus"
 )
 
 const (
@@ -282,7 +281,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.Config = f
 	if f.Verbose {
-		logrus.SetLevel(logrus.DebugLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 	return nil
 }

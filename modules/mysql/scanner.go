@@ -10,7 +10,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
-	"github.com/Sirupsen/logrus"
 )
 
 // ScanResults contains detailed information about the scan.
@@ -170,7 +169,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
 	if f.Verbose {
-		logrus.SetLevel(logrus.DebugLevel)
+		log.SetLevel(log.DebugLevel)
 	}
 	return nil
 }
