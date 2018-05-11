@@ -470,7 +470,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 			log.Debugf("Unexpected response from server: %s", response.ToString())
 		}
 		// TODO: use any packets returned to fill out results? There probably won't be any, and they will probably be overwritten if Config.User etc is set...
-		if _, readErr = sql.ReadAll(); err != nil {
+		if _, readErr = sql.ReadAll(); readErr != nil {
 			return readErr.Unpack(&results)
 		}
 		sql.Close()
