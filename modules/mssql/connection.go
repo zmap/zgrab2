@@ -673,7 +673,7 @@ func (connection *Connection) prelogin(clientEncrypt EncryptMode) (EncryptMode, 
 	if err != nil {
 		if packet != nil {
 			// FIXME: debug packet info?
-			logrus.Warnf("Got bad packet? type=0x%02x", packet.Type)
+			logrus.Debugf("Got bad packet? type=0x%02x", packet.Type)
 		}
 		return EncryptModeUnknown, err
 	}
@@ -740,7 +740,7 @@ func min(a, b int) int {
 // purposes).
 func isValidTDSHeader(header *TDSHeader) bool {
 	if header == nil {
-		logrus.Warn("nil header")
+		logrus.Debug("nil header")
 		return false
 	}
 
@@ -816,7 +816,7 @@ func (connection *tdsConnection) Read(b []byte) (n int, err error) {
 		connection.remainder = make([]byte, header.Length-8)
 		_, err = io.ReadFull(connection.conn, connection.remainder)
 		if err != nil {
-			logrus.Warn("Error reading body", err)
+			logrus.Debugf("Error reading body", err)
 			return soFar, err
 		}
 		toCopy := min(len(output), len(connection.remainder))

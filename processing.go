@@ -109,7 +109,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	// TODO FIXME: Move verbosity to global level, or add a Verbosity() method to the Module interface.
 	stripped, err := output.Process(raw)
 	if err != nil {
-		log.Warnf("Error processing results: %v", err)
+		log.Debugf("Error processing results: %v", err)
 		stripped = raw
 	}
 
