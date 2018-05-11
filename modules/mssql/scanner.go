@@ -14,6 +14,7 @@ package mssql
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/Sirupsen/logrus"
 )
 
 // ScanResults contains detailed information about each step of the
@@ -77,6 +78,9 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	if f.Verbose {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 	return nil
 }
 
@@ -156,7 +160,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 func RegisterModule() {
 	var module Module
 	_, err := zgrab2.AddCommand("mssql", "MSSQL", "Grab a mssql handshake", 1433, &module)
-	log.SetLevel(log.DebugLevel)
 	if err != nil {
 		log.Fatal(err)
 	}

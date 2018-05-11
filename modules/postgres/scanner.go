@@ -17,6 +17,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/Sirupsen/logrus"
 )
 
 const (
@@ -280,6 +281,9 @@ func (f *Flags) Help() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.Config = f
+	if f.Verbose {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 	return nil
 }
 
@@ -512,7 +516,6 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 func RegisterModule() {
 	var module Module
 	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
-	log.SetLevel(log.DebugLevel)
 	if err != nil {
 		log.Fatal(err)
 	}
