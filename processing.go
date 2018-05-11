@@ -83,7 +83,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	for _, scannerName := range orderedScanners {
 		defer func(name string) {
 			if e := recover(); e != nil {
-				log.Errorf("Panic on scanner %s when scanning target %s", scannerName, input.String())
+				log.Errorf("Panic on scanner %s when scanning target %s: %#v", scannerName, input.String(), e)
 				// Bubble out original error (with original stack) in lieu of explicitly logging the stack / error
 				panic(e)
 			}
