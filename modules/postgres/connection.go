@@ -93,6 +93,9 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		if err != nil && err != io.EOF {
 			return nil, zgrab2.DetectScanError(err)
 		}
+		if n < 2 {
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too little data (%d bytes: %s)", n, hex.EncodeToString(buf[:n])))
+		}
 		ret.Body = buf[:n]
 		if string(buf[n-2:n]) == "\x0a\x00" {
 			ret.Length = 0
