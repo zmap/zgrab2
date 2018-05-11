@@ -459,8 +459,8 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if err = sql.SendStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs()); err != nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
-		if response, readErr = sql.ReadPacket(); err != nil {
-			log.Debugf("Error reading response after StartupMessage: %v", err)
+		if response, readErr = sql.ReadPacket(); readErr != nil {
+			log.Debugf("Error reading response after StartupMessage: %v", readErr)
 			return readErr.Unpack(&results)
 		}
 		if response.Type == 'E' {
