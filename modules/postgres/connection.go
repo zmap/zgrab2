@@ -268,7 +268,7 @@ func (m *connectionManager) closeConnection(c io.Closer) {
 
 // cleanUp closes all managed connections.
 func (m *connectionManager) cleanUp() {
-	// first in, last out: emptry out the map
+	// first in, last out: empty out the map
 	defer func() {
 		for conn, _ := range m.connections {
 			delete(m.connections, conn)
