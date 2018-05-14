@@ -330,7 +330,7 @@ func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, no
 		return nil, zgrab2.DetectScanError(err)
 	}
 	mgr.addConnection(conn)
-	sql := Connection{Connection: conn, Config: s.Config}
+	sql := Connection{Target: t, Connection: conn, Config: s.Config}
 	sql.IsSSL = false
 	if !nossl && !s.Config.SkipSSL {
 		hasSSL, sslError := sql.RequestSSL()

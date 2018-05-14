@@ -14,8 +14,14 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
+// Don't allow unbounded reads
+const maxPacketSize = 128 * 1024 * 1024
+
 // Connection wraps the state of a given connection to a server.
 type Connection struct {
+	// Target is the requested scan target.
+	Target *zgrab2.ScanTarget
+
 	// Connection is the underlying TCP (or TLS) stream.
 	Connection net.Conn
 
@@ -104,10 +110,19 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		}
 		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
 	}
-	ret.Body = make([]byte, ret.Length-4) // Length includes the length of the Length uint32
+	sizeToRead := ret.Length
+	if sizeToRead > maxPacketSize {
+		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), ret.Length, maxPacketSize)
+		sizeToRead = maxPacketSize
+	}
+	ret.Body = make([]byte, sizeToRead) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, ret.Body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
+	}
+	if sizeToRead < ret.Length && len(ret.Body) >= maxPacketSize {
+		// Warn if we actually truncate (as opposed getting an huge length but only a few bytes are actually available)
+		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), ret.Length, len(ret.Body))
 	}
 	return &ret, nil
 }
