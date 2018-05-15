@@ -15,7 +15,10 @@ import (
 )
 
 // Don't allow unbounded reads
-const maxPacketSize = 128 * 1024 * 1024
+const maxPacketSize = 512 * 1024
+
+// Don't read an unlimited number of tag/value pairs from the server
+const maxReadAllPackets = 64
 
 // Connection wraps the state of a given connection to a server.
 type Connection struct {
@@ -239,6 +242,10 @@ func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 		}
 		ret = append(ret, response)
 		if response.Type == 'Z' {
+			return ret, nil
+		}
+		if len(ret) > maxReadAllPackets {
+			log.Warnf("Server %s returned more than %d packets -- truncating.", c.Target.String(), maxReadAllPackets)
 			return ret, nil
 		}
 	}
