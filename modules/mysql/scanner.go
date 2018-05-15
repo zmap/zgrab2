@@ -168,6 +168,9 @@ func (f *Flags) Help() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
+	if f.Verbose {
+		log.SetLevel(log.DebugLevel)
+	}
 	return nil
 }
 

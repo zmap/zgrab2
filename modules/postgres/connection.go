@@ -14,8 +14,14 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
+// Don't allow unbounded reads
+const maxPacketSize = 128 * 1024 * 1024
+
 // Connection wraps the state of a given connection to a server.
 type Connection struct {
+	// Target is the requested scan target.
+	Target *zgrab2.ScanTarget
+
 	// Connection is the underlying TCP (or TLS) stream.
 	Connection net.Conn
 
@@ -93,6 +99,9 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		if err != nil && err != io.EOF {
 			return nil, zgrab2.DetectScanError(err)
 		}
+		if n < 2 {
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too little data (%d bytes: %s)", n, hex.EncodeToString(buf[:n])))
+		}
 		ret.Body = buf[:n]
 		if string(buf[n-2:n]) == "\x0a\x00" {
 			ret.Length = 0
@@ -101,10 +110,19 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		}
 		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
 	}
-	ret.Body = make([]byte, ret.Length-4) // Length includes the length of the Length uint32
+	sizeToRead := ret.Length
+	if sizeToRead > maxPacketSize {
+		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), ret.Length, maxPacketSize)
+		sizeToRead = maxPacketSize
+	}
+	ret.Body = make([]byte, sizeToRead) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, ret.Body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
+	}
+	if sizeToRead < ret.Length && len(ret.Body) >= maxPacketSize {
+		// Warn if we actually truncate (as opposed getting an huge length but only a few bytes are actually available)
+		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), ret.Length, len(ret.Body))
 	}
 	return &ret, nil
 }
@@ -230,28 +248,43 @@ func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 // that they all get closed.
 // TODO: Is there something like this in the standard libraries?
 type connectionManager struct {
-	connections []io.Closer
+	connections map[io.Closer]bool
 }
 
 // addConnection adds a managed connection.
 func (m *connectionManager) addConnection(c io.Closer) {
-	m.connections = append(m.connections, c)
+	m.connections[c] = true
+}
+
+func (m *connectionManager) closeConnection(c io.Closer) {
+	if m.connections[c] {
+		m.connections[c] = false
+		err := c.Close()
+		if err != nil {
+			log.Debugf("Got error closing connection: %v", err)
+		}
+	}
 }
 
 // cleanUp closes all managed connections.
 func (m *connectionManager) cleanUp() {
-	for _, v := range m.connections {
+	// first in, last out: empty out the map
+	defer func() {
+		for conn, _ := range m.connections {
+			delete(m.connections, conn)
+		}
+	}()
+	for connection, _ := range m.connections {
 		// Close them all even if there is a panic with one
 		defer func(c io.Closer) {
-			err := c.Close()
-			if err != nil {
-				log.Debugf("Got error closing connection: %v", err)
-			}
-		}(v)
+			m.closeConnection(c)
+		}(connection)
 	}
 }
 
 // Get a new connectionmanager instance.
 func newConnectionManager() *connectionManager {
-	return &connectionManager{}
+	return &connectionManager{
+		connections: make(map[io.Closer]bool),
+	}
 }

@@ -83,7 +83,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	for _, scannerName := range orderedScanners {
 		defer func(name string) {
 			if e := recover(); e != nil {
-				log.Errorf("Panic on scanner %s when scanning target %s", scannerName, input.String())
+				log.Errorf("Panic on scanner %s when scanning target %s: %#v", scannerName, input.String(), e)
 				// Bubble out original error (with original stack) in lieu of explicitly logging the stack / error
 				panic(e)
 			}
@@ -109,7 +109,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	// TODO FIXME: Move verbosity to global level, or add a Verbosity() method to the Module interface.
 	stripped, err := output.Process(raw)
 	if err != nil {
-		log.Warnf("Error processing results: %v", err)
+		log.Debugf("Error processing results: %v", err)
 		stripped = raw
 	}
 
