@@ -115,13 +115,13 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), ret.Length, maxPacketSize)
 		sizeToRead = maxPacketSize
 	}
-	ret.Body = make([]byte, sizeToRead) // Length includes the length of the Length uint32
+	ret.Body = make([]byte, sizeToRead - 4) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, ret.Body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	if sizeToRead < ret.Length && len(ret.Body) >= maxPacketSize {
-		// Warn if we actually truncate (as opposed getting an huge length but only a few bytes are actually available)
+	if sizeToRead < ret.Length && len(ret.Body) + 4 >= maxPacketSize {
+		// Warn if we actually truncate (as opposed getting a huge length but only a few bytes are actually available)
 		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), ret.Length, len(ret.Body))
 	}
 	return &ret, nil
