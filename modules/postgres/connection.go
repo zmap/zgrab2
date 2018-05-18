@@ -55,7 +55,7 @@ type ServerPacket struct {
 // of the packet.
 func (p *ServerPacket) ToString() string {
 	// TODO: Don't hex-encode human-readable bodies?
-	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: [[\n%s\n]] } }", &p, p.Type, p.Length, hex.Dump(p.Body))
+	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: [[%d bytes]] } }", &p, p.Type, p.Length, len(p.Body))
 }
 
 // Send a client packet: a big-endian uint32 length followed by a body.
@@ -87,13 +87,12 @@ func (c *Connection) Close() error {
 
 // tryReadPacket tries to read a length + body from the connection.
 func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanError) {
-	ret := ServerPacket{Type: header}
 	var length [4]byte
 	_, err := io.ReadFull(c.Connection, length[:])
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	ret.Length = binary.BigEndian.Uint32(length[:])
+	bodyLen := binary.BigEndian.Uint32(length[:])
 	if length[0] > 0x00 {
 		// For scanning purposes, there is no reason we want to read more than 2^24 bytes
 		// But in practice, it probably means we have a null-terminated error string
@@ -105,29 +104,35 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		if n < 2 {
 			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too little data (%d bytes: %s)", n, hex.EncodeToString(buf[:n])))
 		}
-		ret.Body = buf[:n]
 		if string(buf[n-2:n]) == "\x0a\x00" {
-			ret.Length = 0
-			ret.Body = append(length[:], ret.Body...)
-			return &ret, nil
+			return &ServerPacket{
+				Type: header,
+				Length: 0,
+				Body: append(length[:], buf[:n]...),
+			}, nil
 		}
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
+		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", bodyLen, n, hex.EncodeToString(buf[:n])))
 	}
-	sizeToRead := ret.Length
+	sizeToRead := bodyLen
 	if sizeToRead > maxPacketSize {
-		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), ret.Length, maxPacketSize)
+		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), bodyLen, maxPacketSize)
 		sizeToRead = maxPacketSize
 	}
-	ret.Body = make([]byte, sizeToRead - 4) // Length includes the length of the Length uint32
-	_, err = io.ReadFull(c.Connection, ret.Body)
+	body := make([]byte, sizeToRead - 4) // Length includes the length of the Length uint32
+	_, err = io.ReadFull(c.Connection, body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	if sizeToRead < ret.Length && len(ret.Body) + 4 >= maxPacketSize {
+	if sizeToRead < bodyLen && len(body) + 4 >= maxPacketSize {
 		// Warn if we actually truncate (as opposed getting a huge length but only a few bytes are actually available)
-		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), ret.Length, len(ret.Body))
+		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), bodyLen, len(body))
 	}
-	return &ret, nil
+
+	return &ServerPacket{
+		Type: header,
+		Length: bodyLen,
+		Body: body,
+	}, nil
 }
 
 // RequestSSL sends an SSLRequest packet to the server, and returns true
