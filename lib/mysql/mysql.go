@@ -420,7 +420,7 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 	if handshake := c.GetHandshake(); handshake != nil {
 		flags = handshake.CapabilityFlags
 	} else {
-		log.Warnf("readOKPacket: Received OKPacket before Handshake")
+		log.Debugf("readOKPacket: Received OKPacket before Handshake")
 	}
 	if flags&(CLIENT_PROTOCOL_41|CLIENT_TRANSACTIONS) != 0 {
 		log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading status flags", flags)
@@ -490,6 +490,28 @@ func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 	}
 	ret.ErrorMessage = string(rest[:])
 	return ret, nil
+}
+
+// Error implements the error interface. Return the code and message.
+func (e *ERRPacket) Error() string {
+	return fmt.Sprintf("MySQL Error: code = %s (%d / 0x%04x); message=%s", e.GetErrorID(), e.ErrorCode, e.ErrorCode, e.ErrorMessage)
+}
+
+// GetErrorID returns the error ID associated with this packet's error code.
+func (e *ERRPacket) GetErrorID() string {
+	ret, ok := ErrorCodes[e.ErrorCode]
+	if !ok {
+		return "UNKNOWN"
+	}
+	return ret
+}
+
+// Get the ScanError for this packet (wrap the error + application error status)
+func (e *ERRPacket) GetScanError() *zgrab2.ScanError {
+	return &zgrab2.ScanError{
+		Status: zgrab2.SCAN_APPLICATION_ERROR,
+		Err: e,
+	}
 }
 
 // SSLRequestPacket is the packet sent by the client to inform the
@@ -693,8 +715,8 @@ func (c *Connection) Connect(conn net.Conn) error {
 		c.ConnectionLog.Handshake = packet
 	case *ERRPacket:
 		c.ConnectionLog.Error = packet
-		log.Debugf("Got error packet: 0x%x / %s", p.ErrorCode, p.ErrorMessage)
-		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", p.ErrorCode, p.ErrorMessage)
+		log.Debugf("Got error packet: %s", p.Error())
+		return p.GetScanError()
 	default:
 		// Drop unrecgnized packets -- including those with packet.Parsed == nil -- into the "Error" slot
 		c.ConnectionLog.Error = packet
