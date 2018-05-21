@@ -7,6 +7,7 @@ import http
 import modbus
 import mssql
 import mysql
+import mysql_errors
 import ntp
 import oracle
 import pop3
