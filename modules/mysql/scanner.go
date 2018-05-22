@@ -23,7 +23,7 @@ type ScanResults struct {
 	// ServerVersion is a null-terminated string giving the specific
 	// server version in the initial HandshakePacket. Often of the format
 	// x.y.z, but not always.
-	ServerVersion string `json:"server_version"`
+	ServerVersion string `json:"server_version,omitempty"`
 
 	// ConnectionID is the server's internal identifier for this client's
 	// connection, sent in the initial HandshakePacket.
@@ -67,7 +67,7 @@ type ScanResults struct {
 
 	// RawPackets contains the base64 encoding of all packets sent and
 	// received during the scan.
-	RawPackets []string `json:"raw_packets,omitempty"`
+	RawPackets []string `json:"raw_packets,omitempty" zgrab:"debug"`
 
 	// TLSLog contains the usual shared TLS logs.
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`

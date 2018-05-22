@@ -248,7 +248,7 @@ type HandshakePacket struct {
 	ProtocolVersion byte `json:"protocol_version"`
 
 	// ServerVersion is a human-readable server version.
-	ServerVersion string `json:"server_version"`
+	ServerVersion string `json:"server_version,omitempty"`
 
 	// ConnectionID is the ID used by the server to identify this client.
 	ConnectionID uint32 `zgrab:"debug" json:"connection_id,omitempty"`
