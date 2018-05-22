@@ -248,13 +248,13 @@ type HandshakePacket struct {
 	ProtocolVersion byte `json:"protocol_version"`
 
 	// ServerVersion is a human-readable server version.
-	ServerVersion string `json:"server_version"`
+	ServerVersion string `json:"server_version,omitempty"`
 
 	// ConnectionID is the ID used by the server to identify this client.
-	ConnectionID uint32 `zgrab:"debug" json:"connection_id"`
+	ConnectionID uint32 `zgrab:"debug" json:"connection_id,omitempty"`
 
 	// AuthPluginData1 is the first part of the auth-plugin-specific data.
-	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1"`
+	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1,omitempty"`
 
 	// Filler1 is an unused byte, defined to be 0.
 	Filler1 byte `zgrab:"debug" json:"filler_1,omitempty"`
@@ -263,7 +263,7 @@ type HandshakePacket struct {
 	// CapabilityFlags appear.
 
 	// CharacterSet is the low 8 bits of the default server character-set
-	CharacterSet byte `zgrab:"debug" json:"character_set"`
+	CharacterSet byte `zgrab:"debug" json:"character_set,omitempty"`
 
 	// ShortHandshake is a synthetic field: if true, none of the following
 	// fields are present.
@@ -277,12 +277,12 @@ type HandshakePacket struct {
 
 	// CapabilityFlags the combined capability flags, which tell what
 	// the server can do (e.g. whether it supports SSL).
-	CapabilityFlags uint32 `json:"capability_flags"`
+	CapabilityFlags uint32 `json:"capability_flags,omitempty"`
 
 	// AuthPluginDataLen is the length of the full auth-plugin-specific
 	// data (so len(AuthPluginData1) + len(AuthPluginData2) =
 	// AuthPluginDataLen)
-	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
+	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len,omitempty"`
 
 	// The following field are only present if the CLIENT_SECURE_CONNECTION
 	// capability flag is set:
@@ -310,8 +310,8 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	type Alias HandshakePacket
 	return json.Marshal(&struct {
 		ReservedOmitted []byte          `zgrab:"debug" json:"reserved,omitempty"`
-		CapabilityFlags map[string]bool `json:"capability_flags"`
-		StatusFlags     map[string]bool `json:"status_flags"`
+		CapabilityFlags map[string]bool `json:"capability_flags,omitempty"`
+		StatusFlags     map[string]bool `json:"status_flags,omitempty"`
 		*Alias
 	}{
 		ReservedOmitted: reserved,
