@@ -33,6 +33,9 @@ type ScanResults struct {
 	// response to the PRELOGIN call. Debug only.
 	PreloginOptions *PreloginOptions `json:"prelogin_options,omitempty" zgrab:"debug"`
 
+	// EncryptMode is the mode negotiated with the server.
+	EncryptMode *EncryptMode `json:"encrypt_mode,omitempty"`
+
 	// TLSLog is the shared TLS handshake/scan log.
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
@@ -120,7 +123,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	sql := NewConnection(conn)
 	defer sql.Close()
 	result := &ScanResults{}
-	_, err = sql.Handshake(scanner.config)
+
+	encryptMode, handshakeErr := sql.Handshake(scanner.config)
+
+	result.EncryptMode = &encryptMode
 
 	if sql.tlsConn != nil {
 		result.TLSLog = sql.tlsConn.GetLog()
@@ -141,7 +147,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 	}
 
-	if err != nil {
+	if handshakeErr != nil {
 		if sql.PreloginOptions == nil && sql.readValidTDSPacket == false {
 			// If we received no PreloginOptions and none of the packets we've
 			// read appeared to be a valid TDS header, then the inference is
@@ -151,7 +157,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			// nil.
 			result = nil
 		}
-		switch err {
+		switch handshakeErr {
 		case ErrNoServerEncryption:
 			return zgrab2.SCAN_APPLICATION_ERROR, result, err
 		case ErrServerRequiresEncryption:
