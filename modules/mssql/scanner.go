@@ -159,11 +159,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 		switch handshakeErr {
 		case ErrNoServerEncryption:
-			return zgrab2.SCAN_APPLICATION_ERROR, result, err
+			return zgrab2.SCAN_APPLICATION_ERROR, result, handshakeErr
 		case ErrServerRequiresEncryption:
-			return zgrab2.SCAN_APPLICATION_ERROR, result, err
+			return zgrab2.SCAN_APPLICATION_ERROR, result, handshakeErr
 		default:
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(handshakeErr), result, handshakeErr
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, result, nil
