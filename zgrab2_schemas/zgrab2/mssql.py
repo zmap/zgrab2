@@ -41,6 +41,7 @@ mssql_scan_response = SubRecord({
         "version": String(),
         "instance_name": String(),
         "prelogin_options": prelogin_options,
+        "encrypt_mode": Enum(values=ENCRYPT_MODES, doc="The negotiated ENCRYPT_MODE with the server."),
         "tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)

@@ -5,6 +5,8 @@ package zgrab2
 type Monitor struct {
 	states       map[string]*State
 	statusesChan chan moduleStatus
+	// Callback is invoked after each scan.
+	Callback     func(string)
 }
 
 // State contains the respective number of successes and failures
@@ -42,6 +44,9 @@ func MakeMonitor() *Monitor {
 		for s := range m.statusesChan {
 			if m.states[s.name] == nil {
 				m.states[s.name] = new(State)
+			}
+			if m.Callback != nil {
+				m.Callback(s.name)
 			}
 			switch s.st {
 			case statusSuccess:
