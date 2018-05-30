@@ -6,7 +6,7 @@ endif
 
 all: docker-runner.id
 
-.PHONY: clean clean-all
+.PHONY: clean clean-all base-apt-update
 
 service-base-image.id: service-base.Dockerfile
 	docker build -t zgrab2_service_base:latest -f service-base.Dockerfile -q . > service-base-image.id || (rm -f service-base-image.id && exit 1)
