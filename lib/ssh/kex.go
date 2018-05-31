@@ -384,23 +384,24 @@ func (kex *ecdh) GetNew(keyType string) kexAlgorithm {
 }
 
 func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics, config *Config) (*kexResult, error) {
-	kex.JsonLog.Parameters = new(ztoolsKeys.ECDHParams)
-	kex.JsonLog.Parameters.ServerPublic = new(ztoolsKeys.ECPoint)
-	if config.Verbose {
-		kex.JsonLog.Parameters.ClientPublic = new(ztoolsKeys.ECPoint)
-		kex.JsonLog.Parameters.ClientPrivate = new(ztoolsKeys.ECDHPrivateParams)
-	}
-
 	ephKey, err := ecdsa.GenerateKey(kex.curve, rand)
 	if err != nil {
 		return nil, err
 	}
 
+	kex.JsonLog.Parameters = new(ztoolsKeys.ECDHParams)
+
 	if config.Verbose {
-		kex.JsonLog.Parameters.ClientPublic.X = ephKey.PublicKey.X
-		kex.JsonLog.Parameters.ClientPublic.Y = ephKey.PublicKey.Y
-		kex.JsonLog.Parameters.ClientPrivate.Value = ephKey.D.Bytes()
-		kex.JsonLog.Parameters.ClientPrivate.Length = ephKey.D.BitLen()
+		if ephKey.PublicKey.X != nil || ephKey.PublicKey.Y != nil {
+			kex.JsonLog.Parameters.ClientPublic = new(ztoolsKeys.ECPoint)
+			kex.JsonLog.Parameters.ClientPublic.X = ephKey.PublicKey.X
+			kex.JsonLog.Parameters.ClientPublic.Y = ephKey.PublicKey.Y
+		}
+		if ephKey.D != nil {
+			kex.JsonLog.Parameters.ClientPrivate = new(ztoolsKeys.ECDHPrivateParams)
+			kex.JsonLog.Parameters.ClientPrivate.Value = ephKey.D.Bytes()
+			kex.JsonLog.Parameters.ClientPrivate.Length = ephKey.D.BitLen()
+		}
 	}
 
 	kexInit := kexECDHInitMsg{
@@ -423,8 +424,11 @@ func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics, c
 	}
 
 	x, y, err := unmarshalECKey(kex.curve, reply.EphemeralPubKey)
-	kex.JsonLog.Parameters.ServerPublic.X = x
-	kex.JsonLog.Parameters.ServerPublic.Y = y
+	if x != nil || y != nil {
+		kex.JsonLog.Parameters.ServerPublic = new(ztoolsKeys.ECPoint)
+		kex.JsonLog.Parameters.ServerPublic.X = x
+		kex.JsonLog.Parameters.ServerPublic.Y = y
+	}
 	kex.JsonLog.ServerHostKey = LogServerHostKey(reply.HostKey)
 	kex.JsonLog.ServerSignature = new(JsonSignature)
 	kex.JsonLog.ServerSignature.Raw = reply.Signature
