@@ -17,6 +17,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"encoding/json"
 )
 
 const (
@@ -86,6 +87,18 @@ type PostgresError map[string]string
 // authentication. These are 'S'-type packets.
 // We keep track of them all -- but the golang postgres library only stores the server_version and TimeZone.
 type ServerParameters map[string]string
+
+// MarshalJSON returns the ServerParameters as a list of name/value pairs (work
+// around schema issue)
+func (s *ServerParameters) MarshalJSON() ([]byte, error) {
+	ret := make([]string, len(*s))
+	i := 0
+	for k, v := range *s {
+		ret[i] = k + "=" + v
+		i++
+	}
+	return json.Marshal(strings.Join(ret, ","))
+}
 
 // BackendKeyData is the data returned by the 'K'-type packet.
 type BackendKeyData struct {

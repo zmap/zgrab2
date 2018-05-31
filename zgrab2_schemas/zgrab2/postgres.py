@@ -30,6 +30,7 @@ postgres_error = SubRecord({
     "file": String(),
     "line": String(),
     "routine": String(),
+    "_unknown_error_tag": String(),
 })
 
 # modules/postgres/scanner.go - decodeAuthMode()
