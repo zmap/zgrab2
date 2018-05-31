@@ -17,6 +17,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"encoding/json"
 )
 
 const (
@@ -86,6 +87,18 @@ type PostgresError map[string]string
 // authentication. These are 'S'-type packets.
 // We keep track of them all -- but the golang postgres library only stores the server_version and TimeZone.
 type ServerParameters map[string]string
+
+// MarshalJSON returns the ServerParameters as a list of name/value pairs (work
+// around schema issue)
+func (s *ServerParameters) MarshalJSON() ([]byte, error) {
+	ret := make([]string, len(*s))
+	i := 0
+	for k, v := range *s {
+		ret[i] = k + "=" + v
+		i++
+	}
+	return json.Marshal(strings.Join(ret, ","))
+}
 
 // BackendKeyData is the data returned by the 'K'-type packet.
 type BackendKeyData struct {
@@ -200,7 +213,7 @@ func appendStringList(dest string, val string) string {
 
 // ServerParameters.appendBadParam() adds a packet to the list of bad/unexpected parameters
 func (p *ServerParameters) appendBadParam(packet *ServerPacket) {
-	(*p)[KeyBadParameters] = appendStringList((*p)[KeyBadParameters], packet.ToString())
+	(*p)[KeyBadParameters] = appendStringList((*p)[KeyBadParameters], packet.OutputValue())
 }
 
 // Results.decodeServerResponse() fills out the results object with packets returned by the server.
@@ -409,7 +422,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if response.Type != 'E' {
 			// No server should be allowing a 0.0 client...but if it does allow it, don't bail out
 			log.Debugf("Unexpected response from server: %s", response.ToString())
-			results.SupportedVersions = response.ToString()
+			results.SupportedVersions = response.OutputValue()
 		} else {
 			results.SupportedVersions = strings.Trim(string(response.Body), "\x00\r\n ")
 		}
@@ -440,7 +453,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if response.Type != 'E' {
 			// No server should be allowing a 255.255 client...but if it does allow it, don't bail out
 			log.Debugf("Unexpected response from server: %s", response.ToString())
-			results.ProtocolError = nil
+			results.ProtocolError = response.ToError()
 		} else {
 			results.ProtocolError = decodeError(response.Body)
 		}
@@ -474,6 +487,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		} else {
 			// No server should allow a missing User field -- but if it does, log and continue
 			log.Debugf("Unexpected response from server: %s", response.ToString())
+			results.StartupError = response.ToError()
 		}
 		// TODO: use any packets returned to fill out results? There probably won't be any, and they will probably be overwritten if Config.User etc is set...
 		if _, readErr = sql.ReadAll(); readErr != nil {

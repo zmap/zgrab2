@@ -17,6 +17,8 @@ import (
 // Don't allow unbounded reads
 const maxPacketSize = 512 * 1024
 
+const maxOutputSize = 1024
+
 // Don't read an unlimited number of tag/value pairs from the server
 const maxReadAllPackets = 64
 
@@ -57,6 +59,29 @@ func (p *ServerPacket) ToString() string {
 	// TODO: Don't hex-encode human-readable bodies?
 	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: [[%d bytes]] } }", &p, p.Type, p.Length, len(p.Body))
 }
+
+// OutputValue is the value that is stored for unexpected / unrecognized data.
+func (p *ServerPacket) OutputValue() string {
+	l := len(p.Body)
+	if len(p.Body) > maxOutputSize {
+		l = maxOutputSize
+	}
+	body := hex.EncodeToString(p.Body[:l])
+	if p.Length - 4 > uint32(l) {
+		body = body + "..."
+	}
+	return fmt.Sprintf("%c: 0x%08x: %s", p.Type, p.Length, body)
+}
+
+// ToError gets a PostgresError version of OutputValue.
+func (p *ServerPacket) ToError() *PostgresError {
+	return &PostgresError{
+		"severity": "unexpected",
+		"code": "unexpected error format",
+		"detail": p.OutputValue(),
+	}
+}
+
 
 // Send a client packet: a big-endian uint32 length followed by a body.
 func (c *Connection) Send(body []byte) error {
