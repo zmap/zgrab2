@@ -41,7 +41,7 @@ AUTH_MODES = [
 
 # modules/postgres/scanner.go: AuthenticationMode
 postgres_auth_mode = SubRecord({
-    "mode": Enum(values=AUTH_MODES, required=True),
+    "mode": Enum(values=AUTH_MODES, required=False),  # this gets lifted
     "Payload": Binary(),
 })
 
