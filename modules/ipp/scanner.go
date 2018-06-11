@@ -2,10 +2,14 @@
 // TODO: Describe module, the flags, the probe, the output, etc.
 package ipp
 
+//TODO: Clean up these imports
 import (
 	//"bytes"
+	"encoding/binary"
 	//"errors"
 	"io"
+	"net/http"
+	"strconv"
 	//"net"
 	//"net/url"
 	//"time"
@@ -17,12 +21,12 @@ import (
 //TODO: Tag relevant results and exlain in comments
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
-	// TODO: Add protocol
-	//TODO: Explain Protocol Version
-	ProtocolVersion int16 `json:"version"`
-	ServerVersion string `json:"version_string"`
+	Response *http.Response `json:"response,omitempty"`
 
-	//TODO: Explain CUPS-Version
+	MajorVersion int8 `json:"major_version"`
+	MinorVersion int8 `json:"minor_version"`
+
+	Version string `json:"version_string,omitempty"`
 	CUPSVersion string `json:"cups_version,omitempty"`
 
 	//TODO: Uncomment this when implementing the TLS version of things
@@ -40,6 +44,8 @@ func readResultsFromResponseBody(body *io.ReadCloser) *ScanResults {
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
+	//FIXME: Borrowed from http module
+	MaxSize int `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
 	//TODO: Include once TLS is implemented
 	// Protocols that support TLS should include zgrab2.TLSFlags
 
@@ -120,18 +126,67 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-// Scan TODO: describe what is scanned
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+//FIXME: Maybe switch to ipp/ipps schemes, at least optionally
+//FIXME: Stolen from http module, which isn't a good practice
+func getIPPURL(https bool, host string, port uint16, endpoint string) string {
+	var proto string
+	if https {
+		proto = "https"
+	} else {
+		proto = "http"
+	}
+	return proto + "://" + host + ":" + strconv.FormatUint(uint64(port), 10) + endpoint
+}
+
+//TODO: Doesn't support TLS at all right now
+func (scanner *Scanner) grab(target zgrab2.ScanTarget) (int8, int8, *zgrab2.ScanError) {
+	//FIXME: This is not where this hostname assignment logic should live
+	host := target.Domain
+	if host == "" {
+		host = target.IP.String()
+	}
+	//TODO: Make https bool depend on scanner's config
+	//TODO: ?Shouldn't put any endpoint, since we get the same response w/o on CUPS??
+	uri := getIPPURL(false, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
+	b := getPrinterAttributesRequest(uri)
+	resp, err := http.Post(uri, "application/ipp", &b)
 	if err != nil {
+		//FIXME: Create a descriptive error
+		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	} else {
+		//FIXME: Determine whether we need this error to avoid reading from Body
+		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+	}
+	//FIXME: Maybe add something to handle redirects
+	//FIXME: Probably return the whole response for further inspection, rather
+	//         than grabbing first 2 bytes. In that case, probs instate maxRead like http
+	//FIXME: Check to make sure that the response is actually IPP
+	var version int16
+	if err := binary.Read(resp.Body, binary.BigEndian, &version); err != nil {
+		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+	}
+	return int8(version >> 8), int8(version & 0xff), nil
+}
+
+// Scan TODO: describe how scan operates
+//1. FIXME: Don't open connection, because we don't need it?
+//2. Send something (currently get-printer-attributes)
+//3. Take in that response & read out version numbers
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	// TODO: implement
+	major, minor, err := scanner.grab(target)
+	//FIXME: Triggering even though error IS nil
+	//FIXME: This is a sloppy bodge to handle the issue, since you must know implementation details below you
+	if major == 0 && minor == 0 && err != nil {
+		//TODO: Consider mimicking HTTP Scan's retryHTTPS functionality
+		//TODO: Create relevant error, or send something more descriptive?
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	defer conn.Close()
-	// TODO: implement
-	
-	//FIXME: Dummy result currently, replace with an actual result assignment
-	result := map[string]string{
-		"test_key": "FIXME: Remove this",
-	}
-	return zgrab2.SCAN_SUCCESS, &result, nil
+	results := &ScanResults{}
+	results.MajorVersion = major
+	results.MinorVersion = minor
+	return zgrab2.SCAN_SUCCESS, results, nil
 }
