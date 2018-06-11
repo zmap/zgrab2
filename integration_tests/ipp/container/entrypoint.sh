@@ -15,8 +15,9 @@ exit 1
 set -x
 
 while true; do
-  if ! /usr/sbin/FIXME_YOUR_SERVICED --fixme-service-options; then
-    echo "FIXME_YOUR_SERVICED exited unexpectedly. Restarting..."
+#FIXME: Determine whether -f or -F is ideal, and whether any other options are needed
+  if ! /usr/sbin/cupsd -f --fixme-service-options; then
+    echo "cupsd exited unexpectedly. Restarting..."
     sleep 1
   fi
 done
