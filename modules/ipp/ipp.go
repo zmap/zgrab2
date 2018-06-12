@@ -42,6 +42,7 @@ func attributeByteString(syntaxTag byte, name string, value string) []byte {
 	return b
 }
 
+//TODO: Dynamically create nothing except uri?
 //Construct a minimal request that an IPP server will respond to
 func getPrinterAttributesRequest(uri string) bytes.Buffer {
 	var b bytes.Buffer

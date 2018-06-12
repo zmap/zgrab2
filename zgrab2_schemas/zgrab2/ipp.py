@@ -9,7 +9,11 @@ import zgrab2
 
 ipp_scan_response = SubRecord({
     "result": SubRecord({
-        "test_key": String(doc="FIXME: Remove this")
+        "version_major": Signed8BitInteger(),
+        "version_minor": Signed8BitInteger(),
+        "version_string": String(),
+        "cups_version": String(),
+        #"tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)
 
