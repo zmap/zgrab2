@@ -21,13 +21,14 @@ import (
 )
 
 const (
-	CONTENT_TYPE string = "application/ipp"
+	ContentType string = "application/ipp"
 )
 
 //TODO: Tag relevant results and exlain in comments
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
-	//TODO: Include a full response or at least a blob in the data
+	//TODO: ?Include the request sent as well??
+	//TODO: Include a full response or at least a blob in the data (at least in verbose mode)
 	//Response *http.Response `json:"response,omitempty"`
 
 	MajorVersion int8 `json:"version_major"`
@@ -36,9 +37,7 @@ type ScanResults struct {
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion string `json:"cups_version,omitempty"`
 
-	//TODO: Uncomment this when implementing the TLS version of things
-	// Protocols that support TLS should include
-	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // TODO: Annotate every flag thoroughly
@@ -138,16 +137,13 @@ func getIPPURL(https bool, host string, port uint16, endpoint string) string {
 	return proto + "://" + host + ":" + strconv.FormatUint(uint64(port), 10) + endpoint
 }
 
+// FIXME: Ensure that an actual content type is being used with some library
 func ippInContentType(resp http.Response) bool {
-	for _, t := range resp.Header["Content-Type"] {
-		if strings.Contains(t, CONTENT_TYPE) {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(resp.Header.Get("Content-Type"), ContentType)
 }
 
-//TODO: Doesn't support TLS at all right now
+// FIXME: Change to instead return (*ScanResults, *zgrab2.ScanError)
+// TODO: Doesn't support TLS at all right now
 func (scanner *Scanner) grab(target zgrab2.ScanTarget) (int8, int8, *zgrab2.ScanError) {
 	//FIXME: This is not where this hostname assignment logic should live
 	host := target.Domain
@@ -157,19 +153,22 @@ func (scanner *Scanner) grab(target zgrab2.ScanTarget) (int8, int8, *zgrab2.Scan
 	//FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
 	uri := getIPPURL(scanner.config.IPPSecure, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
 	b := getPrinterAttributesRequest(uri)
-	resp, err := http.Post(uri, CONTENT_TYPE, &b)
+
+	resp, err := http.Post(uri, ContentType, &b)
 	if err != nil {
-		//TODO: Create a descriptive error
-		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		return 0, 0, zgrab2.DetectScanError(err)
 	}
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	} else {
-		//TODO: Determine whether we need this error to avoid reading from Body
-		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		// FIXME: Is empty body allowed in IPP?
+		// Cite RFC!!
+		// Empty body is not allowed in valid IPP
+		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, nil)
 	}
-	//FIXME: Maybe add something to handle redirects
-	//FIXME: Probably return the whole response for further inspection by ztag, rather
+
+	// FIXME: Maybe add something to handle redirects
+	// FIXME: Probably return the whole response for further inspection by ztag, rather
 	//         than grabbing first 2 bytes. In that case, implement maxRead like http module
 
 	//Check to make sure that the repsonse received is actually IPP
@@ -177,12 +176,19 @@ func (scanner *Scanner) grab(target zgrab2.ScanTarget) (int8, int8, *zgrab2.Scan
 	//HTTP on port 631 is sufficient
 	//Still record data in the case of protocol error to see what that data looks like
 
-	//TODO: Record server-header version numbers
-	//protocols := resp.Header["Server"])
-	var version int16
+	// TODO: Record server-header version numbers
+	//protocols := resp.Header.Get("Server")
+	// TODO: Change this to perform two separate binary.Reads
+	var version uint16
+	// TODO: Determine whether errors other than protocol (ie: too few bytes) can be triggered here
 	if err := binary.Read(resp.Body, binary.BigEndian, &version); err != nil {
-		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		// FIXME: Determine whether sending fewer than 2 bytes is a protocol or application error
+		// I believe it's protocol, since the version must be specified (iirc)
+		// FIXME: Cite RFC!!
+		return 0, 0, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
 	}
+	// Returns signed integers because "every integer MUST be encoded as a signed integer"
+	// (Source: https://tools.ietf.org/html/rfc8010#section-3)
 	return int8(version >> 8), int8(version & 0xff), nil
 }
 
@@ -192,15 +198,14 @@ func (scanner *Scanner) grab(target zgrab2.ScanTarget) (int8, int8, *zgrab2.Scan
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	// TODO: use Connection again, at least when implementing TLS
 	major, minor, err := scanner.grab(target)
-	//FIXME: Triggering even though error IS nil
-	//FIXME: This is a sloppy bodge to handle the issue
-	if major == 0 && minor == 0 && err != nil {
-		//TODO: Consider mimicking HTTP Scan's retryHTTPS functionality
-		//TODO: Create more detailed error message?
-		return zgrab2.TryGetScanStatus(err), nil, err
-	}
 	results := &ScanResults{}
 	results.MajorVersion = major
 	results.MinorVersion = minor
+	// FIXME: Triggering even though error IS nil
+	// FIXME: This is a sloppy bodge to handle the issue
+	if major == 0 && minor == 0 && err != nil {
+		// TODO: Consider mimicking HTTP Scan's retryHTTPS functionality
+		return zgrab2.TryGetScanStatus(err), results, err
+	}
 	return zgrab2.SCAN_SUCCESS, results, nil
 }

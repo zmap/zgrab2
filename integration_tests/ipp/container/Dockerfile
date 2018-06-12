@@ -1,16 +1,17 @@
 FROM zgrab2_service_base:latest
 
-RUN apt-get update
-RUN apt-get install -y cups
-RUN apt-get install -y cups-pdf
-RUN echo "ServerAlias *" >> /etc/cups/cupsd.conf
-RUN echo "FileDevice yes" >> /etc/cups/cupsd.conf
-RUN sed -i 's/Order allow,deny/Order allow,deny\'$'\n  Allow all/g' /etc/cups/cupsd.conf
-RUN sed -i 's/Listen localhost:631/Listen 0.0.0.0:631/g' /etc/cups/cupsd.conf
+RUN apt-get update && apt-get install -y \
+  cups \
+  cups-pdf
+# TODO: Provide a pre-built cupsd.conf rather than relying on modifying the default config file
+WORKDIR /etc/cups
+COPY cupsd.conf cupsd.conf
+# TODO: Provide a pre-built cups-pdf.conf
 RUN service cups restart
 
-# Try to make it act more container-y -- remove it from init.d and just run the daemon as the entrypoint
+# TODO: Actually stop service; see why this works without stopping it
 #RUN service cupsd stop
+# TODO: Actually prevent cups from being started automatically
 #RUN update-rc.d -f cupsd remove
 
 WORKDIR /

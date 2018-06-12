@@ -16,33 +16,38 @@ type Connection struct {
 //
 //}
 
-func reverse(b []byte) []byte {
-	for i := 0; i < len(b)/2; i++ {
-		b[i], b[len(b)-1-i] = b[len(b)-1-i], b[i]
-	}
-	return b
-}
+// Returns a byte-encoded "attribute-with-one-value" with the provided "value-tag", "name", and "value"
+// attribute-with-one-value encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.4
+// Example (runnable from ipp_test.go):
+//   Input: 0x47, "attributes-charset", "us-ascii"
+//   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
+// TODO: Should return an error when fed an invalid valueTag?
+// TODO: Determine whether this should remain public. Currently is for Testable Example
+func AttributeByteString(valueTag byte, name string, value string) []byte {
+	//special byte denoting value syntax
+	b := []byte{valueTag}
 
-//FIXME: Clean this up, and use binary package to handle endianness in the correct order
-//FIXME: Make sure uint isn't messing anything up here, since they should be signed.
-func attributeByteString(syntaxTag byte, name string, value string) []byte {
-	//special bytestring denoting value syntax
-	b := []byte{syntaxTag}
-	l := make([]byte, 2)
-	binary.PutUvarint(l, uint64(len(name)))
-	l = reverse(l)
-	b = append(b, l...)
+	//append 16-bit signed int denoting name length
+	l := new(bytes.Buffer)
+	binary.Write(l, binary.BigEndian, int16(len(name)))
+	b = append(b, l.Bytes()...)
+
+	//append name
 	b = append(b, []byte(name)...)
 
-	l = make([]byte, 2)
-	binary.PutUvarint(l, uint64(len(value)))
-	l = reverse(l)
-	b = append(b, l...)
+	//append 16-bit signed int denoting value length
+	l = new(bytes.Buffer)
+	binary.Write(l, binary.BigEndian, int16(len(value)))
+	b = append(b, l.Bytes()...)
+
+	//append value
 	b = append(b, []byte(value)...)
 	return b
 }
 
-//TODO: Dynamically create nothing except uri?
+
+// IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
+//TODO: Store everything except uri statically?
 //Construct a minimal request that an IPP server will respond to
 func getPrinterAttributesRequest(uri string) bytes.Buffer {
 	var b bytes.Buffer
@@ -52,17 +57,17 @@ func getPrinterAttributesRequest(uri string) bytes.Buffer {
 	b.Write([]byte{0, 0xb})
 	//request-id = 1
 	b.Write([]byte{0, 0, 0, 1})
-	//operation-attributes-tag = 1
+	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
 	//attributes-charset
-	b.Write(attributeByteString(0x47, "attributes-charset", "utf-8"))
+	b.Write(AttributeByteString(0x47, "attributes-charset", "utf-8"))
 	//attributes-natural-language
-	b.Write(attributeByteString(0x48, "attributes-natural-language", "en-us"))
+	b.Write(AttributeByteString(0x48, "attributes-natural-language", "en-us"))
 	//printer-uri
-	b.Write(attributeByteString(0x45, "printer-uri", uri))
+	b.Write(AttributeByteString(0x45, "printer-uri", uri))
 	//requested-attributes
-	b.Write(attributeByteString(0x44, "requested-attributes", "all"))
+	b.Write(AttributeByteString(0x44, "requested-attributes", "all"))
 
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
