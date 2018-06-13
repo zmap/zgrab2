@@ -22,7 +22,6 @@ type Connection struct {
 //   Input: 0x47, "attributes-charset", "us-ascii"
 //   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
 // TODO: Should return an error when fed an invalid valueTag?
-// TODO: Determine whether this should remain public. Currently is for Testable Example
 func AttributeByteString(valueTag byte, name string, value string) []byte {
 	//special byte denoting value syntax
 	b := []byte{valueTag}
@@ -46,12 +45,12 @@ func AttributeByteString(valueTag byte, name string, value string) []byte {
 }
 
 
-// IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
 //TODO: Store everything except uri statically?
 //Construct a minimal request that an IPP server will respond to
-func getPrinterAttributesRequest(uri string) bytes.Buffer {
+// IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
+func getPrinterAttributesRequest(uri string) *bytes.Buffer {
 	var b bytes.Buffer
-	//version 2.1 (newest as of 2018)
+	//version = 2.1 (newest as of 2018)
 	b.Write([]byte{2, 1})
 	//operation-id = get-printer-attributes
 	b.Write([]byte{0, 0xb})
@@ -72,5 +71,5 @@ func getPrinterAttributesRequest(uri string) bytes.Buffer {
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
 
-	return b
+	return &b
 }
