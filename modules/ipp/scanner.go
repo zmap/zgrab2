@@ -83,6 +83,7 @@ type Flags struct {
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS   bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
 
 	//TODO: Figure out whether we need to have this?
 	// FollowLocalhostRedirects overrides the default behavior to return
@@ -231,16 +232,15 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 			return zgrab2.DetectScanError(err)
 		}
 	}
-	// FIXME: These are a bit hard-coded for my taste
 	protocols := strings.Split(resp.Header.Get("Server"), " ")
 	for _, p := range protocols {
 		// TODO: Determine whether these Server items will always be formatted in all caps
 		// (seems like there's no standard, but it's also very common)
 		if strings.HasPrefix(p, "IPP/") {
-			scan.results.VersionString = p//[4:] FIXME: Remove?
+			scan.results.VersionString = p
 		}
 		if strings.HasPrefix(p, "CUPS/") {
-			scan.results.CUPSVersion = p//[5:] FIXME: Remove?
+			scan.results.CUPSVersion = p
 		}
 	}
 
@@ -249,87 +249,30 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 	//HTTP on port 631 is sufficient
 	//Still record data in the case of protocol error to see what that data looks like
 
-	getBody(resp, scanner)
+	buf := getBody(resp, scanner)
 	// TODO: Check for getBody errors here
 
-
-
-	return nil
-}
-
-// TODO: Rework errors so that a partial scan is possible. If one field isn't present, just skip it.
-//       If something prevents other fields, then skip all such fields.
-// TODO: Doesn't support TLS at all right now
-func (scanner *Scanner) grab(target zgrab2.ScanTarget) (*ScanResults, *zgrab2.ScanError) {
-	// FIXME: This is not where this hostname assignment logic should live
-	//        Occurs when configuring HTTPscan object in http module, we don't need that weight
-	host := target.Domain
-	if host == "" {
-		// FIXME: I only know this works for sure for IPv4, uri string might get weird w/ IPv6
-		host = target.IP.String()
-	}
-	// FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
-	uri := getIPPURI(scanner.config.IPPSecure, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
-	body := getPrinterAttributesRequest(uri)
-
-	// FIXME: Consider setting "Allow: */*" in the headers of request
-	resp, err := http.Post(uri, ContentType, body)
-	result := &ScanResults{}
-	result.Response = resp
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	} else {
-		// FIXME: Is empty body allowed in IPP?
-		// Cite RFC!!
-		// Empty body is not allowed in valid IPP
-		// TODO: Return whatever response we got, if any, and then return error denoting empty body
-		// b/c resp == nil or Body == nil
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, nil)
-	}
-	if err != nil {
-		// FIXME: Maybe only return with failure here if err != nil && resp == nil, b/c otherwise we have a response
-		return result, zgrab2.DetectScanError(err)
-	}
-	protocols := strings.Split(resp.Header.Get("Server"), " ")
-	for _, p := range protocols {
-		// TODO: Determine whether these Server items will always be formatted in all caps
-		// (seems like there's no standard)
-		if strings.HasPrefix(p, "IPP/") {
-			result.VersionString = p[4:]
-		}
-		if strings.HasPrefix(p, "CUPS/") {
-			result.CUPSVersion = p[5:]
-		}
-	}
-
-	// FIXME: Maybe add something to handle redirects
-	// FIXME: Probably return the whole response for further inspection by ztag, rather
-	//        than grabbing first 2 bytes. In that case, implement maxRead like http module
-
-	//Check to make sure that the repsonse received is actually IPP
-	//Content-Type header matches is sufficient
-	//HTTP on port 631 is sufficient
-	//Still record data in the case of protocol error to see what that data looks like
-
-	// Returns signed integers because "every integer MUST be encoded as a signed integer"
+	// Reads in signed integers because "every integer MUST be encoded as a signed integer"
 	// (Source: https://tools.ietf.org/html/rfc8010#section-3)
 	var major, minor int8
-
+	// TODO: Refactor this so that an assignment happens for each successful Read
 	// TODO: Determine whether errors other than protocol (ie: too few bytes) can be triggered here
-	if err := binary.Read(resp.Body, binary.BigEndian, &major); err != nil {
+	if err := binary.Read(buf, binary.BigEndian, &major); err != nil {
 		// FIXME: Determine whether sending fewer than 2 bytes is a protocol or application error
 		// I believe it's protocol, since the version must be specified (iirc)
 		// FIXME: Cite RFC!!
 		// Resolve if block below if resolved here
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
 	}
-	if err := binary.Read(resp.Body, binary.BigEndian, &minor); err != nil {
+	if err := binary.Read(buf, binary.BigEndian, &minor); err != nil {
 		// FIXME: Address the same concerns as in previous if block
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
 	}
-	*result.MajorVersion = major
-	*result.MinorVersion = minor
-	return result, nil
+	scan.results.MajorVersion = &major
+	scan.results.MinorVersion = &minor
+
+
+	return nil
 }
 
 //FIXME: Copy-pasted from http module
@@ -446,21 +389,22 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 //1. Send a request (currently get-printer-attributes)
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	//create new scan
 	scan := scanner.newIPPScan(&target)
 	//defer scan.Cleanup()
 	//do a grab
 	err := scanner.Grab(scan, &target)
-	// TODO: use Connection again, at least when implementing TLS?
-	//conn, err := target.Open(&scanner.config.BaseFlags)
-	//if err != nil {
-	//	return zgrab2.TryGetScanStatus(err), nil, err
-	//}
-	//defer conn.Close()
-
-
-	//results, err := scanner.grab(target)
 	if err != nil {
+		if scanner.config.RetryHTTPS && !scanner.config.IPPSecure {
+			//scan.Cleanup()
+			scanner.config.IPPSecure = true
+			retry := scanner.newIPPScan(&target)
+			//defer retry.Cleanup()
+			retryErr := scanner.Grab(retry, &target)
+			if retryErr != nil {
+				return retryErr.Unpack(retry.results)
+			}
+			return zgrab2.SCAN_SUCCESS, retry.results, nil
+		}
 		// TODO: Consider mimicking HTTP Scan's retryHTTPS functionality
 		return zgrab2.TryGetScanStatus(err), scan.results, err
 	}

@@ -3,18 +3,7 @@ package ipp
 import (
 	"bytes"
 	"encoding/binary"
-	"net"
 )
-
-type Connection struct {
-	conn net.Conn
-	results ScanResults
-}
-
-//func ReadResponse(body *io.ReadCloser) *ScanResults {
-//	result := &ScanResults{}
-//
-//}
 
 // Returns a byte-encoded "attribute-with-one-value" with the provided "value-tag", "name", and "value"
 // attribute-with-one-value encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.4
@@ -53,6 +42,7 @@ func getPrinterAttributesRequest(uri string) *bytes.Buffer {
 	var b bytes.Buffer
 	// TODO: Explain whether and why we should use newest version, how does
 	// old interact with new and vice versa?
+	// FIXME: CUPS Server is simply returning the version number it's fed, which is sad :(
 	//version = 2.1 (newest as of 2018)
 	b.Write([]byte{2, 1})
 	//operation-id = get-printer-attributes
