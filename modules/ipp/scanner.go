@@ -4,26 +4,50 @@ package ipp
 
 //TODO: Clean up these imports
 import (
-	//"bytes"
+	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
-	//"errors"
+	"errors"
 	//"fmt"
-	//"io"
+	"io"
 	"mime"
-	"net/http"
+	"net"
+	//"net/http"
+	"net/url"
 	"strconv"
 	"strings"
-	//"net"
-	//"net/url"
-	//"time"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 const (
 	ContentType string = "application/ipp"
 )
+
+var (
+	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
+	// unless FollowLocalhostRedirects is set.
+	ErrRedirLocalhost = errors.New("Redirecting to localhost")
+
+	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
+	// MaxRedirects.
+	ErrTooManyRedirects = errors.New("Too many redirects")
+)
+
+// FIXME: Pared down from http module, might not need all of this
+type scan struct {
+	connections []net.Conn
+	// NOTE: Transport is the same between our & standard http library
+	transport *http.Transport
+	// NOTE: Client adds UserAgent member and response argument to CheckRedirect
+	client  *http.Client
+	// FIXME: Figure out whether there's a good reason to have this by value other than not initializing it manually and not checking for nil-ness
+	results *ScanResults
+	url     string
+}
 
 //TODO: Tag relevant results and exlain in comments
 // ScanResults instances are returned by the module's Scan function.
@@ -31,8 +55,14 @@ type ScanResults struct {
 	//TODO: ?Include the request sent as well??
 	Response *http.Response `json:"response,omitempty" zgrab:"debug"`
 
-	MajorVersion int8 `json:"version_major"`
-	MinorVersion int8 `json:"version_minor"`
+	// RedirectResponseChain is non-empty if the scanner follows a redirect.
+	// It contains all redirect responses prior to the final response.
+	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty" zgrab:"debug"`
+
+	// TODO: These should be pointers to int, so that they can be nil when not found, rather than 0.0
+	// TODO: Maybe these should also be omitempty. They don't have to exist.
+	MajorVersion *int8 `json:"version_major,omitempty"`
+	MinorVersion *int8 `json:"version_minor,omitempty"`
 
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
@@ -50,8 +80,14 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
 	//FIXME: Borrowed from http module
-	MaxSize int `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
+	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+
+	//TODO: Figure out whether we need to have this?
+	// FollowLocalhostRedirects overrides the default behavior to return
+	// ErrRedirLocalhost whenever a redirect points to localhost.
+	FollowLocalhostRedirects bool `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
 
 	// FIXME: Should just be called HTTPS?
 	// TODO: Maybe separately implement both an ipps connection and upgrade to https
@@ -155,6 +191,72 @@ func ippInContentType(resp http.Response) (bool, error) {
 	return mediatype == ContentType, nil
 }
 
+func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.ScanError {
+	body := getPrinterAttributesRequest(scan.url)
+	request, err := http.NewRequest("POST", scan.url, body)
+	if err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+	}
+	request.Header.Set("Accept", "*/*")
+	request.Header.Set("Content-Type", ContentType)
+	resp, err := scan.client.Do(request)
+	//Store response regardless of error in request, because you may have gotten something back
+	scan.results.Response = resp
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	} else {
+		// FIXME: Is empty body allowed in IPP?
+		// Cite RFC!!
+		// Empty body is not allowed in valid IPP
+		// TODO: Return whatever response we got, if any, and then return error denoting empty body
+		// b/c resp == nil or Body == nil
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, nil)
+	}
+	if err != nil {
+		//If error is a url.Error (a struct), unwrap it
+		if urlError, ok := err.(*url.Error); ok {
+			err = urlError.Err
+		}
+	}
+	// TODO: I assume this second check is here because the error that a url Error wraps could be nil
+	if err != nil {
+		switch err {
+		case ErrRedirLocalhost:
+			// FIXME: Do nothing when redirecting to local is an issue?
+			break
+		case ErrTooManyRedirects:
+			// FIXME: Does it make sense to have an application error for a lot of redirects
+			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+		default:
+			return zgrab2.DetectScanError(err)
+		}
+	}
+	// FIXME: These are a bit hard-coded for my taste
+	protocols := strings.Split(resp.Header.Get("Server"), " ")
+	for _, p := range protocols {
+		// TODO: Determine whether these Server items will always be formatted in all caps
+		// (seems like there's no standard, but it's also very common)
+		if strings.HasPrefix(p, "IPP/") {
+			scan.results.VersionString = p//[4:] FIXME: Remove?
+		}
+		if strings.HasPrefix(p, "CUPS/") {
+			scan.results.CUPSVersion = p//[5:] FIXME: Remove?
+		}
+	}
+
+	// TODO: Check to make sure that the repsonse received is actually IPP
+	//Content-Type header matches is sufficient
+	//HTTP on port 631 is sufficient
+	//Still record data in the case of protocol error to see what that data looks like
+
+	getBody(resp, scanner)
+	// TODO: Check for getBody errors here
+
+
+
+	return nil
+}
+
 // TODO: Rework errors so that a partial scan is possible. If one field isn't present, just skip it.
 //       If something prevents other fields, then skip all such fields.
 // TODO: Doesn't support TLS at all right now
@@ -172,6 +274,8 @@ func (scanner *Scanner) grab(target zgrab2.ScanTarget) (*ScanResults, *zgrab2.Sc
 
 	// FIXME: Consider setting "Allow: */*" in the headers of request
 	resp, err := http.Post(uri, ContentType, body)
+	result := &ScanResults{}
+	result.Response = resp
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	} else {
@@ -184,10 +288,8 @@ func (scanner *Scanner) grab(target zgrab2.ScanTarget) (*ScanResults, *zgrab2.Sc
 	}
 	if err != nil {
 		// FIXME: Maybe only return with failure here if err != nil && resp == nil, b/c otherwise we have a response
-		return nil, zgrab2.DetectScanError(err)
+		return result, zgrab2.DetectScanError(err)
 	}
-	result := &ScanResults{}
-	result.Response = resp
 	protocols := strings.Split(resp.Header.Get("Server"), " ")
 	for _, p := range protocols {
 		// TODO: Determine whether these Server items will always be formatted in all caps
@@ -225,20 +327,142 @@ func (scanner *Scanner) grab(target zgrab2.ScanTarget) (*ScanResults, *zgrab2.Sc
 		// FIXME: Address the same concerns as in previous if block
 		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
 	}
-	result.MajorVersion = major
-	result.MinorVersion = minor
+	*result.MajorVersion = major
+	*result.MinorVersion = minor
 	return result, nil
+}
+
+//FIXME: Copy-pasted from http module
+//Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
+func redirectsToLocalhost(host string) bool {
+	if i := net.ParseIP(host); i != nil {
+		return i.IsLoopback() || i.Equal(net.IPv4zero)
+	}
+	if host == "localhost" {
+		return true
+	}
+
+	if addrs, err := net.LookupHost(host); err == nil {
+		for _, i := range addrs {
+			if ip := net.ParseIP(i); ip != nil {
+				if ip.IsLoopback() || ip.Equal(net.IPv4zero) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// FIXME: Copy-pasted from http module, now with a slight refactor to de-duplicate storing response body
+// Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses the redirectToLocalhost and MaxRedirects config
+func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.Response, []*http.Request) error {
+	return func(req *http.Request, res *http.Response, via []*http.Request) error {
+		if !scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
+			return ErrRedirLocalhost
+		}
+		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
+		getBody(res, scanner)
+
+		if len(via) > scanner.config.MaxRedirects {
+			return ErrTooManyRedirects
+		}
+
+		return nil
+	}
+}
+
+// NOTE: Pulled out from http module
+// FIXME: Now returns a value, which works if this stands alone or gets incorporated into http
+// FIXME: Add some error handling somewhere in here
+func getBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
+	b := new(bytes.Buffer)
+	maxReadLen := int64(scanner.config.MaxSize) * 1024
+	readLen := maxReadLen
+	if res.ContentLength >= 0 && res.ContentLength < maxReadLen {
+		readLen = res.ContentLength
+	}
+	io.CopyN(b, res.Body, readLen)
+	res.BodyText = b.String()
+	if len(res.BodyText) > 0 {
+		m := sha256.New()
+		m.Write(b.Bytes())
+		res.BodySHA256 = m.Sum(nil)
+	}
+	return b
+}
+
+// FIXME: Copy-pasted from http module
+func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Conn, error) {
+	return func(net, addr string) (net.Conn, error) {
+		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(scanner.config.BaseFlags.Timeout))
+		if err != nil {
+			return nil, err
+		}
+		scan.connections = append(scan.connections, outer)
+		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(outer)
+		if err != nil {
+			return nil, err
+		}
+		// FIXME: Understand what this comment is trying to say
+		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
+		err = tlsConn.Handshake()
+		return tlsConn, err
+	}
+}
+
+// FIXME: Why is this a method of Scanner?
+// FIXME: Copy-pasted from newHTTPScan directly, which isn't a great idea
+func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
+	newScan := scan{
+		client: http.MakeNewClient(),
+	}
+	transport := &http.Transport{
+		Proxy:               nil, // TODO: implement proxying
+		DisableKeepAlives:   false,
+		DisableCompression:  false,
+		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
+	}
+	transport.DialTLS = newScan.getTLSDialer(scanner)
+	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
+	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
+	// FIXME: include user agent every time we make a request
+	newScan.client.UserAgent = scanner.config.UserAgent
+	newScan.client.Transport = transport
+	newScan.client.Jar = nil // Don't transfer cookies FIXME: Stolen from HTTP, unclear if needed
+	host := target.Domain
+	if host == "" {
+		// FIXME: I only know this works for sure for IPv4, uri string might get weird w/ IPv6
+		host = target.IP.String()
+	}
+	// FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
+	newScan.url = getIPPURI(scanner.config.IPPSecure, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
+	// FIXME: Only necessary if we keep results as a pointer
+	newScan.results = &ScanResults{}
+	return &newScan
 }
 
 // Scan TODO: describe how scan operates in appropriate detail
 //1. Send a request (currently get-printer-attributes)
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	//create new scan
+	scan := scanner.newIPPScan(&target)
+	//defer scan.Cleanup()
+	//do a grab
+	err := scanner.Grab(scan, &target)
 	// TODO: use Connection again, at least when implementing TLS?
-	results, err := scanner.grab(target)
+	//conn, err := target.Open(&scanner.config.BaseFlags)
+	//if err != nil {
+	//	return zgrab2.TryGetScanStatus(err), nil, err
+	//}
+	//defer conn.Close()
+
+
+	//results, err := scanner.grab(target)
 	if err != nil {
 		// TODO: Consider mimicking HTTP Scan's retryHTTPS functionality
-		return zgrab2.TryGetScanStatus(err), results, err
+		return zgrab2.TryGetScanStatus(err), scan.results, err
 	}
-	return zgrab2.SCAN_SUCCESS, results, nil
+	return zgrab2.SCAN_SUCCESS, scan.results, nil
 }

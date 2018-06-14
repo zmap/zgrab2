@@ -3,12 +3,12 @@ package ipp
 import (
 	"bytes"
 	"encoding/binary"
-	//"io"
 	"net"
 )
 
 type Connection struct {
-	Conn net.Conn
+	conn net.Conn
+	results ScanResults
 }
 
 //func ReadResponse(body *io.ReadCloser) *ScanResults {
@@ -18,6 +18,7 @@ type Connection struct {
 
 // Returns a byte-encoded "attribute-with-one-value" with the provided "value-tag", "name", and "value"
 // attribute-with-one-value encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.4
+// TODO: Change example to read out in hex
 // Example (runnable from ipp_test.go):
 //   Input: 0x47, "attributes-charset", "us-ascii"
 //   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
@@ -50,6 +51,8 @@ func AttributeByteString(valueTag byte, name string, value string) []byte {
 // IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
 func getPrinterAttributesRequest(uri string) *bytes.Buffer {
 	var b bytes.Buffer
+	// TODO: Explain whether and why we should use newest version, how does
+	// old interact with new and vice versa?
 	//version = 2.1 (newest as of 2018)
 	b.Write([]byte{2, 1})
 	//operation-id = get-printer-attributes
