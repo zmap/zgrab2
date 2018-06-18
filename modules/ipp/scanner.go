@@ -12,7 +12,6 @@ import (
 	"io"
 	"mime"
 	"net"
-	//"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -25,6 +24,9 @@ import (
 
 const (
 	ContentType string = "application/ipp"
+	VersionsSupported string = "ipp-versions-supported"
+	CupsVersion string = "cups-version"
+	PrinterURISupported string = "printer-uri-supported"
 )
 
 var (
@@ -83,7 +85,7 @@ type Flags struct {
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	RetryHTTPS   bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
+	RetryTLS   bool   `long:"retry-tls" description:"If the initial request fails, reconnect and try with HTTPS."`
 
 	//TODO: Figure out whether we need to have this?
 	// FollowLocalhostRedirects overrides the default behavior to return
@@ -166,8 +168,9 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-// FIXME: Maybe switch to ipp/ipps schemes, at least optionally
-func getIPPURI(https bool, host string, port uint16, endpoint string) string {
+// This doesn't use ipp(s) scheme, because http doesn't recognize them, so we need http scheme
+// We convert as needed later in convertURIToIPP
+func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	var proto string
 	if https {
 		proto = "https"
@@ -182,14 +185,55 @@ func ippInContentType(resp http.Response) (bool, error) {
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
 	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	// FIXME: See if empty media type is sufficient,
+	// FIXME: See if empty media type is sufficient as failure indicator,
 	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted)
 	if mediatype == "" && err != nil {
 		//TODO: Handle errors in a weird way, since media type is still returned
-		//      if error when parsing optional parameters
+		//      if there's an error when parsing optional parameters
 		return false, err
 	}
+	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
 	return mediatype == ContentType, nil
+}
+
+// TODO: Refactor to more-generically determine whether a protocol is present in the Server header
+func isCUPS(resp *http.Response) bool {
+	// FIXME: This is largely copied and pasted from within Grab()
+	protocols := strings.Split(resp.Header.Get("Server"), " ")
+	for _, p := range protocols {
+		if strings.HasPrefix(p, "CUPS/") {
+			return true
+		}
+	}
+	return false
+}
+
+// FIXME: Take in something other than string as body, like bytes.Buffer of []byte
+// FIXME: Genericize this if possible, should be able to return different things?
+// FIXME: add proper error handling here
+func readAttributeFromBody(attr string, body *string) (*[]byte, error) {
+	index := strings.Index(*body, attr)
+	if index != -1 {
+		//valueTag := body[index - 3]
+		buf := bytes.NewBuffer([]byte((*body)[index:]))
+		ignore := make([]byte, len(attr))
+		if err := binary.Read(buf, binary.BigEndian, &ignore); err != nil {
+			//Read in attribute-name failed
+			return nil, err
+		}
+		var length int16
+		if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+			//Length of content wasn't even read
+			return nil, err
+		}
+		val := make([]byte, length)
+		if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
+			//Content was not successfully read.
+			return nil, err
+		}
+		return &val, nil
+	}
+	return nil, errors.New("Specified attribute not present.")
 }
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.ScanError {
@@ -206,11 +250,12 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	} else {
-		// FIXME: Is empty body allowed in IPP?
-		// Cite RFC!!
-		// Empty body is not allowed in valid IPP
-		// TODO: Return whatever response we got, if any, and then return error denoting empty body
-		// b/c resp == nil or Body == nil
+		// resp == nil || resp.Body == nil
+		// Empty response/body is not allowed in IPP because a response has required parameter
+		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
+		// Still returns the response, if any, because assignment occurs before this else block
+		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
+		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, nil)
 	}
 	if err != nil {
@@ -235,7 +280,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 	protocols := strings.Split(resp.Header.Get("Server"), " ")
 	for _, p := range protocols {
 		// TODO: Determine whether these Server items will always be formatted in all caps
-		// (seems like there's no standard, but it's also very common)
+		// (seems like there's no standard, but it's also very prevalent)
 		if strings.HasPrefix(p, "IPP/") {
 			scan.results.VersionString = p
 		}
@@ -244,13 +289,36 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 		}
 	}
 
+	// TODO: Split off optional CUPS-only stuff into a separate function
+	if scan.results.CUPSVersion != "" {
+		// Send a CUPS-get-printers request
+		cupsBody := getPrintersRequest()
+		cupsReq, err := http.NewRequest("POST", scan.url, cupsBody)
+		if err != nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		}
+		cupsReq.Header.Set("Accept", "*/*")
+		cupsReq.Header.Set("Content-Type", ContentType)
+		cupsResp, err := scan.client.Do(cupsReq)
+		// Read back some data from it, storing that data into the BodyText and BodySHA256 of cupsResp
+		storeBody(cupsResp, scanner)
+
+		cupsVersion, err := readAttributeFromBody(CupsVersion, &cupsResp.BodyText)
+		if err != nil {
+			//Handle failure
+			return zgrab2.DetectScanError(err)
+		}
+		// Report this cupsVersion b/c it's more detailed than the one found in Server header
+		scan.results.CUPSVersion = strings.Split(scan.results.CUPSVersion, "/")[0] + "/" + string(*cupsVersion)
+	}
+
 	// TODO: Check to make sure that the repsonse received is actually IPP
 	//Content-Type header matches is sufficient
 	//HTTP on port 631 is sufficient
 	//Still record data in the case of protocol error to see what that data looks like
 
-	buf := getBody(resp, scanner)
-	// TODO: Check for getBody errors here
+	buf := copyBody(resp, scanner)
+	// TODO: Check for copyBody errors here
 
 	// Reads in signed integers because "every integer MUST be encoded as a signed integer"
 	// (Source: https://tools.ietf.org/html/rfc8010#section-3)
@@ -258,24 +326,21 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 	// TODO: Refactor this so that an assignment happens for each successful Read
 	// TODO: Determine whether errors other than protocol (ie: too few bytes) can be triggered here
 	if err := binary.Read(buf, binary.BigEndian, &major); err != nil {
-		// FIXME: Determine whether sending fewer than 2 bytes is a protocol or application error
-		// I believe it's protocol, since the version must be specified (iirc)
-		// FIXME: Cite RFC!!
-		// Resolve if block below if resolved here
+		// Empty body is not allowed in IPP because version-number is a required parameter in the first two bytes
+		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
+		// Still returns the response, if any, because assignment occurs before this else block
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
 	}
 	if err := binary.Read(buf, binary.BigEndian, &minor); err != nil {
-		// FIXME: Address the same concerns as in previous if block
+		// Body with fewer than 2 bytes is also a protocol error; see above if block
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
 	}
 	scan.results.MajorVersion = &major
 	scan.results.MinorVersion = &minor
 
-
 	return nil
 }
 
-//FIXME: Copy-pasted from http module
 //Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
 func redirectsToLocalhost(host string) bool {
 	if i := net.ParseIP(host); i != nil {
@@ -297,7 +362,6 @@ func redirectsToLocalhost(host string) bool {
 	return false
 }
 
-// FIXME: Copy-pasted from http module, now with a slight refactor to de-duplicate storing response body
 // Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses the redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
@@ -305,7 +369,7 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 			return ErrRedirLocalhost
 		}
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
-		getBody(res, scanner)
+		storeBody(res, scanner)
 
 		if len(via) > scanner.config.MaxRedirects {
 			return ErrTooManyRedirects
@@ -315,10 +379,20 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 	}
 }
 
-// NOTE: Pulled out from http module
-// FIXME: Now returns a value, which works if this stands alone or gets incorporated into http
-// FIXME: Add some error handling somewhere in here
-func getBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
+// FIXME: I think this refactoring is meaningfully less performant than just copying and pasting, but it's a lot cleaner to write
+//        Also quite possibly not easier to read ("What does storeBody do? Where does it store it?")
+// FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
+func storeBody(res *http.Response, scanner *Scanner) {
+	b := copyBody(res, scanner)
+	res.BodyText = b.String()
+	if len(res.BodyText) > 0 {
+		m := sha256.New()
+		m.Write(b.Bytes())
+		res.BodySHA256 = m.Sum(nil)
+	}
+}
+
+func copyBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	b := new(bytes.Buffer)
 	maxReadLen := int64(scanner.config.MaxSize) * 1024
 	readLen := maxReadLen
@@ -326,16 +400,10 @@ func getBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 		readLen = res.ContentLength
 	}
 	io.CopyN(b, res.Body, readLen)
-	res.BodyText = b.String()
-	if len(res.BodyText) > 0 {
-		m := sha256.New()
-		m.Write(b.Bytes())
-		res.BodySHA256 = m.Sum(nil)
-	}
 	return b
 }
 
-// FIXME: Copy-pasted from http module
+// Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
 func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
 		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(scanner.config.BaseFlags.Timeout))
@@ -347,7 +415,7 @@ func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Con
 		if err != nil {
 			return nil, err
 		}
-		// FIXME: Understand what this comment is trying to say
+		// TODO: Understand what this comment is trying to say
 		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
 		err = tlsConn.Handshake()
 		return tlsConn, err
@@ -355,7 +423,7 @@ func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Con
 }
 
 // FIXME: Why is this a method of Scanner?
-// FIXME: Copy-pasted from newHTTPScan directly, which isn't a great idea
+// Adapted from newHTTPScan in zgrab2 http module
 func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	newScan := scan{
 		client: http.MakeNewClient(),
@@ -369,18 +437,19 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	transport.DialTLS = newScan.getTLSDialer(scanner)
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
-	// FIXME: include user agent every time we make a request
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
 	newScan.client.Jar = nil // Don't transfer cookies FIXME: Stolen from HTTP, unclear if needed
 	host := target.Domain
 	if host == "" {
 		// FIXME: I only know this works for sure for IPv4, uri string might get weird w/ IPv6
+		// FIXME: Change this, since ipp uri's cannot contain an IP address. Still valid for HTTP
 		host = target.IP.String()
 	}
 	// FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
-	newScan.url = getIPPURI(scanner.config.IPPSecure, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
-	// FIXME: Only necessary if we keep results as a pointer
+	newScan.url = getHTTPURL(scanner.config.IPPSecure, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
+	// FIXME: We're already passing a scan object around all over the place, so it wouldn't be more to have an object for this
+	// results is a pointer to minimize memory overhead from passing around a bulky ScanResults object
 	newScan.results = &ScanResults{}
 	return &newScan
 }
@@ -391,10 +460,10 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	scan := scanner.newIPPScan(&target)
 	//defer scan.Cleanup()
-	//do a grab
 	err := scanner.Grab(scan, &target)
 	if err != nil {
-		if scanner.config.RetryHTTPS && !scanner.config.IPPSecure {
+		// Ripped directly from http module's RetryTLS functionality
+		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
 			//scan.Cleanup()
 			scanner.config.IPPSecure = true
 			retry := scanner.newIPPScan(&target)
@@ -405,7 +474,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			}
 			return zgrab2.SCAN_SUCCESS, retry.results, nil
 		}
-		// TODO: Consider mimicking HTTP Scan's retryHTTPS functionality
 		return zgrab2.TryGetScanStatus(err), scan.results, err
 	}
 	return zgrab2.SCAN_SUCCESS, scan.results, nil
