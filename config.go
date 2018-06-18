@@ -18,11 +18,11 @@ type Config struct {
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	Interface          string          `short:"i" long:"interface" description:"Network interface to send on"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
+	Debug			   bool            `long:"debug" description:"Include debug fields in the output."`
 	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
-
 	inputFile  *os.File
 	outputFile *os.File
 	metaFile   *os.File
@@ -109,4 +109,8 @@ func validateFrameworkConfiguration() {
 // GetMetaFile returns the file to which metadata should be output
 func GetMetaFile() *os.File {
 	return config.metaFile
+}
+
+func includeDebugOutput() bool {
+	return config.Debug
 }
