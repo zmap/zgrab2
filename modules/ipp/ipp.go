@@ -3,45 +3,50 @@ package ipp
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"strings"
 )
 
-// Returns a byte-encoded "attribute-with-one-value" with the provided "value-tag", "name", and "value"
+// Writes an "attribute-with-one-value" with the provided "value-tag", "name", and "value" to provided buffer
 // attribute-with-one-value encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.4
-// TODO: Change example to read out in hex
 // Example (runnable from ipp_test.go):
 //   Input: 0x47, "attributes-charset", "us-ascii"
 //   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
-// TODO: Should return an error when fed an invalid valueTag?
-func AttributeByteString(valueTag byte, name string, value string) []byte {
+// TODO: Switch output and Example function to use hex.Dump()
+// TODO: Should return an error when fed an invalid valueTag
+func AttributeByteString(valueTag byte, name string, value string, target *bytes.Buffer) error {
 	//special byte denoting value syntax
-	b := []byte{valueTag}
+	binary.Write(target, binary.BigEndian, valueTag)
 
-	//append 16-bit signed int denoting name length
-	l := new(bytes.Buffer)
-	binary.Write(l, binary.BigEndian, int16(len(name)))
-	b = append(b, l.Bytes()...)
+	if len(name) < (1 << 16) {
+		//append 16-bit signed int denoting name length
+		binary.Write(target, binary.BigEndian, int16(len(name)))
 
-	//append name
-	b = append(b, []byte(name)...)
+		//append name
+		binary.Write(target, binary.BigEndian, []byte(name))
+	} else {
+		return errors.New("Name too long to encode.")
+	}
 
-	//append 16-bit signed int denoting value length
-	l = new(bytes.Buffer)
-	binary.Write(l, binary.BigEndian, int16(len(value)))
-	b = append(b, l.Bytes()...)
+	if len(value) < (1 << 16) {
+		//append 16-bit signed int denoting value length
+		binary.Write(target, binary.BigEndian, int16(len(value)))
 
-	//append value
-	b = append(b, []byte(value)...)
-	return b
+		//append value
+		binary.Write(target, binary.BigEndian, []byte(value))
+	} else {
+		return errors.New("Value too long to encode.")
+	}
+
+	return nil
 }
 
 func convertURIToIPP(uri string) string {
 	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
 		uri = strings.Replace(uri, "http", "ipp", 1)
 	}
-	// FIXME: Or assume that port is already specified
-	// TODO: Ensure that port is explicitly specified, otherwise specify 631
-	// TODO: Outlaw literal IP addresses in v4 or v6
+	// TODO: RFC claims that literal IP addresses are not valid uri's, but Wireshark IPP Capture example uses them
+	// (Source: https://wiki.wireshark.org/SampleCaptures?action=AttachFile&do=view&target=ipp.pcap)
 	sections := strings.Split(uri, "/")
 	if !strings.Contains(sections[2], ":") {
 		sections[2] += ":631"
@@ -50,35 +55,13 @@ func convertURIToIPP(uri string) string {
 	if strings.HasPrefix(uri, "ipp://") {
 		return uri
 	}
-	// FIXME: This is a bodge
 	return "ipp://" + uri
 }
 
-func getDevicesRequest() *bytes.Buffer {
+func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	var b bytes.Buffer
-	//version = 3.0 newer than anything extant
-	b.Write([]byte{2, 1})
-	//operation-id = get-printer-attributes
-	b.Write([]byte{0x40, 0x0b})
-	//request-id = 1
-	b.Write([]byte{0, 0, 0, 1})
-	//operation-attributes-tag = 1 (begins an attribute-group)
-	b.Write([]byte{1})
-
-	//attributes-charset
-	b.Write(AttributeByteString(0x47, "attributes-charset", "utf-8"))
-	//attributes-natural-language
-	b.Write(AttributeByteString(0x48, "attributes-natural-language", "en-us"))
-
-	//end-of-attributes-tag = 3
-	b.Write([]byte{3})
-
-	return &b
-}
-
-func getPrintersRequest() *bytes.Buffer {
-	var b bytes.Buffer
-	//version = 3.0 newer than anything extant
+	// Sending too new a version leads to a version-not-supported error, so we'll just send newest
+	//version
 	b.Write([]byte{2, 1})
 	//operation-id = get-printer-attributes
 	b.Write([]byte{0x40, 2})
@@ -87,10 +70,11 @@ func getPrintersRequest() *bytes.Buffer {
 	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
+	// TODO: Handle error ocurring in any AttributeByteString call
 	//attributes-charset
-	b.Write(AttributeByteString(0x47, "attributes-charset", "utf-8"))
+	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
 	//attributes-natural-language
-	b.Write(AttributeByteString(0x48, "attributes-natural-language", "en-us"))
+	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
 
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
@@ -98,17 +82,20 @@ func getPrintersRequest() *bytes.Buffer {
 	return &b
 }
 
-//TODO: Store everything except uri statically?
-//Construct a minimal request that an IPP server will respond to
+// TODO: Store everything except uri statically?
+// Construct a minimal request that an IPP server will respond to
 // IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
-func getPrinterAttributesRequest(uri string) *bytes.Buffer {
+func getPrinterAttributesRequest(major, minor int8, uri string) *bytes.Buffer {
 	var b bytes.Buffer
-	// TODO: Explain whether and why we should use newest version, how does
-	// old interact with new and vice versa?
-	// FIXME: CUPS Server is simply returning the version number it's fed, which is sad :(
-	// but it shouldn't do this if we connect to a particular printer, which by spec must
-	// match a closest version number (Source: RFC 8011 Section 4.1.8)
-	//version = 2.1 (newest as of 2018)
+	// Using newest version number, because we must provide a supported major version number
+	// Object must reply to unsupported major version with
+	//     "'server-error-version-not-supported' along with the closest version number that
+	//     is supported" RFC 8011 4.1.8 https://tools.ietf.org/html/rfc8011#4.1.8
+	// "In all cases, the IPP object MUST return the "version-number" value that it supports
+	//     that is closest to the version number supplied by the Client in the request."
+	// CUPS behavior defies the RFC. The response to a request with a bad version number should encode
+	// the closest supported version number per RFC 8011 Section Appendix B.1.5.4 https://tools.ietf.org/html/rfc8011#appendix-B.1.5.4
+	//version
 	b.Write([]byte{2, 1})
 	//operation-id = get-printer-attributes
 	b.Write([]byte{0, 0xb})
@@ -117,14 +104,15 @@ func getPrinterAttributesRequest(uri string) *bytes.Buffer {
 	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
+	// TODO: Handle error ocurring in any AttributeByteString call
 	//attributes-charset
-	b.Write(AttributeByteString(0x47, "attributes-charset", "utf-8"))
+	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
 	//attributes-natural-language
-	b.Write(AttributeByteString(0x48, "attributes-natural-language", "en-us"))
+	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
 	//printer-uri
-	b.Write(AttributeByteString(0x45, "printer-uri", convertURIToIPP(uri)))
+	AttributeByteString(0x45, "printer-uri", convertURIToIPP(uri), &b)
 	//requested-attributes
-	b.Write(AttributeByteString(0x44, "requested-attributes", "all"))
+	AttributeByteString(0x44, "requested-attributes", "all", &b)
 
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
