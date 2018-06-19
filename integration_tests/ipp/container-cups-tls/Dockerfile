@@ -4,7 +4,8 @@ RUN apt-get update && apt-get install -y \
   cups \
   cups-pdf
 WORKDIR /etc/cups
-COPY cupsd.conf cupsd.conf
+COPY cupsssl.conf cupsd.conf
+RUN lpadmin -p null -E -v file:/dev/null
 # TODO: Provide a pre-built cups-pdf.conf
 RUN service cups restart
 

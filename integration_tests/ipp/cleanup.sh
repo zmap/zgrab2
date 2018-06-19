@@ -2,8 +2,12 @@
 
 set +e
 
+versions="cups cups-tls"
+
 echo "ipp/cleanup: Tests cleanup for ipp"
 
-CONTAINER_NAME=zgrab_ipp
+for version in $versions; do
+    CONTAINER_NAME="zgrab_ipp_$version"
 
-docker stop $CONTAINER_NAME
+    docker stop $CONTAINER_NAME
+done

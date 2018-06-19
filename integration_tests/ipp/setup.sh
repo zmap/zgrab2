@@ -2,24 +2,27 @@
 
 echo "ipp/setup: Tests setup for ipp"
 
+versions="cups cups-tls"
+
 CONTAINER_TAG="zgrab_ipp"
-CONTAINER_NAME="zgrab_ipp"
+for version in $versions; do
+    CONTAINER_NAME="zgrab_ipp_$version"
 
-# If the container is already running, use it.
-if docker ps --filter "name=$CONTAINER_NAME" | grep -q $CONTAINER_NAME; then
-    echo "ipp/setup: Container $CONTAINER_NAME already running -- nothing to setup"
-    exit 0
-fi
+    echo "ipp/setup: Setting up $CONTAINER_NAME"
 
-DOCKER_RUN_FLAGS="--rm --name $CONTAINER_NAME -td"
+    DOCKER_RUN_FLAGS="--rm --name $CONTAINER_NAME -td"
 
-# If it is not running, try launching it -- on success, use that. 
-echo "ipp/setup: Trying to launch $CONTAINER_NAME..."
-if ! docker run $DOCKER_RUN_FLAGS $CONTAINER_TAG; then
-    echo "ipp/setup: Building docker image $CONTAINER_TAG..."
-    # If it fails, build it from ./container/Dockerfile
-    docker build -t $CONTAINER_TAG ./container
-    # Try again
-    echo "ipp/setup: Launching $CONTAINER_NAME..."
-    docker run $DOCKER_RUN_FLAGS $CONTAINER_TAG
-fi
+    # If the container is already running, use it.
+    if docker ps --filter "name=$CONTAINER_NAME" | grep -q $CONTAINER_NAME; then
+        echo "ipp/setup: Container $CONTAINER_NAME already running -- nothing to setup"
+    else
+        if ! docker run $DOCKER_RUN_FLAGS "$CONTAINER_TAG:$version"; then
+            echo "ipp/setup: Building docker image $CONTAINER_TAG..."
+            # If it fails, build it from ./container/Dockerfile
+            docker build -t "$CONTAINER_TAG:$version" ./container-$version
+            # Try again
+            echo "ipp/setup: Launching $CONTAINER_NAME..."
+            docker run $DOCKER_RUN_FLAGS $CONTAINER_TAG:$version
+        fi
+    fi
+done
