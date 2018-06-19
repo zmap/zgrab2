@@ -25,4 +25,6 @@ for version in $versions; do
             docker run $DOCKER_RUN_FLAGS $CONTAINER_TAG:$version
         fi
     fi
+    # Add file printer so that CUPS-get-printers response is populated
+    docker exec $CONTAINER_NAME lpadmin -p null -E -v file:/dev/null
 done

@@ -20,7 +20,7 @@ function test_cups() {
     major=$($ZGRAB_ROOT/jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups.json")
     minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups.json")
     response=$($ZGRAB_ROOT/jp -u data.ipp.result.response < "$OUTPUT_ROOT/cups.json")
-    #cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups.json")
+    cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups.json")
     rm -f out.tmp
     if ! [ $major = "2" ]; then
         echo "ipp/test: Incorrect major version. Expected 2, got $major"
@@ -29,6 +29,9 @@ function test_cups() {
     if ! [ $minor = "1" ]; then
         echo "ipp/test: Incorrect minor version. Expected 1, got $minor"
         exit 1
+    fi
+    if ! [ $cups = "CUPS/2.1.3" ]; then
+        echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
     fi
 }
 
@@ -51,6 +54,12 @@ function test_cups_tls() {
     if ! [ $minor = "1" ]; then
         echo "ipp/test: Incorrect minor version. Expected 1, got $minor"
         exit 1
+    fi
+    if ! [ $cups = "CUPS/2.1.3" ]; then
+        echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
+    fi
+    if [ $tls = "null" ]; then
+        echo "ipp/test: No TLS handshake logged"
     fi
 }
 
