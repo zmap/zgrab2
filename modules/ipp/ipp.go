@@ -62,7 +62,7 @@ func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	var b bytes.Buffer
 	// Sending too new a version leads to a version-not-supported error, so we'll just send newest
 	//version
-	b.Write([]byte{2, 1})
+	b.Write([]byte{byte(major), byte(minor)})
 	//operation-id = get-printer-attributes
 	b.Write([]byte{0x40, 2})
 	//request-id = 1
@@ -96,7 +96,7 @@ func getPrinterAttributesRequest(major, minor int8, uri string) *bytes.Buffer {
 	// CUPS behavior defies the RFC. The response to a request with a bad version number should encode
 	// the closest supported version number per RFC 8011 Section Appendix B.1.5.4 https://tools.ietf.org/html/rfc8011#appendix-B.1.5.4
 	//version
-	b.Write([]byte{2, 1})
+	b.Write([]byte{byte(major), byte(minor)})
 	//operation-id = get-printer-attributes
 	b.Write([]byte{0, 0xb})
 	//request-id = 1

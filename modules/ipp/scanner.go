@@ -10,6 +10,7 @@ import (
 	"errors"
 	//"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"net"
 	"net/url"
@@ -38,6 +39,10 @@ var (
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("Too many redirects")
+
+	// TODO: Explain this error
+	ErrVersionNotSupported = errors.New("IPP version not supported")
+	Versions            = [...]version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
 )
 
 type scan struct {
@@ -94,6 +99,11 @@ type Flags struct {
 // Module implements the zgrab2.Module interface.
 type Module struct {
 	// TODO: Add any module-global state if necessary
+}
+
+type version struct {
+	Major int8
+	Minor int8
 }
 
 // Scanner implements the zgrab2.Scanner interface.
@@ -178,11 +188,11 @@ func ippInContentType(resp http.Response) (bool, error) {
 	return mediatype == ContentType, nil
 }
 
-// FIXME: I think this refactoring is meaningfully less performant than just copying and pasting, but it's a lot cleaner to write
+// FIXME: Cleaner to write this code, possibly slower than copy-pasted version
 // FIXME: Quite possibly not easier to read ("What does storeBody do? Where does it store it?")
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
 func storeBody(res *http.Response, scanner *Scanner) {
-	b := copyBody(res, scanner)
+	b := bufferFromBody(res, scanner)
 	res.BodyText = b.String()
 	if len(res.BodyText) > 0 {
 		m := sha256.New()
@@ -191,9 +201,8 @@ func storeBody(res *http.Response, scanner *Scanner) {
 	}
 }
 
-// FIXME: Consider folding this into storeBody, since it's not currently called
-// FIXME: Be careful that this isn't leaking memory
-func copyBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
+// TODO: Make sure this it isn't too slow to use this instead of copy-pasting everywhere necessary
+func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	b := new(bytes.Buffer)
 	maxReadLen := int64(scanner.config.MaxSize) * 1024
 	readLen := maxReadLen
@@ -201,6 +210,8 @@ func copyBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 		readLen = res.ContentLength
 	}
 	io.CopyN(b, res.Body, readLen)
+	res.Body.Close()
+	res.Body = ioutil.NopCloser(b)
 	return b
 }
 
@@ -236,7 +247,7 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 			if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 				//Couldn't read next nameLength
 				//break
-				// TODO: COnclude correct error behavior for all of these blocks
+				// TODO: Conclude correct error behavior for all of these blocks
 				continue
 			}
 		}
@@ -246,8 +257,27 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
+func versionNotSupported(resp *http.Response, scanner *Scanner) bool {
+	if resp != nil && resp.Body != nil {
+		buf := bufferFromBody(resp, scanner)
+		// Ignore first two bytes, read second two for status code
+		var reader struct {
+			_ uint16
+			StatusCode uint16
+		}
+		err := binary.Read(buf, binary.BigEndian, &reader)
+		if err != nil {
+			return false
+		}
+		// 0x0503 in the second two bytes of the body denotes server-error-version-not-supported
+		// RFC 8011 Section 4.1.8 Source: https://tools.ietf.org/html/rfc8011#4.1.8
+		return reader.StatusCode == 0x0503
+	}
+	return false
+}
+
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget) *zgrab2.ScanError {
-	cupsBody := getPrintersRequest()
+	cupsBody := getPrintersRequest(2, 1)
 	cupsReq, err := http.NewRequest("POST", scan.url, cupsBody)
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
@@ -255,6 +285,11 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	cupsReq.Header.Set("Accept", "*/*")
 	cupsReq.Header.Set("Content-Type", ContentType)
 	cupsResp, err := scan.client.Do(cupsReq)
+
+	if versionNotSupported(cupsResp, scanner) {
+		// TODO: Make this step down a version number
+		return nil
+	}
 	scan.results.CUPSResponse = cupsResp
 	if cupsResp != nil && cupsResp.Body != nil {
 		defer cupsResp.Body.Close()
@@ -300,8 +335,8 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 }
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.ScanError {
-	// Send get-printer-attributes request to server
-	body := getPrinterAttributesRequest(scan.url)
+	// Send get-printer-attributes request to the host, preferably a print server
+	body := getPrinterAttributesRequest(2, 1, scan.url)
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
@@ -309,13 +344,15 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 	request.Header.Set("Accept", "*/*")
 	request.Header.Set("Content-Type", ContentType)
 	resp, err := scan.client.Do(request)
-
+	if versionNotSupported(resp, scanner) {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
+	}
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	} else {
-		// resp == nil || resp.Body == nil
+		// resp == nil or resp.Body == nil
 		// Empty response/body is not allowed in IPP because a response has required parameter
 		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
 		// Still returns the response, if any, because assignment occurs before this else block
@@ -329,22 +366,16 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 			err = urlError.Err
 		}
 	}
-	// TODO: I assume this second check is here because the error that a url Error wraps could be nil
 	if err != nil {
 		switch err {
 		case ErrRedirLocalhost:
-			// FIXME: Do nothing when redirecting to local is an issue?
 			break
 		case ErrTooManyRedirects:
-			// FIXME: Does it make sense to have an application error for a lot of redirects
 			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 		default:
 			return zgrab2.DetectScanError(err)
 		}
 	}
-
-	// TODO: Add an error for the case of an empty body??
-	// TODO: Determine whether this is necessary or breaks anything
 	storeBody(resp, scanner)
 
 	// TODO: Check to make sure that the repsonse received is actually IPP
@@ -380,11 +411,8 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 		}
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
-			if err := scanner.augmentWithCUPSData(scan, target); err != nil {
-				// FIXME: Suppress this error for now.
-				// FIXME: We should still finish doing the work of this function if there's an error here (supress it?)
-				//return err
-			}
+			// TODO: Handle errors coming from this
+			scanner.augmentWithCUPSData(scan, target)
 		}
 	}
 
