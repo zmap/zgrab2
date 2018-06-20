@@ -42,6 +42,7 @@ var (
 
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
+
 	Versions            = [...]version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
 )
 
@@ -71,6 +72,7 @@ type ScanResults struct {
 	PrinterURI    string `json:"printer_uri,omitempty" zgrab:"debug"`
 
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	//DebugLog TODO: Determine type `json:"log,omitempty" zgrab:"debug"`
 }
 
 // TODO: Annotate every flag thoroughly
@@ -173,7 +175,7 @@ func (scanner *Scanner) GetPort() uint {
 }
 
 func ippInContentType(resp http.Response) (bool, error) {
-	// TODO: ?See if capturing parameters gets anything interesting in 1% scan??
+	// TODO: Capture parameters and report them in ScanResults?
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
 	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
@@ -215,7 +217,6 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	return b
 }
 
-// FIXME: add proper error handling to this
 // TODO: Support reading from multiple instances of the same attribute in a response
 func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	attr := []byte(attrString)
@@ -227,40 +228,35 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 		for tag, nameLength := valueTag, int16(0); tag == valueTag && nameLength == 0; {
 			var length int16
 			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
-				//Couldn't read length of content for some reason
-				//return nil, err
-				continue
+				//Couldn't read length of content
+				return vals, err
 			}
 			val := make([]byte, length)
 			if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
-				//Content not read without issue.
-				//vals = append(vals, val)
-				//return vals, err
-				continue
+				//Couldn't read content
+				vals = append(vals, val)
+				return vals, err
 			}
 			//return &val, nil
 			vals = append(vals, val)
 			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 				//Couldn't read next valueTag
-				//break
-				continue
+				return vals, err
 			}
 			if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 				//Couldn't read next nameLength
-				//break
-				// TODO: Conclude correct error behavior for all of these blocks
-				continue
+				return vals, err
 			}
 		}
-		return vals, nil // FIXME: This should be whatever error occurred during a break case
+		return vals, nil
 	}
 	//The attribute was not present
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
-func versionNotSupported(resp *http.Response, scanner *Scanner) bool {
-	if resp != nil && resp.Body != nil {
-		buf := bufferFromBody(resp, scanner)
+func versionNotSupported(body *string, scanner *Scanner) bool {
+	if body != nil {
+		buf := bytes.NewBuffer([]byte(*body))
 		// Ignore first two bytes, read second two for status code
 		var reader struct {
 			_ uint16
@@ -268,6 +264,7 @@ func versionNotSupported(resp *http.Response, scanner *Scanner) bool {
 		}
 		err := binary.Read(buf, binary.BigEndian, &reader)
 		if err != nil {
+			// TODO: Log error
 			return false
 		}
 		// 0x0503 in the second two bytes of the body denotes server-error-version-not-supported
@@ -286,21 +283,21 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	cupsReq.Header.Set("Accept", "*/*")
 	cupsReq.Header.Set("Content-Type", ContentType)
 	cupsResp, err := scan.client.Do(cupsReq)
-
-	if versionNotSupported(cupsResp, scanner) {
-		// TODO: Make this step down a version number
-		return nil
-	}
 	scan.results.CUPSResponse = cupsResp
 	if cupsResp != nil && cupsResp.Body != nil {
 		defer cupsResp.Body.Close()
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
+	if versionNotSupported(&scan.results.CUPSResponse.BodyText, scanner) {
+		// TODO: Make this step down a version number
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
+	}
 
 	bodyBytes := []byte(cupsResp.BodyText)
 	cupsVersions, _ := readAttributeFromBody(CupsVersion, &bodyBytes)
 	if len(cupsVersions) > 0 {
+		// TODO: Include an additional field in ScanResults for each attribute
 		// Report this cupsVersion b/c it's more detailed than the one found in Server header
 		scan.results.CUPSVersion = strings.Split(scan.results.CUPSVersion, "/")[0] + "/" + string(cupsVersions[0])
 	}
@@ -345,9 +342,6 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	request.Header.Set("Accept", "*/*")
 	request.Header.Set("Content-Type", ContentType)
 	resp, err := scan.client.Do(request)
-	if versionNotSupported(resp, scanner) {
-		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
-	}
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
 	if resp != nil && resp.Body != nil {
@@ -378,6 +372,9 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 	}
 	storeBody(resp, scanner)
+	if versionNotSupported(&scan.results.Response.BodyText, scanner) {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
+	}
 
 	// TODO: Check to make sure that the repsonse received is actually IPP
 	//Content-Type header matches is sufficient
@@ -395,7 +392,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			var major, minor int8
 			if len(components) >= 1 {
 				if val, err := strconv.Atoi(components[0]); err != nil {
-					// TODO: Handle error
+					// TODO: Log error
 				} else {
 					major = int8(val)
 					scan.results.MajorVersion = &major
@@ -403,7 +400,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			}
 			if len(components) >= 2 {
 				if val, err := strconv.Atoi(components[1]); err != nil {
-					// TODO: Handle error
+					// TODO: Log error
 				} else {
 					minor = int8(val)
 					scan.results.MinorVersion = &minor
@@ -412,8 +409,8 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
-			// TODO: Handle errors coming from this
-			scanner.augmentWithCUPSData(scan, target, version)
+			/*err :=*/ scanner.augmentWithCUPSData(scan, target, version)
+			// TODO: Log error
 		}
 	}
 

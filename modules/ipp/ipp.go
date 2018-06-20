@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 	"strings"
 )
 
@@ -18,14 +19,15 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 	//special byte denoting value syntax
 	binary.Write(target, binary.BigEndian, valueTag)
 
-	if len(name) < (1 << 16) {
+	if len(name) <= math.MaxInt16 && len(name) >= math.MinInt16  {
 		//append 16-bit signed int denoting name length
 		binary.Write(target, binary.BigEndian, int16(len(name)))
 
 		//append name
 		binary.Write(target, binary.BigEndian, []byte(name))
 	} else {
-		return errors.New("Name too long to encode.")
+		// TODO: Log error somewhere
+		return errors.New("Name wrong length to encode.")
 	}
 
 	if len(value) < (1 << 16) {
@@ -35,12 +37,14 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 		//append value
 		binary.Write(target, binary.BigEndian, []byte(value))
 	} else {
-		return errors.New("Value too long to encode.")
+		// TODO: Log error somewhere
+		return errors.New("Value wrong length to encode.")
 	}
 
 	return nil
 }
 
+// TODO: Use net.url.Parse and URL.String to read and manipulate URL's
 func convertURIToIPP(uri string) string {
 	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
 		uri = strings.Replace(uri, "http", "ipp", 1)
