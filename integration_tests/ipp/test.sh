@@ -63,11 +63,8 @@ function test_cups_tls() {
     fi
 }
 
-echo "ipp/test: Testing IPP on $CONTAINER_NAME..."
-# TODO FIXME: Add any necessary flags or additional tests
-#CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ipp > $OUTPUT_FILE
+echo "ipp/test: Testing IPP..."
 test_cups
-# TODO: Add version with TLS flag when that's implemented
 test_cups_tls
 
 
