@@ -216,6 +216,7 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 }
 
 // FIXME: add proper error handling to this
+// TODO: Support reading from multiple instances of the same attribute in a response
 func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	attr := []byte(attrString)
 	interims := bytes.Split(*body, attr)
@@ -276,8 +277,8 @@ func versionNotSupported(resp *http.Response, scanner *Scanner) bool {
 	return false
 }
 
-func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget) *zgrab2.ScanError {
-	cupsBody := getPrintersRequest(2, 1)
+func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
+	cupsBody := getPrintersRequest(version.Major, version.Minor)
 	cupsReq, err := http.NewRequest("POST", scan.url, cupsBody)
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
@@ -334,9 +335,9 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	return nil
 }
 
-func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.ScanError {
+func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(2, 1, scan.url)
+	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url)
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
@@ -412,7 +413,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget) *zgrab2.Scan
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
 			// TODO: Handle errors coming from this
-			scanner.augmentWithCUPSData(scan, target)
+			scanner.augmentWithCUPSData(scan, target, version)
 		}
 	}
 
@@ -523,15 +524,36 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	scan := scanner.newIPPScan(&target)
 	//defer scan.Cleanup()
-	err := scanner.Grab(scan, &target)
+	var err *zgrab2.ScanError
+	// Try all known IPP versions from newest to oldest until version is supported
+	for i := 0; i < len(Versions); i++ {
+		err = scanner.Grab(scan, &target, &Versions[i])
+		if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
+			break
+		}
+		if i == len(Versions) - 1 && err.Err == ErrVersionNotSupported {
+			return zgrab2.SCAN_APPLICATION_ERROR, &scan.results, err.Err
+		}
+	}
 	if err != nil {
 		// Adapted from http module's RetryHTTPS logic
 		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
 			//scan.Cleanup()
 			scanner.config.IPPSecure = true
+			// TODO: ?Refactor this to just call Scan again??
 			retry := scanner.newIPPScan(&target)
 			//defer retry.Cleanup()
-			retryErr := scanner.Grab(retry, &target)
+			var retryErr *zgrab2.ScanError
+			// Try all known IPP versions from newest to oldest until version is supported
+			for i := 0; i < len(Versions); i++ {
+				retryErr = scanner.Grab(retry, &target, &Versions[i])
+				if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
+					break
+				}
+				if i == len(Versions) - 1 && err.Err == ErrVersionNotSupported {
+					return zgrab2.SCAN_APPLICATION_ERROR, &scan.results, err.Err
+				}
+			}
 			if retryErr != nil {
 				return retryErr.Unpack(retry.results)
 			}
