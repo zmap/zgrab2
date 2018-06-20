@@ -146,6 +146,7 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
+# TODO: Re-work to borrow most of schema from http module, rather than copy-pasting
 ipp_scan_response = SubRecord({
     "result": SubRecord({
         "response": http_response_full,

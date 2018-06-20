@@ -19,7 +19,6 @@ function test_cups() {
     #CONTAINER_NAME="zgrab_ipp_cups" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3 --verbose > out.tmp
     major=$($ZGRAB_ROOT/jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups.json")
     minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups.json")
-    response=$($ZGRAB_ROOT/jp -u data.ipp.result.response < "$OUTPUT_ROOT/cups.json")
     cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups.json")
     rm -f out.tmp
     if ! [ $major = "2" ]; then
@@ -45,6 +44,7 @@ function test_cups_tls() {
     minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups-tls.json")
     response=$($ZGRAB_ROOT/jp -u data.ipp.result.response < "$OUTPUT_ROOT/cups-tls.json")
     cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups-tls.json")
+    # TODO: Check for a particular field in the tls object, since it may be safer
     tls=$($ZGRAB_ROOT/jp -u data.ipp.result.tls < "$OUTPUT_ROOT/cups-tls.json")
     #rm -f out.tmp
     if ! [ $major = "2" ]; then
