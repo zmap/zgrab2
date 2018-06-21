@@ -156,7 +156,7 @@ ipp_scan_response = SubRecord({
         "version_minor": Signed8BitInteger(),
         "version_string": String(),
         "cups_version": String(),
-        "printer_uri": String()
+        "printer_uri": String(),
         "tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)

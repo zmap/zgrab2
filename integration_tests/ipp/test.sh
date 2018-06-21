@@ -31,6 +31,7 @@ function test_cups() {
     fi
     if ! [ $cups = "CUPS/2.1.3" ]; then
         echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
+        exit 1
     fi
 }
 
@@ -57,9 +58,11 @@ function test_cups_tls() {
     fi
     if ! [ $cups = "CUPS/2.1.3" ]; then
         echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
+        exit 1
     fi
     if [ $tls = "null" ]; then
         echo "ipp/test: No TLS handshake logged"
+        exit 1
     fi
 }
 

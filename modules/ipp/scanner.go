@@ -72,7 +72,9 @@ type ScanResults struct {
 	PrinterURI    string `json:"printer_uri,omitempty" zgrab:"debug"`
 
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	// TODO: Remove debug log for unexpected behavior after 1% scan
 	//DebugLog TODO: Determine type `json:"log,omitempty" zgrab:"debug"`
+	// TODO: Make additional fields for stuff grabbed from CUPS-get-printers request
 }
 
 // TODO: Annotate every flag thoroughly
@@ -217,6 +219,7 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	return b
 }
 
+// FIXME: This will read the wrong section of the body if a substring matches the attribute name passed in
 // TODO: Support reading from multiple instances of the same attribute in a response
 func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	attr := []byte(attrString)
@@ -254,9 +257,9 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
-func versionNotSupported(body *string, scanner *Scanner) bool {
-	if body != nil {
-		buf := bytes.NewBuffer([]byte(*body))
+func versionNotSupported(body string, scanner *Scanner) bool {
+	if body != "" {
+		buf := bytes.NewBuffer([]byte(body))
 		// Ignore first two bytes, read second two for status code
 		var reader struct {
 			_ uint16
@@ -289,7 +292,7 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
-	if versionNotSupported(&scan.results.CUPSResponse.BodyText, scanner) {
+	if versionNotSupported(scan.results.CUPSResponse.BodyText, scanner) {
 		// TODO: Make this step down a version number
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
@@ -372,7 +375,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 	}
 	storeBody(resp, scanner)
-	if versionNotSupported(&scan.results.Response.BodyText, scanner) {
+	if versionNotSupported(scan.results.Response.BodyText, scanner) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
