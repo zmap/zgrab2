@@ -43,7 +43,7 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	Versions            = [...]version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
+	Versions = [...]version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
 )
 
 type scan struct {
@@ -52,8 +52,6 @@ type scan struct {
 	client      *http.Client
 	results     ScanResults
 	url         string
-	// TODO: Remove debug log for unexpected behavior after 1% scan
-	log         *log.Logger
 }
 
 //TODO: Tag relevant results and exlain in comments
@@ -154,7 +152,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	//TODO: Take action in response to flags which were set
+	// TODO: Remove debug logging for unexpected behavior after 1% scan
+	if f.Verbose {
+		log.SetLevel(log.DebugLevel)
+	}
 	return nil
 }
 
@@ -259,7 +260,7 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
-func versionNotSupported(body string, scan *scan) bool {
+func versionNotSupported(body string) bool {
 	if body != "" {
 		buf := bytes.NewBuffer([]byte(body))
 		// Ignore first two bytes, read second two for status code
@@ -269,10 +270,10 @@ func versionNotSupported(body string, scan *scan) bool {
 		}
 		err := binary.Read(buf, binary.BigEndian, &reader)
 		if err != nil {
-			scan.log.WithFields(log.Fields{
+			log.WithFields(log.Fields{
 				"error": err,
 				"body": body,
-			}).Warn("Failed to read statusCode from body.")
+			}).Debug("Failed to read statusCode from body.")
 			return false
 		}
 		// 0x0503 in the second two bytes of the body denotes server-error-version-not-supported
@@ -297,26 +298,26 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
-	if versionNotSupported(scan.results.CUPSResponse.BodyText, scan) {
+	if versionNotSupported(scan.results.CUPSResponse.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
 	bodyBytes := []byte(cupsResp.BodyText)
 	// Write reported CUPS version to results object
 	if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
-		scan.log.WithFields(log.Fields{
+		log.WithFields(log.Fields{
 			"error": err,
 			"attribute": CupsVersion,
-		}).Warn("Failed to read attribute.")
+		}).Debug("Failed to read attribute.")
 	} else if len(cupsVersions) > 0 {
 		scan.results.AttributeCUPSVersion = string(cupsVersions[0])
 	}
 	// Write reported IPP versions to results object
 	if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
-		scan.log.WithFields(log.Fields{
+		log.WithFields(log.Fields{
 			"error": err,
 			"attribute": VersionsSupported,
-		}).Warn("Failed to read attribute.")
+		}).Debug("Failed to read attribute.")
 	} else {
 		for _, v := range ippVersions {
 			scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
@@ -324,10 +325,10 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	}
 	// Write reported printer URI to results object
 	if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
-		scan.log.WithFields(log.Fields{
+		log.WithFields(log.Fields{
 			"error": err,
 			"attribute": PrinterURISupported,
-		}).Warn("Failed to read attribute.")
+		}).Debug("Failed to read attribute.")
 	} else if len(uris) > 0 {
 		scan.results.AttributePrinterURI = string(uris[0])
 	}
@@ -374,7 +375,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 	}
 	storeBody(resp, scanner)
-	if versionNotSupported(scan.results.Response.BodyText, scan) {
+	if versionNotSupported(scan.results.Response.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
@@ -394,10 +395,10 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			var major, minor int8
 			if len(components) >= 1 {
 				if val, err := strconv.Atoi(components[0]); err != nil {
-					scan.log.WithFields(log.Fields{
+					log.WithFields(log.Fields{
 						"error": err,
 						"string": components[0],
-					}).Warn("Failed to read major version from string.")
+					}).Debug("Failed to read major version from string.")
 				} else {
 					major = int8(val)
 					scan.results.MajorVersion = &major
@@ -405,10 +406,10 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			}
 			if len(components) >= 2 {
 				if val, err := strconv.Atoi(components[1]); err != nil {
-					scan.log.WithFields(log.Fields{
+					log.WithFields(log.Fields{
 						"error": err,
 						"string": components[1],
-					}).Warn("Failed to read minor version from string.")
+					}).Debug("Failed to read minor version from string.")
 				} else {
 					minor = int8(val)
 					scan.results.MinorVersion = &minor
@@ -419,9 +420,9 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			scan.results.CUPSVersion = p
 			err := scanner.augmentWithCUPSData(scan, target, version)
 			if err != nil {
-				scan.log.WithFields(log.Fields{
+				log.WithFields(log.Fields{
 					"error": err,
-				}).Warn("Failed to augment with CUPS-get-printers request.")
+				}).Debug("Failed to augment with CUPS-get-printers request.")
 			}
 		}
 	}
@@ -503,7 +504,6 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	newScan := scan{
 		client: http.MakeNewClient(),
 	}
-	newScan.log = log.New()
 	newScan.results = ScanResults{}
 	transport := &http.Transport{
 		Proxy:               nil, // TODO: implement proxying

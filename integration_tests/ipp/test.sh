@@ -30,7 +30,7 @@ function test_cups() {
         exit 1
     fi
     if ! [ $cups = "CUPS/2.1" ]; then
-        echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
+        echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1, got $cups"
         exit 1
     fi
 }
@@ -57,7 +57,7 @@ function test_cups_tls() {
         exit 1
     fi
     if ! [ $cups = "CUPS/2.1" ]; then
-        echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
+        echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1, got $cups"
         exit 1
     fi
     if [ $tls = "null" ]; then
