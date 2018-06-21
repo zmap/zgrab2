@@ -52,6 +52,8 @@ type scan struct {
 	client      *http.Client
 	results     ScanResults
 	url         string
+	// TODO: Remove debug log for unexpected behavior after 1% scan
+	log         *log.Logger
 }
 
 //TODO: Tag relevant results and exlain in comments
@@ -69,12 +71,12 @@ type ScanResults struct {
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
-	PrinterURI    string `json:"printer_uri,omitempty" zgrab:"debug"`
 
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
-	// TODO: Remove debug log for unexpected behavior after 1% scan
-	//DebugLog TODO: Determine type `json:"log,omitempty" zgrab:"debug"`
-	// TODO: Make additional fields for stuff grabbed from CUPS-get-printers request
+	AttributeCUPSVersion string `json:"attr_cups_version,omitempty"`
+	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
+	AttributePrinterURI  string `json:"attr_printer_uri,omitempty"`
+
+	TLSLog   *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // TODO: Annotate every flag thoroughly
@@ -240,12 +242,12 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 				vals = append(vals, val)
 				return vals, err
 			}
-			//return &val, nil
 			vals = append(vals, val)
 			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 				//Couldn't read next valueTag
 				return vals, err
 			}
+			// FIXME: Only try to read next namelength if previous valueTag wasn't end-of-attributes-tag
 			if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 				//Couldn't read next nameLength
 				return vals, err
@@ -257,7 +259,7 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
-func versionNotSupported(body string, scanner *Scanner) bool {
+func versionNotSupported(body string, scan *scan) bool {
 	if body != "" {
 		buf := bytes.NewBuffer([]byte(body))
 		// Ignore first two bytes, read second two for status code
@@ -267,11 +269,14 @@ func versionNotSupported(body string, scanner *Scanner) bool {
 		}
 		err := binary.Read(buf, binary.BigEndian, &reader)
 		if err != nil {
-			// TODO: Log error
+			scan.log.WithFields(log.Fields{
+				"error": err,
+				"body": body,
+			}).Warn("Failed to read statusCode from body.")
 			return false
 		}
 		// 0x0503 in the second two bytes of the body denotes server-error-version-not-supported
-		// RFC 8011 Section 4.1.8 Source: https://tools.ietf.org/html/rfc8011#4.1.8
+		// Source: RFC 8011 Section 4.1.8 (https://tools.ietf.org/html/rfc8011#4.1.8)
 		return reader.StatusCode == 0x0503
 	}
 	return false
@@ -292,45 +297,39 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
-	if versionNotSupported(scan.results.CUPSResponse.BodyText, scanner) {
-		// TODO: Make this step down a version number
+	if versionNotSupported(scan.results.CUPSResponse.BodyText, scan) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
 	bodyBytes := []byte(cupsResp.BodyText)
-	cupsVersions, _ := readAttributeFromBody(CupsVersion, &bodyBytes)
-	if len(cupsVersions) > 0 {
-		// TODO: Include an additional field in ScanResults for each attribute
-		// Report this cupsVersion b/c it's more detailed than the one found in Server header
-		scan.results.CUPSVersion = strings.Split(scan.results.CUPSVersion, "/")[0] + "/" + string(cupsVersions[0])
+	// Write reported CUPS version to results object
+	if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
+		scan.log.WithFields(log.Fields{
+			"error": err,
+			"attribute": CupsVersion,
+		}).Warn("Failed to read attribute.")
+	} else if len(cupsVersions) > 0 {
+		scan.results.AttributeCUPSVersion = string(cupsVersions[0])
 	}
-	// TODO: Determine whether ipp-versions must be in increasing order, if not, sort them
-	// TODO: Overwrite ipp_version with highest version listed
-	ippVersions, _ := readAttributeFromBody(VersionsSupported, &bodyBytes)
-	if len(ippVersions) > 0 {
-		highestVersion := string(ippVersions[len(ippVersions)-1])
-		components := strings.Split(highestVersion, ".")
-
-		output, err := strconv.Atoi(components[0])
-		if err != nil {
-			//handle
-		}
-		major := int8(output)
-		output, err = strconv.Atoi(components[1])
-		if err != nil {
-			//handle
-		}
-		minor := int8(output)
-		// Only compare new values to previous if we have previous values
-		comparable := scan.results.MajorVersion != nil && scan.results.MinorVersion != nil
-		if !comparable || (comparable && major >= *scan.results.MajorVersion && minor > *scan.results.MinorVersion) {
-			scan.results.MajorVersion = &major
-			scan.results.MinorVersion = &minor
+	// Write reported IPP versions to results object
+	if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
+		scan.log.WithFields(log.Fields{
+			"error": err,
+			"attribute": VersionsSupported,
+		}).Warn("Failed to read attribute.")
+	} else {
+		for _, v := range ippVersions {
+			scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
 		}
 	}
-	uris, _ := readAttributeFromBody(PrinterURISupported, &bodyBytes)
-	if len(uris) > 0 {
-		scan.results.PrinterURI = string(uris[0])
+	// Write reported printer URI to results object
+	if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
+		scan.log.WithFields(log.Fields{
+			"error": err,
+			"attribute": PrinterURISupported,
+		}).Warn("Failed to read attribute.")
+	} else if len(uris) > 0 {
+		scan.results.AttributePrinterURI = string(uris[0])
 	}
 	return nil
 }
@@ -375,7 +374,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 	}
 	storeBody(resp, scanner)
-	if versionNotSupported(scan.results.Response.BodyText, scanner) {
+	if versionNotSupported(scan.results.Response.BodyText, scan) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
@@ -395,7 +394,10 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			var major, minor int8
 			if len(components) >= 1 {
 				if val, err := strconv.Atoi(components[0]); err != nil {
-					// TODO: Log error
+					scan.log.WithFields(log.Fields{
+						"error": err,
+						"string": components[0],
+					}).Warn("Failed to read major version from string.")
 				} else {
 					major = int8(val)
 					scan.results.MajorVersion = &major
@@ -403,7 +405,10 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			}
 			if len(components) >= 2 {
 				if val, err := strconv.Atoi(components[1]); err != nil {
-					// TODO: Log error
+					scan.log.WithFields(log.Fields{
+						"error": err,
+						"string": components[1],
+					}).Warn("Failed to read minor version from string.")
 				} else {
 					minor = int8(val)
 					scan.results.MinorVersion = &minor
@@ -412,8 +417,12 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
-			/*err :=*/ scanner.augmentWithCUPSData(scan, target, version)
-			// TODO: Log error
+			err := scanner.augmentWithCUPSData(scan, target, version)
+			if err != nil {
+				scan.log.WithFields(log.Fields{
+					"error": err,
+				}).Warn("Failed to augment with CUPS-get-printers request.")
+			}
 		}
 	}
 
@@ -494,6 +503,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	newScan := scan{
 		client: http.MakeNewClient(),
 	}
+	newScan.log = log.New()
 	newScan.results = ScanResults{}
 	transport := &http.Transport{
 		Proxy:               nil, // TODO: implement proxying

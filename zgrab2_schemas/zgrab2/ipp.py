@@ -7,6 +7,7 @@ import zschema.registry
 import zcrypto_schemas.zcrypto as zcrypto
 import zgrab2
 
+# FIXME: Copy-pasted from http schema except for ipp_scan_response
 # lib/http/header.go: knownHeaders
 http_known_headers = [
     "access_control_allow_origin",
@@ -156,7 +157,9 @@ ipp_scan_response = SubRecord({
         "version_minor": Signed8BitInteger(),
         "version_string": String(),
         "cups_version": String(),
-        "printer_uri": String(),
+        "attr_cups_version": String(),
+        "attr_ipp_versions": ListOf(String()),
+        "attr_printer_uri": String(),
         "tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)

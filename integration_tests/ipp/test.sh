@@ -29,7 +29,7 @@ function test_cups() {
         echo "ipp/test: Incorrect minor version. Expected 1, got $minor"
         exit 1
     fi
-    if ! [ $cups = "CUPS/2.1.3" ]; then
+    if ! [ $cups = "CUPS/2.1" ]; then
         echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
         exit 1
     fi
@@ -56,7 +56,7 @@ function test_cups_tls() {
         echo "ipp/test: Incorrect minor version. Expected 1, got $minor"
         exit 1
     fi
-    if ! [ $cups = "CUPS/2.1.3" ]; then
+    if ! [ $cups = "CUPS/2.1" ]; then
         echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1.3, got $cups"
         exit 1
     fi
