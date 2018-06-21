@@ -106,14 +106,22 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 
 	raw := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
 
-	// TODO FIXME: Move verbosity to global level, or add a Verbosity() method to the Module interface.
-	stripped, err := output.Process(raw)
-	if err != nil {
-		log.Debugf("Error processing results: %v", err)
-		stripped = raw
+	var outputData interface{} = raw
+
+	if !includeDebugOutput() {
+		// If the caller doesn't explicitly request debug data, strip it out.
+		// Take advantage of the fact that we can skip the (expensive) call to
+		// process if debug output is included (TODO: until Process does anything else)
+		processor := output.Processor{Verbose: false}
+		stripped, err := processor.Process(raw)
+		if err != nil {
+			log.Debugf("Error processing results: %v", err)
+			stripped = raw
+		}
+		outputData = stripped
 	}
 
-	result, err := json.Marshal(stripped)
+	result, err := json.Marshal(outputData)
 	if err != nil {
 		log.Fatalf("unable to marshal data: %s", err)
 	}
