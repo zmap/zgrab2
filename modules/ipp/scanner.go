@@ -285,48 +285,11 @@ func versionNotSupported(body string) bool {
 
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	cupsBody := getPrintersRequest(version.Major, version.Minor)
-	cupsReq, err := http.NewRequest("POST", scan.url, cupsBody)
-	if err != nil {
-		return zgrab2.DetectScanError(err)
-	}
-	cupsReq.Header.Set("Accept", "*/*")
-	cupsReq.Header.Set("Content-Type", ContentType)
-	cupsResp, err := scan.client.Do(cupsReq)
+	cupsResp, err := sendIPPRequest(scan, cupsBody)
+	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.CUPSResponse = cupsResp
-
-	// FIXME: This block is copy-pasted directly from Grab()
 	if err != nil {
-		//If error is a url.Error (a struct), unwrap it
-		if urlError, ok := err.(*url.Error); ok {
-			err = urlError.Err
-		}
-	}
-	if err != nil {
-		switch err {
-		case ErrRedirLocalhost:
-			break
-		case ErrTooManyRedirects:
-			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
-		default:
-			return zgrab2.DetectScanError(err)
-		}
-	}
-
-	if cupsResp != nil && cupsResp.Body != nil {
-		defer cupsResp.Body.Close()
-	} else {
-		if cupsResp == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
-		}
-		if cupsResp.Body == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
-		}
-		// resp == nil or resp.Body == nil
-		// Empty response/body is not allowed in IPP because a response has required parameter
-		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
-		// Still returns the response, if any, because assignment occurs before this else block
-		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
-		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
+		return err
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
@@ -367,20 +330,16 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	return nil
 }
 
-func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
-	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
+// TODO: Let this receive generic *io.Reader rather than *bytes.Buffer in particular
+func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.ScanError) {
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
-		return zgrab2.DetectScanError(err)
+		return nil, zgrab2.DetectScanError(err)
 	}
 	request.Header.Set("Accept", "*/*")
 	request.Header.Set("Content-Type", ContentType)
 	resp, err := scan.client.Do(request)
-	//Store response regardless of error in request, because we may have gotten something back
-	scan.results.Response = resp
 	if err != nil {
-		//If error is a url.Error (a struct), unwrap it
 		if urlError, ok := err.(*url.Error); ok {
 			err = urlError.Err
 		}
@@ -390,27 +349,31 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		case ErrRedirLocalhost:
 			break
 		case ErrTooManyRedirects:
-			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+			return resp, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 		default:
-			return zgrab2.DetectScanError(err)
+			return resp, zgrab2.DetectScanError(err)
 		}
 	}
+	// TODO: Examine whether an empty response overall is a connection error; see RFC 8011 Section 4.2.5.2
+	if resp == nil {
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
+	}
+	// Empty body is not allowed in IPP because a response has required parameter
+	// Source: RFC 8011 Section 4.1.1 (https://tools.ietf.org/html/rfc8011#section-4.1.1)
+	if resp.Body == nil {
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
+	}
+	return resp, nil
+}
 
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	} else {
-		if resp == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
-		}
-		if resp.Body == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
-		}
-		// resp == nil or resp.Body == nil
-		// Empty response/body is not allowed in IPP because a response has required parameter
-		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
-		// Still returns the response, if any, because assignment occurs before this else block
-		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
-		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
+func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
+	// Send get-printer-attributes request to the host, preferably a print server
+	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
+	resp, err := sendIPPRequest(scan, body)
+	//Store response regardless of error in request, because we may have gotten something back
+	scan.results.Response = resp
+	if err != nil {
+		return err
 	}
 	storeBody(resp, scanner)
 	if versionNotSupported(scan.results.Response.BodyText) {
@@ -604,11 +567,13 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 				}
 			}
 			if retryErr != nil {
-				return retryErr.Unpack(retry.results)
+				//return retryErr.Unpack(retry.results)
+				return zgrab2.TryGetScanStatus(err), nil, err
 			}
 			return zgrab2.SCAN_SUCCESS, retry.results, nil
 		}
-		return zgrab2.TryGetScanStatus(err), &scan.results, err
+		// TODO: Make sure it's always appropriate to return a nil result object in this case
+		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
