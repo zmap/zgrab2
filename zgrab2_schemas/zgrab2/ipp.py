@@ -147,12 +147,9 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
-# TODO: Re-work to borrow most of schema from http module, rather than copy-pasting
+# TODO: Re-work to use most of schema from http module, rather than copy-pasting
 ipp_scan_response = SubRecord({
     "result": SubRecord({
-        "response": http_response_full,
-        "cups_response": http_response_full,
-        "redirect_response_chain": ListOf(http_response_full),
         "version_major": Signed8BitInteger(),
         "version_minor": Signed8BitInteger(),
         "version_string": String(),
@@ -160,7 +157,10 @@ ipp_scan_response = SubRecord({
         "attr_cups_version": String(),
         "attr_ipp_versions": ListOf(String()),
         "attr_printer_uri": String(),
+        "response": http_response_full,
+        "cups_response": http_response_full,
         "tls": zgrab2.tls_log,
+        "redirect_response_chain": ListOf(http_response_full),
     })
 }, extends=zgrab2.base_scan_response)
 

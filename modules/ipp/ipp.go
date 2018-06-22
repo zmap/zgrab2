@@ -6,6 +6,9 @@ import (
 	"errors"
 	"math"
 	"strings"
+	"net/url"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Writes an "attribute-with-one-value" with the provided "value-tag", "name", and "value" to provided buffer
@@ -44,22 +47,29 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 	return nil
 }
 
-// TODO: Use net.url.Parse and URL.String to read and manipulate URL's
-func convertURIToIPP(uri string) string {
-	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
-		uri = strings.Replace(uri, "http", "ipp", 1)
+// TODO: Eventually handle scheme-less urls, even though getHTTPURL will never construct one (we can use regex)
+// TODO: RFC claims that literal IP addresses are not valid IPP uri's, but Wireshark IPP Capture example uses them
+// (Source: https://wiki.wireshark.org/SampleCaptures?action=AttachFile&do=view&target=ipp.pcap)
+func ConvertURIToIPP(uriString string, tls bool) string {
+	uri, err := url.Parse(uriString)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"error": err,
+			"url": uriString,
+		}).Debug("Failed to parse URL from string")
 	}
-	// TODO: RFC claims that literal IP addresses are not valid uri's, but Wireshark IPP Capture example uses them
-	// (Source: https://wiki.wireshark.org/SampleCaptures?action=AttachFile&do=view&target=ipp.pcap)
-	sections := strings.Split(uri, "/")
-	if !strings.Contains(sections[2], ":") {
-		sections[2] += ":631"
+	// TODO: Create a better condition than uri.Scheme == "" b/c url.Parse doesn't know whether there's a scheme
+	if uri.Scheme == "" || uri.Scheme == "http" || uri.Scheme == "https" {
+		if tls {
+			uri.Scheme = "ipps"
+		} else {
+			uri.Scheme = "ipp"
+		}
 	}
-	// TODO: Make sure that this properly constructs a valid uri
-	if strings.HasPrefix(uri, "ipp://") {
-		return uri
+	if !strings.Contains(uri.Host, ":") {
+		uri.Host += ":631"
 	}
-	return "ipp://" + uri
+	return uri.String()
 }
 
 func getPrintersRequest(major, minor int8) *bytes.Buffer {
@@ -89,7 +99,7 @@ func getPrintersRequest(major, minor int8) *bytes.Buffer {
 // TODO: Store everything except uri statically?
 // Construct a minimal request that an IPP server will respond to
 // IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
-func getPrinterAttributesRequest(major, minor int8, uri string) *bytes.Buffer {
+func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) *bytes.Buffer {
 	var b bytes.Buffer
 	// Using newest version number, because we must provide a supported major version number
 	// Object must reply to unsupported major version with
@@ -114,7 +124,7 @@ func getPrinterAttributesRequest(major, minor int8, uri string) *bytes.Buffer {
 	//attributes-natural-language
 	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
 	//printer-uri
-	AttributeByteString(0x45, "printer-uri", convertURIToIPP(uri), &b)
+	AttributeByteString(0x45, "printer-uri", ConvertURIToIPP(uri, tls), &b)
 	//requested-attributes
 	AttributeByteString(0x44, "requested-attributes", "all", &b)
 

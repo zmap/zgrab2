@@ -28,7 +28,6 @@ const (
 	VersionsSupported   string = "ipp-versions-supported"
 	CupsVersion         string = "cups-version"
 	PrinterURISupported string = "printer-uri-supported"
-	NoDestinationsAdded string = "No destinations added."
 )
 
 var (
@@ -208,7 +207,6 @@ func storeBody(res *http.Response, scanner *Scanner) {
 	}
 }
 
-// TODO: Make sure this it isn't too slow to use this instead of copy-pasting everywhere necessary
 func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	b := new(bytes.Buffer)
 	maxReadLen := int64(scanner.config.MaxSize) * 1024
@@ -231,6 +229,8 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 		valueTag := interims[0][len(interims[0])-3]
 		var vals [][]byte
 		buf := bytes.NewBuffer(interims[1])
+		// This reading occurs in a loop because some attributes can have type "1 setOf <type>"
+		// where same attribute has a set of values, rather than one
 		for tag, nameLength := valueTag, int16(0); tag == valueTag && nameLength == 0; {
 			var length int16
 			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
@@ -287,14 +287,46 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	cupsBody := getPrintersRequest(version.Major, version.Minor)
 	cupsReq, err := http.NewRequest("POST", scan.url, cupsBody)
 	if err != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		return zgrab2.DetectScanError(err)
 	}
 	cupsReq.Header.Set("Accept", "*/*")
 	cupsReq.Header.Set("Content-Type", ContentType)
 	cupsResp, err := scan.client.Do(cupsReq)
 	scan.results.CUPSResponse = cupsResp
+
+	// FIXME: This block is copy-pasted directly from Grab()
+	if err != nil {
+		//If error is a url.Error (a struct), unwrap it
+		if urlError, ok := err.(*url.Error); ok {
+			err = urlError.Err
+		}
+	}
+	if err != nil {
+		switch err {
+		case ErrRedirLocalhost:
+			break
+		case ErrTooManyRedirects:
+			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+		default:
+			return zgrab2.DetectScanError(err)
+		}
+	}
+
 	if cupsResp != nil && cupsResp.Body != nil {
 		defer cupsResp.Body.Close()
+	} else {
+		if cupsResp == nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
+		}
+		if cupsResp.Body == nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
+		}
+		// resp == nil or resp.Body == nil
+		// Empty response/body is not allowed in IPP because a response has required parameter
+		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
+		// Still returns the response, if any, because assignment occurs before this else block
+		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
+		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
@@ -337,27 +369,16 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url)
+	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		return zgrab2.DetectScanError(err)
 	}
 	request.Header.Set("Accept", "*/*")
 	request.Header.Set("Content-Type", ContentType)
 	resp, err := scan.client.Do(request)
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	} else {
-		// resp == nil or resp.Body == nil
-		// Empty response/body is not allowed in IPP because a response has required parameter
-		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
-		// Still returns the response, if any, because assignment occurs before this else block
-		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
-		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, nil)
-	}
 	if err != nil {
 		//If error is a url.Error (a struct), unwrap it
 		if urlError, ok := err.(*url.Error); ok {
@@ -373,6 +394,23 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		default:
 			return zgrab2.DetectScanError(err)
 		}
+	}
+
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	} else {
+		if resp == nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
+		}
+		if resp.Body == nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
+		}
+		// resp == nil or resp.Body == nil
+		// Empty response/body is not allowed in IPP because a response has required parameter
+		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
+		// Still returns the response, if any, because assignment occurs before this else block
+		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
+		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
 	}
 	storeBody(resp, scanner)
 	if versionNotSupported(scan.results.Response.BodyText) {
@@ -555,6 +593,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			//defer retry.Cleanup()
 			var retryErr *zgrab2.ScanError
 			// Try all known IPP versions from newest to oldest until version is supported
+			// TODO: Figure out why retry-TLS is working worse than w/ or w/o TLS in the first place
 			for i := 0; i < len(Versions); i++ {
 				retryErr = scanner.Grab(retry, &target, &Versions[i])
 				if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
