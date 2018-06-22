@@ -17,7 +17,11 @@ module_name="$1"
 module_path="integration_tests/$module_name"
 
 function doReplacements() {
-    sed -i "s/#{MODULE_NAME}/$module_name/g" $1
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i "" -e "s/#{MODULE_NAME}/$module_name/g" $1
+    else
+        sed -i "s/#{MODULE_NAME}/$module_name/g" $1
+    fi
 }
 
 mkdir -p $module_path
