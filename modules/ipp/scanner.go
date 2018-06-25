@@ -42,7 +42,7 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	Versions = [...]version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
+	Versions = []version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
 )
 
 type scan struct {
@@ -484,6 +484,14 @@ func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Con
 		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
 		err = tlsConn.Handshake()
 		scan.results.TLSLog = tlsConn.GetLog()
+		//if scanner.config.IPPSecure {
+		//	// FIXME: ?I just needed a shorter name for this
+		//	l := scan.results.TLSLog
+		//	if l == nil || l.HandshakeLog == nil || l.HandshakeLog.ServerHello == nil {
+		//		return tlsConn, errors.New("No server hello.")
+		//	}
+		//	fmt.Println(scan.results.TLSLog.HandshakeLog)
+		//}
 		return tlsConn, err
 	}
 }
@@ -512,6 +520,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
+	// Error out if establishing TLS connection (ie: Handshake) returns any error
 	transport.DialTLS = newScan.getTLSDialer(scanner)
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
@@ -529,51 +538,44 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	return &newScan
 }
 
+// TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
+func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *[]version) (*ScanResults, *zgrab2.ScanError) {
+	scan := scanner.newIPPScan(target)
+	// TODO: Implement scan.Cleanup()
+	var err *zgrab2.ScanError
+	for i := 0; i < len(*versions); i++ {
+		err = scanner.Grab(scan, target, &(*versions)[i])
+		if err != nil && err.Err == ErrVersionNotSupported && i < len(*versions) - 1 {
+			continue
+		}
+		break
+	}
+	return &scan.results, err
+}
+
 // Scan TODO: describe how scan operates in appropriate detail
 //1. Send a request (currently get-printer-attributes)
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	scan := scanner.newIPPScan(&target)
-	//defer scan.Cleanup()
-	var err *zgrab2.ScanError
 	// Try all known IPP versions from newest to oldest until version is supported
-	for i := 0; i < len(Versions); i++ {
-		err = scanner.Grab(scan, &target, &Versions[i])
-		if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
-			break
-		}
-		if i == len(Versions) - 1 && err.Err == ErrVersionNotSupported {
-			return zgrab2.SCAN_APPLICATION_ERROR, &scan.results, err.Err
-		}
-	}
+	results, err := scanner.tryGrabForVersions(&target, &Versions)
 	if err != nil {
-		// Adapted from http module's RetryHTTPS logic
+		if err.Err == ErrVersionNotSupported {
+			return zgrab2.SCAN_APPLICATION_ERROR, results, err.Err
+		}
 		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
-			//scan.Cleanup()
 			scanner.config.IPPSecure = true
-			// TODO: ?Refactor this to just call Scan again??
-			retry := scanner.newIPPScan(&target)
-			//defer retry.Cleanup()
-			var retryErr *zgrab2.ScanError
-			// Try all known IPP versions from newest to oldest until version is supported
-			// TODO: Figure out why retry-TLS is working worse than w/ or w/o TLS in the first place
-			for i := 0; i < len(Versions); i++ {
-				retryErr = scanner.Grab(retry, &target, &Versions[i])
-				if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
-					break
-				}
-				if i == len(Versions) - 1 && err.Err == ErrVersionNotSupported {
-					return zgrab2.SCAN_APPLICATION_ERROR, &scan.results, err.Err
-				}
-			}
+			retryResults, retryErr := scanner.tryGrabForVersions(&target, &Versions)
 			if retryErr != nil {
-				//return retryErr.Unpack(retry.results)
+				if err.Err == ErrVersionNotSupported {
+					return zgrab2.SCAN_APPLICATION_ERROR, retryResults, retryErr.Err
+				}
 				return zgrab2.TryGetScanStatus(err), nil, err
 			}
-			return zgrab2.SCAN_SUCCESS, retry.results, nil
+			return zgrab2.SCAN_SUCCESS, retryResults, nil
 		}
 		// TODO: Make sure it's always appropriate to return a nil result object in this case
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	return zgrab2.SCAN_SUCCESS, &scan.results, nil
+	return zgrab2.SCAN_SUCCESS, results, nil
 }
