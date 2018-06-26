@@ -42,7 +42,7 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	Versions = []version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
+	Versions = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
 )
 
 type scan struct {
@@ -69,11 +69,11 @@ type ScanResults struct {
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
 
-	AttributeCUPSVersion string `json:"attr_cups_version,omitempty"`
+	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
-	AttributePrinterURI  string `json:"attr_printer_uri,omitempty"`
+	AttributePrinterURI  string   `json:"attr_printer_uri,omitempty"`
 
-	TLSLog   *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // TODO: Annotate every flag thoroughly
@@ -260,19 +260,58 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
+func (scan *scan) tryReadAttributes(body string) {
+	bodyBytes := []byte(body)
+	// Write reported CUPS version to results object
+	if scan.results.AttributeCUPSVersion == "" {
+		if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
+			log.WithFields(log.Fields{
+				"error":     err,
+				"attribute": CupsVersion,
+			}).Debug("Failed to read attribute.")
+		} else if len(cupsVersions) > 0 {
+			scan.results.AttributeCUPSVersion = string(cupsVersions[0])
+		}
+	}
+	// Write reported IPP versions to results object
+	if len(scan.results.AttributeIPPVersions) == 0 {
+		if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
+			log.WithFields(log.Fields{
+				"error":     err,
+				"attribute": VersionsSupported,
+			}).Debug("Failed to read attribute.")
+		} else {
+			for _, v := range ippVersions {
+				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
+			}
+		}
+	}
+	// Write reported printer URI to results object
+	if scan.results.AttributePrinterURI == "" {
+		if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
+			log.WithFields(log.Fields{
+				"error":     err,
+				"attribute": PrinterURISupported,
+			}).Debug("Failed to read attribute.")
+		} else if len(uris) > 0 {
+			scan.results.AttributePrinterURI = string(uris[0])
+		}
+	}
+}
+
 func versionNotSupported(body string) bool {
 	if body != "" {
 		buf := bytes.NewBuffer([]byte(body))
 		// Ignore first two bytes, read second two for status code
 		var reader struct {
-			_ uint16
+			_          uint16
 			StatusCode uint16
 		}
 		err := binary.Read(buf, binary.BigEndian, &reader)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
-				"body": body,
+				"body":  body,
 			}).Debug("Failed to read statusCode from body.")
 			return false
 		}
@@ -283,6 +322,7 @@ func versionNotSupported(body string) bool {
 	return false
 }
 
+// TODO: Genericize this with passed-in getIPPRequest function and *http.Response for some result field to store into
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	cupsBody := getPrintersRequest(version.Major, version.Minor)
 	cupsResp, err := sendIPPRequest(scan, cupsBody)
@@ -297,36 +337,7 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
-	bodyBytes := []byte(cupsResp.BodyText)
-	// Write reported CUPS version to results object
-	if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"attribute": CupsVersion,
-		}).Debug("Failed to read attribute.")
-	} else if len(cupsVersions) > 0 {
-		scan.results.AttributeCUPSVersion = string(cupsVersions[0])
-	}
-	// Write reported IPP versions to results object
-	if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"attribute": VersionsSupported,
-		}).Debug("Failed to read attribute.")
-	} else {
-		for _, v := range ippVersions {
-			scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
-		}
-	}
-	// Write reported printer URI to results object
-	if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"attribute": PrinterURISupported,
-		}).Debug("Failed to read attribute.")
-	} else if len(uris) > 0 {
-		scan.results.AttributePrinterURI = string(uris[0])
-	}
+	scan.tryReadAttributes(scan.results.CUPSResponse.BodyText)
 	return nil
 }
 
@@ -399,7 +410,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			if len(components) >= 1 {
 				if val, err := strconv.Atoi(components[0]); err != nil {
 					log.WithFields(log.Fields{
-						"error": err,
+						"error":  err,
 						"string": components[0],
 					}).Debug("Failed to read major version from string.")
 				} else {
@@ -410,7 +421,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			if len(components) >= 2 {
 				if val, err := strconv.Atoi(components[1]); err != nil {
 					log.WithFields(log.Fields{
-						"error": err,
+						"error":  err,
 						"string": components[1],
 					}).Debug("Failed to read minor version from string.")
 				} else {
@@ -429,6 +440,8 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			}
 		}
 	}
+
+	scan.tryReadAttributes(scan.results.Response.BodyText)
 
 	return nil
 }
@@ -538,7 +551,7 @@ func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *
 	var err *zgrab2.ScanError
 	for i := 0; i < len(*versions); i++ {
 		err = scanner.Grab(scan, target, &(*versions)[i])
-		if err != nil && err.Err == ErrVersionNotSupported && i < len(*versions) - 1 {
+		if err != nil && err.Err == ErrVersionNotSupported && i < len(*versions)-1 {
 			continue
 		}
 		break
@@ -546,7 +559,8 @@ func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *
 	return scan, err
 }
 
-// TODO:
+// TODO: Incorporate status into this? I don't think so, b/c with certain statuses, we should return
+// early, so special casing seems to make sense
 func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 	if scan.results.Response != nil {
 		return true
