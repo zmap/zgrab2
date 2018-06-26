@@ -156,10 +156,10 @@ ipp_scan_response = SubRecord({
         "attr_cups_version": String(),
         "attr_ipp_versions": ListOf(String()),
         "attr_printer_uri": String(),
-        "response": http_schema.http_response_full,
-        "cups_response": http_schema.http_response_full,
+        "response": http_response_full,
+        "cups_response": http_response_full,
         "tls": zgrab2.tls_log,
-        "redirect_response_chain": ListOf(http_schema.http_response_full),
+        "redirect_response_chain": ListOf(http_response_full),
     })
 }, extends=zgrab2.base_scan_response)
 

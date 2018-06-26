@@ -183,7 +183,7 @@ func hasContentType(resp *http.Response, contentType string) (bool, error) {
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
 	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	// FIXME: See if empty media type is sufficient as failure indicator,
+	// TODO: See if empty media type is sufficient as failure indicator,
 	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
 	if mediatype == "" && err != nil {
 		//TODO: Handle errors in a weird way, since media type is still returned
