@@ -178,7 +178,7 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-func ippInContentType(resp http.Response) (bool, error) {
+func hasContentType(resp *http.Response, contentType string) (bool, error) {
 	// TODO: Capture parameters and report them in ScanResults?
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
@@ -191,7 +191,7 @@ func ippInContentType(resp http.Response) (bool, error) {
 		return false, err
 	}
 	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
-	return mediatype == ContentType, nil
+	return mediatype == contentType, nil
 }
 
 // FIXME: Cleaner to write this code, possibly slower than copy-pasted version
@@ -393,11 +393,6 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
-	// TODO: Check to make sure that the repsonse received is actually IPP
-	//Content-Type header matches is sufficient
-	//HTTP on port 631 is sufficient
-	//Still record data in the case of protocol error to see what that data looks like
-
 	protocols := strings.Split(resp.Header.Get("Server"), " ")
 	for _, p := range protocols {
 		if strings.HasPrefix(strings.ToUpper(p), "IPP/") {
@@ -439,6 +434,18 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 				}).Debug("Failed to augment with CUPS-get-printers request.")
 			}
 		}
+	}
+
+	// TODO: Cite RFC justification for this
+	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	if isIPP, _ := hasContentType(resp, ContentType);
+		resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "" && !isIPP {
+		// TODO: Log error if any
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("application/ipp not present in Content-Type header."))
+	}
+
+	if resp.StatusCode != 200 {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
 	}
 
 	scan.tryReadAttributes(scan.results.Response.BodyText)
