@@ -439,7 +439,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	// TODO: Cite RFC justification for this
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
 	if isIPP, _ := hasContentType(resp, ContentType);
-		resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "" && !isIPP {
+	   resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "" && !isIPP {
 		// TODO: Log error if any
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("application/ipp not present in Content-Type header."))
 	}
