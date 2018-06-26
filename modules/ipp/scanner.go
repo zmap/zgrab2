@@ -35,9 +35,9 @@ type ScanResults struct {
 	MinorVersion int8 `json:"version_minor"`
 
 	VersionString string `json:"version_string,omitempty"`
-	CUPSVersion string `json:"cups_version,omitempty"`
+	CUPSVersion   string `json:"cups_version,omitempty"`
 
-	TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // TODO: Annotate every flag thoroughly
@@ -114,6 +114,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 // GetName returns the Scanner name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // Protocol returns the protocol identifier of the scan.

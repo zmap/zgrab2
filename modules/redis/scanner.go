@@ -48,7 +48,7 @@ type scan struct {
 	result  *Result
 	target  *zgrab2.ScanTarget
 	conn    *Connection
-	close  func()
+	close   func()
 }
 
 // Result is the struct that is returned by the scan.
@@ -135,6 +135,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 // GetName returns the name of the scanner
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // GetPort returns the port being scanned

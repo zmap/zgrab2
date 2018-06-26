@@ -33,7 +33,6 @@ import (
 	"strings"
 )
 
-
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
 	// Banner is the string sent by the server immediately after connecting.
@@ -139,6 +138,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 // GetName returns the Scanner name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // Protocol returns the protocol identifier of the scan.

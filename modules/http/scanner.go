@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -78,12 +79,12 @@ type Scanner struct {
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
 	connections []net.Conn
-	scanner   *Scanner
-	target    *zgrab2.ScanTarget
-	transport *http.Transport
-	client    *http.Client
-	results   Results
-	url       string
+	scanner     *Scanner
+	target      *zgrab2.ScanTarget
+	transport   *http.Transport
+	client      *http.Client
+	results     Results
+	url         string
 }
 
 // NewFlags returns an empty Flags object.
@@ -126,6 +127,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 // GetName returns the name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // Cleanup closes any connections that have been opened during the scan
@@ -306,6 +312,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	fmt.Printf("%v %v %v %v %v\n", t, scanner.config.Name, scanner.config.Port, scanner.config.Trigger, scanner.config.UserAgent)
 	scan := scanner.newHTTPScan(&t)
 	defer scan.Cleanup()
 	err := scan.Grab()

@@ -15,9 +15,9 @@ import (
 	"net"
 	"strings"
 
+	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"encoding/json"
 )
 
 const (
@@ -312,6 +312,11 @@ func (s *Scanner) Protocol() string {
 // GetName returns the name from the parameters.
 func (s *Scanner) GetName() string {
 	return s.Config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (s *Scanner) GetTrigger() string {
+	return s.Config.Trigger
 }
 
 // GetPort returns the port being scanned.

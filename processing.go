@@ -25,17 +25,25 @@ type Grab struct {
 type ScanTarget struct {
 	IP     net.IP
 	Domain string
+	Tag    string
 }
 
 func (target ScanTarget) String() string {
 	if target.IP == nil && target.Domain == "" {
 		return "<empty target>"
-	} else if target.IP != nil && target.Domain != "" {
-		return target.Domain + "(" + target.IP.String() + ")"
-	} else if target.IP != nil {
-		return target.IP.String()
 	}
-	return target.Domain
+	res := ""
+	if target.IP != nil && target.Domain != "" {
+		res = target.Domain + "(" + target.IP.String() + ")"
+	} else if target.IP != nil {
+		res = target.IP.String()
+	} else {
+		res = target.Domain
+	}
+	if target.Tag != "" {
+		res += " =" + target.Tag
+	}
+	return res
 }
 
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
@@ -81,6 +89,11 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]ScanResponse)
 
 	for _, scannerName := range orderedScanners {
+		scanner := scanners[scannerName]
+		trigger := (*scanner).GetTrigger()
+		if (input.Tag != "" || trigger != "") && input.Tag != trigger {
+			continue
+		}
 		defer func(name string) {
 			if e := recover(); e != nil {
 				log.Errorf("Panic on scanner %s when scanning target %s: %#v", scannerName, input.String(), e)
@@ -88,7 +101,6 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 				panic(e)
 			}
 		}(scannerName)
-		scanner := scanners[scannerName]
 		name, res := RunScanner(*scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
@@ -182,7 +194,7 @@ func Process(mon *Monitor) {
 			log.Error(err)
 		}
 		st := strings.TrimSpace(string(obj))
-		ipnet, domain, err := ParseTarget(st)
+		ipnet, domain, tag, err := ParseTarget(st)
 		if err != nil {
 			log.Error(err)
 			continue
@@ -191,14 +203,14 @@ func Process(mon *Monitor) {
 		if ipnet != nil {
 			if ipnet.Mask != nil {
 				for ip = ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
-					processQueue <- ScanTarget{IP: duplicateIP(ip), Domain: domain}
+					processQueue <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag}
 				}
 				continue
 			} else {
 				ip = ipnet.IP
 			}
 		}
-		processQueue <- ScanTarget{IP: ip, Domain: domain}
+		processQueue <- ScanTarget{IP: ip, Domain: domain, Tag: tag}
 	}
 
 	close(processQueue)

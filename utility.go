@@ -47,44 +47,57 @@ func ParseCommandLine(flags []string) ([]string, string, ScanFlags, error) {
 	return posArgs, moduleType, sf, err
 }
 
-// ParseTarget takes input as a string and parses it into either an IPNet
-// (may have empty mask and just contain IP , domain name, or errors, may
-// return both IPNet and domain name
-func ParseTarget(s string) (*net.IPNet, string, error) {
+// ParseTarget takes input as a string and parses it into an IPNet
+// (which may have an empty mask and just contain an IP), and/or a
+// domain name, as well as an optional tag.
+//
+// These syntaxes are supported:
+//   IP [=TAG]
+//   DOMAIN [=TAG]
+//   IP, DOMAIN [=TAG]
+//   CIDR [=TAG]
+func ParseTarget(s string) (*net.IPNet, string, string, error) {
+	// extract tag, if present
+	k := strings.IndexByte(s, '=')
+	tag := ""
+	if k != -1 {
+		tag = s[k+1:]
+		s = strings.TrimSpace(s[:k])
+	}
+
 	i := strings.IndexByte(s, ',')
 	j := strings.IndexByte(s, '/')
-
 	switch {
 	case i == -1 && j == -1:
 		// just ip or domain
 		if ip := net.ParseIP(s); ip != nil {
-			return &net.IPNet{IP: ip}, "", nil
+			return &net.IPNet{IP: ip}, "", tag, nil
 		}
 		ips, err := net.LookupIP(s)
 		if err != nil {
-			return nil, "", err
+			return nil, "", "", err
 		}
-		return &net.IPNet{IP: ips[0]}, s, nil // only return first IP after a lookup
+		return &net.IPNet{IP: ips[0]}, s, tag, nil // only return first IP after a lookup
 	case i == -1:
 		// cidr block
 		_, ipnet, err := net.ParseCIDR(s)
 		if err != nil {
-			return nil, "", err
+			return nil, "", "", err
 		}
-		return ipnet, "", nil
+		return ipnet, "", tag, nil
 	case j == -1:
 		// ip,domain
 		str := strings.Split(s, ",")
 		if len(str) != 2 {
-			return nil, "", errors.New("malformed input")
+			return nil, "", "", errors.New("malformed input")
 		}
 		d := strings.TrimSpace(str[1])
 		if ip := net.ParseIP(str[0]); ip != nil {
-			return &net.IPNet{IP: ip}, d, nil
+			return &net.IPNet{IP: ip}, d, tag, nil
 		}
-		return nil, d, nil
+		return nil, d, tag, nil
 	}
-	return nil, "", nil
+	return nil, "", "", nil
 }
 
 func incrementIP(ip net.IP) {

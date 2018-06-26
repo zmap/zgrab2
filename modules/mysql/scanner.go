@@ -200,6 +200,11 @@ func (s *Scanner) GetName() string {
 	return s.config.Name
 }
 
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
+}
+
 // GetPort returns the port that is being scanned.
 func (s *Scanner) GetPort() uint {
 	return s.config.Port
