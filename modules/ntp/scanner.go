@@ -868,7 +868,7 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// scanner returns the port that is being scanned
+// GetPort returns the port that is being scanned
 func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
