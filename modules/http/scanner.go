@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -312,7 +311,6 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	fmt.Printf("%v %v %v %v %v\n", t, scanner.config.Name, scanner.config.Port, scanner.config.Trigger, scanner.config.UserAgent)
 	scan := scanner.newHTTPScan(&t)
 	defer scan.Cleanup()
 	err := scan.Grab()
