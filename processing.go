@@ -91,7 +91,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
 		trigger := (*scanner).GetTrigger()
-		if (input.Tag != "" || trigger != "") && input.Tag != trigger {
+		if input.Tag != trigger {
 			continue
 		}
 		defer func(name string) {
