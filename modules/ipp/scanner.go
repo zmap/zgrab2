@@ -51,6 +51,7 @@ type scan struct {
 	client      *http.Client
 	results     ScanResults
 	url         string
+	tls         bool
 }
 
 //TODO: Tag relevant results and exlain in comments
@@ -384,7 +385,7 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
+	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
 	// TODO: Log any weird errors coming out of this
 	resp, err := sendIPPRequest(scan, body)
 	//Store response regardless of error in request, because we may have gotten something back
@@ -527,7 +528,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // Adapted from newHTTPScan in zgrab2 http module
-func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
+func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 	newScan := scan{
 		client: http.MakeNewClient(),
 	}
@@ -544,6 +545,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
 	newScan.client.Jar = nil // Don't transfer cookies FIXME: Stolen from HTTP, unclear if needed
+	newScan.tls = tls
 	host := target.Domain
 	if host == "" {
 		// FIXME: I only know this works for sure for IPv4, uri string might get weird w/ IPv6
@@ -555,10 +557,20 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	return &newScan
 }
 
+// Cleanup closes any connections that have been opened during the scan
+func (scan *scan) Cleanup() {
+	if scan.connections != nil {
+		for _, conn := range scan.connections {
+			defer conn.Close()
+		}
+		scan.connections = nil
+	}
+}
+
 // TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
-func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *[]version) (*scan, *zgrab2.ScanError) {
-	scan := scanner.newIPPScan(target)
-	// TODO: Implement scan.Cleanup()
+func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *[]version, tls bool) (*scan, *zgrab2.ScanError) {
+	scan := scanner.newIPPScan(target, tls)
+	defer scan.Cleanup()
 	var err *zgrab2.ScanError
 	for i := 0; i < len(*versions); i++ {
 		err = scanner.Grab(scan, target, &(*versions)[i])
@@ -575,7 +587,7 @@ func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *
 func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 	if scan.results.Response != nil {
 		return true
-	} else if scanner.config.IPPSecure {
+	} else if scan.tls {
 		l := scan.results.TLSLog
 		return l != nil && l.HandshakeLog != nil && l.HandshakeLog.ServerHello != nil
 	}
@@ -587,7 +599,7 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
-	scan, err := scanner.tryGrabForVersions(&target, &Versions)
+	scan, err := scanner.tryGrabForVersions(&target, &Versions, scanner.config.IPPSecure)
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
@@ -595,13 +607,16 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
-			scanner.config.IPPSecure = true
-			retry, retryErr := scanner.tryGrabForVersions(&target, &Versions)
+			retry, retryErr := scanner.tryGrabForVersions(&target, &Versions, true)
 			if retryErr != nil {
 				if retry.shouldReportResult(scanner) {
-					return err.Unpack(&retry.results)
+					return retryErr.Unpack(&retry.results)
 				}
-				return zgrab2.TryGetScanStatus(err), nil, err
+				// Use original result as a fallback when retry result shouldn't be returned
+				if scan.shouldReportResult(scanner) {
+					return err.Unpack(&scan.results)
+				}
+				return zgrab2.TryGetScanStatus(retryErr), nil, retryErr
 			}
 			return zgrab2.SCAN_SUCCESS, &retry.results, nil
 		}
