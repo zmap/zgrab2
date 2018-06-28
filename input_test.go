@@ -87,12 +87,14 @@ func TestParseCSVTarget(t *testing.T) {
 			ipnet:   parseCIDR("10.0.0.1/8"),
 			success: true,
 		},
+
 		// DOMAIN (2 fields)
 		{
 			fields:  []string{"", "example.com"},
 			domain:  "example.com",
 			success: true,
 		},
+
 		// Bare domain
 		{
 			fields:  []string{"example.com"},
@@ -144,11 +146,11 @@ func TestParseCSVTarget(t *testing.T) {
 func TestGetTargetsCSV(t *testing.T) {
 	input := `# Comment
 10.0.0.1,example.com,tag
- 10.0.0.1 , example.com
+ 10.0.0.1 ,"example.com"
 10.0.0.1
 ,example.com
 example.com
-2.2.2.2/30,,tag`
+2.2.2.2/30,, tag`
 
 	expected := []ScanTarget{
 		ScanTarget{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag"},
