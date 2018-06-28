@@ -42,7 +42,7 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	Versions = [...]version {{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0},}
+	Versions = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
 )
 
 type scan struct {
@@ -69,11 +69,11 @@ type ScanResults struct {
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
 
-	AttributeCUPSVersion string `json:"attr_cups_version,omitempty"`
+	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
-	AttributePrinterURI  string `json:"attr_printer_uri,omitempty"`
+	AttributePrinterURI  string   `json:"attr_printer_uri,omitempty"`
 
-	TLSLog   *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // TODO: Annotate every flag thoroughly
@@ -178,12 +178,12 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-func ippInContentType(resp http.Response) (bool, error) {
+func hasContentType(resp *http.Response, contentType string) (bool, error) {
 	// TODO: Capture parameters and report them in ScanResults?
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
 	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	// FIXME: See if empty media type is sufficient as failure indicator,
+	// TODO: See if empty media type is sufficient as failure indicator,
 	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
 	if mediatype == "" && err != nil {
 		//TODO: Handle errors in a weird way, since media type is still returned
@@ -191,7 +191,7 @@ func ippInContentType(resp http.Response) (bool, error) {
 		return false, err
 	}
 	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
-	return mediatype == ContentType, nil
+	return mediatype == contentType, nil
 }
 
 // FIXME: Cleaner to write this code, possibly slower than copy-pasted version
@@ -260,19 +260,58 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
 	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
 }
 
+func (scan *scan) tryReadAttributes(body string) {
+	bodyBytes := []byte(body)
+	// Write reported CUPS version to results object
+	if scan.results.AttributeCUPSVersion == "" {
+		if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
+			log.WithFields(log.Fields{
+				"error":     err,
+				"attribute": CupsVersion,
+			}).Debug("Failed to read attribute.")
+		} else if len(cupsVersions) > 0 {
+			scan.results.AttributeCUPSVersion = string(cupsVersions[0])
+		}
+	}
+	// Write reported IPP versions to results object
+	if len(scan.results.AttributeIPPVersions) == 0 {
+		if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
+			log.WithFields(log.Fields{
+				"error":     err,
+				"attribute": VersionsSupported,
+			}).Debug("Failed to read attribute.")
+		} else {
+			for _, v := range ippVersions {
+				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
+			}
+		}
+	}
+	// Write reported printer URI to results object
+	if scan.results.AttributePrinterURI == "" {
+		if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
+			log.WithFields(log.Fields{
+				"error":     err,
+				"attribute": PrinterURISupported,
+			}).Debug("Failed to read attribute.")
+		} else if len(uris) > 0 {
+			scan.results.AttributePrinterURI = string(uris[0])
+		}
+	}
+}
+
 func versionNotSupported(body string) bool {
 	if body != "" {
 		buf := bytes.NewBuffer([]byte(body))
 		// Ignore first two bytes, read second two for status code
 		var reader struct {
-			_ uint16
+			_          uint16
 			StatusCode uint16
 		}
 		err := binary.Read(buf, binary.BigEndian, &reader)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
-				"body": body,
+				"body":  body,
 			}).Debug("Failed to read statusCode from body.")
 			return false
 		}
@@ -283,50 +322,14 @@ func versionNotSupported(body string) bool {
 	return false
 }
 
+// TODO: Genericize this with passed-in getIPPRequest function and *http.Response for some result field to store into
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	cupsBody := getPrintersRequest(version.Major, version.Minor)
-	cupsReq, err := http.NewRequest("POST", scan.url, cupsBody)
-	if err != nil {
-		return zgrab2.DetectScanError(err)
-	}
-	cupsReq.Header.Set("Accept", "*/*")
-	cupsReq.Header.Set("Content-Type", ContentType)
-	cupsResp, err := scan.client.Do(cupsReq)
+	cupsResp, err := sendIPPRequest(scan, cupsBody)
+	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.CUPSResponse = cupsResp
-
-	// FIXME: This block is copy-pasted directly from Grab()
 	if err != nil {
-		//If error is a url.Error (a struct), unwrap it
-		if urlError, ok := err.(*url.Error); ok {
-			err = urlError.Err
-		}
-	}
-	if err != nil {
-		switch err {
-		case ErrRedirLocalhost:
-			break
-		case ErrTooManyRedirects:
-			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
-		default:
-			return zgrab2.DetectScanError(err)
-		}
-	}
-
-	if cupsResp != nil && cupsResp.Body != nil {
-		defer cupsResp.Body.Close()
-	} else {
-		if cupsResp == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
-		}
-		if cupsResp.Body == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
-		}
-		// resp == nil or resp.Body == nil
-		// Empty response/body is not allowed in IPP because a response has required parameter
-		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
-		// Still returns the response, if any, because assignment occurs before this else block
-		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
-		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
+		return err
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	storeBody(cupsResp, scanner)
@@ -334,53 +337,21 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
-	bodyBytes := []byte(cupsResp.BodyText)
-	// Write reported CUPS version to results object
-	if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"attribute": CupsVersion,
-		}).Debug("Failed to read attribute.")
-	} else if len(cupsVersions) > 0 {
-		scan.results.AttributeCUPSVersion = string(cupsVersions[0])
-	}
-	// Write reported IPP versions to results object
-	if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"attribute": VersionsSupported,
-		}).Debug("Failed to read attribute.")
-	} else {
-		for _, v := range ippVersions {
-			scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
-		}
-	}
-	// Write reported printer URI to results object
-	if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-			"attribute": PrinterURISupported,
-		}).Debug("Failed to read attribute.")
-	} else if len(uris) > 0 {
-		scan.results.AttributePrinterURI = string(uris[0])
-	}
+	scan.tryReadAttributes(scan.results.CUPSResponse.BodyText)
 	return nil
 }
 
-func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
-	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
+// TODO: Let this receive generic *io.Reader rather than *bytes.Buffer in particular
+func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.ScanError) {
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
-		return zgrab2.DetectScanError(err)
+		// TODO: Log the error to see what exactly went wrong
+		return nil, zgrab2.DetectScanError(err)
 	}
 	request.Header.Set("Accept", "*/*")
 	request.Header.Set("Content-Type", ContentType)
 	resp, err := scan.client.Do(request)
-	//Store response regardless of error in request, because we may have gotten something back
-	scan.results.Response = resp
 	if err != nil {
-		//If error is a url.Error (a struct), unwrap it
 		if urlError, ok := err.(*url.Error); ok {
 			err = urlError.Err
 		}
@@ -390,37 +361,37 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		case ErrRedirLocalhost:
 			break
 		case ErrTooManyRedirects:
-			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+			return resp, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 		default:
-			return zgrab2.DetectScanError(err)
+			return resp, zgrab2.DetectScanError(err)
 		}
 	}
+	// TODO: Examine whether an empty response overall is a connection error; see RFC 8011 Section 4.2.5.2
+	if resp == nil {
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
+	}
+	// Empty body is not allowed in IPP because a response has required parameter
+	// Source: RFC 8011 Section 4.1.1 (https://tools.ietf.org/html/rfc8011#section-4.1.1)
+	if resp.Body == nil {
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
+	}
+	return resp, nil
+}
 
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	} else {
-		if resp == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
-		}
-		if resp.Body == nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
-		}
-		// resp == nil or resp.Body == nil
-		// Empty response/body is not allowed in IPP because a response has required parameter
-		// Source: RFC 8011 Section 4.1.1 https://tools.ietf.org/html/rfc8011#section-4.1.1
-		// Still returns the response, if any, because assignment occurs before this else block
-		// TODO: Examine whether an empty response overall is a protocol error, I'd think of it as another kind of error entirely,
-		//       and later conditions might handle that case; see RFC 8011 Section 4.2.5.2?
+func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
+	// Send get-printer-attributes request to the host, preferably a print server
+	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
+	// TODO: Log any weird errors coming out of this
+	resp, err := sendIPPRequest(scan, body)
+	//Store response regardless of error in request, because we may have gotten something back
+	scan.results.Response = resp
+	if err != nil {
+		return err
 	}
 	storeBody(resp, scanner)
 	if versionNotSupported(scan.results.Response.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
-
-	// TODO: Check to make sure that the repsonse received is actually IPP
-	//Content-Type header matches is sufficient
-	//HTTP on port 631 is sufficient
-	//Still record data in the case of protocol error to see what that data looks like
 
 	protocols := strings.Split(resp.Header.Get("Server"), " ")
 	for _, p := range protocols {
@@ -434,7 +405,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			if len(components) >= 1 {
 				if val, err := strconv.Atoi(components[0]); err != nil {
 					log.WithFields(log.Fields{
-						"error": err,
+						"error":  err,
 						"string": components[0],
 					}).Debug("Failed to read major version from string.")
 				} else {
@@ -445,7 +416,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			if len(components) >= 2 {
 				if val, err := strconv.Atoi(components[1]); err != nil {
 					log.WithFields(log.Fields{
-						"error": err,
+						"error":  err,
 						"string": components[1],
 					}).Debug("Failed to read minor version from string.")
 				} else {
@@ -464,6 +435,20 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 			}
 		}
 	}
+
+	// TODO: Cite RFC justification for this
+	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	if isIPP, _ := hasContentType(resp, ContentType);
+	   resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "" && !isIPP {
+		// TODO: Log error if any
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("application/ipp not present in Content-Type header."))
+	}
+
+	if resp.StatusCode != 200 {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
+	}
+
+	scan.tryReadAttributes(scan.results.Response.BodyText)
 
 	return nil
 }
@@ -566,49 +551,60 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	return &newScan
 }
 
+// TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
+func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *[]version) (*scan, *zgrab2.ScanError) {
+	scan := scanner.newIPPScan(target)
+	// TODO: Implement scan.Cleanup()
+	var err *zgrab2.ScanError
+	for i := 0; i < len(*versions); i++ {
+		err = scanner.Grab(scan, target, &(*versions)[i])
+		if err != nil && err.Err == ErrVersionNotSupported && i < len(*versions)-1 {
+			continue
+		}
+		break
+	}
+	return scan, err
+}
+
+// TODO: Incorporate status into this? I don't think so, b/c with certain statuses, we should return
+// early, so special casing seems to make sense
+func (scan *scan) shouldReportResult(scanner *Scanner) bool {
+	if scan.results.Response != nil {
+		return true
+	} else if scanner.config.IPPSecure {
+		l := scan.results.TLSLog
+		return l != nil && l.HandshakeLog != nil && l.HandshakeLog.ServerHello != nil
+	}
+	return false
+}
+
 // Scan TODO: describe how scan operates in appropriate detail
 //1. Send a request (currently get-printer-attributes)
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	scan := scanner.newIPPScan(&target)
-	//defer scan.Cleanup()
-	var err *zgrab2.ScanError
-	// Try all known IPP versions from newest to oldest until version is supported
-	for i := 0; i < len(Versions); i++ {
-		err = scanner.Grab(scan, &target, &Versions[i])
-		if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
-			break
-		}
-		if i == len(Versions) - 1 && err.Err == ErrVersionNotSupported {
-			return zgrab2.SCAN_APPLICATION_ERROR, &scan.results, err.Err
-		}
-	}
+	// Try all known IPP versions from newest to oldest until we reach a supported version
+	scan, err := scanner.tryGrabForVersions(&target, &Versions)
 	if err != nil {
-		// Adapted from http module's RetryHTTPS logic
-		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
-			//scan.Cleanup()
-			scanner.config.IPPSecure = true
-			// TODO: ?Refactor this to just call Scan again??
-			retry := scanner.newIPPScan(&target)
-			//defer retry.Cleanup()
-			var retryErr *zgrab2.ScanError
-			// Try all known IPP versions from newest to oldest until version is supported
-			// TODO: Figure out why retry-TLS is working worse than w/ or w/o TLS in the first place
-			for i := 0; i < len(Versions); i++ {
-				retryErr = scanner.Grab(retry, &target, &Versions[i])
-				if err == nil || (err != nil && err.Err != ErrVersionNotSupported) {
-					break
-				}
-				if i == len(Versions) - 1 && err.Err == ErrVersionNotSupported {
-					return zgrab2.SCAN_APPLICATION_ERROR, &scan.results, err.Err
-				}
-			}
-			if retryErr != nil {
-				return retryErr.Unpack(retry.results)
-			}
-			return zgrab2.SCAN_SUCCESS, retry.results, nil
+		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
+		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
+		if err.Status == zgrab2.SCAN_APPLICATION_ERROR || err.Status == zgrab2.SCAN_PROTOCOL_ERROR {
+			return err.Unpack(&scan.results)
 		}
-		return zgrab2.TryGetScanStatus(err), &scan.results, err
+		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
+			scanner.config.IPPSecure = true
+			retry, retryErr := scanner.tryGrabForVersions(&target, &Versions)
+			if retryErr != nil {
+				if retry.shouldReportResult(scanner) {
+					return err.Unpack(&retry.results)
+				}
+				return zgrab2.TryGetScanStatus(err), nil, err
+			}
+			return zgrab2.SCAN_SUCCESS, &retry.results, nil
+		}
+		if scan.shouldReportResult(scanner) {
+			return err.Unpack(&scan.results)
+		}
+		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
