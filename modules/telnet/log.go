@@ -31,3 +31,19 @@ type TelnetLog struct {
 	// Dont is the list of options that the server requests the client *not* use.
 	Dont []TelnetOption `json:"dont,omitempty"`
 }
+
+// isTelnet checks if this struct represents having actually detected a Telnet service.
+func (log *TelnetLog) isTelnet() bool {
+	return len(log.Will) > 0 || len(log.Do) > 0 || len(log.Wont) > 0 || len(log.Dont) > 0
+}
+
+// getResult returns the log itself if it represents a Telnet service, otherwise, it returns nil.
+func (log *TelnetLog) getResult() *TelnetLog {
+	if log == nil {
+		return nil
+	}
+	if log.isTelnet() {
+		return log
+	}
+	return nil
+}

@@ -105,7 +105,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	defer conn.Close()
 	result := new(TelnetLog)
 	if err := GetTelnetBanner(result, conn, scanner.config.MaxReadSize); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), result.getResult(), err
 	}
 	return zgrab2.SCAN_SUCCESS, result, nil
 }

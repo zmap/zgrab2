@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+
+	"github.com/zmap/zgrab2"
 )
 
 // ReconnectFunction is used to re-connect to the target to re-try the scan with a different TSAP destination.
@@ -122,13 +124,12 @@ func makeRequestPacketBytes(pduType byte, parameters []byte, data []byte) ([]byt
 // Send a generic packet request and return the response
 func sendRequestReadResponse(connection net.Conn, requestBytes []byte) ([]byte, error) {
 	connection.Write(requestBytes)
-	responseBytes := make([]byte, 2048)
-	bytesRead, err := connection.Read(responseBytes)
+	responseBytes, err := zgrab2.ReadAvailable(connection)
 	if err != nil {
 		return nil, err
 	}
 
-	return responseBytes[0:bytesRead], nil
+	return responseBytes, nil
 }
 
 func unmarshalCOTPConnectionResponse(responseBytes []byte) (cotpConnPacket COTPConnectionPacket, err error) {

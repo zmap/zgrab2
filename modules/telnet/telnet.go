@@ -20,35 +20,37 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
+	"time"
+
+	"github.com/zmap/zgrab2"
 )
 
 // RFC 854 - https://tools.ietf.org/html/rfc854
 const (
 	// IAC means INTERPRET AS COMMAND.
-	IAC                = byte(255)
+	IAC = byte(0xff)
 
 	// DONT means don't use these options.
-	DONT               = byte(254)
+	DONT = byte(0xfe)
 
 	// DO means do use these options.
-	DO                 = byte(253)
+	DO = byte(0xfd)
 
 	// WONT means these options won't be used.
-	WONT               = byte(252)
+	WONT = byte(0xfc)
 
 	// WILL means these options will be used.
-	WILL               = byte(251)
+	WILL = byte(0xfb)
 
 	// GO_AHEAD is the special go ahead command.
-	GO_AHEAD           = byte(249)
+	GO_AHEAD = byte(0xf9)
 
 	// IAC_CMD_LENGTH gives the length of the special IAC command (inclusive).
-	IAC_CMD_LENGTH     = 3
+	IAC_CMD_LENGTH = 3
 
 	// READ_BUFFER_LENGTH is the size of the read buffer.
-	READ_BUFFER_LENGTH = 8192
+	READ_BUFFER_LENGTH = 8209
 )
 
 // TelnetOption provides mappings of telnet option enum values to/from their friendly names.
@@ -96,43 +98,23 @@ func GetTelnetBanner(logStruct *TelnetLog, conn net.Conn, maxReadSize int) (err 
 	if err = NegotiateOptions(logStruct, conn); err != nil {
 		return err
 	}
-
-	var bannerSlice []byte
-	//grab banner
-	buffer := make([]byte, READ_BUFFER_LENGTH)
-
-	numBytes := len(buffer)
-	rounds := int(math.Ceil(float64(maxReadSize) / READ_BUFFER_LENGTH))
-	count := 0
-	for numBytes != 0 && count < rounds && numBytes == READ_BUFFER_LENGTH {
-
-		numBytes, err = conn.Read(buffer)
-		// ignore timeout errors if there is already banner content
-		if err, ok := err.(net.Error); ok && err.Timeout() {
-			if len(logStruct.Banner) == 0 {
-				return err
-			}
-			break
+	// Keep reading until READ_BUFFER_LENGTH chunks until
+	// 	(a) a read takes longer than 500ms
+	//  (b) the combined reads take longer than the configured timeout for the connection (--timeout command line flag)
+	//  (c) the banner is maxReadSize bytes long [taking into account the fact that logStruct.Banner may already have some data from NegotiateOptions]
+	bannerSlice, err := zgrab2.ReadAvailableWithOptions(conn, READ_BUFFER_LENGTH, 500*time.Millisecond, 0, maxReadSize-len(logStruct.Banner))
+	if bannerSlice != nil {
+		// If there is an IAC embedded in the "banner", ignore bytes from that point on.
+		if iacIndex := getIACIndex(bannerSlice); iacIndex != -1 {
+			bannerSlice = bannerSlice[0:iacIndex]
 		}
-
-		if err != nil && err != io.EOF {
-			return err
-		}
-
-		if containsIAC(buffer) {
-			continue
-		}
-
-		if count == rounds-1 {
-			bannerSlice = append(bannerSlice, buffer[0:maxReadSize%READ_BUFFER_LENGTH]...)
-		} else {
-			bannerSlice = append(bannerSlice, buffer[0:numBytes]...)
-		}
-		count++
+		// append to any data we already read during NegotiateOptions
+		logStruct.Banner += string(bannerSlice)
 	}
-
-	logStruct.Banner += string(bannerSlice)
-
+	// Timeouts on the first read are feasible, since the banner may have been read during the negotiation, so ignore them.
+	if err != nil && err != io.EOF && !zgrab2.IsTimeoutError(err) {
+		return err
+	}
 	return nil
 }
 
@@ -159,7 +141,7 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 
 		// Negotiate options
 
-		for iacIndex = bytes.IndexByte(readBuffer, IAC); iacIndex != -1; iacIndex = bytes.IndexByte(readBuffer, IAC) {
+		for iacIndex = getIACIndex(readBuffer); iacIndex != -1; iacIndex = getIACIndex(readBuffer) {
 			firstUnreadIndex = 0
 			optionType = readBuffer[iacIndex+1]
 			option = readBuffer[iacIndex+2]
@@ -218,6 +200,11 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 	return nil
 }
 
+func getIACIndex(buffer []byte) int {
+	// TODO: This doesn't seem to take into account that a 0xFF data byte is encoded as 0xFF + 0xFF
+	return bytes.IndexByte(buffer, IAC)
+}
+
 func containsIAC(buffer []byte) bool {
-	return bytes.IndexByte(buffer, IAC) != -1
+	return getIACIndex(buffer) != -1
 }
