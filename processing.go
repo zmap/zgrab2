@@ -38,6 +38,8 @@ func (target ScanTarget) String() string {
 	return target.Domain
 }
 
+// Host gets the host identifier as a string: the IP address if it is available,
+// or the domain if not.
 func (target *ScanTarget) Host() string {
 	if target.IP != nil {
 		return target.IP.String()
