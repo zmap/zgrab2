@@ -4,9 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -41,7 +39,7 @@ func (target ScanTarget) String() string {
 		res = target.Domain
 	}
 	if target.Tag != "" {
-		res += " =" + target.Tag
+		res += " tag:" + target.Tag
 	}
 	return res
 }
@@ -184,35 +182,9 @@ func Process(mon *Monitor) {
 		}(i)
 	}
 
-	// Read the input, send to workers
-	input := bufio.NewReader(config.inputFile)
-	for {
-		obj, err := input.ReadBytes('\n')
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			log.Error(err)
-		}
-		st := strings.TrimSpace(string(obj))
-		ipnet, domain, tag, err := ParseTarget(st)
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-		var ip net.IP
-		if ipnet != nil {
-			if ipnet.Mask != nil {
-				for ip = ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(ip); incrementIP(ip) {
-					processQueue <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag}
-				}
-				continue
-			} else {
-				ip = ipnet.IP
-			}
-		}
-		processQueue <- ScanTarget{IP: ip, Domain: domain, Tag: tag}
+	if err := GetTargetsCSV(config.inputFile, processQueue); err != nil {
+		log.Fatal(err)
 	}
-
 	close(processQueue)
 	workerDone.Wait()
 	close(outputQueue)
