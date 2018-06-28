@@ -44,10 +44,22 @@ func (target ScanTarget) String() string {
 	return res
 }
 
+// Host gets the host identifier as a string: the IP address if it is available,
+// or the domain if not.
+func (target *ScanTarget) Host() string {
+	if target.IP != nil {
+		return target.IP.String()
+	} else if target.Domain != "" {
+		return target.Domain
+	}
+	log.Fatalf("Bad target %s: no IP/Domain", target.String())
+	panic("unreachable")
+}
+
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
 	return DialTimeoutConnection("tcp", address, timeout)
 }
 
@@ -55,7 +67,7 @@ func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
 	var local *net.UDPAddr
 	var err error
 

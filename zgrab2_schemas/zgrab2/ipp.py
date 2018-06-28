@@ -7,7 +7,7 @@ import zschema.registry
 import zcrypto_schemas.zcrypto as zcrypto
 import zgrab2
 
-# FIXME: Copy-pasted from http schema except for ipp_scan_response
+# TODO: Eventually re-introduce (non-cicular) dependency on HTTP zgrab2 schema
 # lib/http/header.go: knownHeaders
 http_known_headers = [
     "access_control_allow_origin",
@@ -147,7 +147,6 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
-# TODO: Re-work to use most of schema from http module, rather than copy-pasting
 ipp_scan_response = SubRecord({
     "result": SubRecord({
         "version_major": Signed8BitInteger(),
