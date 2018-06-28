@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zgrab2/lib/output"
 )
 
 // Grab contains all scan responses for a single host
@@ -37,10 +38,22 @@ func (target ScanTarget) String() string {
 	return target.Domain
 }
 
+// Host gets the host identifier as a string: the IP address if it is available,
+// or the domain if not.
+func (target *ScanTarget) Host() string {
+	if target.IP != nil {
+		return target.IP.String()
+	} else if target.Domain != "" {
+		return target.Domain
+	}
+	log.Fatalf("Bad target %s: no IP/Domain", target.String())
+	panic("unreachable")
+}
+
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
 	return DialTimeoutConnection("tcp", address, timeout)
 }
 
@@ -48,7 +61,7 @@ func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
 	timeout := time.Second * time.Duration(flags.Timeout)
-	address := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", flags.Port))
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
 	var local *net.UDPAddr
 	var err error
 
@@ -82,7 +95,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	for _, scannerName := range orderedScanners {
 		defer func(name string) {
 			if e := recover(); e != nil {
-				log.Errorf("Panic on scanner %s when scanning target %s", scannerName, input.String())
+				log.Errorf("Panic on scanner %s when scanning target %s: %#v", scannerName, input.String(), e)
 				// Bubble out original error (with original stack) in lieu of explicitly logging the stack / error
 				panic(e)
 			}
@@ -103,8 +116,24 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 		ipstr = s
 	}
 
-	a := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
-	result, err := json.Marshal(a)
+	raw := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
+
+	var outputData interface{} = raw
+
+	if !includeDebugOutput() {
+		// If the caller doesn't explicitly request debug data, strip it out.
+		// Take advantage of the fact that we can skip the (expensive) call to
+		// process if debug output is included (TODO: until Process does anything else)
+		processor := output.Processor{Verbose: false}
+		stripped, err := processor.Process(raw)
+		if err != nil {
+			log.Debugf("Error processing results: %v", err)
+			stripped = raw
+		}
+		outputData = stripped
+	}
+
+	result, err := json.Marshal(outputData)
 	if err != nil {
 		log.Fatalf("unable to marshal data: %s", err)
 	}

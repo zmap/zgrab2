@@ -241,6 +241,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 		client: http.MakeNewClient(),
 	}
 	ret.transport.DialTLS = ret.getTLSDialer()
+	ret.transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
@@ -330,7 +331,6 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 func RegisterModule() {
 	var module Module
 	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", 80, &module)
-	log.SetLevel(log.DebugLevel)
 	if err != nil {
 		log.Fatal(err)
 	}

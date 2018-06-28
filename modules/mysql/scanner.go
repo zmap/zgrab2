@@ -23,32 +23,32 @@ type ScanResults struct {
 	// ServerVersion is a null-terminated string giving the specific
 	// server version in the initial HandshakePacket. Often of the format
 	// x.y.z, but not always.
-	ServerVersion string `json:"server_version"`
+	ServerVersion string `json:"server_version,omitempty"`
 
 	// ConnectionID is the server's internal identifier for this client's
 	// connection, sent in the initial HandshakePacket.
-	ConnectionID uint32 `json:"connection_id" zgrab:"debug"`
+	ConnectionID uint32 `json:"connection_id,omitempty" zgrab:"debug"`
 
 	// AuthPluginData is optional plugin-specific data, whose meaning
 	// depends on the value of AuthPluginName. Returned in the initial
 	// HandshakePacket.
-	AuthPluginData []byte `json:"auth_plugin_data" zgrab:"debug"`
+	AuthPluginData []byte `json:"auth_plugin_data,omitempty" zgrab:"debug"`
 
 	// CharacterSet is the identifier for the character set the server is
 	// using. Returned in the initial HandshakePacket.
-	CharacterSet byte `json:"character_set" zgrab:"debug"`
+	CharacterSet byte `json:"character_set,omitempty" zgrab:"debug"`
 
 	// StatusFlags is the set of status flags the server returned in the
 	// initial HandshakePacket. Each true entry in the map corresponds to
 	// a bit set to 1 in the flags, where the keys correspond to the
 	// #defines in the MySQL docs.
-	StatusFlags map[string]bool `json:"status_flags"`
+	StatusFlags map[string]bool `json:"status_flags,omitempty"`
 
 	// CapabilityFlags is the set of capability flags the server returned
 	// initial HandshakePacket. Each true entry in the map corresponds to
 	// a bit set to 1 in the flags, where the keys correspond to the
 	// #defines in the MySQL docs.
-	CapabilityFlags map[string]bool `json:"capability_flags"`
+	CapabilityFlags map[string]bool `json:"capability_flags,omitempty"`
 
 	// AuthPluginName is the name of the authentication plugin, returned
 	// in the initial HandshakePacket.
@@ -58,16 +58,29 @@ type ScanResults struct {
 	// for example if the scanner is not on the allowed hosts list.
 	ErrorCode *int `json:"error_code,omitempty"`
 
+	// ErrorID is the friendly name of the error code, if recognized.
+	ErrorID string `json:"error_id,omitempty"`
+
 	// ErrorMessage is an optional string describing the error. Only set
 	// if there is an error.
 	ErrorMessage string `json:"error_message,omitempty"`
 
 	// RawPackets contains the base64 encoding of all packets sent and
 	// received during the scan.
-	RawPackets []string `json:"raw_packets,omitempty"`
+	RawPackets []string `json:"raw_packets,omitempty" zgrab:"debug"`
 
 	// TLSLog contains the usual shared TLS logs.
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+}
+
+// Put the error into the results.
+func (results *ScanResults) setError(err *mysql.ERRPacket) {
+	if err != nil {
+		temp := int(err.ErrorCode)
+		results.ErrorCode = &temp
+		results.ErrorID = err.GetErrorID()
+		results.ErrorMessage = err.ErrorMessage
+	}
 }
 
 // Convert the ConnectionLog into the output format.
@@ -104,9 +117,7 @@ func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *ScanResul
 		ret.RawPackets = append(ret.RawPackets, connectionLog.Error.Raw)
 		switch err := connectionLog.Error.Parsed.(type) {
 		case *mysql.ERRPacket:
-			temp := int(err.ErrorCode)
-			ret.ErrorCode = &temp
-			ret.ErrorMessage = err.ErrorMessage
+			ret.setError(err)
 		default:
 			temp := -1
 			ret.ErrorCode = &temp
@@ -168,6 +179,9 @@ func (f *Flags) Help() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
+	if f.Verbose {
+		log.SetLevel(log.DebugLevel)
+	}
 	return nil
 }
 

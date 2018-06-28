@@ -1,0 +1,1 @@
+{"ip":"172.17.0.3","domain":"target","data":{"smtp":{"status":"success","protocol":"smtp","result":{"banner":"220 ba06a6536f7e ESMTP qpsmtpd 0.94 ready; send us your mail, but not your spam.\r\n","helo":"250 ba06a6536f7e Hi Unknown [172.17.0.4]; I am so happy to meet you.\r\n"},"timestamp":"2018-04-06T19:42:08Z"}}}

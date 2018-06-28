@@ -14,8 +14,19 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
+// Don't allow unbounded reads
+const maxPacketSize = 512 * 1024
+
+const maxOutputSize = 1024
+
+// Don't read an unlimited number of tag/value pairs from the server
+const maxReadAllPackets = 64
+
 // Connection wraps the state of a given connection to a server.
 type Connection struct {
+	// Target is the requested scan target.
+	Target *zgrab2.ScanTarget
+
 	// Connection is the underlying TCP (or TLS) stream.
 	Connection net.Conn
 
@@ -46,8 +57,31 @@ type ServerPacket struct {
 // of the packet.
 func (p *ServerPacket) ToString() string {
 	// TODO: Don't hex-encode human-readable bodies?
-	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: [[\n%s\n]] } }", &p, p.Type, p.Length, hex.Dump(p.Body))
+	return fmt.Sprintf("{ ServerPacket(%p): { Type: '%c', Length: %d, Body: [[%d bytes]] } }", &p, p.Type, p.Length, len(p.Body))
 }
+
+// OutputValue is the value that is stored for unexpected / unrecognized data.
+func (p *ServerPacket) OutputValue() string {
+	l := len(p.Body)
+	if len(p.Body) > maxOutputSize {
+		l = maxOutputSize
+	}
+	body := hex.EncodeToString(p.Body[:l])
+	if p.Length - 4 > uint32(l) {
+		body = body + "..."
+	}
+	return fmt.Sprintf("%c: 0x%08x: %s", p.Type, p.Length, body)
+}
+
+// ToError gets a PostgresError version of OutputValue.
+func (p *ServerPacket) ToError() *PostgresError {
+	return &PostgresError{
+		"severity": "unexpected",
+		"code": "unexpected error format",
+		"detail": p.OutputValue(),
+	}
+}
+
 
 // Send a client packet: a big-endian uint32 length followed by a body.
 func (c *Connection) Send(body []byte) error {
@@ -78,13 +112,12 @@ func (c *Connection) Close() error {
 
 // tryReadPacket tries to read a length + body from the connection.
 func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanError) {
-	ret := ServerPacket{Type: header}
 	var length [4]byte
 	_, err := io.ReadFull(c.Connection, length[:])
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	ret.Length = binary.BigEndian.Uint32(length[:])
+	bodyLen := binary.BigEndian.Uint32(length[:])
 	if length[0] > 0x00 {
 		// For scanning purposes, there is no reason we want to read more than 2^24 bytes
 		// But in practice, it probably means we have a null-terminated error string
@@ -93,20 +126,38 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		if err != nil && err != io.EOF {
 			return nil, zgrab2.DetectScanError(err)
 		}
-		ret.Body = buf[:n]
-		if string(buf[n-2:n]) == "\x0a\x00" {
-			ret.Length = 0
-			ret.Body = append(length[:], ret.Body...)
-			return &ret, nil
+		if n < 2 {
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too little data (%d bytes: %s)", n, hex.EncodeToString(buf[:n])))
 		}
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", ret.Length, n, hex.EncodeToString(buf[:n])))
+		if string(buf[n-2:n]) == "\x0a\x00" {
+			return &ServerPacket{
+				Type: header,
+				Length: 0,
+				Body: append(length[:], buf[:n]...),
+			}, nil
+		}
+		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", bodyLen, n, hex.EncodeToString(buf[:n])))
 	}
-	ret.Body = make([]byte, ret.Length-4) // Length includes the length of the Length uint32
-	_, err = io.ReadFull(c.Connection, ret.Body)
+	sizeToRead := bodyLen
+	if sizeToRead > maxPacketSize {
+		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), bodyLen, maxPacketSize)
+		sizeToRead = maxPacketSize
+	}
+	body := make([]byte, sizeToRead - 4) // Length includes the length of the Length uint32
+	_, err = io.ReadFull(c.Connection, body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	return &ret, nil
+	if sizeToRead < bodyLen && len(body) + 4 >= maxPacketSize {
+		// Warn if we actually truncate (as opposed getting a huge length but only a few bytes are actually available)
+		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), bodyLen, len(body))
+	}
+
+	return &ServerPacket{
+		Type: header,
+		Length: bodyLen,
+		Body: body,
+	}, nil
 }
 
 // RequestSSL sends an SSLRequest packet to the server, and returns true
@@ -223,6 +274,10 @@ func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 		if response.Type == 'Z' {
 			return ret, nil
 		}
+		if len(ret) > maxReadAllPackets {
+			log.Warnf("Server %s returned more than %d packets -- truncating.", c.Target.String(), maxReadAllPackets)
+			return ret, nil
+		}
 	}
 }
 
@@ -230,28 +285,43 @@ func (c *Connection) ReadAll() ([]*ServerPacket, *zgrab2.ScanError) {
 // that they all get closed.
 // TODO: Is there something like this in the standard libraries?
 type connectionManager struct {
-	connections []io.Closer
+	connections map[io.Closer]bool
 }
 
 // addConnection adds a managed connection.
 func (m *connectionManager) addConnection(c io.Closer) {
-	m.connections = append(m.connections, c)
+	m.connections[c] = true
+}
+
+func (m *connectionManager) closeConnection(c io.Closer) {
+	if m.connections[c] {
+		m.connections[c] = false
+		err := c.Close()
+		if err != nil {
+			log.Debugf("Got error closing connection: %v", err)
+		}
+	}
 }
 
 // cleanUp closes all managed connections.
 func (m *connectionManager) cleanUp() {
-	for _, v := range m.connections {
+	// first in, last out: empty out the map
+	defer func() {
+		for conn, _ := range m.connections {
+			delete(m.connections, conn)
+		}
+	}()
+	for connection, _ := range m.connections {
 		// Close them all even if there is a panic with one
 		defer func(c io.Closer) {
-			err := c.Close()
-			if err != nil {
-				log.Debugf("Got error closing connection: %v", err)
-			}
-		}(v)
+			m.closeConnection(c)
+		}(connection)
 	}
 }
 
 // Get a new connectionmanager instance.
 func newConnectionManager() *connectionManager {
-	return &connectionManager{}
+	return &connectionManager{
+		connections: make(map[io.Closer]bool),
+	}
 }

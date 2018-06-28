@@ -17,6 +17,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"encoding/json"
 )
 
 const (
@@ -86,6 +87,18 @@ type PostgresError map[string]string
 // authentication. These are 'S'-type packets.
 // We keep track of them all -- but the golang postgres library only stores the server_version and TimeZone.
 type ServerParameters map[string]string
+
+// MarshalJSON returns the ServerParameters as a list of name/value pairs (work
+// around schema issue)
+func (s *ServerParameters) MarshalJSON() ([]byte, error) {
+	ret := make([]string, len(*s))
+	i := 0
+	for k, v := range *s {
+		ret[i] = k + "=" + v
+		i++
+	}
+	return json.Marshal(strings.Join(ret, ","))
+}
 
 // BackendKeyData is the data returned by the 'K'-type packet.
 type BackendKeyData struct {
@@ -200,7 +213,7 @@ func appendStringList(dest string, val string) string {
 
 // ServerParameters.appendBadParam() adds a packet to the list of bad/unexpected parameters
 func (p *ServerParameters) appendBadParam(packet *ServerPacket) {
-	(*p)[KeyBadParameters] = appendStringList((*p)[KeyBadParameters], packet.ToString())
+	(*p)[KeyBadParameters] = appendStringList((*p)[KeyBadParameters], packet.OutputValue())
 }
 
 // Results.decodeServerResponse() fills out the results object with packets returned by the server.
@@ -280,6 +293,9 @@ func (f *Flags) Help() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.Config = f
+	if f.Verbose {
+		log.SetLevel(log.DebugLevel)
+	}
 	return nil
 }
 
@@ -327,7 +343,7 @@ func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, no
 		return nil, zgrab2.DetectScanError(err)
 	}
 	mgr.addConnection(conn)
-	sql := Connection{Connection: conn, Config: s.Config}
+	sql := Connection{Target: t, Connection: conn, Config: s.Config}
 	sql.IsSSL = false
 	if !nossl && !s.Config.SkipSSL {
 		hasSSL, sslError := sql.RequestSSL()
@@ -383,7 +399,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(nil)
 		}
-		defer sql.Close()
+		defer mgr.closeConnection(sql)
 		if sql.IsSSL {
 			results.IsSSL = true
 			// This pointer will be populated as the connection is negotiated
@@ -406,7 +422,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if response.Type != 'E' {
 			// No server should be allowing a 0.0 client...but if it does allow it, don't bail out
 			log.Debugf("Unexpected response from server: %s", response.ToString())
-			results.SupportedVersions = response.ToString()
+			results.SupportedVersions = response.OutputValue()
 		} else {
 			results.SupportedVersions = strings.Trim(string(response.Body), "\x00\r\n ")
 		}
@@ -414,7 +430,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if _, err := sql.ReadAll(); err != nil {
 			return err.Unpack(&results)
 		}
-		sql.Close()
+		mgr.closeConnection(sql)
 	}
 
 	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
@@ -423,6 +439,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
+		defer mgr.closeConnection(sql)
 
 		if err := sql.SendU32(0xff<<16 | 0xff); err != nil {
 			// Whatever the actual problem, a send error will be treated as a SCAN_PROTOCOL_ERROR since the scan got this far
@@ -436,7 +453,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if response.Type != 'E' {
 			// No server should be allowing a 255.255 client...but if it does allow it, don't bail out
 			log.Debugf("Unexpected response from server: %s", response.ToString())
-			results.ProtocolError = nil
+			results.ProtocolError = response.ToError()
 		} else {
 			results.ProtocolError = decodeError(response.Body)
 		}
@@ -444,7 +461,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if _, err := sql.ReadAll(); err != nil {
 			return err.Unpack(&results)
 		}
-		sql.Close()
+		mgr.closeConnection(sql)
 	}
 
 	// Send a StartupMessage with a valid protocol version number, but omit the user field
@@ -456,11 +473,13 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
+		defer mgr.closeConnection(sql)
+
 		if err = sql.SendStartupMessage(s.Config.ProtocolVersion, s.getDefaultKVPs()); err != nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
-		if response, readErr = sql.ReadPacket(); err != nil {
-			log.Debugf("Error reading response after StartupMessage: %v", err)
+		if response, readErr = sql.ReadPacket(); readErr != nil {
+			log.Debugf("Error reading response after StartupMessage: %v", readErr)
 			return readErr.Unpack(&results)
 		}
 		if response.Type == 'E' {
@@ -468,12 +487,13 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		} else {
 			// No server should allow a missing User field -- but if it does, log and continue
 			log.Debugf("Unexpected response from server: %s", response.ToString())
+			results.StartupError = response.ToError()
 		}
 		// TODO: use any packets returned to fill out results? There probably won't be any, and they will probably be overwritten if Config.User etc is set...
-		if _, readErr = sql.ReadAll(); err != nil {
+		if _, readErr = sql.ReadAll(); readErr != nil {
 			return readErr.Unpack(&results)
 		}
-		sql.Close()
+		mgr.closeConnection(sql)
 	}
 
 	// If user / database / application_name are provided, do a final scan with those
@@ -482,6 +502,8 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
+		defer mgr.closeConnection(sql)
+
 		kvps := s.getDefaultKVPs()
 		if s.Config.User != "" {
 			kvps["user"] = s.Config.User
@@ -496,7 +518,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, err
 		}
 		packets, err := sql.ReadAll()
-		sql.Close()
+		mgr.closeConnection(sql)
 		if packets != nil {
 			results.decodeServerResponse(packets)
 		}
@@ -512,7 +534,6 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 func RegisterModule() {
 	var module Module
 	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
-	log.SetLevel(log.DebugLevel)
 	if err != nil {
 		log.Fatal(err)
 	}
