@@ -330,7 +330,6 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 func RegisterModule() {
 	var module Module
 	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", 80, &module)
-	log.SetLevel(log.DebugLevel)
 	if err != nil {
 		log.Fatal(err)
 	}

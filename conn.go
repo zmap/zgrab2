@@ -32,6 +32,11 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 	return c.Conn.Write(b)
 }
 
+// Close the underlying connection.
+func (c *TimeoutConnection) Close() error {
+	return c.Conn.Close()
+}
+
 // DialTimeoutConnection dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func DialTimeoutConnection(proto string, target string, timeout time.Duration) (net.Conn, error) {
 	var conn net.Conn

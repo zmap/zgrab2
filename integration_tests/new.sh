@@ -17,7 +17,11 @@ module_name="$1"
 module_path="integration_tests/$module_name"
 
 function doReplacements() {
-    sed -i "s/#{MODULE_NAME}/$module_name/g" $1
+    if [ "$(uname)" == "Darwin" ]; then
+        sed -i "" -e "s/#{MODULE_NAME}/$module_name/g" $1
+    else
+        sed -i "s/#{MODULE_NAME}/$module_name/g" $1
+    fi
 }
 
 mkdir -p $module_path
@@ -30,10 +34,20 @@ for file in $(ls *.sh); do
 done
 popd
 
-cp "integration_tests/.template/schema.py" "schemas/$module_name.py"
-doReplacements "schemas/$module_name.py"
+mkdir -p $module_path/container
+pushd "integration_tests/.template/container"
+for file in $(ls); do
+    dest="../../$module_name/container/$file"
+    cp "$file" "$dest"
+    doReplacements "$dest"
+    chmod +x "$dest"
+done
+popd
 
-echo "import schemas.$module_name" >> schemas/__init__.py
+cp "integration_tests/.template/schema.py" "zgrab2_schemas/zgrab2/$module_name.py"
+doReplacements "zgrab2_schemas/zgrab2/$module_name.py"
+
+echo "import $module_name" >> zgrab2_schemas/zgrab2/__init__.py
 
 cp "integration_tests/.template/module.go" "modules/$module_name.go"
 doReplacements "modules/$module_name.go"

@@ -248,13 +248,13 @@ type HandshakePacket struct {
 	ProtocolVersion byte `json:"protocol_version"`
 
 	// ServerVersion is a human-readable server version.
-	ServerVersion string `json:"server_version"`
+	ServerVersion string `json:"server_version,omitempty"`
 
 	// ConnectionID is the ID used by the server to identify this client.
-	ConnectionID uint32 `zgrab:"debug" json:"connection_id"`
+	ConnectionID uint32 `zgrab:"debug" json:"connection_id,omitempty"`
 
 	// AuthPluginData1 is the first part of the auth-plugin-specific data.
-	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1"`
+	AuthPluginData1 []byte `zgrab:"debug" json:"auth_plugin_data_part_1,omitempty"`
 
 	// Filler1 is an unused byte, defined to be 0.
 	Filler1 byte `zgrab:"debug" json:"filler_1,omitempty"`
@@ -263,7 +263,7 @@ type HandshakePacket struct {
 	// CapabilityFlags appear.
 
 	// CharacterSet is the low 8 bits of the default server character-set
-	CharacterSet byte `zgrab:"debug" json:"character_set"`
+	CharacterSet byte `zgrab:"debug" json:"character_set,omitempty"`
 
 	// ShortHandshake is a synthetic field: if true, none of the following
 	// fields are present.
@@ -277,12 +277,12 @@ type HandshakePacket struct {
 
 	// CapabilityFlags the combined capability flags, which tell what
 	// the server can do (e.g. whether it supports SSL).
-	CapabilityFlags uint32 `json:"capability_flags"`
+	CapabilityFlags uint32 `json:"capability_flags,omitempty"`
 
 	// AuthPluginDataLen is the length of the full auth-plugin-specific
 	// data (so len(AuthPluginData1) + len(AuthPluginData2) =
 	// AuthPluginDataLen)
-	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len"`
+	AuthPluginDataLen byte `zgrab:"debug" json:"auth_plugin_data_len,omitempty"`
 
 	// The following field are only present if the CLIENT_SECURE_CONNECTION
 	// capability flag is set:
@@ -310,8 +310,8 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 	type Alias HandshakePacket
 	return json.Marshal(&struct {
 		ReservedOmitted []byte          `zgrab:"debug" json:"reserved,omitempty"`
-		CapabilityFlags map[string]bool `json:"capability_flags"`
-		StatusFlags     map[string]bool `json:"status_flags"`
+		CapabilityFlags map[string]bool `json:"capability_flags,omitempty"`
+		StatusFlags     map[string]bool `json:"status_flags,omitempty"`
 		*Alias
 	}{
 		ReservedOmitted: reserved,
@@ -420,7 +420,7 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 	if handshake := c.GetHandshake(); handshake != nil {
 		flags = handshake.CapabilityFlags
 	} else {
-		log.Warnf("readOKPacket: Received OKPacket before Handshake")
+		log.Debugf("readOKPacket: Received OKPacket before Handshake")
 	}
 	if flags&(CLIENT_PROTOCOL_41|CLIENT_TRANSACTIONS) != 0 {
 		log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading status flags", flags)
@@ -490,6 +490,28 @@ func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 	}
 	ret.ErrorMessage = string(rest[:])
 	return ret, nil
+}
+
+// Error implements the error interface. Return the code and message.
+func (e *ERRPacket) Error() string {
+	return fmt.Sprintf("MySQL Error: code = %s (%d / 0x%04x); message=%s", e.GetErrorID(), e.ErrorCode, e.ErrorCode, e.ErrorMessage)
+}
+
+// GetErrorID returns the error ID associated with this packet's error code.
+func (e *ERRPacket) GetErrorID() string {
+	ret, ok := ErrorCodes[e.ErrorCode]
+	if !ok {
+		return "UNKNOWN"
+	}
+	return ret
+}
+
+// Get the ScanError for this packet (wrap the error + application error status)
+func (e *ERRPacket) GetScanError() *zgrab2.ScanError {
+	return &zgrab2.ScanError{
+		Status: zgrab2.SCAN_APPLICATION_ERROR,
+		Err: e,
+	}
 }
 
 // SSLRequestPacket is the packet sent by the client to inform the
@@ -693,8 +715,8 @@ func (c *Connection) Connect(conn net.Conn) error {
 		c.ConnectionLog.Handshake = packet
 	case *ERRPacket:
 		c.ConnectionLog.Error = packet
-		log.Debugf("Got error packet: 0x%x / %s", p.ErrorCode, p.ErrorMessage)
-		return fmt.Errorf("Server returned error after connecting: error_code = 0x%x; error_message = %s", p.ErrorCode, p.ErrorMessage)
+		log.Debugf("Got error packet: %s", p.Error())
+		return p.GetScanError()
 	default:
 		// Drop unrecgnized packets -- including those with packet.Parsed == nil -- into the "Error" slot
 		c.ConnectionLog.Error = packet

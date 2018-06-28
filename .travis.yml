@@ -8,7 +8,9 @@ before_install:
 - go get -t ./...
 # JMESPath is used to do context-specific validation of results
 - go get github.com/jmespath/jp && go build github.com/jmespath/jp
-- pip install --user zschema
+- git clone https://github.com/zmap/zschema && pushd zschema && pip install --user . && popd
+- git clone https://github.com/zmap/zcrypto && pushd zcrypto && pip install --user . && popd
+- pip install --user .
 - docker ps -a
 install:
 - make clean zgrab2 test
