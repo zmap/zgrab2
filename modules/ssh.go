@@ -81,7 +81,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	data := new(ssh.HandshakeLog)
 
 	port := strconv.FormatUint(uint64(s.config.Port), 10)
-	rhost := net.JoinHostPort(t.IP.String(), port)
+	rhost := net.JoinHostPort(t.Host(), port)
 
 	sshConfig := ssh.MakeSSHConfig()
 	sshConfig.Timeout = time.Duration(s.config.Timeout) * time.Second
