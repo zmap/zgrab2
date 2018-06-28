@@ -18,6 +18,8 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+
+	"github.com/zmap/zgrab2"
 )
 
 // DNP3 Flags
@@ -62,15 +64,15 @@ func init() {
 func GetDNP3Banner(logStruct *DNP3Log, connection net.Conn) (err error) {
 	connection.Write(linkBatchRequest)
 
-	buffer := make([]byte, 8192)
-	bytesRead, err := connection.Read(buffer)
+	data, err := zgrab2.ReadAvailable(connection)
+
 	if err != nil && err != io.EOF {
 		return err
 	}
 
-	if bytesRead >= LINK_MIN_HEADER_LENGTH && binary.BigEndian.Uint16(buffer[0:2]) == LINK_START_FIELD {
+	if len(data) >= LINK_MIN_HEADER_LENGTH && binary.BigEndian.Uint16(data[0:2]) == LINK_START_FIELD {
 		logStruct.IsDNP3 = true
-		logStruct.RawResponse = buffer[0:bytesRead]
+		logStruct.RawResponse = data
 	}
 
 	return nil

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"time"
+
 	"github.com/zmap/zflags"
 )
 
@@ -102,7 +104,105 @@ func duplicateIP(ip net.IP) net.IP {
 	return dup
 }
 
-var InsufficientBufferError = errors.New("Not enough buffer space")
+// ReadAvaiable reads what it can without blocking for more than
+// defaultReadTimeout per read, or defaultTotalTimeout for the whole session.
+// Reads at most defaultMaxReadSize bytes.
+func ReadAvailable(conn net.Conn) ([]byte, error) {
+	const defaultReadTimeout = 10 * time.Millisecond
+	const defaultMaxReadSize = 1024 * 512
+	// if the buffer size exactly matches the number of bytes returned, we hit
+	// a corner case where we attempt to read even though there is nothing
+	// available. Otherwise we should be able to return without blocking at all.
+	// So -- it's better to be large than small, but the worst case is getting
+	// the exact right number of bytes.
+	const defaultBufferSize = 8209
+
+	return ReadAvailableWithOptions(conn, defaultBufferSize, defaultReadTimeout, 0, defaultMaxReadSize)
+}
+
+// Make this implement the net.Error interface so that err.(net.Error).Timeout() works.
+type errTotalTimeout string
+
+const (
+	ErrTotalTimeout = errTotalTimeout("timeout")
+)
+
+func (err errTotalTimeout) Error() string {
+	return string(err)
+}
+
+func (err errTotalTimeout) Timeout() bool {
+	return true
+}
+
+func (err errTotalTimeout) Temporary() bool {
+	return false
+}
+
+// ReadAvailableWithOptions reads whatever can be read (up to maxReadSize) from
+// conn without blocking for longer than readTimeout per read, or totalTimeout
+// for the entire session. A totalTimeout of 0 means attempt to use the
+// connection's timeout (or, failing that, 1 second).
+// On failure, returns anything it was able to read along with the error.
+func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Duration, totalTimeout time.Duration, maxReadSize int) ([]byte, error) {
+	min := func(a, b int) int {
+		if a < b {
+			return a
+		}
+		return b
+	}
+	var totalDeadline time.Time
+	if totalTimeout == 0 {
+		// Would be nice if this could be taken from the SetReadDeadline(), but that's not possible in general
+		const defaultTotalTimeout = 1 * time.Second
+		totalTimeout = defaultTotalTimeout
+		timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
+		if isTimeoutConn {
+			totalTimeout = timeoutConn.Timeout
+		}
+	}
+	if totalTimeout > 0 {
+		totalDeadline = time.Now().Add(totalTimeout)
+	}
+
+	buf := make([]byte, bufferSize)
+	ret := make([]byte, 0)
+
+	// The first read will use any pre-assigned deadlines.
+	n, err := conn.Read(buf[0:min(bufferSize, maxReadSize)])
+	ret = append(ret, buf[0:n]...)
+	if err != nil || n >= maxReadSize {
+		return ret, err
+	}
+	maxReadSize -= n
+
+	// If there were more than bufSize -1 bytes available, read whatever is
+	// available without blocking longer than timeout, and do not treat timeouts
+	// as an error.
+	// Keep reading until we time out or get an error.
+	for totalDeadline.IsZero() || totalDeadline.After(time.Now()) {
+		deadline := time.Now().Add(readTimeout)
+		conn.SetReadDeadline(deadline)
+		n, err := conn.Read(buf[0:min(maxReadSize, bufferSize)])
+		maxReadSize -= n
+		ret = append(ret, buf[0:n]...)
+		if err != nil {
+			if IsTimeoutError(err) {
+				err = nil
+			}
+			return ret, err
+		}
+		if err != nil {
+			return ret, err
+		}
+		if n >= maxReadSize {
+			return ret, err
+		}
+	}
+	return ret, ErrTotalTimeout
+}
+
+var InsufficientBufferError = errors.New("not enough buffer space")
 
 // ReadUntilRegex calls connection.Read() until it returns an error, or the cumulatively-read data matches the given regexp
 func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, error) {
@@ -138,4 +238,23 @@ func TLDMatches(host1 string, host2 string) bool {
 
 func stripPortNumber(host string) string {
 	return strings.Split(host, ":")[0]
+}
+
+type timeoutError interface {
+	Timeout() bool
+}
+
+// IsTimeoutError checks if the given error corresponds to a timeout (of any type).
+func IsTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if cast, ok := err.(timeoutError); ok {
+		return cast.Timeout()
+	}
+	if cast, ok := err.(*ScanError); ok {
+		return cast.Status == SCAN_IO_TIMEOUT || cast.Status == SCAN_CONNECTION_TIMEOUT
+	}
+
+	return false
 }
