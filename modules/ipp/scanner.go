@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	//"fmt"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -71,7 +71,7 @@ type ScanResults struct {
 	CUPSVersion   string `json:"cups_version,omitempty"`
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
-	AttributePrinterURI  string   `json:"attr_printer_uri,omitempty"`
+	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
 
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
@@ -226,80 +226,93 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 }
 
 // FIXME: This will read the wrong section of the body if a substring matches the attribute name passed in
-// TODO: Support reading from multiple instances of the same attribute in a response
-func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
+func readAttributeFromBody(attrString string, body *[]byte) ([][][]byte, error) {
 	attr := []byte(attrString)
 	interims := bytes.Split(*body, attr)
-	if len(interims) > 1 {
-		valueTag := interims[0][len(interims[0])-3]
+	var valSlice [][][]byte
+	if len(interims) <= 1 {
+		//The attribute was not present
+		return nil, errors.New("Attribute \"" + attrString + "\" not present.")
+	}
+	for i, interim := range interims[:len(interims)-1] {
+		valueTag := interim[len(interim)-3]
 		var vals [][]byte
-		buf := bytes.NewBuffer(interims[1])
+		buf := bytes.NewBuffer(interims[i+1])
 		// This reading occurs in a loop because some attributes can have type "1 setOf <type>"
 		// where same attribute has a set of values, rather than one
 		for tag, nameLength := valueTag, int16(0); tag == valueTag && nameLength == 0; {
 			var length int16
 			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
 				//Couldn't read length of content
-				return vals, err
+				break
 			}
 			val := make([]byte, length)
 			if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
 				//Couldn't read content
-				vals = append(vals, val)
-				return vals, err
+				//vals = append(vals, val)
+				break
 			}
 			vals = append(vals, val)
 			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 				//Couldn't read next valueTag
-				return vals, err
+				break
 			}
 			// FIXME: Only try to read next namelength if previous valueTag wasn't end-of-attributes-tag
 			if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 				//Couldn't read next nameLength
-				return vals, err
+				break
 			}
 		}
-		return vals, nil
+		valSlice = append(valSlice, vals)
 	}
-	//The attribute was not present
-	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
+	return valSlice, nil
 }
 
 func (scan *scan) tryReadAttributes(body string) {
 	bodyBytes := []byte(body)
+
 	// Write reported CUPS version to results object
 	if scan.results.AttributeCUPSVersion == "" {
-		if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
+		if cupsVersionsSlice, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
 			log.WithFields(log.Fields{
 				"error":     err,
 				"attribute": CupsVersion,
-			}).Debug("Failed to read attribute.")
-		} else if len(cupsVersions) > 0 {
-			scan.results.AttributeCUPSVersion = string(cupsVersions[0])
+				"host": scan.url,
+			}).Debug("Failed to read attribute for host.")
+		} else if len(cupsVersionsSlice) > 0 && len(cupsVersionsSlice[0]) > 0 {
+			scan.results.AttributeCUPSVersion = string(cupsVersionsSlice[0][0])
 		}
 	}
 	// Write reported IPP versions to results object
 	if len(scan.results.AttributeIPPVersions) == 0 {
-		if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
+		if ippVersionsSlice, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
 			log.WithFields(log.Fields{
 				"error":     err,
 				"attribute": VersionsSupported,
-			}).Debug("Failed to read attribute.")
+				"host": scan.url,
+			}).Debug("Failed to read attribute for host.")
 		} else {
-			for _, v := range ippVersions {
-				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
+			if len(ippVersionsSlice) > 0 {
+				for _, v := range ippVersionsSlice[0] {
+					scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
+				}
 			}
 		}
 	}
 	// Write reported printer URI to results object
-	if scan.results.AttributePrinterURI == "" {
-		if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
+	if len(scan.results.AttributePrinterURIs) == 0 {
+		if urisSlice, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
 			log.WithFields(log.Fields{
 				"error":     err,
 				"attribute": PrinterURISupported,
-			}).Debug("Failed to read attribute.")
-		} else if len(uris) > 0 {
-			scan.results.AttributePrinterURI = string(uris[0])
+				"host": scan.url,
+			}).Debug("Failed to read attribute for host.")
+		} else {
+			for _, uris := range urisSlice {
+				if len(uris) > 0 {
+					scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(uris[0]))
+				}
+			}
 		}
 	}
 }
