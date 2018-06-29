@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	AttributesCharset   []byte = [0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74]
 	ContentType         string = "application/ipp"
 	VersionsSupported   string = "ipp-versions-supported"
 	CupsVersion         string = "cups-version"
@@ -44,6 +43,7 @@ var (
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
 	Versions = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
+	AttributesCharset = []byte{0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74}
 )
 
 type scan struct {
@@ -183,30 +183,6 @@ func (scanner *Scanner) Protocol() string {
 // GetPort returns the port being scanned.
 func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
-}
-
-func hasContentType(resp *http.Response, contentType string) (bool, error) {
-	// Removal of everything post-comma added in response to empirical examples of Virata-EmWeb
-	// print servers listed with "Content-Type" of "application/ipp, public"
-	cType := strings.Split(resp.Header.Get("Content-Type"), ",")[0]
-	// TODO: Capture parameters and report them in ScanResults?
-	// Parameters can be ignored, since there are no required or optional parameters
-	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
-	mediatype, _, err := mime.ParseMediaType(cType)
-	// TODO: See if empty media type is sufficient as failure indicator,
-	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
-	if mediatype == "" && err != nil {
-		//TODO: Handle errors in a weird way, since media type is still returned
-		//      if there's an error when parsing optional parameters
-		fmt.Printf("%q %v\n", mediatype, err)
-		return false, err
-	}
-	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
-	fmt.Printf("%q\n", mediatype)
-	// Check for subtype alone added in resonse to empirical examples of Rapid Logic print servers
-	// listed with "Content-Type" of "IPP"
-	subType := strings.Split(contentType, "/")[1]
-	return strings.HasPrefix(mediatype, contentType) || strings.HasPrefix(mediatype, subType), nil
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
@@ -419,6 +395,15 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
+	if cupsResp.StatusCode != 200 {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + cupsResp.Status))
+	}
+	// TODO: Cite RFC justification for this
+	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	if ipp, _ := isIPP(cupsResp); !ipp {
+		// TODO: Log error if any
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+	}
 	scan.tryReadAttributes(scan.results.CUPSResponse.BodyText)
 	return nil
 }
@@ -458,6 +443,35 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
 	}
 	return resp, nil
+}
+
+func hasContentType(resp *http.Response, contentType string) (bool, error) {
+	// Removal of everything post-comma added in response to empirical examples of Virata-EmWeb
+	// print servers listed with "Content-Type" of "application/ipp, public"
+	cType := strings.Split(resp.Header.Get("Content-Type"), ",")[0]
+	// TODO: Capture parameters and report them in ScanResults?
+	// Parameters can be ignored, since there are no required or optional parameters
+	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
+	mediatype, _, err := mime.ParseMediaType(cType)
+	// TODO: See if empty media type is sufficient as failure indicator,
+	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
+	if mediatype == "" && err != nil {
+		//TODO: Handle errors in a weird way, since media type is still returned
+		//      if there's an error when parsing optional parameters
+		return false, err
+	}
+	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
+	// Check for subtype alone added in resonse to empirical examples of Rapid Logic print servers
+	// listed with "Content-Type" of "IPP"
+	subType := strings.Split(contentType, "/")[1]
+	return strings.HasPrefix(mediatype, contentType) || strings.HasPrefix(mediatype, subType), nil
+}
+
+// TODO: Determine whether to return error
+func isIPP(resp *http.Response) (bool, error) {
+	hasIPP, _ := hasContentType(resp, ContentType)
+	body := []byte(resp.BodyText)
+	return resp.StatusCode == 200 && (hasIPP || bytes.Contains(body, AttributesCharset)), nil
 }
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
@@ -509,28 +523,28 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
-			err := scanner.augmentWithCUPSData(scan, target, version)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err,
-				}).Debug("Failed to augment with CUPS-get-printers request.")
-			}
 		}
-	}
-
-	// TODO: Cite RFC justification for this
-	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
-	if isIPP, _ := hasContentType(resp, ContentType);
-	   resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "" && !isIPP {
-		// TODO: Log error if any
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("application/ipp not present in Content-Type header."))
 	}
 
 	if resp.StatusCode != 200 {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
 	}
+	// TODO: Cite RFC justification for this
+	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	if ipp, _ := isIPP(resp); !ipp {
+		// TODO: Log error if any
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+	}
 
 	scan.tryReadAttributes(scan.results.Response.BodyText)
+	if scan.results.CUPSVersion != "" {
+		err := scanner.augmentWithCUPSData(scan, target, version)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Debug("Failed to augment with CUPS-get-printers request.")
+		}
+	}
 
 	return nil
 }
