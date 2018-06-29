@@ -70,7 +70,8 @@ type ScanResults struct {
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
-	
+
+	Attributes           []*Attribute `json:"attributes,omitempty" zgrab:"debug"`
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
 	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
