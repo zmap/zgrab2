@@ -69,6 +69,7 @@ type ScanResults struct {
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
+
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
 	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
@@ -268,8 +269,91 @@ func readAttributeFromBody(attrString string, body *[]byte) ([][][]byte, error) 
 	return valSlice, nil
 }
 
+type Value struct {
+	Bytes []byte `json:"raw,omitempty"`
+}
+
+type Attribute struct {
+	Name string    `json:"name,omitempty"`
+	Values []Value `json:"values,omitempty"`
+	ValueTag byte  `json:"tag,omitempty"`
+}
+
+type AttributeGroup struct {
+	Attrs []*Attribute
+	Tag byte
+}
+
+func printGroup(g *AttributeGroup) {
+	fmt.Printf("0x%x\n", g.Tag)
+	for _, attrP := range g.Attrs {
+		fmt.Printf("\t0x%x: %q\n", attrP.ValueTag, attrP.Name)
+		for _, v := range attrP.Values {
+			fmt.Printf("\t\t%v\n", v)
+		}
+	}
+}
+
+// TODO: Fix this dumb return type
+// TODO: Log every error that could come out of this
+// TODO: Determine whether errors should be ignored, debug logged, fatal, etc.
+func readAllAttributes(body *[]byte) (*[]*Attribute) {
+	buf := bytes.NewBuffer(*body)
+	var start struct {
+		Version int16
+		StatusCode int16
+		ReqID int32
+	}
+	binary.Read(buf, binary.BigEndian, &start)
+	var tag byte
+	binary.Read(buf, binary.BigEndian, &tag)
+	var groups []AttributeGroup
+	// Until encountering end-of-attributes-tag:
+	// Per-group loop
+	for tag != 0x03 {
+		// Create a new group
+		group := AttributeGroup{Tag: tag}
+		// Read the first tag:
+		binary.Read(buf, binary.BigEndian, &tag)
+		var lastTag byte
+		for tag < 0x00 || tag > 0x05 {
+			// TODO: Implement parsing attribute collections (they're special)
+			var attr *Attribute
+			var nameLength int16
+			binary.Read(buf, binary.BigEndian, &nameLength)
+			if tag == lastTag && nameLength == 0 {
+				attr = group.Attrs[len(group.Attrs)-1]
+			} else {
+				attr = &Attribute{ValueTag: tag}
+				name := make([]byte, nameLength)
+				binary.Read(buf, binary.BigEndian, &name)
+				attr.Name = string(name)
+			}
+			var length int16
+			binary.Read(buf, binary.BigEndian, &length)
+			val := make([]byte, length)
+			binary.Read(buf, binary.BigEndian, &val)
+			attr.Values = append(attr.Values, Value{Bytes: val})
+
+			if len(group.Attrs) == 0 || attr != group.Attrs[len(group.Attrs)-1] {
+				group.Attrs = append(group.Attrs, attr)
+			}
+			lastTag = tag
+			binary.Read(buf, binary.BigEndian, &tag)
+		}
+		groups = append(groups, group)
+	}
+
+	var attrs []*Attribute
+	for _, g := range groups {
+		attrs = append(attrs, g.Attrs...)
+	}
+	return &attrs
+}
+
 func (scan *scan) tryReadAttributes(body string) {
 	bodyBytes := []byte(body)
+	scan.results.Attributes = append(scan.results.Attributes, *readAllAttributes(&bodyBytes)...)
 
 	// Write reported CUPS version to results object
 	if scan.results.AttributeCUPSVersion == "" {
