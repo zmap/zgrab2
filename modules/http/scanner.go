@@ -127,6 +127,11 @@ func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
 }
 
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
+}
+
 // Cleanup closes any connections that have been opened during the scan
 func (scan *scan) Cleanup() {
 	if scan.connections != nil {

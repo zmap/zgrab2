@@ -72,11 +72,15 @@ func (s *SSHScanner) GetName() string {
 	return s.config.Name
 }
 
+func (s *SSHScanner) GetTrigger() string {
+	return s.config.Trigger
+}
+
 func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	data := new(ssh.HandshakeLog)
 
 	port := strconv.FormatUint(uint64(s.config.Port), 10)
-	rhost := net.JoinHostPort(t.IP.String(), port)
+	rhost := net.JoinHostPort(t.Host(), port)
 
 	sshConfig := ssh.MakeSSHConfig()
 	sshConfig.Timeout = s.config.Timeout

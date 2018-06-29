@@ -30,6 +30,35 @@ ZGrab2 supports modules. For example, to run the ssh module use
 
 Module specific options must be included after the module. Application specific options can be specified at any time.
 
+## Input Format
+
+Targets are specified with input files or from `stdin`, in CSV format.  Each input line has three fields:
+
+```
+IP, DOMAIN, TAG
+```
+
+Each line must specify `IP`, `DOMAIN`, or both.  If only `DOMAIN` is provided, scanners perform a DNS hostname lookup to determine the IP address.  If both `IP` and `DOMAIN` are provided, scanners connect to `IP` but use `DOMAIN` in protocol-specific contexts, such as the HTTP HOST header and TLS SNI extension.
+
+If the `IP` field contains a CIDR block, the framework will expand it to one target for each IP address in the block.
+
+The `TAG` field is optional and used with the `--trigger` scanner argument.
+
+Unused fields can be blank, and trailing unused fields can be omitted entirely.  For backwards compatibility, the parser allows lines with only one field to contain `DOMAIN`.
+
+These are examples of valid input lines:
+
+```
+10.0.0.1
+domain.com
+10.0.0.1, domain.com
+10.0.0.1, domain.com, tag
+10.0.0.1, , tag
+, domain.com, tag
+192.168.0.0/24, , tag
+
+```
+
 ## Multiple Module Usage
 
 To run a scan with multiple modules, a `.ini` file must be used with the `multiple` module. Below is an example `.ini` file with the corresponding zgrab2 command. 
@@ -54,6 +83,27 @@ port=22
 ./zgrab2 multiple -c multiple.ini
 ```
 `Application Options` must be the initial section name. Other section names should correspond exactly to the relevant zgrab2 module name. The default name for each module is the command name. If the same module is to be used multiple times then `name` must be specified and unique. 
+
+Multiple module support is particularly powerful when combined with input tags and the `--trigger` scanner argument. For example, this input contains targets with two different tags:
+
+```
+141.212.113.199, , tagA
+216.239.38.21, censys.io, tagB
+```
+
+Invoking zgrab2 with the following `multiple` configuration will perform an SSH grab on the first target above and an HTTP grab on the second target:
+
+```
+[ssh]
+trigger="tagA"
+name="ssh22"
+port=22
+
+[http]
+trigger="tagB"
+name="http80"
+port=80
+```
 
 ## Adding New Protocols 
 

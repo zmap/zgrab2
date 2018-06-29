@@ -17,7 +17,7 @@
 // The scanner uses the standard TLS flags for the handshake.
 //
 // The --send-quit flag tells the scanner to send a QUIT command.
-// 
+//
 // So, if no flags are specified, the scanner simply reads the banner
 // returned by the server and disconnects.
 //
@@ -166,6 +166,11 @@ func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
 }
 
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
+}
+
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "smtp"
@@ -227,7 +232,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	conn := Connection{Conn: c}
 	banner, err := conn.ReadResponse()
 	if err != nil {
-		if ! scanner.config.SMTPSecure {
+		if !scanner.config.SMTPSecure {
 			result = nil
 		}
 		return zgrab2.TryGetScanStatus(err), result, err

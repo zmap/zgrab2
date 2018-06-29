@@ -6,6 +6,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/zmap/zgrab2"
 )
 
 const (
@@ -54,16 +56,12 @@ func GetFoxBanner(logStruct *FoxLog, connection net.Conn) error {
 		return err
 	}
 
-	readBuffer := make([]byte, 8196)
-	bytesRead, err := connection.Read(readBuffer)
-	if bytesRead == len(readBuffer) {
-		return errors.New("Need a bigger buffer to read Fox response")
-	}
+	data, err := zgrab2.ReadAvailable(connection)
 	if err != nil {
 		return err
 	}
 
-	responseString := string(readBuffer[0:bytesRead])
+	responseString := string(data)
 	output := strings.Split(responseString, string(0x0a))
 
 	if strings.HasPrefix(responseString, RESPONSE_PREFIX) {
