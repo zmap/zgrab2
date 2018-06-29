@@ -24,6 +24,7 @@ import (
 )
 
 const (
+	AttributesCharset   []byte = [0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74]
 	ContentType         string = "application/ipp"
 	VersionsSupported   string = "ipp-versions-supported"
 	CupsVersion         string = "cups-version"
@@ -69,7 +70,7 @@ type ScanResults struct {
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
-
+	
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
 	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
@@ -185,23 +186,29 @@ func (scanner *Scanner) GetPort() uint {
 }
 
 func hasContentType(resp *http.Response, contentType string) (bool, error) {
+	// Removal of everything post-comma added in response to empirical examples of Virata-EmWeb
+	// print servers listed with "Content-Type" of "application/ipp, public"
+	cType := strings.Split(resp.Header.Get("Content-Type"), ",")[0]
 	// TODO: Capture parameters and report them in ScanResults?
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
-	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	mediatype, _, err := mime.ParseMediaType(cType)
 	// TODO: See if empty media type is sufficient as failure indicator,
 	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
 	if mediatype == "" && err != nil {
 		//TODO: Handle errors in a weird way, since media type is still returned
 		//      if there's an error when parsing optional parameters
+		fmt.Printf("%q %v\n", mediatype, err)
 		return false, err
 	}
 	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
-	return mediatype == contentType, nil
+	fmt.Printf("%q\n", mediatype)
+	// Check for subtype alone added in resonse to empirical examples of Rapid Logic print servers
+	// listed with "Content-Type" of "IPP"
+	subType := strings.Split(contentType, "/")[1]
+	return strings.HasPrefix(mediatype, contentType) || strings.HasPrefix(mediatype, subType), nil
 }
 
-// FIXME: Cleaner to write this code, possibly slower than copy-pasted version
-// FIXME: Quite possibly not easier to read ("What does storeBody do? Where does it store it?")
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
 func storeBody(res *http.Response, scanner *Scanner) {
 	b := bufferFromBody(res, scanner)
@@ -294,7 +301,6 @@ func printGroup(g *AttributeGroup) {
 	}
 }
 
-// TODO: Fix this dumb return type
 // TODO: Log every error that could come out of this
 // TODO: Determine whether errors should be ignored, debug logged, fatal, etc.
 func readAllAttributes(body *[]byte) (*[]*Attribute) {
@@ -353,49 +359,23 @@ func readAllAttributes(body *[]byte) (*[]*Attribute) {
 
 func (scan *scan) tryReadAttributes(body string) {
 	bodyBytes := []byte(body)
-	scan.results.Attributes = append(scan.results.Attributes, *readAllAttributes(&bodyBytes)...)
+	if bytes.Contains(bodyBytes, []byte(AttributesCharset)) {
+		scan.results.Attributes = append(scan.results.Attributes, *readAllAttributes(&bodyBytes)...)
 
-	// Write reported CUPS version to results object
-	if scan.results.AttributeCUPSVersion == "" {
-		if cupsVersionsSlice, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
-			log.WithFields(log.Fields{
-				"error":     err,
-				"attribute": CupsVersion,
-				"host": scan.url,
-			}).Debug("Failed to read attribute for host.")
-		} else if len(cupsVersionsSlice) > 0 && len(cupsVersionsSlice[0]) > 0 {
-			scan.results.AttributeCUPSVersion = string(cupsVersionsSlice[0][0])
-		}
-	}
-	// Write reported IPP versions to results object
-	if len(scan.results.AttributeIPPVersions) == 0 {
-		if ippVersionsSlice, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
-			log.WithFields(log.Fields{
-				"error":     err,
-				"attribute": VersionsSupported,
-				"host": scan.url,
-			}).Debug("Failed to read attribute for host.")
-		} else {
-			if len(ippVersionsSlice) > 0 {
-				for _, v := range ippVersionsSlice[0] {
-					scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
+		for _, attr := range scan.results.Attributes {
+			// TODO: Make this record all CUPS versions given. Currently records first version from first attribute.
+			if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
+				scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
+			}
+			// TODO: Make this report all IPP versions given. Currently records all versions from first attribute.
+			if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
+				for _, v := range attr.Values {
+					scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 				}
 			}
-		}
-	}
-	// Write reported printer URI to results object
-	if len(scan.results.AttributePrinterURIs) == 0 {
-		if urisSlice, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
-			log.WithFields(log.Fields{
-				"error":     err,
-				"attribute": PrinterURISupported,
-				"host": scan.url,
-			}).Debug("Failed to read attribute for host.")
-		} else {
-			for _, uris := range urisSlice {
-				if len(uris) > 0 {
-					scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(uris[0]))
-				}
+			// TODO: Make this record all printer URI's given. Currently records the first uri for each attribute.
+			if attr.Name == PrinterURISupported && len(scan.results.AttributePrinterURIs) == 0 {
+				scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
 			}
 		}
 	}
