@@ -147,15 +147,52 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
+# TODO: Determine whether value-tag types with same underlying form should have a different name in this mapping
+ipp_attribute_value = SubRecord({
+    "raw": Binary(),
+    "integer": Signed32BitInteger(),
+    "boolean": Boolean(),
+    "enum": String(),
+    # TODO: Determine appropriate type for octetString w/o specified format
+    "octetString": Binary(),
+    "dateTime": DateTime(),
+    # TODO: Determine appropriate type for resolution
+    "resolution": Binary(),
+    # TODO: Determine appropriate type for range of Integers (probably {min, max} pair)
+    "rangeOfInteger": Binary(),
+    # TODO: Determine appropriate type for beginning of attribute collection
+    "begCollection": Binary(),
+    "textWithLanguage": String(),
+    "nameWithLanguage": String(),
+    # TODO: Determine appropriate type for end of attribute collection
+    "endCollection": Binary(),
+    "textWithoutLanguage": String(),
+    "nameWithoutLanguage": String(),
+    "keyword": String(),
+    "uri": String(),
+    "uriScheme": String(),
+    "charset": String(),
+    "naturalLanguage": String(),
+    "mimeMediaType": String(),
+    "memberAttrName": String(),
+})
+
+ipp_attribute = SubRecord({
+    "name": String(),
+    "values": ListOf(ipp_attribute_value),
+    "tag": Binary(),
+})
+
 ipp_scan_response = SubRecord({
     "result": SubRecord({
         "version_major": Signed8BitInteger(),
         "version_minor": Signed8BitInteger(),
         "version_string": String(),
         "cups_version": String(),
+        "attributes": ListOf(ipp_attribute),
         "attr_cups_version": String(),
         "attr_ipp_versions": ListOf(String()),
-        "attr_printer_uri": String(),
+        "attr_printer_uris": ListOf(String()),
         "response": http_response_full,
         "cups_response": http_response_full,
         "tls": zgrab2.tls_log,
