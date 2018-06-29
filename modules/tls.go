@@ -54,6 +54,10 @@ func (s *TLSScanner) GetName() string {
 	return s.config.Name
 }
 
+func (s *TLSScanner) GetTrigger() string {
+	return s.config.Trigger
+}
+
 func (s *TLSScanner) InitPerSender(senderID int) error {
 	return nil
 }

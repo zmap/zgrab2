@@ -68,7 +68,6 @@ type ScanResults struct {
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
-
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
 	AttributePrinterURI  string   `json:"attr_printer_uri,omitempty"`
@@ -166,6 +165,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 // GetName returns the Scanner name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // Protocol returns the protocol identifier of the scan.

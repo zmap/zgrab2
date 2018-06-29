@@ -78,12 +78,12 @@ type Scanner struct {
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
 	connections []net.Conn
-	scanner   *Scanner
-	target    *zgrab2.ScanTarget
-	transport *http.Transport
-	client    *http.Client
-	results   Results
-	url       string
+	scanner     *Scanner
+	target      *zgrab2.ScanTarget
+	transport   *http.Transport
+	client      *http.Client
+	results     Results
+	url         string
 }
 
 // NewFlags returns an empty Flags object.
@@ -126,6 +126,11 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 // GetName returns the name defined in the Flags.
 func (scanner *Scanner) GetName() string {
 	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // Cleanup closes any connections that have been opened during the scan
