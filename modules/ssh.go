@@ -4,7 +4,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -84,7 +83,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	rhost := net.JoinHostPort(t.Host(), port)
 
 	sshConfig := ssh.MakeSSHConfig()
-	sshConfig.Timeout = time.Duration(s.config.Timeout) * time.Second
+	sshConfig.Timeout = s.config.Timeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {

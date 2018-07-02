@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/url"
 	"strconv"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -147,7 +146,7 @@ func (scan *scan) Cleanup() {
 // zgrab2.GetTLSConnection()
 func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(scan.scanner.config.BaseFlags.Timeout))
+		outer, err := zgrab2.DialTimeoutConnection(net, addr, scan.scanner.config.Timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +245,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 		client: http.MakeNewClient(),
 	}
 	ret.transport.DialTLS = ret.getTLSDialer()
-	ret.transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
+	ret.transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.Timeout).DialContext
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
