@@ -285,7 +285,7 @@ func (scan *scan) tryReadAttributes(resp *http.Response) *zgrab2.ScanError {
 	body := []byte(resp.BodyText)
 	// TODO: Cite RFC justification for this
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
-	if ipp, _ := isIPP(resp); !ipp {
+	if ipp := isIPP(resp); !ipp {
 		// TODO: Log error if any
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
 	}
