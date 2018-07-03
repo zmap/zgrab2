@@ -225,28 +225,42 @@ type AttributeGroup struct {
 	Tag byte
 }
 
+// TODO: Comment about general structure of attribute encoding
+// TODO: Address concerns about bounds
+// TODO: Address concern about tag != 0x03 structure
+// TODO: Add error handling to every single
 // TODO: Log every error that could come out of this
 // TODO: Determine whether errors should be ignored, debug logged, fatal, etc.
-func readAllAttributes(body []byte) ([]*Attribute) {
+func readAllAttributes(body []byte) ([]*Attribute, error) {
+	var attrs []*Attribute
+	e := zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Couldn't read enough body bytes."))
+
 	buf := bytes.NewBuffer(body)
+	// Each field of this struct is exported to avoid binary.Read panicking
 	var start struct {
 		Version int16
 		StatusCode int16
 		ReqID int32
 	}
-	binary.Read(buf, binary.BigEndian, &start)
+	// Read in pre-attribute part of body to ignore it
+	if err := binary.Read(buf, binary.BigEndian, &start); err != nil {
+		// TODO: Maybe return different errors in different cases, or only fail completely sometimes
+		return attrs, e
+	}
 	var tag byte
-	binary.Read(buf, binary.BigEndian, &tag)
+	// Read in first delimiter tag, usually a begin-attribute-group-tag (which is equal to 1)
+	if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
+		return attrs, e
+	}
 	var groups []AttributeGroup
-	// Until encountering end-of-attributes-tag:
-	// Per-group loop
+	// Until encountering end-of-attributes-tag (which is equal to 3):
 	for tag != 0x03 {
 		// Create a new group
 		group := AttributeGroup{Tag: tag}
 		// Read the first tag:
 		binary.Read(buf, binary.BigEndian, &tag)
 		var lastTag byte
-		for tag < 0x00 || tag > 0x05 {
+		for tag > 0x05 {
 			// TODO: Implement parsing attribute collections (they're special)
 			var attr *Attribute
 			var nameLength int16
@@ -274,23 +288,26 @@ func readAllAttributes(body []byte) ([]*Attribute) {
 		groups = append(groups, group)
 	}
 
-	var attrs []*Attribute
 	for _, g := range groups {
 		attrs = append(attrs, g.Attrs...)
 	}
-	return attrs
+	return attrs, nil
 }
 
 func (scan *scan) tryReadAttributes(resp *http.Response) *zgrab2.ScanError {
 	body := []byte(resp.BodyText)
 	// TODO: Cite RFC justification for this
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
-	if ipp := isIPP(resp); !ipp {
-		// TODO: Log error if any
+	if !isIPP(resp) {
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
 	}
 
-	scan.results.Attributes = append(scan.results.Attributes, readAllAttributes(body)...)
+	attrs, err := readAllAttributes(body)
+	if err != nil {
+		// TODO: Handle error appropriately
+
+	}
+	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
 	for _, attr := range scan.results.Attributes {
 		// TODO: Make this record all CUPS versions given. Currently records first version from first attribute.
