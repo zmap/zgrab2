@@ -220,12 +220,7 @@ type Attribute struct {
 	ValueTag byte  `json:"tag,omitempty"`
 }
 
-type AttributeGroup struct {
-	Attrs []*Attribute
-	Tag byte
-}
-
-// TODO: Comment about general structure of attribute encoding
+// TODO: Comment about general structure of attribute encoding briefly w/ citation
 // TODO: Address concerns about bounds
 // TODO: Address concern about tag != 0x03 structure
 // TODO: Add error handling to every single
@@ -252,45 +247,43 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 	if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 		return attrs, e
 	}
-	var groups []AttributeGroup
+	var lastTag byte
 	// Until encountering end-of-attributes-tag (which is equal to 3):
 	for tag != 0x03 {
-		// Create a new group
-		group := AttributeGroup{Tag: tag}
-		// Read the first tag:
-		binary.Read(buf, binary.BigEndian, &tag)
-		var lastTag byte
-		for tag > 0x05 {
-			// TODO: Implement parsing attribute collections (they're special)
-			var attr *Attribute
-			var nameLength int16
-			binary.Read(buf, binary.BigEndian, &nameLength)
-			if tag == lastTag && nameLength == 0 {
-				attr = group.Attrs[len(group.Attrs)-1]
-			} else {
-				attr = &Attribute{ValueTag: tag}
-				name := make([]byte, nameLength)
-				binary.Read(buf, binary.BigEndian, &name)
-				attr.Name = string(name)
+		// If tag is a delimiter-tag, read the next tag, which corresponds to the first attribute's value-tag
+		if tag <= 0x05 {
+			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
+				return attrs, e
 			}
-			var length int16
-			binary.Read(buf, binary.BigEndian, &length)
-			val := make([]byte, length)
-			binary.Read(buf, binary.BigEndian, &val)
-			attr.Values = append(attr.Values, Value{Bytes: val})
-
-			if len(group.Attrs) == 0 || attr != group.Attrs[len(group.Attrs)-1] {
-				group.Attrs = append(group.Attrs, attr)
-			}
-			lastTag = tag
-			binary.Read(buf, binary.BigEndian, &tag)
 		}
-		groups = append(groups, group)
+		// TODO: Implement parsing attribute collections (they're special)
+		var attr *Attribute
+		var nameLength int16
+		binary.Read(buf, binary.BigEndian, &nameLength)
+		// If sequential tags match and name-length of the latter is 0, the second attribute is
+		// an additional value for the former, so we read and append another value for that attr
+		if tag == lastTag && nameLength == 0 {
+			attr = attrs[len(attrs)-1]
+		// Otherwise, create a new attribute and read in its name
+		} else {
+			attr = &Attribute{ValueTag: tag}
+			name := make([]byte, nameLength)
+			binary.Read(buf, binary.BigEndian, &name)
+			attr.Name = string(name)
+			attrs = append(attrs, attr)
+		}
+		// Read and append a value to the current attribute
+		var length int16
+		binary.Read(buf, binary.BigEndian, &length)
+		val := make([]byte, length)
+		binary.Read(buf, binary.BigEndian, &val)
+		attr.Values = append(attr.Values, Value{Bytes: val})
+
+		// Read in the following tag to be assessed at the next iteration's start
+		lastTag = tag
+		binary.Read(buf, binary.BigEndian, &tag)
 	}
 
-	for _, g := range groups {
-		attrs = append(attrs, g.Attrs...)
-	}
 	return attrs, nil
 }
 
