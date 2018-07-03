@@ -281,28 +281,35 @@ func readAllAttributes(body []byte) ([]*Attribute) {
 	return attrs
 }
 
-func (scan *scan) tryReadAttributes(body string) {
-	bodyBytes := []byte(body)
-	if bytes.Contains(bodyBytes, []byte(AttributesCharset)) {
-		scan.results.Attributes = append(scan.results.Attributes, readAllAttributes(bodyBytes)...)
+func (scan *scan) tryReadAttributes(resp *http.Response) *zgrab2.ScanError {
+	body := []byte(resp.BodyText)
+	// TODO: Cite RFC justification for this
+	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	if ipp, _ := isIPP(resp); !ipp {
+		// TODO: Log error if any
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+	}
 
-		for _, attr := range scan.results.Attributes {
-			// TODO: Make this record all CUPS versions given. Currently records first version from first attribute.
-			if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
-				scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
-			}
-			// TODO: Make this report all IPP versions given. Currently records all versions from first attribute.
-			if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
-				for _, v := range attr.Values {
-					scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
-				}
-			}
-			// TODO: Make this record all printer URI's given. Currently records the first uri for each attribute.
-			if attr.Name == PrinterURISupported && len(scan.results.AttributePrinterURIs) == 0 {
-				scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
+	scan.results.Attributes = append(scan.results.Attributes, readAllAttributes(body)...)
+
+	for _, attr := range scan.results.Attributes {
+		// TODO: Make this record all CUPS versions given. Currently records first version from first attribute.
+		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
+			scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
+		}
+		// TODO: Make this report all IPP versions given. Currently records all versions from first attribute.
+		if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
+			for _, v := range attr.Values {
+				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 			}
 		}
+		// TODO: Make this record all printer URI's given. Currently records the first uri for each attribute.
+		if attr.Name == PrinterURISupported && len(scan.results.AttributePrinterURIs) == 0 {
+			scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
+		}
 	}
+
+	return nil
 }
 
 func versionNotSupported(body string) bool {
@@ -346,13 +353,10 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	if cupsResp.StatusCode != 200 {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + cupsResp.Status))
 	}
-	// TODO: Cite RFC justification for this
-	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
-	if ipp, _ := isIPP(cupsResp); !ipp {
-		// TODO: Log error if any
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+
+	if err := scan.tryReadAttributes(scan.results.CUPSResponse); err != nil {
+		return err
 	}
-	scan.tryReadAttributes(scan.results.CUPSResponse.BodyText)
 	return nil
 }
 
@@ -393,33 +397,31 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 	return resp, nil
 }
 
-func hasContentType(resp *http.Response, contentType string) (bool, error) {
+func hasContentType(resp *http.Response, contentType string) bool {
 	// Removal of everything post-comma added in response to empirical examples of Virata-EmWeb
 	// print servers listed with "Content-Type" of "application/ipp, public"
 	cType := strings.Split(resp.Header.Get("Content-Type"), ",")[0]
-	// TODO: Capture parameters and report them in ScanResults?
 	// Parameters can be ignored, since there are no required or optional parameters
 	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
 	mediatype, _, err := mime.ParseMediaType(cType)
-	// TODO: See if empty media type is sufficient as failure indicator,
-	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
+	// Certainly doesn't have correct Content-Type if there was a malformed or empty Content-Type
 	if mediatype == "" && err != nil {
-		//TODO: Handle errors in a weird way, since media type is still returned
-		//      if there's an error when parsing optional parameters
-		return false, err
+		return false
 	}
-	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
-	// Check for subtype alone added in resonse to empirical examples of Rapid Logic print servers
+	// Check for only subtype added in resonse to empirical examples of Rapid Logic print servers
 	// listed with "Content-Type" of "IPP"
 	subType := strings.Split(contentType, "/")[1]
-	return strings.HasPrefix(mediatype, contentType) || strings.HasPrefix(mediatype, subType), nil
+	return strings.HasPrefix(mediatype, contentType) || strings.HasPrefix(mediatype, subType)
 }
 
-// TODO: Determine whether to return error
-func isIPP(resp *http.Response) (bool, error) {
-	hasIPP, _ := hasContentType(resp, ContentType)
+func isIPP(resp *http.Response) bool {
+	hasIPP := hasContentType(resp, ContentType)
 	body := []byte(resp.BodyText)
-	return resp.StatusCode == 200 && (hasIPP || bytes.Contains(body, AttributesCharset)), nil
+	// If Content-Type header doesn't clearly indicate IPP, but "attributes-charset"
+	// attribute is specified in the correct format for IPP, still indicate a positive detection
+	// This is in response to empirical evidence of all false negatives specifying "attributes-charset"
+	// in the correct format.
+	return resp.StatusCode == 200 && (hasIPP || bytes.Contains(body, AttributesCharset))
 }
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
@@ -477,14 +479,10 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	if resp.StatusCode != 200 {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
 	}
-	// TODO: Cite RFC justification for this
-	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
-	if ipp, _ := isIPP(resp); !ipp {
-		// TODO: Log error if any
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
-	}
 
-	scan.tryReadAttributes(scan.results.Response.BodyText)
+	if err := scan.tryReadAttributes(scan.results.Response); err != nil {
+		return err
+	}
 	if scan.results.CUPSVersion != "" {
 		err := scanner.augmentWithCUPSData(scan, target, version)
 		if err != nil {
