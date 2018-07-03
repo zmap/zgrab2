@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	//"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -210,49 +210,6 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	return b
 }
 
-// FIXME: This will read the wrong section of the body if a substring matches the attribute name passed in
-func readAttributeFromBody(attrString string, body *[]byte) ([][][]byte, error) {
-	attr := []byte(attrString)
-	interims := bytes.Split(*body, attr)
-	var valSlice [][][]byte
-	if len(interims) <= 1 {
-		//The attribute was not present
-		return nil, errors.New("Attribute \"" + attrString + "\" not present.")
-	}
-	for i, interim := range interims[:len(interims)-1] {
-		valueTag := interim[len(interim)-3]
-		var vals [][]byte
-		buf := bytes.NewBuffer(interims[i+1])
-		// This reading occurs in a loop because some attributes can have type "1 setOf <type>"
-		// where same attribute has a set of values, rather than one
-		for tag, nameLength := valueTag, int16(0); tag == valueTag && nameLength == 0; {
-			var length int16
-			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
-				//Couldn't read length of content
-				break
-			}
-			val := make([]byte, length)
-			if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
-				//Couldn't read content
-				//vals = append(vals, val)
-				break
-			}
-			vals = append(vals, val)
-			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
-				//Couldn't read next valueTag
-				break
-			}
-			// FIXME: Only try to read next namelength if previous valueTag wasn't end-of-attributes-tag
-			if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
-				//Couldn't read next nameLength
-				break
-			}
-		}
-		valSlice = append(valSlice, vals)
-	}
-	return valSlice, nil
-}
-
 type Value struct {
 	Bytes []byte `json:"raw,omitempty"`
 }
@@ -268,20 +225,10 @@ type AttributeGroup struct {
 	Tag byte
 }
 
-func printGroup(g *AttributeGroup) {
-	fmt.Printf("0x%x\n", g.Tag)
-	for _, attrP := range g.Attrs {
-		fmt.Printf("\t0x%x: %q\n", attrP.ValueTag, attrP.Name)
-		for _, v := range attrP.Values {
-			fmt.Printf("\t\t%v\n", v)
-		}
-	}
-}
-
 // TODO: Log every error that could come out of this
 // TODO: Determine whether errors should be ignored, debug logged, fatal, etc.
-func readAllAttributes(body *[]byte) (*[]*Attribute) {
-	buf := bytes.NewBuffer(*body)
+func readAllAttributes(body []byte) ([]*Attribute) {
+	buf := bytes.NewBuffer(body)
 	var start struct {
 		Version int16
 		StatusCode int16
@@ -331,13 +278,13 @@ func readAllAttributes(body *[]byte) (*[]*Attribute) {
 	for _, g := range groups {
 		attrs = append(attrs, g.Attrs...)
 	}
-	return &attrs
+	return attrs
 }
 
 func (scan *scan) tryReadAttributes(body string) {
 	bodyBytes := []byte(body)
 	if bytes.Contains(bodyBytes, []byte(AttributesCharset)) {
-		scan.results.Attributes = append(scan.results.Attributes, *readAllAttributes(&bodyBytes)...)
+		scan.results.Attributes = append(scan.results.Attributes, readAllAttributes(bodyBytes)...)
 
 		for _, attr := range scan.results.Attributes {
 			// TODO: Make this record all CUPS versions given. Currently records first version from first attribute.
@@ -660,13 +607,13 @@ func (scan *scan) Cleanup() {
 }
 
 // TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
-func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *[]version, tls bool) (*scan, *zgrab2.ScanError) {
+func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions []version, tls bool) (*scan, *zgrab2.ScanError) {
 	scan := scanner.newIPPScan(target, tls)
 	defer scan.Cleanup()
 	var err *zgrab2.ScanError
-	for i := 0; i < len(*versions); i++ {
-		err = scanner.Grab(scan, target, &(*versions)[i])
-		if err != nil && err.Err == ErrVersionNotSupported && i < len(*versions)-1 {
+	for i := 0; i < len(versions); i++ {
+		err = scanner.Grab(scan, target, &(versions)[i])
+		if err != nil && err.Err == ErrVersionNotSupported && i < len(versions)-1 {
 			continue
 		}
 		break
@@ -691,7 +638,7 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
-	scan, err := scanner.tryGrabForVersions(&target, &Versions, scanner.config.IPPSecure)
+	scan, err := scanner.tryGrabForVersions(&target, Versions, scanner.config.IPPSecure)
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
@@ -699,7 +646,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
-			retry, retryErr := scanner.tryGrabForVersions(&target, &Versions, true)
+			retry, retryErr := scanner.tryGrabForVersions(&target, Versions, true)
 			if retryErr != nil {
 				if retry.shouldReportResult(scanner) {
 					return retryErr.Unpack(&retry.results)
