@@ -24,6 +24,12 @@ func NewIniParser() *flags.IniParser {
 	return flags.NewIniParser(parser)
 }
 
+// AddGroup exposes the parser's AddGroup function, allowing extension
+// of the global arguments.
+func AddGroup(shortDescription string, longDescription string, data interface{}) {
+	parser.AddGroup(shortDescription, longDescription, data)
+}
+
 // AddCommand adds a module to the parser and returns a pointer to
 // a flags.command object or an error
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {

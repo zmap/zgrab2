@@ -80,6 +80,12 @@ func duplicateIP(ip net.IP) net.IP {
 	return dup
 }
 
+// InputTargetsCSV is an InputTargetsFunc that calls GetTargetsCSV with
+// the CSV file provided on the command line.
+func InputTargetsCSV(ch chan<- ScanTarget) error {
+	return GetTargetsCSV(config.inputFile, ch)
+}
+
 // GetTargetsCSV reads targets from a CSV source, generates ScanTargets,
 // and delivers them to the provided channel.
 func GetTargetsCSV(source io.Reader, ch chan<- ScanTarget) error {
@@ -117,3 +123,9 @@ func GetTargetsCSV(source io.Reader, ch chan<- ScanTarget) error {
 	}
 	return nil
 }
+
+// InputTargetsFunc is a function type for target input functions.
+//
+// A function of this type generates ScanTargets on the provided
+// channel.  It returns nil if there are no further inputs or error.
+type InputTargetsFunc func(ch chan<- ScanTarget) error
