@@ -148,12 +148,16 @@ http_response_full = SubRecord({
 })
 
 # TODO: Determine whether value-tag types with same underlying form should have a different name in this mapping
+# TODO: Add method to decode these values appropriately. Encoding of different tag's attribute values specified
+# in Table 7 of RFC 8010 Section 3.9 (https://tools.ietf.org/html/rfc8010#section-3.9)
+# "value-tag" values which specify the interpretation of an attribute's value:
+# From RFC 8010 Section 3.5.2 (https://tools.ietf.org/html/rfc8010#section-3.5.2)
+# Note: value-tag values are camelCase because the names are specified that way in RFC
 ipp_attribute_value = SubRecord({
     "raw": Binary(),
     "integer": Signed32BitInteger(),
     "boolean": Boolean(),
     "enum": String(),
-    # TODO: Determine appropriate type for octetString w/o specified format
     "octetString": Binary(),
     "dateTime": DateTime(),
     # TODO: Determine appropriate type for resolution
@@ -180,7 +184,7 @@ ipp_attribute_value = SubRecord({
 ipp_attribute = SubRecord({
     "name": String(),
     "values": ListOf(ipp_attribute_value),
-    "tag": Binary(),
+    "tag": Unsigned8BitInteger(),
 })
 
 ipp_scan_response = SubRecord({
