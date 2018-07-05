@@ -230,7 +230,7 @@ func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 
 func detectReadBodyError(err error) error {
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Couldn't read enough body bytes."))
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Fewer body bytes read than expected."))
 	}
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
