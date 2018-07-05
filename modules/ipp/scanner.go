@@ -363,8 +363,16 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 
 func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgrab2.ScanError {
 	body := []byte(resp.BodyText)
-	// TODO: Cite RFC justification for this
+	// A well-formed IPP response MUST include the required status-code field.
+	// "If an IPP status-code is returned, the HTTP status-code MUST be 200"
+	// Therefore, an HTTP Status Code other than 200 indicates the response is not a well-formed IPP response.
+	// RFC 8010 Section 3.4.3 Source: https://tools.ietf.org/html/rfc8010#section-3.4.3
+	if resp.StatusCode != 200 {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
+	}
+
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	// RFC 8010's abstract specifies that IPP uses the MIME media type "application/ipp"
 	if !isIPP(resp) {
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
 	}
@@ -431,10 +439,6 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	storeBody(cupsResp, scanner)
 	if versionNotSupported(scan.results.CUPSResponse.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
-	}
-
-	if cupsResp.StatusCode != 200 {
-		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + cupsResp.Status))
 	}
 
 	if err := scanner.tryReadAttributes(scan.results.CUPSResponse, scan); err != nil {
@@ -557,12 +561,6 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
 		}
-	}
-
-	// TODO: Update this to reference RFC, explaining why we should require success on HTTP status
-	// RFC 8010 Section 3.4.3 Source: https://tools.ietf.org/html/rfc8010#section-3.4.3
-	if resp.StatusCode != 200 {
-		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
 	}
 
 	if err := scanner.tryReadAttributes(scan.results.Response, scan); err != nil {
