@@ -1,7 +1,6 @@
 package zgrab2
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -146,7 +145,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	return result
 }
 
-// Process sets up an output encoder, input reader, and starts grab workers
+// Process sets up an output encoder, input reader, and starts grab workers.
 func Process(mon *Monitor) {
 	workers := config.Senders
 	processQueue := make(chan ScanTarget, workers*4)
@@ -160,16 +159,9 @@ func Process(mon *Monitor) {
 
 	// Start the output encoder
 	go func() {
-		out := bufio.NewWriter(config.outputFile)
 		defer outputDone.Done()
-		defer out.Flush()
-		for result := range outputQueue {
-			if _, err := out.Write(result); err != nil {
-				log.Fatal(err)
-			}
-			if err := out.WriteByte('\n'); err != nil {
-				log.Fatal(err)
-			}
+		if err := config.outputResults(outputQueue); err != nil {
+			log.Fatal(err)
 		}
 	}()
 	//Start all the workers
@@ -189,7 +181,7 @@ func Process(mon *Monitor) {
 		}(i)
 	}
 
-	if err := GetTargetsCSV(config.inputFile, processQueue); err != nil {
+	if err := config.inputTargets(processQueue); err != nil {
 		log.Fatal(err)
 	}
 	close(processQueue)

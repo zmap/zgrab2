@@ -1,6 +1,9 @@
 package zgrab2
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+)
 
 // FlagMap is a function that maps a single-bit bitmask (i.e. a number of the
 // form (1 << x)) to a string representing that bit.
@@ -121,4 +124,27 @@ func WidenMapKeys(input map[int]string) map[uint64]string {
 		ret[uint64(k)] = v
 	}
 	return ret
+}
+
+// OutputResultsFunc is a function type for result output functions.
+//
+// A function of this type receives results on the provided channel
+// and outputs them somehow.  It returns nil if there are no further
+// results or error.
+type OutputResultsFunc func(results <-chan []byte) error
+
+// OutputResultsFile is an OutputResultsFunc that write results to
+// a filename provided on the command line.
+func OutputResultsFile(results <-chan []byte) error {
+	out := bufio.NewWriter(config.outputFile)
+	defer out.Flush()
+	for result := range results {
+		if _, err := out.Write(result); err != nil {
+			return err
+		}
+		if err := out.WriteByte('\n'); err != nil {
+			return err
+		}
+	}
+	return nil
 }

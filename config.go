@@ -27,6 +27,18 @@ type Config struct {
 	outputFile         *os.File
 	metaFile           *os.File
 	logFile            *os.File
+	inputTargets       InputTargetsFunc
+	outputResults      OutputResultsFunc
+}
+
+// SetInputFunc sets the target input function to the provided function.
+func SetInputFunc(f InputTargetsFunc) {
+	config.inputTargets = f
+}
+
+// SetOutputFunc sets the result output function to the provided function.
+func SetOutputFunc(f OutputResultsFunc) {
+	config.outputResults = f
 }
 
 func init() {
@@ -46,6 +58,7 @@ func validateFrameworkConfiguration() {
 		}
 		log.SetOutput(config.logFile)
 	}
+	SetInputFunc(InputTargetsCSV)
 
 	if config.InputFileName == "-" {
 		config.inputFile = os.Stdin
@@ -64,6 +77,7 @@ func validateFrameworkConfiguration() {
 			log.Fatal(err)
 		}
 	}
+	SetOutputFunc(OutputResultsFile)
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr
