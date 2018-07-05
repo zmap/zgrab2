@@ -60,6 +60,18 @@ func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	return DialTimeoutConnection("tcp", address, flags.Timeout)
 }
 
+// OpenTLS connects to the ScanTarget using the configured flags, then performs
+// the TLS handshake. On success error is nil, but the connection can be non-nil
+// even if there is an error (this allows fetching the handshake log).
+func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TLSConnection, error) {
+	conn, err := tlsFlags.Connect(target, baseFlags)
+	if err != nil {
+		return conn, err
+	}
+	err = conn.Handshake()
+	return conn, err
+}
+
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
