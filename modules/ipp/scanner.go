@@ -220,15 +220,40 @@ type Attribute struct {
 	ValueTag byte  `json:"tag,omitempty"`
 }
 
-// TODO: Comment about general structure of attribute encoding briefly w/ citation
-// TODO: Address concerns about bounds
+func detectReadBodyError(err error) error {
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Couldn't read enough body bytes."))
+	}
+	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
+}
+
+/* An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
+   https://tools.ietf.org/html/rfc8010#section-3.1.8)
+bytes name
+----------------------------
+2     version-number
+2     status-code
+4     request-id
+
+(0 or more instances of the following pair of fields)
+1     delimiter-tag OR value-tag
+x     empty if delimiter-tag to begin a group OR rest of attribute if value-tag
+
+1     end-of-attributes-tag
+----------------------------
+
+Those x bytes of any given attribute consist of the following (as specified in RFC 8010 Section 3.1.4
+https://tools.ietf.org/html/rfc8010#section-3.1.4)
+----------------------------
+2     name-length = u
+u     name
+2     value-length = v
+v     value
+----------------------------
+*/
 // TODO: Address concern about tag != 0x03 structure
-// TODO: Add error handling to every single
-// TODO: Log every error that could come out of this
-// TODO: Determine whether errors should be ignored, debug logged, fatal, etc.
 func readAllAttributes(body []byte) ([]*Attribute, error) {
 	var attrs []*Attribute
-	e := zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Couldn't read enough body bytes."))
 
 	buf := bytes.NewBuffer(body)
 	// Each field of this struct is exported to avoid binary.Read panicking
@@ -240,26 +265,32 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 	// Read in pre-attribute part of body to ignore it
 	if err := binary.Read(buf, binary.BigEndian, &start); err != nil {
 		// TODO: Maybe return different errors in different cases, or only fail completely sometimes
-		return attrs, e
+		return attrs, detectReadBodyError(err)
 	}
-	var tag byte
 	// Read in first delimiter tag, usually a begin-attribute-group-tag (which is equal to 1)
+	var tag byte
 	if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
-		return attrs, e
+		return attrs, detectReadBodyError(err)
 	}
 	var lastTag byte
 	// Until encountering end-of-attributes-tag (which is equal to 3):
 	for tag != 0x03 {
-		// If tag is a delimiter-tag, read the next tag, which corresponds to the first attribute's value-tag
+		// If tag is a delimiter-tag ([0x00, 0x05]), read the next tag, which corresponds to the first
+		// attribute's value-tag
 		if tag <= 0x05 {
 			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
-				return attrs, e
+				return attrs, detectReadBodyError(err)
 			}
 		}
-		// TODO: Implement parsing attribute collections (they're special)
-		var attr *Attribute
+		// TODO: Implement parsing attribute collections, since they're special
+		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
+		// or provides an additonal value for the previous attribute
 		var nameLength int16
-		binary.Read(buf, binary.BigEndian, &nameLength)
+		if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+
+		var attr *Attribute
 		// If sequential tags match and name-length of the latter is 0, the second attribute is
 		// an additional value for the former, so we read and append another value for that attr
 		if tag == lastTag && nameLength == 0 {
@@ -267,21 +298,31 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 		// Otherwise, create a new attribute and read in its name
 		} else {
 			attr = &Attribute{ValueTag: tag}
-			name := make([]byte, nameLength)
-			binary.Read(buf, binary.BigEndian, &name)
-			attr.Name = string(name)
 			attrs = append(attrs, attr)
 		}
-		// Read and append a value to the current attribute
+		// Read in name into this slice (or no name into an empty slice if nameLength == 0)
+		name := make([]byte, nameLength)
+		if err := binary.Read(buf, binary.BigEndian, &name); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+		attr.Name = string(name)
+		// Determine length of current value of the current attribute
 		var length int16
-		binary.Read(buf, binary.BigEndian, &length)
+		if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+		// Read and append a value to the current attribute
 		val := make([]byte, length)
-		binary.Read(buf, binary.BigEndian, &val)
+		if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
 		attr.Values = append(attr.Values, Value{Bytes: val})
 
 		// Read in the following tag to be assessed at the next iteration's start
 		lastTag = tag
-		binary.Read(buf, binary.BigEndian, &tag)
+		if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
 	}
 
 	return attrs, nil
@@ -486,6 +527,8 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 	}
 
+	// TODO: Update this to reference RFC, explaining why we should require success on HTTP status
+	// RFC 8010 Section 3.4.3 Source: https://tools.ietf.org/html/rfc8010#section-3.4.3
 	if resp.StatusCode != 200 {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
 	}
