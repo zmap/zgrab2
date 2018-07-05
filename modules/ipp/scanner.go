@@ -79,8 +79,6 @@ type ScanResults struct {
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// TODO: Annotate every flag thoroughly
-// TODO: Add more protocol-specific flags as needed
 // Flags holds the command-line configuration for the ipp scan module.
 // Populated by the framework.
 type Flags struct {
@@ -88,7 +86,7 @@ type Flags struct {
 	zgrab2.TLSFlags
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
-	//FIXME: Borrowed from http module
+	//FIXME: Borrowed from http module, determine whether this is all needed
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
