@@ -218,6 +218,16 @@ type Attribute struct {
 	ValueTag byte  `json:"tag,omitempty"`
 }
 
+func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
+	if soFar + length > size {
+		if size == upperBound {
+			return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 func detectReadBodyError(err error) error {
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Couldn't read enough body bytes."))
@@ -249,10 +259,9 @@ u     name
 v     value
 ----------------------------
 */
-// TODO: Address concern about tag != 0x03 structure
-func readAllAttributes(body []byte) ([]*Attribute, error) {
+func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 	var attrs []*Attribute
-
+	bytesRead := 0
 	buf := bytes.NewBuffer(body)
 	// Each field of this struct is exported to avoid binary.Read panicking
 	var start struct {
@@ -265,11 +274,13 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 		// TODO: Maybe return different errors in different cases, or only fail completely sometimes
 		return attrs, detectReadBodyError(err)
 	}
+	bytesRead += 8
 	// Read in first delimiter tag, usually a begin-attribute-group-tag (which is equal to 1)
 	var tag byte
 	if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 		return attrs, detectReadBodyError(err)
 	}
+	bytesRead++
 	var lastTag byte
 	// Until encountering end-of-attributes-tag (which is equal to 3):
 	for tag != 0x03 {
@@ -279,6 +290,7 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 				return attrs, detectReadBodyError(err)
 			}
+			bytesRead++
 		}
 		// TODO: Implement parsing attribute collections, since they're special
 		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
@@ -286,6 +298,14 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 		var nameLength int16
 		if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 			return attrs, detectReadBodyError(err)
+		}
+		bytesRead += 2
+		// If reading the name would entail reading past body, check whether body was truncated
+		if should, err := shouldReturnAttrs(int(nameLength), bytesRead, len(body), scanner.config.MaxSize * 1024); should {
+			// If body was truncated, return all attributes so far without error
+			// Otherwise, return a protocol error because name-length should indicate the
+			// length of the following name when obeying the protocol's encoding
+			return attrs, err
 		}
 
 		var attr *Attribute
@@ -303,30 +323,45 @@ func readAllAttributes(body []byte) ([]*Attribute, error) {
 		if err := binary.Read(buf, binary.BigEndian, &name); err != nil {
 			return attrs, detectReadBodyError(err)
 		}
-		attr.Name = string(name)
+		bytesRead += int(nameLength)
+		if attr.Name == "" {
+			attr.Name = string(name)
+		}
 		// Determine length of current value of the current attribute
 		var length int16
 		if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
 			return attrs, detectReadBodyError(err)
 		}
-		// Read and append a value to the current attribute
-		val := make([]byte, length)
-		if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
-			return attrs, detectReadBodyError(err)
+		bytesRead += 2
+		// If reading the name would entail reading past body, check whether body was truncated
+		if should, err := shouldReturnAttrs(int(length), bytesRead, len(body), scanner.config.MaxSize * 1024); should {
+			// If body was truncated, return all attributes so far without error
+			// Otherwise, return a protocol error because name-length should indicate the
+			// length of the following name when obeying the protocol's encoding
+			return attrs, err
 		}
-		attr.Values = append(attr.Values, Value{Bytes: val})
+		if length > 0 {
+			// Read and append a value to the current attribute
+			val := make([]byte, length)
+			if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
+				return attrs, detectReadBodyError(err)
+			}
+			bytesRead += int(length)
+			attr.Values = append(attr.Values, Value{Bytes: val})
+		}
 
 		// Read in the following tag to be assessed at the next iteration's start
 		lastTag = tag
 		if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 			return attrs, detectReadBodyError(err)
 		}
+		bytesRead++
 	}
 
 	return attrs, nil
 }
 
-func (scan *scan) tryReadAttributes(resp *http.Response) *zgrab2.ScanError {
+func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgrab2.ScanError {
 	body := []byte(resp.BodyText)
 	// TODO: Cite RFC justification for this
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
@@ -334,10 +369,9 @@ func (scan *scan) tryReadAttributes(resp *http.Response) *zgrab2.ScanError {
 		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
 	}
 
-	attrs, err := readAllAttributes(body)
+	attrs, err := readAllAttributes(body, scanner)
 	if err != nil {
 		// TODO: Handle error appropriately
-
 	}
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
@@ -403,7 +437,7 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + cupsResp.Status))
 	}
 
-	if err := scan.tryReadAttributes(scan.results.CUPSResponse); err != nil {
+	if err := scanner.tryReadAttributes(scan.results.CUPSResponse, scan); err != nil {
 		return err
 	}
 	return nil
@@ -531,7 +565,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
 	}
 
-	if err := scan.tryReadAttributes(scan.results.Response); err != nil {
+	if err := scanner.tryReadAttributes(scan.results.Response, scan); err != nil {
 		return err
 	}
 	if scan.results.CUPSVersion != "" {
