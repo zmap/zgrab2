@@ -384,18 +384,15 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
 	for _, attr := range scan.results.Attributes {
-		// TODO: Make this record all CUPS versions given. Currently records first version from first attribute.
 		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
 			scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
 		}
-		// TODO: Make this report all IPP versions given. Currently records all versions from first attribute.
 		if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
 			for _, v := range attr.Values {
 				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 			}
 		}
-		// TODO: Make this record all printer URI's given. Currently records the first uri for each attribute.
-		if attr.Name == PrinterURISupported && len(scan.results.AttributePrinterURIs) == 0 {
+		if attr.Name == PrinterURISupported {
 			scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
 		}
 	}
