@@ -694,7 +694,7 @@ func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions [
 	defer scan.Cleanup()
 	var err *zgrab2.ScanError
 	for i := 0; i < len(versions); i++ {
-		err = scanner.Grab(scan, target, &(versions)[i])
+		err = scanner.Grab(scan, target, &versions[i])
 		if err != nil && err.Err == ErrVersionNotSupported && i < len(versions)-1 {
 			continue
 		}
