@@ -2,7 +2,6 @@
 // TODO: Describe module, the flags, the probe, the output, etc.
 package ipp
 
-//TODO: Clean up these imports
 import (
 	"bytes"
 	"crypto/sha256"
@@ -220,10 +219,12 @@ type Attribute struct {
 
 func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 	if soFar + length > size {
-		if size == upperBound {
-			return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+		// Size should never exceed upperBound in practice because of truncation, but this is more general
+		if size >= upperBound {
+			return true, nil
 		}
-		return true, nil
+		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+
 	}
 	return false, nil
 }
@@ -271,7 +272,6 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 	}
 	// Read in pre-attribute part of body to ignore it
 	if err := binary.Read(buf, binary.BigEndian, &start); err != nil {
-		// TODO: Maybe return different errors in different cases, or only fail completely sometimes
 		return attrs, detectReadBodyError(err)
 	}
 	bytesRead += 8
@@ -380,6 +380,10 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	attrs, err := readAllAttributes(body, scanner)
 	if err != nil {
 		// TODO: Handle error appropriately
+		log.WithFields(log.Fields{
+			"error": err,
+			"body":  resp.BodyText,
+		}).Debug("Failed to read attributes from body with error.")
 	}
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
