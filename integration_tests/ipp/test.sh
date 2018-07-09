@@ -36,7 +36,7 @@ function test_cups() {
 }
 
 function test_cups_tls() {
-    echo "ipp/test: Tests runner for ipp_cups"
+    echo "ipp/test: Tests runner for ipp_cups-tls"
 
     CONTAINER_NAME="zgrab_ipp_cups-tls" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3s --ipps --verbose > "$OUTPUT_ROOT/cups-tls.json"
     # FIXME: No good reason to use a tmp file & saved file, b/c I'm not testing any failure states yet
@@ -60,7 +60,7 @@ function test_cups_tls() {
         echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1, got $cups"
         exit 1
     fi
-    if [ $tls = "null" ]; then
+    if [ "$tls" = "null" ]; then
         echo "ipp/test: No TLS handshake logged"
         exit 1
     fi

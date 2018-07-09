@@ -147,15 +147,56 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
+# TODO: Determine whether value-tag types with same underlying form should have a different name in this mapping
+# TODO: Add method to decode these values appropriately. Encoding of different tag's attribute values specified
+# in Table 7 of RFC 8010 Section 3.9 (https://tools.ietf.org/html/rfc8010#section-3.9)
+# "value-tag" values which specify the interpretation of an attribute's value:
+# From RFC 8010 Section 3.5.2 (https://tools.ietf.org/html/rfc8010#section-3.5.2)
+# Note: value-tag values are camelCase because the names are specified that way in RFC
+ipp_attribute_value = SubRecord({
+    "raw": Binary(),
+    "integer": Signed32BitInteger(),
+    "boolean": Boolean(),
+    "enum": String(),
+    "octetString": Binary(),
+    "dateTime": DateTime(),
+    # TODO: Determine appropriate type for resolution
+    "resolution": Binary(),
+    # TODO: Determine appropriate type for range of Integers (probably {min, max} pair)
+    "rangeOfInteger": Binary(),
+    # TODO: Determine appropriate type for beginning of attribute collection
+    "begCollection": Binary(),
+    "textWithLanguage": String(),
+    "nameWithLanguage": String(),
+    # TODO: Determine appropriate type for end of attribute collection
+    "endCollection": Binary(),
+    "textWithoutLanguage": String(),
+    "nameWithoutLanguage": String(),
+    "keyword": String(),
+    "uri": String(),
+    "uriScheme": String(),
+    "charset": String(),
+    "naturalLanguage": String(),
+    "mimeMediaType": String(),
+    "memberAttrName": String(),
+})
+
+ipp_attribute = SubRecord({
+    "name": String(),
+    "values": ListOf(ipp_attribute_value),
+    "tag": Unsigned8BitInteger(),
+})
+
 ipp_scan_response = SubRecord({
     "result": SubRecord({
         "version_major": Signed8BitInteger(),
         "version_minor": Signed8BitInteger(),
         "version_string": String(),
         "cups_version": String(),
+        "attributes": ListOf(ipp_attribute),
         "attr_cups_version": String(),
         "attr_ipp_versions": ListOf(String()),
-        "attr_printer_uri": String(),
+        "attr_printer_uris": ListOf(String()),
         "response": http_response_full,
         "cups_response": http_response_full,
         "tls": zgrab2.tls_log,

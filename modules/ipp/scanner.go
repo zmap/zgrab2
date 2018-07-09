@@ -2,7 +2,6 @@
 // TODO: Describe module, the flags, the probe, the output, etc.
 package ipp
 
-//TODO: Clean up these imports
 import (
 	"bytes"
 	"crypto/sha256"
@@ -43,6 +42,7 @@ var (
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
 	Versions = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
+	AttributesCharset = []byte{0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74}
 )
 
 type scan struct {
@@ -51,6 +51,7 @@ type scan struct {
 	client      *http.Client
 	results     ScanResults
 	url         string
+	tls         bool
 }
 
 //TODO: Tag relevant results and exlain in comments
@@ -62,21 +63,21 @@ type ScanResults struct {
 
 	// RedirectResponseChain is non-empty if the scanner follows a redirect.
 	// It contains all redirect responses prior to the final response.
-	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty" zgrab:"debug"`
+	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
 
 	MajorVersion  *int8  `json:"version_major,omitempty"`
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
+
+	Attributes           []*Attribute `json:"attributes,omitempty" zgrab:"debug"`
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
-	AttributePrinterURI  string   `json:"attr_printer_uri,omitempty"`
+	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
 
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// TODO: Annotate every flag thoroughly
-// TODO: Add more protocol-specific flags as needed
 // Flags holds the command-line configuration for the ipp scan module.
 // Populated by the framework.
 type Flags struct {
@@ -84,7 +85,7 @@ type Flags struct {
 	zgrab2.TLSFlags
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
-	//FIXME: Borrowed from http module
+	//FIXME: Borrowed from http module, determine whether this is all needed
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
@@ -182,24 +183,6 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-func hasContentType(resp *http.Response, contentType string) (bool, error) {
-	// TODO: Capture parameters and report them in ScanResults?
-	// Parameters can be ignored, since there are no required or optional parameters
-	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
-	mediatype, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	// TODO: See if empty media type is sufficient as failure indicator,
-	// there could be other states where reading mediatype screwed up, but isn't empty (ie: corrupted/malformed)
-	if mediatype == "" && err != nil {
-		//TODO: Handle errors in a weird way, since media type is still returned
-		//      if there's an error when parsing optional parameters
-		return false, err
-	}
-	// FIXME: Maybe pass the error along, maybe not. We got what we wanted.
-	return mediatype == contentType, nil
-}
-
-// FIXME: Cleaner to write this code, possibly slower than copy-pasted version
-// FIXME: Quite possibly not easier to read ("What does storeBody do? Where does it store it?")
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
 func storeBody(res *http.Response, scanner *Scanner) {
 	b := bufferFromBody(res, scanner)
@@ -224,83 +207,201 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	return b
 }
 
-// FIXME: This will read the wrong section of the body if a substring matches the attribute name passed in
-// TODO: Support reading from multiple instances of the same attribute in a response
-func readAttributeFromBody(attrString string, body *[]byte) ([][]byte, error) {
-	attr := []byte(attrString)
-	interims := bytes.Split(*body, attr)
-	if len(interims) > 1 {
-		valueTag := interims[0][len(interims[0])-3]
-		var vals [][]byte
-		buf := bytes.NewBuffer(interims[1])
-		// This reading occurs in a loop because some attributes can have type "1 setOf <type>"
-		// where same attribute has a set of values, rather than one
-		for tag, nameLength := valueTag, int16(0); tag == valueTag && nameLength == 0; {
-			var length int16
-			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
-				//Couldn't read length of content
-				return vals, err
-			}
-			val := make([]byte, length)
-			if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
-				//Couldn't read content
-				vals = append(vals, val)
-				return vals, err
-			}
-			vals = append(vals, val)
-			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
-				//Couldn't read next valueTag
-				return vals, err
-			}
-			// FIXME: Only try to read next namelength if previous valueTag wasn't end-of-attributes-tag
-			if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
-				//Couldn't read next nameLength
-				return vals, err
-			}
-		}
-		return vals, nil
-	}
-	//The attribute was not present
-	return nil, errors.New("Attribute \"" + attrString + "\" not present.")
+type Value struct {
+	Bytes []byte `json:"raw,omitempty"`
 }
 
-func (scan *scan) tryReadAttributes(body string) {
-	bodyBytes := []byte(body)
-	// Write reported CUPS version to results object
-	if scan.results.AttributeCUPSVersion == "" {
-		if cupsVersions, err := readAttributeFromBody(CupsVersion, &bodyBytes); err != nil {
-			log.WithFields(log.Fields{
-				"error":     err,
-				"attribute": CupsVersion,
-			}).Debug("Failed to read attribute.")
-		} else if len(cupsVersions) > 0 {
-			scan.results.AttributeCUPSVersion = string(cupsVersions[0])
+type Attribute struct {
+	Name string    `json:"name,omitempty"`
+	Values []Value `json:"values,omitempty"`
+	ValueTag byte  `json:"tag,omitempty"`
+}
+
+func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
+	if soFar + length > size {
+		// Size should never exceed upperBound in practice because of truncation, but this is more general
+		if size >= upperBound {
+			return true, nil
 		}
+		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+
 	}
-	// Write reported IPP versions to results object
-	if len(scan.results.AttributeIPPVersions) == 0 {
-		if ippVersions, err := readAttributeFromBody(VersionsSupported, &bodyBytes); err != nil {
-			log.WithFields(log.Fields{
-				"error":     err,
-				"attribute": VersionsSupported,
-			}).Debug("Failed to read attribute.")
+	return false, nil
+}
+
+func detectReadBodyError(err error) error {
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Fewer body bytes read than expected."))
+	}
+	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
+}
+
+/* An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
+   https://tools.ietf.org/html/rfc8010#section-3.1.8)
+bytes name
+----------------------------
+2     version-number
+2     status-code
+4     request-id
+
+(0 or more instances of the following pair of fields)
+1     delimiter-tag OR value-tag
+x     empty if delimiter-tag to begin a group OR rest of attribute if value-tag
+
+1     end-of-attributes-tag
+----------------------------
+
+Those x bytes of any given attribute consist of the following (as specified in RFC 8010 Section 3.1.4
+https://tools.ietf.org/html/rfc8010#section-3.1.4)
+----------------------------
+2     name-length = u
+u     name
+2     value-length = v
+v     value
+----------------------------
+*/
+func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
+	var attrs []*Attribute
+	bytesRead := 0
+	buf := bytes.NewBuffer(body)
+	// Each field of this struct is exported to avoid binary.Read panicking
+	var start struct {
+		Version int16
+		StatusCode int16
+		ReqID int32
+	}
+	// Read in pre-attribute part of body to ignore it
+	if err := binary.Read(buf, binary.BigEndian, &start); err != nil {
+		return attrs, detectReadBodyError(err)
+	}
+	bytesRead += 8
+	// Read in first delimiter tag, usually a begin-attribute-group-tag (which is equal to 1)
+	var tag byte
+	if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
+		return attrs, detectReadBodyError(err)
+	}
+	bytesRead++
+	var lastTag byte
+	// Until encountering end-of-attributes-tag (which is equal to 3):
+	for tag != 0x03 {
+		// If tag is a delimiter-tag ([0x00, 0x05]), read the next tag, which corresponds to the first
+		// attribute's value-tag
+		if tag <= 0x05 {
+			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
+				return attrs, detectReadBodyError(err)
+			}
+			bytesRead++
+		}
+		// TODO: Implement parsing attribute collections, since they're special
+		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
+		// or provides an additonal value for the previous attribute
+		var nameLength int16
+		if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+		bytesRead += 2
+		// If reading the name would entail reading past body, check whether body was truncated
+		if should, err := shouldReturnAttrs(int(nameLength), bytesRead, len(body), scanner.config.MaxSize * 1024); should {
+			// If body was truncated, return all attributes so far without error
+			// Otherwise, return a protocol error because name-length should indicate the
+			// length of the following name when obeying the protocol's encoding
+			return attrs, err
+		}
+
+		var attr *Attribute
+		// If sequential tags match and name-length of the latter is 0, the second attribute is
+		// an additional value for the former, so we read and append another value for that attr
+		if tag == lastTag && nameLength == 0 {
+			attr = attrs[len(attrs)-1]
+		// Otherwise, create a new attribute and read in its name
 		} else {
-			for _, v := range ippVersions {
-				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v))
+			attr = &Attribute{ValueTag: tag}
+			attrs = append(attrs, attr)
+		}
+		// Read in name into this slice (or no name into an empty slice if nameLength == 0)
+		name := make([]byte, nameLength)
+		if err := binary.Read(buf, binary.BigEndian, &name); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+		bytesRead += int(nameLength)
+		if attr.Name == "" {
+			attr.Name = string(name)
+		}
+		// Determine length of current value of the current attribute
+		var length int16
+		if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+		bytesRead += 2
+		// If reading the name would entail reading past body, check whether body was truncated
+		if should, err := shouldReturnAttrs(int(length), bytesRead, len(body), scanner.config.MaxSize * 1024); should {
+			// If body was truncated, return all attributes so far without error
+			// Otherwise, return a protocol error because name-length should indicate the
+			// length of the following name when obeying the protocol's encoding
+			return attrs, err
+		}
+		if length > 0 {
+			// Read and append a value to the current attribute
+			val := make([]byte, length)
+			if err := binary.Read(buf, binary.BigEndian, &val); err != nil {
+				return attrs, detectReadBodyError(err)
+			}
+			bytesRead += int(length)
+			attr.Values = append(attr.Values, Value{Bytes: val})
+		}
+
+		// Read in the following tag to be assessed at the next iteration's start
+		lastTag = tag
+		if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
+			return attrs, detectReadBodyError(err)
+		}
+		bytesRead++
+	}
+
+	return attrs, nil
+}
+
+func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgrab2.ScanError {
+	body := []byte(resp.BodyText)
+	// A well-formed IPP response MUST include the required status-code field.
+	// "If an IPP status-code is returned, the HTTP status-code MUST be 200"
+	// Therefore, an HTTP Status Code other than 200 indicates the response is not a well-formed IPP response.
+	// RFC 8010 Section 3.4.3 Source: https://tools.ietf.org/html/rfc8010#section-3.4.3
+	if resp.StatusCode != 200 {
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
+	}
+
+	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
+	// RFC 8010's abstract specifies that IPP uses the MIME media type "application/ipp"
+	if !isIPP(resp) {
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+	}
+
+	attrs, err := readAllAttributes(body, scanner)
+	if err != nil {
+		// TODO: Handle error appropriately
+		log.WithFields(log.Fields{
+			"error": err,
+			"body":  resp.BodyText,
+		}).Debug("Failed to read attributes from body with error.")
+	}
+	scan.results.Attributes = append(scan.results.Attributes, attrs...)
+
+	for _, attr := range scan.results.Attributes {
+		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
+			scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
+		}
+		if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
+			for _, v := range attr.Values {
+				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 			}
 		}
-	}
-	// Write reported printer URI to results object
-	if scan.results.AttributePrinterURI == "" {
-		if uris, err := readAttributeFromBody(PrinterURISupported, &bodyBytes); err != nil {
-			log.WithFields(log.Fields{
-				"error":     err,
-				"attribute": PrinterURISupported,
-			}).Debug("Failed to read attribute.")
-		} else if len(uris) > 0 {
-			scan.results.AttributePrinterURI = string(uris[0])
+		if attr.Name == PrinterURISupported {
+			scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
 		}
 	}
+
+	return nil
 }
 
 func versionNotSupported(body string) bool {
@@ -341,7 +442,9 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
-	scan.tryReadAttributes(scan.results.CUPSResponse.BodyText)
+	if err := scanner.tryReadAttributes(scan.results.CUPSResponse, scan); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -382,9 +485,36 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 	return resp, nil
 }
 
+func hasContentType(resp *http.Response, contentType string) bool {
+	// Removal of everything post-comma added in response to empirical examples of Virata-EmWeb
+	// print servers listed with "Content-Type" of "application/ipp, public"
+	cType := strings.Split(resp.Header.Get("Content-Type"), ",")[0]
+	// Parameters can be ignored, since there are no required or optional parameters
+	// IPP parameters specified at https://www.iana.org/assignments/media-types/application/ipp
+	mediatype, _, err := mime.ParseMediaType(cType)
+	// Certainly doesn't have correct Content-Type if there was a malformed or empty Content-Type
+	if mediatype == "" && err != nil {
+		return false
+	}
+	// Check for only subtype added in resonse to empirical examples of Rapid Logic print servers
+	// listed with "Content-Type" of "IPP"
+	subType := strings.Split(contentType, "/")[1]
+	return strings.HasPrefix(mediatype, contentType) || strings.HasPrefix(mediatype, subType)
+}
+
+func isIPP(resp *http.Response) bool {
+	hasIPP := hasContentType(resp, ContentType)
+	body := []byte(resp.BodyText)
+	// If Content-Type header doesn't clearly indicate IPP, but "attributes-charset"
+	// attribute is specified in the correct format for IPP, still indicate a positive detection
+	// This is in response to empirical evidence of all false negatives specifying "attributes-charset"
+	// in the correct format.
+	return resp.StatusCode == 200 && (hasIPP || bytes.Contains(body, AttributesCharset))
+}
+
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scanner.config.IPPSecure)
+	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
 	// TODO: Log any weird errors coming out of this
 	resp, err := sendIPPRequest(scan, body)
 	//Store response regardless of error in request, because we may have gotten something back
@@ -431,28 +561,20 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 		if strings.HasPrefix(strings.ToUpper(p), "CUPS/") {
 			scan.results.CUPSVersion = p
-			err := scanner.augmentWithCUPSData(scan, target, version)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err,
-				}).Debug("Failed to augment with CUPS-get-printers request.")
-			}
 		}
 	}
 
-	// TODO: Cite RFC justification for this
-	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
-	if isIPP, _ := hasContentType(resp, ContentType);
-	   resp.StatusCode == 200 && resp.Header.Get("Content-Type") != "" && !isIPP {
-		// TODO: Log error if any
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("application/ipp not present in Content-Type header."))
+	if err := scanner.tryReadAttributes(scan.results.Response, scan); err != nil {
+		return err
 	}
-
-	if resp.StatusCode != 200 {
-		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("Response returned with status " + resp.Status))
+	if scan.results.CUPSVersion != "" {
+		err := scanner.augmentWithCUPSData(scan, target, version)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Debug("Failed to augment with CUPS-get-printers request.")
+		}
 	}
-
-	scan.tryReadAttributes(scan.results.Response.BodyText)
 
 	return nil
 }
@@ -527,7 +649,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // Adapted from newHTTPScan in zgrab2 http module
-func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
+func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 	newScan := scan{
 		client: http.MakeNewClient(),
 	}
@@ -544,6 +666,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
 	newScan.client.Jar = nil // Don't transfer cookies FIXME: Stolen from HTTP, unclear if needed
+	newScan.tls = tls
 	host := target.Domain
 	if host == "" {
 		// FIXME: I only know this works for sure for IPv4, uri string might get weird w/ IPv6
@@ -555,14 +678,24 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget) *scan {
 	return &newScan
 }
 
+// Cleanup closes any connections that have been opened during the scan
+func (scan *scan) Cleanup() {
+	if scan.connections != nil {
+		for _, conn := range scan.connections {
+			defer conn.Close()
+		}
+		scan.connections = nil
+	}
+}
+
 // TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
-func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *[]version) (*scan, *zgrab2.ScanError) {
-	scan := scanner.newIPPScan(target)
-	// TODO: Implement scan.Cleanup()
+func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions []version, tls bool) (*scan, *zgrab2.ScanError) {
+	scan := scanner.newIPPScan(target, tls)
+	defer scan.Cleanup()
 	var err *zgrab2.ScanError
-	for i := 0; i < len(*versions); i++ {
-		err = scanner.Grab(scan, target, &(*versions)[i])
-		if err != nil && err.Err == ErrVersionNotSupported && i < len(*versions)-1 {
+	for i := 0; i < len(versions); i++ {
+		err = scanner.Grab(scan, target, &versions[i])
+		if err != nil && err.Err == ErrVersionNotSupported && i < len(versions)-1 {
 			continue
 		}
 		break
@@ -575,7 +708,7 @@ func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions *
 func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 	if scan.results.Response != nil {
 		return true
-	} else if scanner.config.IPPSecure {
+	} else if scan.tls {
 		l := scan.results.TLSLog
 		return l != nil && l.HandshakeLog != nil && l.HandshakeLog.ServerHello != nil
 	}
@@ -587,7 +720,7 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 //2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
-	scan, err := scanner.tryGrabForVersions(&target, &Versions)
+	scan, err := scanner.tryGrabForVersions(&target, Versions, scanner.config.IPPSecure)
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
@@ -595,13 +728,16 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.RetryTLS && !scanner.config.IPPSecure {
-			scanner.config.IPPSecure = true
-			retry, retryErr := scanner.tryGrabForVersions(&target, &Versions)
+			retry, retryErr := scanner.tryGrabForVersions(&target, Versions, true)
 			if retryErr != nil {
 				if retry.shouldReportResult(scanner) {
-					return err.Unpack(&retry.results)
+					return retryErr.Unpack(&retry.results)
 				}
-				return zgrab2.TryGetScanStatus(err), nil, err
+				// Use original result as a fallback when retry result shouldn't be returned
+				if scan.shouldReportResult(scanner) {
+					return err.Unpack(&scan.results)
+				}
+				return zgrab2.TryGetScanStatus(retryErr), nil, retryErr
 			}
 			return zgrab2.SCAN_SUCCESS, &retry.results, nil
 		}
