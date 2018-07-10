@@ -286,10 +286,14 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 		// If tag is a delimiter-tag ([0x00, 0x05]), read the next tag, which corresponds to the first
 		// attribute's value-tag
 		if tag <= 0x05 {
+			lastTag = tag
 			if err := binary.Read(buf, binary.BigEndian, &tag); err != nil {
 				return attrs, detectReadBodyError(err)
 			}
 			bytesRead++
+			// Start a new iteration after reading this tag, since the next tag could be another
+			// delimiter to be caught by this same if block
+			continue
 		}
 		// TODO: Implement parsing attribute collections, since they're special
 		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
