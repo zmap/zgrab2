@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -661,7 +660,11 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
 	transport.DialTLS = newScan.getTLSDialer(scanner)
+<<<<<<< HEAD
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.BaseFlags.Timeout).DialContext
+=======
+	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.Timeout).DialContext
+>>>>>>> master
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
