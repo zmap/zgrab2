@@ -189,14 +189,14 @@ ipp_attribute = SubRecord({
 
 ipp_scan_response = SubRecord({
     "result": SubRecord({
-        "version_major": Signed8BitInteger(),
-        "version_minor": Signed8BitInteger(),
-        "version_string": String(),
-        "cups_version": String(),
+        "version_major": Signed8BitInteger(doc="Major component of IPP version listed in the Server header of a response to an IPP get-printer-attributes request."),
+        "version_minor": Signed8BitInteger(doc="Minor component of IPP version listed in the Server header of a response to an IPP get-printer-attributes request."),
+        "version_string": String(doc="The specific IPP version returned in response to an IPP get-printer-attributes request. Always in the form 'IPP/x.y'", examples=["IPP/1.0", "IPP/2.1"]),
+        "cups_version": String(doc="The CUPS version, if any, specified in the Server header of an IPP get-attributes response.", examples=["CUPS/1.7", "CUPS/2.2"]),
         "attributes": ListOf(ipp_attribute),
-        "attr_cups_version": String(),
-        "attr_ipp_versions": ListOf(String()),
-        "attr_printer_uris": ListOf(String()),
+        "attr_cups_version": String(doc="The CUPS version, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Generally in the form 'x.y.z'.", examples=["1.7.5", "2.2.7"]),
+        "attr_ipp_versions": ListOf(String(doc="Each IPP version, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Always in the form 'x.y'.", examples=["1.0", "1.1", "2.0", "2.1"])),
+        "attr_printer_uris": ListOf(String(doc="Each printer URI, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Uses ipp(s) or http(s) scheme, followed by a hostname or IP, and then the path to a particular printer.", examples=["ipp://201.6.251.191:631/printers/Etiqueta", "ipp://10.171.177.130/printer", "http://163.212.253.14/ipp", "ipp://BRNB8763F84DD6A.local./ipp/port1"])),
         "response": http_response_full,
         "cups_response": http_response_full,
         "tls": zgrab2.tls_log,
