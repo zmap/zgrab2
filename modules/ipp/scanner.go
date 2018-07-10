@@ -620,7 +620,7 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 // Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
 func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, time.Second*time.Duration(scanner.config.BaseFlags.Timeout))
+		outer, err := zgrab2.DialTimeoutConnection(net, addr, scanner.config.BaseFlags.Timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -661,7 +661,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
 	transport.DialTLS = newScan.getTLSDialer(scanner)
-	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(time.Duration(scanner.config.Timeout) * time.Second).DialContext
+	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.BaseFlags.Timeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
