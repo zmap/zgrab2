@@ -88,7 +88,7 @@ type Flags struct {
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	TLSRetry     bool   `long:"tls-retry" description:"If the initial request using TLS fails, reconnect and try using plaintext IPP."`
+	TLSRetry     bool   `long:"ipps-retry" description:"If the initial request using TLS fails, reconnect and try using plaintext IPP."`
 
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
