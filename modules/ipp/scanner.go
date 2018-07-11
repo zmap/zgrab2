@@ -391,7 +391,7 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
 	for _, attr := range scan.results.Attributes {
-		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
+		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" && len(attr.Values) > 0 {
 			scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
 		}
 		if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
@@ -399,7 +399,7 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 			}
 		}
-		if attr.Name == PrinterURISupported {
+		if attr.Name == PrinterURISupported && len(attr.Values) > 0 {
 			scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
 		}
 	}
