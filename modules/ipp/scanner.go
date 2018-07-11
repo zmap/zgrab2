@@ -69,7 +69,7 @@ type ScanResults struct {
 	VersionString string `json:"version_string,omitempty"`
 	CUPSVersion   string `json:"cups_version,omitempty"`
 
-	Attributes           []*Attribute `json:"attributes,omitempty" zgrab:"debug"`
+	Attributes           []*Attribute `json:"attributes,omitempty"`
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
 	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
