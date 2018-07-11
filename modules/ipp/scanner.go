@@ -727,7 +727,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
-		if err.Status == zgrab2.SCAN_APPLICATION_ERROR || err.Status == zgrab2.SCAN_PROTOCOL_ERROR {
+		if err.Err == ErrVersionNotSupported || err.Status == zgrab2.SCAN_PROTOCOL_ERROR {
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.TLSRetry && !scanner.config.IPPSecure {
