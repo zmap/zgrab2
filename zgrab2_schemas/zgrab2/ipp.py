@@ -193,14 +193,14 @@ ipp_scan_response = SubRecord({
         "version_minor": Signed8BitInteger(doc="Minor component of IPP version listed in the Server header of a response to an IPP get-printer-attributes request."),
         "version_string": String(doc="The specific IPP version returned in response to an IPP get-printer-attributes request. Always in the form 'IPP/x.y'", examples=["IPP/1.0", "IPP/2.1"]),
         "cups_version": String(doc="The CUPS version, if any, specified in the Server header of an IPP get-attributes response.", examples=["CUPS/1.7", "CUPS/2.2"]),
-        "attributes": ListOf(ipp_attribute),
+        "attributes": ListOf(ipp_attribute, doc="All IPP attributes included in any contentful responses obtained. Each has a name, list of values (potentially only one), and a tag denoting how the value should be interpreted."),
         "attr_cups_version": String(doc="The CUPS version, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Generally in the form 'x.y.z'.", examples=["1.7.5", "2.2.7"]),
-        "attr_ipp_versions": ListOf(String(doc="Each IPP version, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Always in the form 'x.y'.", examples=["1.0", "1.1", "2.0", "2.1"])),
-        "attr_printer_uris": ListOf(String(doc="Each printer URI, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Uses ipp(s) or http(s) scheme, followed by a hostname or IP, and then the path to a particular printer.", examples=["ipp://201.6.251.191:631/printers/Etiqueta", "ipp://10.171.177.130/printer", "http://163.212.253.14/ipp", "ipp://BRNB8763F84DD6A.local./ipp/port1"])),
+        "attr_ipp_versions": ListOf(String(), doc="Each IPP version, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Always in the form 'x.y'.", examples=["1.0", "1.1", "2.0", "2.1"]),
+        "attr_printer_uris": ListOf(String(), doc="Each printer URI, if any, specified in the list of attributes returned in a get-printer-attributes response or CUPS-get-printers response. Uses ipp(s) or http(s) scheme, followed by a hostname or IP, and then the path to a particular printer.", examples=["ipp://201.6.251.191:631/printers/Etiqueta", "http://163.212.253.14/ipp", "ipp://BRNB8763F84DD6A.local./ipp/port1"]),
         "response": http_response_full,
         "cups_response": http_response_full,
         "tls": zgrab2.tls_log,
-        "redirect_response_chain": ListOf(http_response_full),
+        "redirect_response_chain": ListOf(http_response_full, doc="Each response returned while following a series of redirects."),
     })
 }, extends=zgrab2.base_scan_response)
 
