@@ -62,7 +62,7 @@ type ScanResults struct {
 
 	// RedirectResponseChain is non-empty if the scanner follows a redirect.
 	// It contains all redirect responses prior to the final response.
-	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
+	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty" zgrab:"debug"`
 
 	MajorVersion  *int8  `json:"version_major,omitempty"`
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
