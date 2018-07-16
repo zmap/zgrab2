@@ -62,7 +62,7 @@ type ScanResults struct {
 
 	// RedirectResponseChain is non-empty if the scanner follows a redirect.
 	// It contains all redirect responses prior to the final response.
-	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
+	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty" zgrab:"debug"`
 
 	MajorVersion  *int8  `json:"version_major,omitempty"`
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
@@ -391,7 +391,7 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
 	for _, attr := range scan.results.Attributes {
-		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" {
+		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" && len(attr.Values) > 0 {
 			scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
 		}
 		if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
@@ -399,7 +399,7 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 			}
 		}
-		if attr.Name == PrinterURISupported {
+		if attr.Name == PrinterURISupported && len(attr.Values) > 0 {
 			scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
 		}
 	}
@@ -727,7 +727,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
-		if err.Status == zgrab2.SCAN_APPLICATION_ERROR || err.Status == zgrab2.SCAN_PROTOCOL_ERROR {
+		if err.Err == ErrVersionNotSupported || err.Status == zgrab2.SCAN_PROTOCOL_ERROR {
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.TLSRetry && !scanner.config.IPPSecure {
