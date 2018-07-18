@@ -155,6 +155,9 @@ http_response_full = SubRecord({
 # Note: value-tag values are camelCase because the names are specified that way in RFC
 ipp_attribute_value = SubRecord({
     "raw": Binary(),
+    "unsupported": Boolean(),
+    "unknown": Boolean(),
+    "no-value": Boolean(),
     "integer": Signed32BitInteger(),
     "boolean": Boolean(),
     "enum": String(),
