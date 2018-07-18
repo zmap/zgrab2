@@ -207,7 +207,7 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	return b
 }
 
-type AttributeValue struct {
+type AttrValue struct {
 	Bytes []byte `json:"raw,omitempty"`
 	// TODO: Figure out whether to add a value that reports out-of-bound values?
 	Unsupported bool `json:"unsupported,omitempty"`
@@ -241,7 +241,7 @@ type AttributeValue struct {
 
 type Attribute struct {
 	Name string    `json:"name,omitempty"`
-	Values []AttributeValue `json:"values,omitempty"`
+	Values []AttrValue `json:"values,omitempty"`
 	ValueTag byte  `json:"tag,omitempty"`
 }
 
@@ -258,12 +258,12 @@ type IPPTime struct {
 	MinutesFromUTC byte
 }
 
-var Parse = map[byte]func(*AttributeValue) {
+var Parse = map[byte]func(*AttrValue) {
 	/*0x10:
 	0x12:
 	0x13:*/
 	// integer
-	0x21: func(val *AttributeValue) {
+	0x21: func(val *AttrValue) {
 		buf := bytes.NewBuffer(val.Bytes)
 		var i int32
 		if err := binary.Read(buf, binary.BigEndian, &i); err != nil {
@@ -276,7 +276,7 @@ var Parse = map[byte]func(*AttributeValue) {
 		val.Integer = &i
 	},
 	// boolean
-	0x22: func(val *AttributeValue) {
+	0x22: func(val *AttrValue) {
 		if len(val.Bytes) == 1 {
 			var truth bool
 			switch val.Bytes[0] {
@@ -289,16 +289,16 @@ var Parse = map[byte]func(*AttributeValue) {
 		}
 	},
 	// enum
-	0x23: func(val *AttributeValue) {
+	0x23: func(val *AttrValue) {
 		// TODO: Implement
 	},
 	// octetString
-	0x30: func(val *AttributeValue) {
+	0x30: func(val *AttrValue) {
 		// TODO: Seems like doing nothing for octetStrings is more appropriate, since they're analogous to the raw byte string
 		// TODO: Implement
 	},
 	// dateTime
-	0x31: func(val *AttributeValue) {
+	0x31: func(val *AttrValue) {
 		buf := bytes.NewBuffer(val.Bytes)
 		t := &IPPTime{}
 		if err := binary.Read(buf, binary.BigEndian, t); err != nil {
@@ -461,7 +461,7 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 				return attrs, detectReadBodyError(err)
 			}
 			bytesRead += int(length)
-			attr.Values = append(attr.Values, AttributeValue{Bytes: val})
+			attr.Values = append(attr.Values, AttrValue{Bytes: val})
 		}
 
 		// Read in the following tag to be assessed at the next iteration's start
