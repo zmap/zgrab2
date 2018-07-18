@@ -206,7 +206,7 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	return b
 }
 
-type Value struct {
+type AttributeValue struct {
 	Bytes []byte `json:"raw,omitempty"`
 	// TODO: Figure out whether to add a value that reports out-of-bound values?
 	Unsupported bool `json:"unsupported,omitempty"`
@@ -240,7 +240,7 @@ type Value struct {
 
 type Attribute struct {
 	Name string    `json:"name,omitempty"`
-	Values []Value `json:"values,omitempty"`
+	Values []AttributeValue `json:"values,omitempty"`
 	ValueTag byte  `json:"tag,omitempty"`
 }
 
@@ -378,7 +378,7 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 				return attrs, detectReadBodyError(err)
 			}
 			bytesRead += int(length)
-			attr.Values = append(attr.Values, Value{Bytes: val})
+			attr.Values = append(attr.Values, AttributeValue{Bytes: val})
 		}
 
 		// Read in the following tag to be assessed at the next iteration's start
