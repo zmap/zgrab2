@@ -208,6 +208,34 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 
 type Value struct {
 	Bytes []byte `json:"raw,omitempty"`
+	// TODO: Figure out whether to add a value that reports out-of-bound values?
+	Unsupported bool `json:"unsupported,omitempty"`
+	Unknown bool `json:"unknown,omitempty"`
+	NoValue bool `json:"no-value,omitempty"`
+	Integer int `json:"integer,omitempty"`
+	Boolean *bool `json:"boolean,omitempty"`
+	Enum string `json:"enum,omitempty"`
+	OctetString []byte `json:"octetString,omitempty"`
+	Date *time.Time `json:"dateTime,omitempty"`
+	// TODO: Pick a relevant type
+	Resolution []byte `json:"resolution,omitempty"`
+	// TODO: Pick a relevant type
+	Range []byte `json:"rangeOfInteger,omitempty"`
+	// TODO: Pick a relevant type
+	Begin []byte `json:"begCollection,omitempty"`
+	Text string `json:"textWithLanguage,omitempty"`
+	Name string `json:"nameWithLanguage,omitempty"`
+	// TODO: Pick a relevant type
+	End []byte `json:"endCollection,omitempty"`
+	TextNoLang string `json:"textWithoutLanguage,omitempty"`
+	NameNoLang string `json:"nameWithoutLanguage,omitempty"`
+	Keyword string `json:"keyword,omitempty"`
+	URI string `json:"uri,omitempty"`
+	Scheme string `json:"uriScheme,omitempty"`
+	Charset string `json:"charset,omitempty"`
+	Lang string `json:"naturalLanguage,omitempty"`
+	MimeType string `json:"mimeMediaType,omitempty"`
+	MemberName string `json:"memberAttrName,omitempty"`
 }
 
 type Attribute struct {
