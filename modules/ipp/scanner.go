@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -244,6 +245,88 @@ type Attribute struct {
 	ValueTag byte  `json:"tag,omitempty"`
 }
 
+// TODO: Re-architect s.t. this always loops over all values, and then runs a function in a map indexed by bytes
+func (attr *Attribute) parseValues() {
+	switch attr.ValueTag {
+	case 0x10:
+
+	case 0x12:
+
+	case 0x13:
+
+		// integer
+	case 0x21:
+		for _, val := range attr.Values {
+			if err := binary.Read(bytes.NewBuffer(val.Bytes), binary.BigEndian, &val.Integer); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"attribute":  attr.Name,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data from attribute with error.")
+			}
+		}
+		// boolean
+	case 0x22:
+		for i, _ := range attr.Values {
+			val := &attr.Values[i]
+			if len(val.Bytes) == 1 {
+				var truth bool
+				switch val.Bytes[0] {
+				case 0x00:
+					truth = false
+				case 0x01:
+					truth = true
+				}
+				val.Boolean = &truth
+			}
+		}
+		// enum
+	case 0x23:
+		// TODO: Implement
+		// octetString
+	case 0x30:
+		// TODO: Seems like doing nothing for octetStrings is more appropriate, since they're analogous to the raw byte string
+		// TODO: Implement
+		// dateTime
+	case 0x31:
+		type Time struct {
+			Year uint16
+			Month byte
+			Day byte
+			Hour byte
+			Minutes byte
+			Seconds byte
+			Deciseconds byte
+			DirectionFromUTC byte
+			HoursFromUTC byte
+			MinutesFromUTC byte
+		}
+		for i, _ := range attr.Values {
+			val := &attr.Values[i]
+			buf := bytes.NewBuffer(val.Bytes)
+			t := &Time{}
+			if err := binary.Read(buf, binary.BigEndian, t); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"attribute":  attr.Name,
+					"tag": attr.ValueTag,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data from attribute with error.")
+				continue
+			}
+			// Seconds East of UTC
+			// + -> East
+			// - -> West
+			secondsEast := int(t.DirectionFromUTC) * 60 * (int(t.MinutesFromUTC) + (60 * int(t.HoursFromUTC)))
+			loc := time.FixedZone("", secondsEast)
+			// TODO: Determine whether to convert to UTC, since
+			date := time.Date(int(t.Year), time.Month(t.Month), int(t.Day), int(t.Hour), int(t.Minutes), int(t.Seconds), int(t.Deciseconds) * 1e8, loc).UTC()
+			val.Date = &date
+		}
+
+	}
+}
+
 func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 	if soFar + length > size {
 		// Size should never exceed upperBound in practice because of truncation, but this is more general
@@ -415,6 +498,9 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 			"error": err,
 			"body":  resp.BodyText,
 		}).Debug("Failed to read attributes from body with error.")
+	}
+	for _, attr := range attrs {
+		attr.parseValues()
 	}
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
