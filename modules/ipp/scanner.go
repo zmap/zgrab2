@@ -259,9 +259,12 @@ type IPPTime struct {
 }
 
 var Parse = map[byte]func(*AttrValue) {
+	// Out-of-Band Values
 	/*0x10:
 	0x12:
 	0x13:*/
+
+	// Integer Tags
 	// integer
 	0x21: func(val *AttrValue) {
 		buf := bytes.NewBuffer(val.Bytes)
@@ -292,6 +295,8 @@ var Parse = map[byte]func(*AttrValue) {
 	0x23: func(val *AttrValue) {
 		// TODO: Implement
 	},
+
+	// octetString Tags
 	// octetString
 	0x30: func(val *AttrValue) {
 		// TODO: Seems like doing nothing for octetStrings is more appropriate, since they're analogous to the raw byte string
@@ -316,6 +321,68 @@ var Parse = map[byte]func(*AttrValue) {
 		// TODO: Determine whether to convert to UTC, since
 		date := time.Date(int(t.Year), time.Month(t.Month), int(t.Day), int(t.Hour), int(t.Minutes), int(t.Seconds), int(t.Deciseconds) * 1e8, loc).UTC()
 		val.Date = &date
+	},
+	// resolution
+	0x32: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// rangeOfInteger
+	0x33: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// begCollection
+	0x34: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// textWithLanguage
+	0x35: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// nameWithLanguage
+	0x36: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// endCollection
+	0x37: func(val *AttrValue) {
+		// TODO: Implement
+	},
+
+	// String Tags
+	// textWithoutLanguage
+	0x41: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// nameWithoutLanguage
+	0x42: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// keyword
+	0x44: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// uri
+	0x45: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// uriScheme
+	0x46: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// charset
+	0x47: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// naturalLanguage
+	0x48: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// mimeMediaType
+	0x49: func(val *AttrValue) {
+		// TODO: Implement
+	},
+	// memberAttrName
+	0x4a: func(val *AttrValue) {
+		// TODO: Implement
 	},
 }
 
