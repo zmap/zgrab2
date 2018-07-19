@@ -21,6 +21,13 @@ type IPPTime struct {
 	MinutesFromUTC byte
 }
 
+type Resolution struct {
+	XFeed int32 `json:"cross-feed-direction"`
+	Feed int32 `json:"feed-direction"`
+	Unit string `json:"unit"`
+
+}
+
 type RangeOfInteger struct {
 	Min int32 `json:"min"`
 	Max int32 `json:"max"`
@@ -108,8 +115,40 @@ func getParse(b byte) func(*AttrValue) {
 		}
 	// resolution
 	case b == 0x32:
+		// TODO: Test this with clever input
 		return func(val *AttrValue) {
-			// TODO: Implement
+			buf := bytes.NewBuffer(val.Bytes)
+			res := &Resolution{}
+			if err := binary.Read(buf, binary.BigEndian, &res.XFeed); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			if err := binary.Read(buf, binary.BigEndian, &res.Feed); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			var unit int8
+			if err := binary.Read(buf, binary.BigEndian, &unit); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			// TODO: Change this to be an enumeration of possible values?
+			switch unit {
+			case 3:
+				res.Unit = "tenThousandsOfInches"
+			case 4:
+				res.Unit = "micrometers"
+			}
+			val.Resolution = res
 		}
 	// rangeOfInteger
 	case b == 0x33:
@@ -132,9 +171,9 @@ func getParse(b byte) func(*AttrValue) {
 		}
 	// textWithLanguage & nameWithLanguage
 	case b == 0x35 || b == 0x36:
+		// TODO: Test this with clever input
 		// TODO: Improve variable names greatly.
 		return func(val *AttrValue) {
-			// TODO: Implement
 			buf := bytes.NewBuffer(val.Bytes)
 			content := &StringWithLanguage{}
 			var length int16

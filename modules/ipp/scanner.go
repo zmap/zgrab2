@@ -218,8 +218,7 @@ type AttrValue struct {
 	Enum string `json:"enum,omitempty"`
 	OctetString []byte `json:"octetString,omitempty"`
 	Date *time.Time `json:"dateTime,omitempty"`
-	// TODO: Pick a relevant type
-	Resolution []byte `json:"resolution,omitempty"`
+	Resolution *Resolution `json:"resolution,omitempty"`
 	Range *RangeOfInteger `json:"rangeOfInteger,omitempty"`
 	// TODO: Pick a relevant type
 	Begin []byte `json:"begCollection,omitempty"`
@@ -271,6 +270,8 @@ func detectReadBodyError(err error) error {
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
 
+// TODO: Treat operation-attributes-group specially, since its charset and language, if specified,
+//       become the default for everything following
 /* An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
    https://tools.ietf.org/html/rfc8010#section-3.1.8)
 bytes name
