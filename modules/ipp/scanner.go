@@ -220,7 +220,6 @@ type AttrValue struct {
 	Date *time.Time `json:"dateTime,omitempty"`
 	// TODO: Pick a relevant type
 	Resolution []byte `json:"resolution,omitempty"`
-	// TODO: Pick a relevant type
 	Range *RangeOfInteger `json:"rangeOfInteger,omitempty"`
 	// TODO: Pick a relevant type
 	Begin []byte `json:"begCollection,omitempty"`

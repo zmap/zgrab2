@@ -125,6 +125,9 @@ var Parse = map[byte]func(*AttrValue) {
 	},
 
 // String Tags
+// TODO: Consolidate all string parsers into one function? Unless charset affects things.
+// TODO: Refactor s.t. if statements differentiate behavior, since these can all collapse into one handler
+// TODO: But particular comments might be worth separating them out
 	// TODO: This should be dependent upon charset somehow??
 	// textWithoutLanguage
 	0x41: func(val *AttrValue) {
@@ -137,23 +140,35 @@ var Parse = map[byte]func(*AttrValue) {
 	},
 	// keyword
 	0x44: func(val *AttrValue) {
+		// TODO: Maybe provide additional mappings from keywords to implementation-specific
+		//       choices for those keywords? Probably not.
 		// TODO: Implement
 	},
 	// uri
 	0x45: func(val *AttrValue) {
-		// TODO: Implement
+		// Valid URI's can only contain certain ascii characters, so there shouldn't be charset issues
+		// Source: RFC
+		// TODO: Max size of 1023 octets, but that's probably automatic by taking in that data
+		// TODO: Is there any problem with character set, encoding, or case-sensitivity
+		val.URI = string(val.Bytes)
 	},
 	// uriScheme
 	0x46: func(val *AttrValue) {
-		// TODO: Implement
+		// Max size of 63 octets
+		// TODO: Refer back to 0x45's function, since they should be the same
+		val.Scheme = string(val.Bytes)
 	},
 	// charset
 	0x47: func(val *AttrValue) {
-		// TODO: Implement
+		// Max size of 63 octets
+		val.Charset = string(val.Bytes)
 	},
 	// naturalLanguage
 	0x48: func(val *AttrValue) {
-		// TODO: Implement
+		// Restricted to A-Z,a-z,0-9,-, so there shouldn't be charset conflicts
+		// Source: RFC 5646 Section 7 https://tools.ietf.org/html/rfc5646#section-7
+		// TODO: Match legacy identifiers with modern equivalents? Doesn't seem to be necessary.
+		val.Lang = string(val.Bytes)
 	},
 	// mimeMediaType
 	0x49: func(val *AttrValue) {

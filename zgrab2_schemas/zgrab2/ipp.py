@@ -180,7 +180,7 @@ ipp_attribute_value = SubRecord({
     "textWithoutLanguage": String(),
     "nameWithoutLanguage": String(),
     "keyword": String(),
-    "uri": String(),
+    "uri": URI(),
     "uriScheme": String(),
     "charset": String(),
     "naturalLanguage": String(),
