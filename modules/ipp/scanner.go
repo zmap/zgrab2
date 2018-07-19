@@ -245,7 +245,7 @@ type Attribute struct {
 }
 
 func (attr *Attribute) parseValues() {
-	if parse, ok := Parse[attr.ValueTag]; ok {
+	if parse := getParse(attr.ValueTag); parse != nil {
 		for i, _ := range attr.Values {
 			parse(&attr.Values[i])
 		}
