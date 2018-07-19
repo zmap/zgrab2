@@ -221,15 +221,15 @@ type AttrValue struct {
 	// TODO: Pick a relevant type
 	Resolution []byte `json:"resolution,omitempty"`
 	// TODO: Pick a relevant type
-	Range []byte `json:"rangeOfInteger,omitempty"`
+	Range *RangeOfInteger `json:"rangeOfInteger,omitempty"`
 	// TODO: Pick a relevant type
 	Begin []byte `json:"begCollection,omitempty"`
-	Text string `json:"textWithLanguage,omitempty"`
-	Name string `json:"nameWithLanguage,omitempty"`
+	TextLang string `json:"textWithLanguage,omitempty"`
+	NameLang string `json:"nameWithLanguage,omitempty"`
 	// TODO: Pick a relevant type
 	End []byte `json:"endCollection,omitempty"`
-	TextNoLang string `json:"textWithoutLanguage,omitempty"`
-	NameNoLang string `json:"nameWithoutLanguage,omitempty"`
+	Text string `json:"textWithoutLanguage,omitempty"`
+	Name string `json:"nameWithoutLanguage,omitempty"`
 	Keyword string `json:"keyword,omitempty"`
 	URI string `json:"uri,omitempty"`
 	Scheme string `json:"uriScheme,omitempty"`

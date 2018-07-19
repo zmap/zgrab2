@@ -21,6 +21,11 @@ type IPPTime struct {
 	MinutesFromUTC byte
 }
 
+type RangeOfInteger struct {
+	Min int32 `json:"min"`
+	Max int32 `json:"max"`
+}
+
 var Parse = map[byte]func(*AttrValue) {
 // Out-of-Band Values
 	/*0x10:
@@ -81,7 +86,7 @@ var Parse = map[byte]func(*AttrValue) {
 		// - -> West
 		secondsEast := int(t.DirectionFromUTC) * 60 * (int(t.MinutesFromUTC) + (60 * int(t.HoursFromUTC)))
 		loc := time.FixedZone("", secondsEast)
-		// TODO: Determine whether to convert to UTC, since
+		// TODO: Determine whether to convert to UTC, since the end result will become UTC regardless in python
 		date := time.Date(int(t.Year), time.Month(t.Month), int(t.Day), int(t.Hour), int(t.Minutes), int(t.Seconds), int(t.Deciseconds) * 1e8, loc).UTC()
 		val.Date = &date
 	},
@@ -91,7 +96,16 @@ var Parse = map[byte]func(*AttrValue) {
 	},
 	// rangeOfInteger
 	0x33: func(val *AttrValue) {
-		// TODO: Implement
+		buf := bytes.NewBuffer(val.Bytes)
+		r := &RangeOfInteger{}
+		if err := binary.Read(buf, binary.BigEndian, r); err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+				"data": val.Bytes,
+			}).Debug("Failed to interpret data with error.")
+			return
+		}
+		val.Range = r
 	},
 	// begCollection
 	0x34: func(val *AttrValue) {
@@ -111,9 +125,11 @@ var Parse = map[byte]func(*AttrValue) {
 	},
 
 // String Tags
+	// TODO: This should be dependent upon charset somehow??
 	// textWithoutLanguage
 	0x41: func(val *AttrValue) {
 		// TODO: Implement
+
 	},
 	// nameWithoutLanguage
 	0x42: func(val *AttrValue) {

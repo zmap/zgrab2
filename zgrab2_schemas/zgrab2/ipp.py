@@ -147,6 +147,11 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
+range_of_integer = SubRecord({
+    "min": Signed32BitInteger(),
+    "max": Signed32BitInteger(),
+})
+
 # TODO: Determine whether value-tag types with same underlying form should have a different name in this mapping
 # TODO: Add method to decode these values appropriately. Encoding of different tag's attribute values specified
 # in Table 7 of RFC 8010 Section 3.9 (https://tools.ietf.org/html/rfc8010#section-3.9)
@@ -165,7 +170,6 @@ ipp_attribute_value = SubRecord({
     "dateTime": DateTime(),
     # TODO: Determine appropriate type for resolution
     "resolution": Binary(),
-    # TODO: Determine appropriate type for range of Integers (probably {min, max} pair)
     "rangeOfInteger": Binary(),
     # TODO: Determine appropriate type for beginning of attribute collection
     "begCollection": Binary(),
