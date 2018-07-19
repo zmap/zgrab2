@@ -26,6 +26,11 @@ type RangeOfInteger struct {
 	Max int32 `json:"max"`
 }
 
+type StringWithLanguage struct {
+	Lang string `json:"language"`
+	String string `json:"stringWithoutLanguage"`
+}
+
 func getParse(b byte) func(*AttrValue) {
 	switch {
 // Out-of-Band Values
@@ -125,15 +130,55 @@ func getParse(b byte) func(*AttrValue) {
 		return func(val *AttrValue) {
 			// TODO: Implement
 		}
-	// textWithLanguage
-	case b == 0x35:
+	// textWithLanguage & nameWithLanguage
+	case b == 0x35 || b == 0x36:
+		// TODO: Improve variable names greatly.
 		return func(val *AttrValue) {
 			// TODO: Implement
-		}
-	// nameWithLanguage
-	case b == 0x36:
-		return func(val *AttrValue) {
-			// TODO: Implement
+			buf := bytes.NewBuffer(val.Bytes)
+			content := &StringWithLanguage{}
+			var length int16
+			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			lang := make([]byte, length)
+			if err := binary.Read(buf, binary.BigEndian, &lang); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			content.Lang = string(lang)
+			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			s := make([]byte, length)
+			if err := binary.Read(buf, binary.BigEndian, &s); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+					"data": val.Bytes,
+				}).Debug("Failed to interpret data with error.")
+				return
+			}
+			content.String = string(s)
+
+			var target **StringWithLanguage
+			switch b {
+			case 0x35:
+				target = &val.TextLang
+			case 0x36:
+				target = &val.NameLang
+			}
+			*target = content
 		}
 	// endCollection
 	case b == 0x37:

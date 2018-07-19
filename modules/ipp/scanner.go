@@ -223,8 +223,8 @@ type AttrValue struct {
 	Range *RangeOfInteger `json:"rangeOfInteger,omitempty"`
 	// TODO: Pick a relevant type
 	Begin []byte `json:"begCollection,omitempty"`
-	TextLang string `json:"textWithLanguage,omitempty"`
-	NameLang string `json:"nameWithLanguage,omitempty"`
+	TextLang *StringWithLanguage `json:"textWithLanguage,omitempty"`
+	NameLang *StringWithLanguage `json:"nameWithLanguage,omitempty"`
 	// TODO: Pick a relevant type
 	End []byte `json:"endCollection,omitempty"`
 	Text string `json:"textWithoutLanguage,omitempty"`
