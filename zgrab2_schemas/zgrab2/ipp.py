@@ -147,9 +147,20 @@ http_response_full = SubRecord({
     "request": http_request_full
 })
 
+resolution = SubRecord({
+    "cross-feed-direction": Signed32BitInteger(),
+    "feed-direction": Signed32BitInteger(),
+    "unit": String(),
+})
+
 range_of_integer = SubRecord({
     "min": Signed32BitInteger(),
     "max": Signed32BitInteger(),
+})
+
+string_with_language = SubRecord({
+    "language": String(),
+    "stringWithoutLanguage": String(),
 })
 
 # TODO: Determine whether value-tag types with same underlying form should have a different name in this mapping
@@ -159,7 +170,7 @@ range_of_integer = SubRecord({
 # From RFC 8010 Section 3.5.2 (https://tools.ietf.org/html/rfc8010#section-3.5.2)
 # Note: value-tag values are camelCase because the names are specified that way in RFC
 ipp_attribute_value = SubRecord({
-    "raw": Binary(),
+    "base64": Binary(),
     "unsupported": Boolean(),
     "unknown": Boolean(),
     "no-value": Boolean(),
@@ -168,13 +179,12 @@ ipp_attribute_value = SubRecord({
     "enum": String(),
     "octetString": Binary(),
     "dateTime": DateTime(),
-    # TODO: Determine appropriate type for resolution
-    "resolution": Binary(),
-    "rangeOfInteger": Binary(),
+    "resolution": resolution,
+    "rangeOfInteger": range_of_integer,
     # TODO: Determine appropriate type for beginning of attribute collection
     "begCollection": Binary(),
-    "textWithLanguage": String(),
-    "nameWithLanguage": String(),
+    "textWithLanguage": string_with_language,
+    "nameWithLanguage": string_with_language,
     # TODO: Determine appropriate type for end of attribute collection
     "endCollection": Binary(),
     "textWithoutLanguage": String(),

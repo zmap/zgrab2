@@ -38,6 +38,7 @@ type StringWithLanguage struct {
 	String string `json:"stringWithoutLanguage"`
 }
 
+// TODO: Move buf := bytes.NewBuffer declaration to the top of this function, rather than repeating EVERYWHERE
 func getParse(b byte) func(*AttrValue) {
 	switch {
 // Out-of-Band Values
@@ -90,7 +91,8 @@ func getParse(b byte) func(*AttrValue) {
 	// octetString
 	case b == 0x30:
 		return func(val *AttrValue) {
-			// TODO: Implement
+			// TODO: Figure out the best way to implement
+			val.OctetString = val.Bytes
 		}
 	// dateTime
 	case b == 0x31:
@@ -115,7 +117,16 @@ func getParse(b byte) func(*AttrValue) {
 		}
 	// resolution
 	case b == 0x32:
-		// TODO: Test this with clever input
+		// TODO: Test this with varied input
+		/* A resolution attribute's value contains the following data
+		   (as specified in RFC 8010 Section 3.9 Table 7 https://tools.ietf.org/html/rfc8010#section-3.9)
+		bytes name
+		----------------------------
+		4     cross-feed direction resolution
+		4     feed direction resolution
+		1     unit (enum where 3 means ten-thousandths of inches and 4 means micrometers)
+		----------------------------
+		*/
 		return func(val *AttrValue) {
 			buf := bytes.NewBuffer(val.Bytes)
 			res := &Resolution{}
@@ -141,10 +152,9 @@ func getParse(b byte) func(*AttrValue) {
 				}).Debug("Failed to interpret data with error.")
 				return
 			}
-			// TODO: Change this to be an enumeration of possible values?
 			switch unit {
 			case 3:
-				res.Unit = "tenThousandsOfInches"
+				res.Unit = "tenThousandthsOfInches"
 			case 4:
 				res.Unit = "micrometers"
 			}
@@ -152,6 +162,8 @@ func getParse(b byte) func(*AttrValue) {
 		}
 	// rangeOfInteger
 	case b == 0x33:
+		// A rangeOfInteger contains a minimum value followed by a maximum value
+		// (both signed 32-bit integers) which represent an inclusive range
 		return func(val *AttrValue) {
 			buf := bytes.NewBuffer(val.Bytes)
 			r := &RangeOfInteger{}
@@ -171,11 +183,20 @@ func getParse(b byte) func(*AttrValue) {
 		}
 	// textWithLanguage & nameWithLanguage
 	case b == 0x35 || b == 0x36:
-		// TODO: Test this with clever input
-		// TODO: Improve variable names greatly.
+		// TODO: Test this with varied input
+		/* A (text/name)WithLanguage attribute's value contains the following data
+		   (as specified in RFC 8010 Section 3.9 Table 7 https://tools.ietf.org/html/rfc8010#section-3.9)
+		bytes name
+		----------------------------
+		2     language-length = u
+		u     language
+		2     (text/name)-length = v
+		v     (text/name)
+		----------------------------
+		*/
 		return func(val *AttrValue) {
 			buf := bytes.NewBuffer(val.Bytes)
-			content := &StringWithLanguage{}
+			result := &StringWithLanguage{}
 			var length int16
 			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
 				log.WithFields(log.Fields{
@@ -184,15 +205,15 @@ func getParse(b byte) func(*AttrValue) {
 				}).Debug("Failed to interpret data with error.")
 				return
 			}
-			lang := make([]byte, length)
-			if err := binary.Read(buf, binary.BigEndian, &lang); err != nil {
+			language := make([]byte, length)
+			if err := binary.Read(buf, binary.BigEndian, &language); err != nil {
 				log.WithFields(log.Fields{
 					"error": err,
 					"data": val.Bytes,
 				}).Debug("Failed to interpret data with error.")
 				return
 			}
-			content.Lang = string(lang)
+			result.Lang = string(language)
 			if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
 				log.WithFields(log.Fields{
 					"error": err,
@@ -200,15 +221,15 @@ func getParse(b byte) func(*AttrValue) {
 				}).Debug("Failed to interpret data with error.")
 				return
 			}
-			s := make([]byte, length)
-			if err := binary.Read(buf, binary.BigEndian, &s); err != nil {
+			str := make([]byte, length)
+			if err := binary.Read(buf, binary.BigEndian, &str); err != nil {
 				log.WithFields(log.Fields{
 					"error": err,
 					"data": val.Bytes,
 				}).Debug("Failed to interpret data with error.")
 				return
 			}
-			content.String = string(s)
+			result.String = string(str)
 
 			var target **StringWithLanguage
 			switch b {
@@ -217,7 +238,7 @@ func getParse(b byte) func(*AttrValue) {
 			case 0x36:
 				target = &val.NameLang
 			}
-			*target = content
+			*target = result
 		}
 	// endCollection
 	case b == 0x37:
