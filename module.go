@@ -70,11 +70,8 @@ type BaseFlags struct {
 }
 
 type HTTPFlags struct {
-	// TODO: Add explanation of flag.
-	Credentials map[string]string `long:"host-creds" description:"A string of the form \"hostname\":\"username:password\" which specifies credentials that should be used to authenticate to the given host."`
-
-	// TODO: Add explanation of flag.
-	CredsFile string `long:"creds-file" description:"Specify path and name of file which contains one (host, credentials) pair per line of the form <hostname username:password> (without the surrounding brackets)."`
+	Credentials map[string]string `long:"creds" description:"Specify a hostname and credentials for authenticating to it. Provide in the form \"hostname\":\"username:password\". Multiple can be specified."`
+	CredsFile string `long:"creds-file" description:"Specify path to file which contains one {host, credentials} pair per line, each of the form \"hostname<space>username:password\" (without quotations)."`
 }
 
 // UDPFlags contains the common options used for all UDP scans

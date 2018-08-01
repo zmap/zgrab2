@@ -2,7 +2,7 @@ package httpauth
 
 import (
 	"bufio"
-	"fmt"
+	//"fmt"
 	"os"
 	"strings"
 
@@ -17,31 +17,34 @@ type credential struct {
 	Username, Password string
 }
 
-func ReadFile(filename string) (*map[string]string, error) {
-	result := make(map[string]string)
+func ReadCreds(filename string) (*map[string]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		// TODO: Make an actual error message for this.
+		// TODO: Log with the correct logger and settle on a proper message for this. (ie: include filename)
 		log.Warn("Couldn't open credentials file.")
 		return nil, err
 	}
 
+	creds := make(map[string]string)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// TODO: Add special case here for if the line starts with a character
-		// which has meaning for my planned group feature's semantics
+		// TODO: Future: Add special case here for if the line starts with a character which has meaning in my planned grouping feature
 		parts := strings.Split(line, " ")
 		host := parts[0]
+		// Preserve any spaces in username:password by combining everything after
+		// first space (particularly because spaces are legal in Basic Auth passwords)
 		var userpass string
 		if len(parts) > 1 {
 			userpass = strings.Join(parts[1:], " ")
 		}
-		result[host] = userpass
+		creds[host] = userpass
 	}
-	return &result, nil
+	return &creds, nil
 }
 
+// TODO: Consider maintaining global state to prevent preparing host:cred map multiple times and potentially
+	// overwriting entries. (Also, decide on a policy for which option can override which).
 // TODO: Add quite a bit of parsing in order to one day support things like wildcards, IP ranges, etc.
 	// Though it's possible those are undesirable features because effective auth
 	// practices result in large swathes of machines NOT sharing credentials
@@ -62,14 +65,13 @@ func Prepare(mapping *map[string]string) {
 	for host, userpass := range *mapping {
 		creds := strings.Split(userpass, ":")
 		user := creds[0]
+		// Preserve any colons in password by combining everything after first colon
 		var pass string
 		if len(creds) > 1 {
 			pass = strings.Join(creds[1:], ":")
 		}
 		credentials[host] = &credential{Username: user, Password: pass}
 	}
-	// TODO: Remove this after I'm done writing the thing.
-	fmt.Printf("%q\n", credentials)
 }
 
 // TODO: Add a notion of whether to try to authenticate or not (to allow for hosts
