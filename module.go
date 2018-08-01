@@ -69,6 +69,14 @@ type BaseFlags struct {
 	Trigger string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
 }
 
+type HTTPFlags struct {
+	// TODO: Add explanation of flag.
+	Credentials map[string]string `long:"host-creds" description:"A string of the form \"hostname\":\"username:password\" which specifies credentials that should be used to authenticate to the given host."`
+
+	// TODO: Add explanation of flag.
+	CredsFile string `long:"creds-file" description:"Specify path and name of file which contains one (host, credentials) pair per line of the form <hostname username:password> (without the surrounding brackets)."`
+}
+
 // UDPFlags contains the common options used for all UDP scans
 type UDPFlags struct {
 	LocalPort    uint   `long:"local-port" description:"Set an explicit local port for UDP traffic"`

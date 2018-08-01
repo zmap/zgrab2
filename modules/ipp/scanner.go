@@ -82,6 +82,7 @@ type ScanResults struct {
 type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
+	zgrab2.HTTPFlags
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
 	//FIXME: Borrowed from http module, determine whether this is all needed

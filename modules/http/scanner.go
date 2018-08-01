@@ -37,6 +37,7 @@ var (
 type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
+	zgrab2.HTTPFlags
 	Method       string `long:"method" default:"GET" description:"Set HTTP request method type"`
 	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
