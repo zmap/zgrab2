@@ -10,14 +10,38 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var credentials map[string]*credential = make(map[string]*credential)
+var (
+	credentials map[string]*credential = make(map[string]*credential)
+	done bool = false
+)
 
 // TODO: Actually explain this.
 type credential struct {
 	Username, Password string
 }
 
-func ReadCreds(filename string) (*map[string]string, error) {
+// TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
+func Prepare(credsFilename *string, hostsToCreds *map[string]string) error {
+	if done {
+		return nil
+	}
+	var err error
+	// If a filename is specified, read from it.
+	if credsFilename != nil {
+		var fileHostsToCreds *map[string]string
+		fileHostsToCreds, err = readCreds(*credsFilename)
+		prepare(fileHostsToCreds)
+	}
+	// If pairs are specified on the comnand line, use them.
+	// Override any credentials specified for a host in a file with credentials specified in an explicit map.
+	if hostsToCreds != nil {
+		prepare(hostsToCreds)
+	}
+	done = true
+	return err
+}
+
+func readCreds(filename string) (*map[string]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		// TODO: Log with the correct logger and settle on a proper message for this. (ie: include filename)
@@ -43,8 +67,6 @@ func ReadCreds(filename string) (*map[string]string, error) {
 	return &creds, nil
 }
 
-// TODO: Consider maintaining global state to prevent preparing host:cred map multiple times and potentially
-	// overwriting entries. (Also, decide on a policy for which option can override which).
 // TODO: Add quite a bit of parsing in order to one day support things like wildcards, IP ranges, etc.
 	// Though it's possible those are undesirable features because effective auth
 	// practices result in large swathes of machines NOT sharing credentials
@@ -53,16 +75,17 @@ func ReadCreds(filename string) (*map[string]string, error) {
 	// really a matter of which makes more sense semantically.
 // TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
 // TODO: Determine whether preparing based on file flag or command line options should take precedence
-func Prepare(mapping *map[string]string) {
-	if mapping == nil {
-		// TODO: Log an actual error here
-		log.Warn("Passed in nil map to Prepare.")
+func prepare(hostsToCreds *map[string]string) {
+	if hostsToCreds == nil {
+		// TODO: Or just silently do nothing
+		// TODO: Return an actual error here
+		//log.Warn("Passed in nil map to prepare.")
 		return
 	}
-	if *mapping == nil {
-		*mapping = make(map[string]string)
+	if *hostsToCreds == nil {
+		*hostsToCreds = make(map[string]string)
 	}
-	for host, userpass := range *mapping {
+	for host, userpass := range *hostsToCreds {
 		creds := strings.Split(userpass, ":")
 		user := creds[0]
 		// Preserve any colons in password by combining everything after first colon
