@@ -10,35 +10,37 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	credentials map[string]*credential = make(map[string]*credential)
-	done bool = false
-)
+type Authenticator interface {
+	TrySetAuth(req *http.Request)
+}
+
+// Map from hosts to credential pointers. Shouldn't be accessed directly.
+type authenticator map[string]*credential
 
 // TODO: Actually explain this.
 type credential struct {
 	Username, Password string
 }
 
+// TODO: Determine whether comments should reference command line arguments,
+//       since this should be abstracted from that application of this package.
 // TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
-func Prepare(credsFilename *string, hostsToCreds *map[string]string) error {
-	if done {
-		return nil
-	}
+func NewAuthenticator(credsFilename *string, hostsToCreds *map[string]string) (*authenticator, error) {
+	auther := make(authenticator)
 	var err error
-	// If a filename is specified, read from it.
+	// If a filename is given, record all {host, username:password} pairs it specifies.
 	if credsFilename != nil {
 		var fileHostsToCreds *map[string]string
+		// The only possible error here would result from os.Open on file.
 		fileHostsToCreds, err = readCreds(*credsFilename)
-		prepare(fileHostsToCreds)
+		auther.populate(fileHostsToCreds)
 	}
-	// If pairs are specified on the comnand line, use them.
-	// Override any credentials specified for a host in a file with credentials specified in an explicit map.
+	// If pairs are explicitly specified as map[string]string, use them.
+	// Override any pairs specified in a file with those specified in explicit map.
 	if hostsToCreds != nil {
-		prepare(hostsToCreds)
+		auther.populate(hostsToCreds)
 	}
-	done = true
-	return err
+	return &auther, err
 }
 
 func readCreds(filename string) (*map[string]string, error) {
@@ -75,7 +77,7 @@ func readCreds(filename string) (*map[string]string, error) {
 	// really a matter of which makes more sense semantically.
 // TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
 // TODO: Determine whether preparing based on file flag or command line options should take precedence
-func prepare(hostsToCreds *map[string]string) {
+func (credentials authenticator) populate(hostsToCreds *map[string]string) {
 	if hostsToCreds == nil {
 		// TODO: Or just silently do nothing
 		// TODO: Return an actual error here
@@ -100,7 +102,7 @@ func prepare(hostsToCreds *map[string]string) {
 // TODO: Add a notion of whether to try to authenticate or not (to allow for hosts
 // that can't support auth), but maybe no auth ignores credentials just fine.
 // Sets auth if appropriate
-func TrySetAuth(req *http.Request) {
+func (credentials authenticator) TrySetAuth(req *http.Request) {
 	// TODO: Consider whether taking in https status would be a good precaution,
 		// in order to somehow warn about plaintext auth or implement safer defaults
 	// TODO: Take in either a target or just a host string as appropriate?
@@ -124,5 +126,5 @@ func TrySetAuth(req *http.Request) {
 	// TODO: Otherwise, assign default creds if those are specified
 }
 
-// Discrepencies between hostname and ip address
+// TODO: Handle discrepencies between hostname and ip address
 // Should probably be resolved by a DNS lookup? Or maybe mandate all input be IP's.
