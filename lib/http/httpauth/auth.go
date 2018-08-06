@@ -22,28 +22,26 @@ type credential struct {
 	Username, Password string
 }
 
-// TODO: Determine whether comments should reference command line arguments,
-//       since this should be abstracted from that application of this package.
 // TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
-func NewAuthenticator(credsFilename *string, hostsToCreds *map[string]string) (*authenticator, error) {
+func NewAuthenticator(credsFilename string, hostsToCreds map[string]string) (authenticator, error) {
 	auther := make(authenticator)
 	var err error
 	// If a filename is given, record all {host, username:password} pairs it specifies.
-	if credsFilename != nil {
-		var fileHostsToCreds *map[string]string
+	if credsFilename != "" {
+		var fileHostsToCreds map[string]string
 		// The only possible error here would result from os.Open on file.
-		fileHostsToCreds, err = readCreds(*credsFilename)
+		fileHostsToCreds, err = readCreds(credsFilename)
 		auther.populate(fileHostsToCreds)
 	}
-	// If pairs are explicitly specified as map[string]string, use them.
+	// If pairs are explicitly specified in a map[string]string, use them.
 	// Override any pairs specified in a file with those specified in explicit map.
 	if hostsToCreds != nil {
 		auther.populate(hostsToCreds)
 	}
-	return &auther, err
+	return auther, err
 }
 
-func readCreds(filename string) (*map[string]string, error) {
+func readCreds(filename string) (map[string]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		// TODO: Log with the correct logger and settle on a proper message for this. (ie: include filename)
@@ -66,28 +64,20 @@ func readCreds(filename string) (*map[string]string, error) {
 		}
 		creds[host] = userpass
 	}
-	return &creds, nil
+	return creds, nil
 }
 
 // TODO: Add quite a bit of parsing in order to one day support things like wildcards, IP ranges, etc.
 	// Though it's possible those are undesirable features because effective auth
 	// practices result in large swathes of machines NOT sharing credentials
-// TODO: Should HTTPS-use (or doom) be specified when setting up in the first place or for
+// TODO: Should whether to use TLS be specified when setting up in the first place or for
 	// each particular instance? Either way, it only needs to be passed in once. It's
 	// really a matter of which makes more sense semantically.
 // TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
-// TODO: Determine whether preparing based on file flag or command line options should take precedence
-func (credentials authenticator) populate(hostsToCreds *map[string]string) {
-	if hostsToCreds == nil {
-		// TODO: Or just silently do nothing
-		// TODO: Return an actual error here
-		//log.Warn("Passed in nil map to prepare.")
-		return
-	}
-	if *hostsToCreds == nil {
-		*hostsToCreds = make(map[string]string)
-	}
-	for host, userpass := range *hostsToCreds {
+// Subsequent calls to populate (only made from NewAuthenticator) will, if possible,
+// overwrite the result of previous calls.
+func (credentials authenticator) populate(hostsToCreds map[string]string) {
+	for host, userpass := range hostsToCreds {
 		creds := strings.Split(userpass, ":")
 		user := creds[0]
 		// Preserve any colons in password by combining everything after first colon
@@ -99,8 +89,6 @@ func (credentials authenticator) populate(hostsToCreds *map[string]string) {
 	}
 }
 
-// TODO: Add a notion of whether to try to authenticate or not (to allow for hosts
-// that can't support auth), but maybe no auth ignores credentials just fine.
 // Sets auth if appropriate
 func (credentials authenticator) TrySetAuth(req *http.Request) {
 	// TODO: Consider whether taking in https status would be a good precaution,
