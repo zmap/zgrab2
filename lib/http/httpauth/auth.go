@@ -15,7 +15,7 @@ type Authenticator interface {
 }
 
 // Map from hosts to credential pointers. Shouldn't be accessed directly.
-type authenticator map[string]*credential
+type basicAuthenticator map[string]*credential
 
 // TODO: Actually explain this.
 type credential struct {
@@ -23,8 +23,8 @@ type credential struct {
 }
 
 // TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
-func NewAuthenticator(credsFilename string, hostsToCreds map[string]string) (authenticator, error) {
-	auther := make(authenticator)
+func NewAuthenticator(credsFilename string, hostsToCreds map[string]string) (basicAuthenticator, error) {
+	auther := make(basicAuthenticator)
 	var err error
 	// If a filename is given, record all {host, username:password} pairs it specifies.
 	if credsFilename != "" {
@@ -76,7 +76,7 @@ func readCreds(filename string) (map[string]string, error) {
 // TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
 // Subsequent calls to populate (only made from NewAuthenticator) will, if possible,
 // overwrite the result of previous calls.
-func (credentials authenticator) populate(hostsToCreds map[string]string) {
+func (credentials basicAuthenticator) populate(hostsToCreds map[string]string) {
 	for host, userpass := range hostsToCreds {
 		creds := strings.Split(userpass, ":")
 		user := creds[0]
@@ -90,7 +90,7 @@ func (credentials authenticator) populate(hostsToCreds map[string]string) {
 }
 
 // Sets auth if appropriate
-func (credentials authenticator) TrySetAuth(req *http.Request) {
+func (credentials basicAuthenticator) TrySetAuth(req *http.Request) {
 	// TODO: Consider whether taking in https status would be a good precaution,
 		// in order to somehow warn about plaintext auth or implement safer defaults
 	// TODO: Take in either a target or just a host string as appropriate?
