@@ -23,6 +23,10 @@ import (
 	"time"
 )
 
+type Authenticator interface {
+	TryGetAuth(req *Request, resp *Response) string
+}
+
 // A Client is an HTTP client. Its zero value (DefaultClient) is a
 // usable client that uses DefaultTransport.
 //
@@ -106,6 +110,10 @@ type Client struct {
 
 	// HTTP User Agent header for an instantiated client
 	UserAgent string
+
+	// Object from http/auth package that provides an interface for setting
+	// the Authorization header on a given request
+	Authenticator Authenticator
 }
 
 // DefaultClient is the default Client and is used by Get, Head, and Post.
@@ -413,6 +421,27 @@ func (c *Client) checkRedirect(req *Request, res *Response, via []*Request) erro
 	return fn(req, res, via)
 }
 
+func (c *Client) shouldAuth(resp *Response) bool {
+	// TODO: Make sure to only return true if tls is needed
+	//       Can this be reliably determined from a Client and response?
+	//		 Maybe Authenticator can fill this role by a) not instantiating unless TLS is specified or b) carrying around state about TLS status
+	return resp.StatusCode == 401 || resp.StatusCode == 407
+}
+
+// TODO: Change the logic in Do() to feed that resulting request onto the queue to send
+func (c *Client) setAuth(resp *Response, req *Request) {
+	authHeader := c.Authenticator.TryGetAuth(req, resp)
+	fmt.Println("AuthHeader: " + authHeader)
+	switch resp.StatusCode {
+	case 401:
+		// should set Authorization header field
+		req.Header.Set("Authorization", authHeader)
+	case 407:
+		// should set Proxy-Authorization
+		req.Header.Set("Proxy-Authorization", authHeader)
+	}
+}
+
 // redirectBehavior describes what should happen when the
 // client encounters a 3xx status code from the server
 func redirectBehavior(reqMethod string, resp *Response, ireq *Request) (redirectMethod string, shouldRedirect, includeBody bool) {
@@ -614,6 +643,19 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 				}
 			}
 			return nil, uerr(err)
+		}
+
+		if c.shouldAuth(resp) {
+			c.setAuth(resp, req)
+			if resp, didTimeout, err = c.send(req, deadline); err != nil {
+				if !deadline.IsZero() && didTimeout() {
+					err = &httpError{
+						err:     err.Error() + " (Client.Timeout exceeded while awaiting headers)",
+						timeout: true,
+					}
+				}
+				return nil, uerr(err)
+			}
 		}
 
 		var shouldRedirect bool
