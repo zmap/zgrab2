@@ -11,7 +11,7 @@ import (
 )
 
 type Authenticator interface {
-	TrySetAuth(req *http.Request)
+	TryGetAuth(req *http.Request, resp *http.Response) string
 }
 
 // Map from hosts to credential pointers. Shouldn't be accessed directly.
@@ -89,8 +89,9 @@ func (credentials basicAuthenticator) populate(hostsToCreds map[string]string) {
 	}
 }
 
-// Sets auth if appropriate
-func (credentials basicAuthenticator) TrySetAuth(req *http.Request) {
+// TODO: Determine whether these args need to be pointers at all? Efficiency is a real contributor to that.
+// TODO: Figure out whether a method signature that doesn't rely on http for types is better or more versatile
+func (credentials basicAuthenticator) TryGetAuth(req *http.Request, resp *http.Response) string {
 	// TODO: Consider whether taking in https status would be a good precaution,
 		// in order to somehow warn about plaintext auth or implement safer defaults
 	// TODO: Take in either a target or just a host string as appropriate?
@@ -102,16 +103,23 @@ func (credentials basicAuthenticator) TrySetAuth(req *http.Request) {
 	// Otherwise, require the caller pass in the relevant hostname/ip
 	// If both are accepted, could list different creds for IP and hostname.
 		// Unclear how to resolve that conflict.
-	// Removes the port (after final colon) from the hostname in order to match the
-	// format used in the package-global map, "credentials"
-	parts := strings.Split(req.Host, ":")
-	hostname := strings.Join(parts[:len(parts)-1], ":")
+	hostname := req.Host
+	if strings.Contains(hostname, ":") {
+		// Removes the port (after final colon) from hostname in order to match the
+		// format used in credentials's keys
+		parts := strings.Split(hostname, ":")
+		hostname = strings.Join(parts[:len(parts)-1], ":")
+	}
+	// Explicitly declare Header so that it's a non-nil map that can be assigned to in .SetBasicAuth
+	temp := &http.Request{Header: make(http.Header)}
 	// TODO: Maybe act differently if host is empty
 	creds, ok := credentials[hostname]
 	if ok {
-		req.SetBasicAuth(creds.Username, creds.Password)
+		temp.SetBasicAuth(creds.Username, creds.Password)
 	}
 	// TODO: Otherwise, assign default creds if those are specified
+
+	return temp.Header.Get("Authorization")
 }
 
 // TODO: Handle discrepencies between hostname and ip address
