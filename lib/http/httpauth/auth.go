@@ -148,20 +148,41 @@ func (credentials basicAuthenticator) populate(hostsToCreds map[string]string) {
 // TODO: Improve names because "parts" is silly. Maybe it's not though. Also params
 func parseWwwAuth(header string) map[string]string {
 	parameters := make(map[string]string)
-	tokens := strings.Split(header, " ")
-	//scheme := tokens[0]
-	for _, token := range tokens[1:] {
-		parts := strings.Split(token, "=")
-		name := parts[0]
+	tokens := strings.Split(header, "=")
+	for i, token := range tokens[1:] {
+		prevParts := strings.Split(tokens[i], " ")
+		name := prevParts[len(prevParts)-1]
 		var value string
-		if len(parts) > 1 {
-			value = parts[1]
-			if value[len(value)-1:] == "," {
-				value = value[:len(value)-1]
+		if token[:1] == `"` {
+			parts := strings.Split(token, `"`)
+			value = strings.Join(parts[:len(parts)-1], `"`) + `"`
+		} else {
+			parts := strings.Split(token, " ")
+			if len(parts) > 1 {
+				value = strings.Join(parts[:len(parts)-1], " ")
 			}
+			value = parts[0]
+		}
+		if value[len(value)-1:] == "," {
+			value = value[:len(value)-1]
 		}
 		parameters[name] = value
 	}
+
+	//tokens := strings.Split(header, " ")
+	////scheme := tokens[0]
+	//for _, token := range tokens[1:] {
+	//	parts := strings.Split(token, "=")
+	//	name := parts[0]
+	//	var value string
+	//	if len(parts) > 1 {
+	//		value = parts[1]
+	//		if value[len(value)-1:] == "," {
+	//			value = value[:len(value)-1]
+	//		}
+	//	}
+	//	parameters[name] = value
+	//}
 	return parameters
 }
 
@@ -288,17 +309,22 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 
 		// According to request.go: "For client requests an empty [method] string means GET."
 		method := valueOrDefault(req.Method, "GET")
+		// TODO: Figure out whether there are circumstances in which this wouldn't work to get URI
 		requestURI := strings.Join(strings.Split(req.URL.String(), host)[1:], host)
-		fmt.Println("Claimed URI: " + req.RequestURI)
-		fmt.Println("Request URI: " + requestURI)
-		// TODO: Handle the fact that qop can be a comma-separated list of values.
-			// Right now it causes an issue of producing nonsense keys in parameters.
 		qop := valueOrDefault(params["qop"], "auth")
-		fmt.Println("QOP: " + qop)
+		qop = strings.Split(qop, ", ")[0]
+		// Restores end quote if it was cut off due to truncating a list of values.
+		if qop[len(qop)-1:] != `"` {
+			qop += `"`
+		}
 		// RFC 7616 Section 3.4.3 https://tools.ietf.org/html/rfc7616#section-3.4.3
 		var a2 string
 		a2Components := []string{method, requestURI}
 		if qop == "auth-int" {
+			// TODO: Determine whether this check is actually necessary.
+			if req.Body == nil {
+				return ""
+			}
 			bodyText, err := ioutil.ReadAll(req.Body)
 			// TODO: Actually error correctly
 			if err != nil {
