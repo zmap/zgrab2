@@ -2,6 +2,9 @@ package httpauth
 
 import (
 	"bufio"
+	"crypto/md5"
+	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -152,7 +155,7 @@ func parseWwwAuth(header string) map[string]string {
 		name := parts[0]
 		var value string
 		if len(parts) > 1 {
-			value := parts[1]
+			value = parts[1]
 			if value[len(value)-1:] == "," {
 				value = value[:len(value)-1]
 			}
@@ -204,16 +207,13 @@ func keyedDigest(h func(string) string, secret, data string) (hash string) {
 // TODO: Leverage hashing algorithms from crypto library
 var algorithms map[string]func(string) string = map[string]func(string) string{
 	"MD5": func(s string) string {
-		// TODO: Implement
-		return s
+		return fmt.Sprintf("%x", md5.Sum([]byte(s)))
 	},
 	"SHA-256": func(s string) string {
-		// TODO: Implement
-		return s
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(s)))
 	},
 	"SHA-512-256": func(s string) string {
-		// TODO: Implement
-		return s
+		return fmt.Sprintf("%x", sha512.Sum512_256([]byte(s)))
 	},
 }
 
@@ -240,6 +240,7 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 	}
 
 	host := getHost(req)
+	fmt.Println(host)
 	// TODO: Maybe act differently if host is empty
 	creds, ok := credentials[host]
 	if ok {
@@ -250,6 +251,8 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 		params := parseWwwAuth(resp.Header.Get("Www-Authenticate"))
 		fmt.Println("Params:")
 		fmt.Println(params)
+		fmt.Println(req.URL)
+		fmt.Println()
 		// Default to MD5 if algorithm isn't specified in response. TODO: Cite RFC for this
 		algoString := valueOrDefault(params["algorithm"], "MD5")
 		var sess bool
@@ -285,10 +288,16 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 
 		// According to request.go: "For client requests an empty [method] string means GET."
 		method := valueOrDefault(req.Method, "GET")
+		requestURI := strings.Join(strings.Split(req.URL.String(), host)[1:], host)
+		fmt.Println("Claimed URI: " + req.RequestURI)
+		fmt.Println("Request URI: " + requestURI)
+		// TODO: Handle the fact that qop can be a comma-separated list of values.
+			// Right now it causes an issue of producing nonsense keys in parameters.
 		qop := valueOrDefault(params["qop"], "auth")
+		fmt.Println("QOP: " + qop)
 		// RFC 7616 Section 3.4.3 https://tools.ietf.org/html/rfc7616#section-3.4.3
 		var a2 string
-		a2Components := []string{method, req.RequestURI}
+		a2Components := []string{method, requestURI}
 		if qop == "auth-int" {
 			bodyText, err := ioutil.ReadAll(req.Body)
 			// TODO: Actually error correctly
@@ -320,7 +329,7 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 			username = algo(unquote(username) + ":" + unquote(realm))
 		}
 
-		return "Digest opaque=\"" + params["opaque"] + "\", algorithm=" + algoString + ", response=" + response + ", username=\"" + username + "\", realm=\"" + realm + "\", uri=\"" + req.RequestURI + "\", qop=" + qop + ", cnonce=\"" + cnonce + "\", nc=" + nc + ", userhash=" + userhash
+		return "Digest opaque=" + params["opaque"] + ", algorithm=" + algoString + ", response=" + response + ", username=\"" + username + "\", realm=" + realm + ", uri=\"" + requestURI + "\", qop=" + qop + ", cnonce=\"" + cnonce + "\", nc=" + nc + ", userhash=" + userhash
 	}
 	// TODO: Otherwise, assign default creds if those are specified
 	return ""
