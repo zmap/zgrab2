@@ -645,6 +645,8 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			return nil, uerr(err)
 		}
 
+		// TODO: Make sure this actually responds to 407 errors correctly via a proxy.
+		// TODO: Find a better way to write this than code-duplication. This is super bad for maintenance.
 		if c.shouldAuth(resp) {
 			c.setAuth(resp, req)
 			if resp, didTimeout, err = c.send(req, deadline); err != nil {
