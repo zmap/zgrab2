@@ -3,6 +3,7 @@ package httpauth
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -14,6 +15,10 @@ type Authenticator interface {
 	TryGetAuth(req *http.Request, resp *http.Response) string
 }
 
+// TODO: Make this contain state useful for constructing a next response (ie: nextnonce field)
+// TODO: Session state ("-sess") could also be handy here, since it persists from one request to the next.
+		// Though that might also be wrong, since this object should persist while connecting to one host or another.
+// TODO: Similarly, maintaining nonce counter presents some interesting challenges. Maybe more state per-host makes sense.
 type digestAuthenticator map[string]*credential
 
 // Map from hosts to credential pointers. Shouldn't be accessed directly.
@@ -42,6 +47,11 @@ func NewDigestAuthenticator(credsFilename string, hostsToCreds map[string]string
 	return auther, err
 }
 
+// TODO: You don't need to directly call .populate to fill out an auther. Could
+// just return a map[host]*credential, and then handle that in slighlty different
+// functions. Some simplification is possible if I think more carefully.
+
+// TODO: Pull out most of this into a separate function that can be called while initializing either authenticator. Or rework this function to initialize either authenticator itself
 // TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
 func NewAuthenticator(credsFilename string, hostsToCreds map[string]string) (basicAuthenticator, error) {
 	auther := make(basicAuthenticator)
@@ -88,11 +98,11 @@ func readCreds(filename string) (map[string]string, error) {
 }
 
 // TODO: Add quite a bit of parsing in order to one day support things like wildcards, IP ranges, etc.
-// Though it's possible those are undesirable features because effective auth
-// practices result in large swathes of machines NOT sharing credentials
+	// Though it's possible those are undesirable features because effective auth
+	// practices result in large swathes of machines NOT sharing credentials
 // TODO: Should whether to use TLS be specified when setting up in the first place or for
-// each particular instance? Either way, it only needs to be passed in once. It's
-// really a matter of which makes more sense semantically.
+	// each particular instance? Either way, it only needs to be passed in once. It's
+	// really a matter of which makes more sense semantically.
 // TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
 // Subsequent calls to populate (only made from NewAuthenticator) will, if possible,
 // overwrite the result of previous calls.
@@ -207,6 +217,19 @@ var algorithms map[string]func(string) string = map[string]func(string) string{
 	},
 }
 
+// TODO: Replace with request.go's (identical) implementation of this if rolled into http package
+func valueOrDefault(value, def string) string {
+	if value != "" {
+		return value
+	}
+	return def
+}
+
+// TODO: Implement
+func generateClientNonce() string {
+	return ""
+}
+
 // TODO: This function totally needs to be split up into constituent parts.
 // TODO: Determine whether these args need to be pointers at all? Efficiency is a real contributor to that.
 // TODO: Figure out whether a method signature that doesn't rely on http for types is better or more versatile
@@ -216,6 +239,90 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 		return ""
 	}
 
+	host := getHost(req)
+	// TODO: Maybe act differently if host is empty
+	creds, ok := credentials[host]
+	if ok {
+		// Here's where the real work happens.
+		// TODO: Add an option to work with Proxy-Authenticate header (maybe just take in headers overall?)
+		// TODO: Make sure Get works correctly for this header name
+		// TODO: Make parse (creating params) or accessing params canonicalize param names to all lower-case
+		params := parseWwwAuth(resp.Header.Get("Www-Authenticate"))
+		fmt.Println("Params:")
+		fmt.Println(params)
+		// Default to MD5 if algorithm isn't specified in response. TODO: Cite RFC for this
+		algoString := valueOrDefault(params["algorithm"], "MD5")
+		var sess bool
+		// Strip "-sess" from algoString if present
+		if strings.HasSuffix(algoString, "-sess") {
+			sess = true
+			// This assumes that the algorithm value "-sess" will never be specified, and it shouldn't
+			algoString = algoString[:len(algoString)-5]
+		}
+		var algo func(string) string
+		if algo = algorithms[algoString]; algo == nil {
+			// Full failure if algorithm can't be resolved, since you just can't continue.
+			return ""
+		}
+
+
+
+
+		realm := params["realm"]
+		nonce := params["nonce"]
+		cnonce := generateClientNonce()
+
+		// RFC 7616 Section 3.4.2 https://tools.ietf.org/html/rfc7616#section-3.4.2
+		var a1 string
+		a1Components := []string{unquote(creds.Username), unquote(realm), creds.Password}
+		if sess {
+			hash := algo(strings.Join(a1Components, ":"))
+			a1Components = []string{hash, unquote(nonce), unquote(cnonce)}
+			a1 = strings.Join(a1Components, ":")
+		} else {
+			a1 = strings.Join(a1Components, ":")
+		}
+
+		// According to request.go: "For client requests an empty [method] string means GET."
+		method := valueOrDefault(req.Method, "GET")
+		qop := valueOrDefault(params["qop"], "auth")
+		// RFC 7616 Section 3.4.3 https://tools.ietf.org/html/rfc7616#section-3.4.3
+		var a2 string
+		a2Components := []string{method, req.RequestURI}
+		if qop == "auth-int" {
+			bodyText, err := ioutil.ReadAll(req.Body)
+			// TODO: Actually error correctly
+			if err != nil {
+				fmt.Println(err)
+				return ""
+			}
+			entityBody := string(bodyText)
+
+			a2Components = append(a2Components, algo(entityBody))
+			a2 = strings.Join(a2Components, ":")
+		} else {
+			// Execute if qop is "auth" or unspecified
+			a2 = strings.Join(a2Components, ":")
+		}
+
+		// TODO: Stop hard-coding nonceCount (nc) as 1. Somehow keep track of that.
+		nc := fmt.Sprintf("%08x", 1)
+
+		dataComponents := []string{unquote(nonce), nc, unquote(cnonce), unquote(qop), algo(a2)}
+		response := `"` + keyedDigest(algo, algo(a1), strings.Join(dataComponents, ":")) + `"`
+
+		// Username must be hashes after any other hashing, per RFC 7616 Section 3.4.4
+		// TODO: Write logic that determines whether to include username or username*, how to encode that
+		// TODO: If the username would necessitate using username*, but hashing is enabled, no * is required. Just send the hash.
+		username := creds.Username
+		userhash := valueOrDefault(params["userhash"], "false")
+		if userhash == "true" {
+			username = algo(unquote(username) + ":" + unquote(realm))
+		}
+
+		return "Digest opaque=\"" + params["opaque"] + "\", algorithm=" + algoString + ", response=" + response + ", username=\"" + username + "\", realm=\"" + realm + "\", uri=\"" + req.RequestURI + "\", qop=" + qop + ", cnonce=\"" + cnonce + "\", nc=" + nc + ", userhash=" + userhash
+	}
+	// TODO: Otherwise, assign default creds if those are specified
 	return ""
 }
 
