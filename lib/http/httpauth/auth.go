@@ -3,8 +3,10 @@ package httpauth
 import (
 	"bufio"
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -144,13 +146,11 @@ func (credentials basicAuthenticator) populate(hostsToCreds map[string]string) {
 	}
 }
 
-// TODO: Make the return type of this actually make any sense.
-// TODO: Improve names because "parts" is silly. Maybe it's not though. Also params
+// TODO: Improve names because "token" is inaccurate and "parts" imprecise. Same goes for "chunk".
 func parseWwwAuth(header string) map[string]string {
 	var inQuotes bool
 	var tokens []string
 	var chunk []rune
-	// TODO: Would traversing this as runes avoid checking whether bytes equivalent to \" are actually those characters
 	for i, c := range header {
 		if c == '=' && !inQuotes {
 			tokens = append(tokens, string(chunk))
@@ -160,7 +160,7 @@ func parseWwwAuth(header string) map[string]string {
 		// TODO: This might be insufficient if you had the sequence `\\"`, but it's not
 		// clear to me whether slashes are generally escaped in this context
 		// This assumes that the first character of Www-Authenticate header is not
-		// `"`, which it isn't for any extant scheme.
+		// `"`, which should hold for any extant scheme.
 		if c == '"' && header[i - 1] == '\\' {
 			inQuotes = !inQuotes
 		}
@@ -194,7 +194,6 @@ func parseWwwAuth(header string) map[string]string {
 
 func unquote(s string) string {
 	// A string can only be quotes if it's at least two characters long.
-	// TODO: Count runes instead of bytes, but this should be ASCII, so it shouldn't matter
 	if len(s) >= 2 {
 		if s[:1] == `"` && s[len(s)-1:] == `"` {
 			s = s[1:len(s)-1]
@@ -231,7 +230,6 @@ func keyedDigest(h func(string) string, secret, data string) (hash string) {
 	return h(secret + ":" + data)
 }
 
-// TODO: Leverage hashing algorithms from crypto library
 var algorithms map[string]func(string) string = map[string]func(string) string{
 	"MD5": func(s string) string {
 		return fmt.Sprintf("%x", md5.Sum([]byte(s)))
@@ -252,9 +250,14 @@ func valueOrDefault(value, def string) string {
 	return def
 }
 
-// TODO: Implement
-func generateClientNonce() string {
-	return ""
+func generateClientNonce() (string, error) {
+	// Generates random number
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
 }
 
 // TODO: This function totally needs to be split up into constituent parts.
@@ -270,7 +273,6 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 	// TODO: Maybe act differently if host is empty
 	creds, ok := credentials[host]
 	if ok {
-		// Here's where the real work happens.
 		// TODO: Add an option to work with Proxy-Authenticate header (maybe just take in headers overall?)
 		// TODO: Make sure Get works correctly for this header name
 		// TODO: Make parse (creating params) or accessing params canonicalize param names to all lower-case
@@ -290,12 +292,13 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 			return ""
 		}
 
-
-
-
 		realm := params["realm"]
 		nonce := params["nonce"]
-		cnonce := generateClientNonce()
+		cnonce, err := generateClientNonce()
+		if err != nil {
+			// Refuse to continue if a client nonce can't be generated
+			return ""
+		}
 
 		// RFC 7616 Section 3.4.2 https://tools.ietf.org/html/rfc7616#section-3.4.2
 		var a1 string
