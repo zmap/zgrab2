@@ -147,8 +147,28 @@ func (credentials basicAuthenticator) populate(hostsToCreds map[string]string) {
 // TODO: Make the return type of this actually make any sense.
 // TODO: Improve names because "parts" is silly. Maybe it's not though. Also params
 func parseWwwAuth(header string) map[string]string {
+	var inQuotes bool
+	var tokens []string
+	var chunk []rune
+	// TODO: Would traversing this as runes avoid checking whether bytes equivalent to \" are actually those characters
+	for i, c := range header {
+		if c == '=' && !inQuotes {
+			tokens = append(tokens, string(chunk))
+			chunk = chunk[:0]
+			continue
+		}
+		// TODO: This might be insufficient if you had the sequence `\\"`, but it's not
+		// clear to me whether slashes are generally escaped in this context
+		// This assumes that the first character of Www-Authenticate header is not
+		// `"`, which it isn't for any extant scheme.
+		if c == '"' && header[i - 1] == '\\' {
+			inQuotes = !inQuotes
+		}
+		chunk = append(chunk, c)
+	}
+	tokens = append(tokens, string(chunk))
+
 	parameters := make(map[string]string)
-	tokens := strings.Split(header, "=")
 	for i, token := range tokens[1:] {
 		prevParts := strings.Split(tokens[i], " ")
 		name := prevParts[len(prevParts)-1]
@@ -169,20 +189,6 @@ func parseWwwAuth(header string) map[string]string {
 		parameters[name] = value
 	}
 
-	//tokens := strings.Split(header, " ")
-	////scheme := tokens[0]
-	//for _, token := range tokens[1:] {
-	//	parts := strings.Split(token, "=")
-	//	name := parts[0]
-	//	var value string
-	//	if len(parts) > 1 {
-	//		value = parts[1]
-	//		if value[len(value)-1:] == "," {
-	//			value = value[:len(value)-1]
-	//		}
-	//	}
-	//	parameters[name] = value
-	//}
 	return parameters
 }
 
@@ -261,7 +267,6 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 	}
 
 	host := getHost(req)
-	fmt.Println(host)
 	// TODO: Maybe act differently if host is empty
 	creds, ok := credentials[host]
 	if ok {
@@ -270,10 +275,6 @@ func (credentials digestAuthenticator) TryGetAuth(req *http.Request, resp *http.
 		// TODO: Make sure Get works correctly for this header name
 		// TODO: Make parse (creating params) or accessing params canonicalize param names to all lower-case
 		params := parseWwwAuth(resp.Header.Get("Www-Authenticate"))
-		fmt.Println("Params:")
-		fmt.Println(params)
-		fmt.Println(req.URL)
-		fmt.Println()
 		// Default to MD5 if algorithm isn't specified in response. TODO: Cite RFC for this
 		algoString := valueOrDefault(params["algorithm"], "MD5")
 		var sess bool

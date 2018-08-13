@@ -431,7 +431,6 @@ func (c *Client) shouldAuth(resp *Response) bool {
 // TODO: Change the logic in Do() to feed that resulting request onto the queue to send
 func (c *Client) setAuth(resp *Response, req *Request) {
 	authHeader := c.Authenticator.TryGetAuth(req, resp)
-	fmt.Println("AuthHeader: " + authHeader)
 	switch resp.StatusCode {
 	case 401:
 		// should set Authorization header field
