@@ -18,6 +18,7 @@ import (
 
 type Authenticator interface {
 	TryGetAuth(req *http.Request, resp *http.Response) string
+	setAuth(host string, userpass *credential)
 }
 
 // TODO: Make this contain state useful for constructing a next response (ie: nextnonce field)
@@ -36,44 +37,32 @@ type credential struct {
 
 func NewDigestAuthenticator(credsFilename string, hostsToCreds map[string]string) (digestAuthenticator, error) {
 	auther := make(digestAuthenticator)
-	var err error
-	// If a filename is given, record all {host, username:password} pairs it specifies.
-	if credsFilename != "" {
-		var fileHostsToCreds map[string]string
-		// The only possible error here would result from os.Open on file.
-		fileHostsToCreds, err = readCreds(credsFilename)
-		auther.populate(fileHostsToCreds)
-	}
-	// If pairs are explicitly specified in a map[string]string, use them.
-	// Override any pairs specified in a file with those specified in explicit map.
-	if hostsToCreds != nil {
-		auther.populate(hostsToCreds)
-	}
+	err := initializeAuthenticator(auther, credsFilename, hostsToCreds)
 	return auther, err
 }
 
-// TODO: You don't need to directly call .populate to fill out an auther. Could
-// just return a map[host]*credential, and then handle that in slighlty different
-// functions. Some simplification is possible if I think more carefully.
-
-// TODO: Pull out most of this into a separate function that can be called while initializing either authenticator. Or rework this function to initialize either authenticator itself
-// TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
-func NewAuthenticator(credsFilename string, hostsToCreds map[string]string) (basicAuthenticator, error) {
+func NewBasicAuthenticator(credsFilename string, hostsToCreds map[string]string) (basicAuthenticator, error) {
 	auther := make(basicAuthenticator)
+	err := initializeAuthenticator(auther, credsFilename, hostsToCreds)
+	return auther, err
+}
+
+// TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
+func initializeAuthenticator(auther Authenticator, credsFilename string, hostsToCreds map[string]string) error {
 	var err error
 	// If a filename is given, record all {host, username:password} pairs it specifies.
 	if credsFilename != "" {
 		var fileHostsToCreds map[string]string
 		// The only possible error here would result from os.Open on file.
 		fileHostsToCreds, err = readCreds(credsFilename)
-		auther.populate(fileHostsToCreds)
+		populate(auther, fileHostsToCreds)
 	}
 	// If pairs are explicitly specified in a map[string]string, use them.
 	// Override any pairs specified in a file with those specified in explicit map.
 	if hostsToCreds != nil {
-		auther.populate(hostsToCreds)
+		populate(auther, hostsToCreds)
 	}
-	return auther, err
+	return err
 }
 
 func readCreds(filename string) (map[string]string, error) {
@@ -111,7 +100,7 @@ func readCreds(filename string) (map[string]string, error) {
 // TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
 // Subsequent calls to populate (only made from NewAuthenticator) will, if possible,
 // overwrite the result of previous calls.
-func (credentials digestAuthenticator) populate(hostsToCreds map[string]string) {
+func populate(result Authenticator, hostsToCreds map[string]string) {
 	for host, userpass := range hostsToCreds {
 		creds := strings.Split(userpass, ":")
 		user := creds[0]
@@ -120,29 +109,7 @@ func (credentials digestAuthenticator) populate(hostsToCreds map[string]string) 
 		if len(creds) > 1 {
 			pass = strings.Join(creds[1:], ":")
 		}
-		credentials[host] = &credential{Username: user, Password: pass}
-	}
-}
-
-// TODO: Add quite a bit of parsing in order to one day support things like wildcards, IP ranges, etc.
-	// Though it's possible those are undesirable features because effective auth
-	// practices result in large swathes of machines NOT sharing credentials
-// TODO: Should whether to use TLS be specified when setting up in the first place or for
-	// each particular instance? Either way, it only needs to be passed in once. It's
-	// really a matter of which makes more sense semantically.
-// TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
-// Subsequent calls to populate (only made from NewAuthenticator) will, if possible,
-// overwrite the result of previous calls.
-func (credentials basicAuthenticator) populate(hostsToCreds map[string]string) {
-	for host, userpass := range hostsToCreds {
-		creds := strings.Split(userpass, ":")
-		user := creds[0]
-		// Preserve any colons in password by combining everything after first colon
-		var pass string
-		if len(creds) > 1 {
-			pass = strings.Join(creds[1:], ":")
-		}
-		credentials[host] = &credential{Username: user, Password: pass}
+		result.setAuth(host, &credential{Username: user, Password: pass})
 	}
 }
 
@@ -193,9 +160,9 @@ func parseWwwAuth(header string) map[string]string {
 }
 
 func unquote(s string) string {
-	// A string can only be quotes if it's at least two characters long.
+	// A string can only be in quotes if it's at least two characters long.
 	if len(s) >= 2 {
-		if s[:1] == `"` && s[len(s)-1:] == `"` {
+		if s[0] == '"' && s[len(s)-1] == '"' {
 			s = s[1:len(s)-1]
 		}
 		// TODO: Determine if any other escaping needs to be undone. I don't think so, since double-quotes are the relevant problem.
@@ -379,6 +346,14 @@ func (credentials basicAuthenticator) TryGetAuth(req *http.Request, resp *http.R
 	// TODO: Otherwise, assign default creds if those are specified
 
 	return temp.Header.Get("Authorization")
+}
+
+func (credentials digestAuthenticator) setAuth(host string, userpass *credential) {
+	credentials[host] = userpass
+}
+
+func (credentials basicAuthenticator) setAuth(host string, userpass *credential) {
+	credentials[host] = userpass
 }
 
 // TODO: Handle discrepencies between hostname and ip address
