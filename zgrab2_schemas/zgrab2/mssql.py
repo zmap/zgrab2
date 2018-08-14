@@ -27,7 +27,7 @@ prelogin_options = SubRecord({
         "build_number": Unsigned16BitInteger(),
     }),
     "encrypt_mode": Enum(values=ENCRYPT_MODES),
-    "instance": String(),
+    "instance": WhitespaceAnalyzedString(),
     "thread_id": Unsigned32BitInteger(),
     "mars": Unsigned8BitInteger(),
     "trace_id": Binary(),
@@ -38,8 +38,8 @@ prelogin_options = SubRecord({
 
 mssql_scan_response = SubRecord({
     "result": SubRecord({
-        "version": String(),
-        "instance_name": String(),
+        "version": WhitespaceAnalyzedString(),
+        "instance_name": WhitespaceAnalyzedString(),
         "prelogin_options": prelogin_options,
         "encrypt_mode": Enum(values=ENCRYPT_MODES, doc="The negotiated ENCRYPT_MODE with the server."),
         "tls": zgrab2.tls_log,
