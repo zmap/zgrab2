@@ -14,23 +14,23 @@ import zgrab2
 # These are defined in detail at
 #   https://www.postgresql.org/docs/10/static/protocol-error-fields.html
 postgres_error = SubRecord({
-    "severity": String(required=True),
-    "severity_v": String(),
-    "code": String(required=True),
-    "message": String(),
-    "detail": String(),
-    "hint": String(),
-    "position": String(),
-    "internal_position": String(),
-    "internal_query": String(),
-    "where": String(),
-    "schema": String(),
-    "table": String(),
-    "data": String(),
-    "file": String(),
-    "line": String(),
-    "routine": String(),
-    "_unknown_error_tag": String(),
+    "severity": WhitespaceAnalyzedString(required=True),
+    "severity_v": WhitespaceAnalyzedString(),
+    "code": WhitespaceAnalyzedString(required=True),
+    "message": WhitespaceAnalyzedString(),
+    "detail": WhitespaceAnalyzedString(),
+    "hint": WhitespaceAnalyzedString(),
+    "position": WhitespaceAnalyzedString(),
+    "internal_position": WhitespaceAnalyzedString(),
+    "internal_query": WhitespaceAnalyzedString(),
+    "where": WhitespaceAnalyzedString(),
+    "schema": WhitespaceAnalyzedString(),
+    "table": WhitespaceAnalyzedString(),
+    "data": WhitespaceAnalyzedString(),
+    "file": WhitespaceAnalyzedString(),
+    "line": WhitespaceAnalyzedString(),
+    "routine": WhitespaceAnalyzedString(),
+    "_unknown_error_tag": WhitespaceAnalyzedString(),
 })
 
 # modules/postgres/scanner.go - decodeAuthMode()
@@ -55,15 +55,15 @@ postgres_key_data = SubRecord({
 postgres_scan_response = SubRecord({
     "result": SubRecord({
         "tls": zgrab2.tls_log,
-        "supported_versions": String(),
+        "supported_versions": WhitespaceAnalyzedString(),
         "protocol_error": postgres_error,
         "startup_error": postgres_error,
         "is_ssl": Boolean(required=True),
         "authentication_mode": postgres_auth_mode,
         # TODO FIXME: This is currendly an unconstrained map[string]string
-        "server_parameters": String(),
+        "server_parameters": WhitespaceAnalyzedString(),
         "backend_key_data": postgres_key_data,
-        "transaction_status": String(),
+        "transaction_status": WhitespaceAnalyzedString(),
     })
 }, extends=zgrab2.base_scan_response)
 

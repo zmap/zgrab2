@@ -60,17 +60,17 @@ mysql_capability_flags = zgrab2.FlagsSet([
 mysql_scan_response = SubRecord({
     "result": SubRecord({
         "protocol_version": Unsigned8BitInteger(required=True, doc="8-bit unsigned integer representing the server's protocol version sent in the initial HandshakePacket from the server.", examples=["10"]),
-        "server_version": String(doc="The specific server version returned in the initial HandshakePacket. Often in the form x.y.z, but not always.", examples=["5.5.58", "5.6.38", "5.7.20", "8.0.3-rc-log"]),
+        "server_version": WhitespaceAnalyzedString(doc="The specific server version returned in the initial HandshakePacket. Often in the form x.y.z, but not always.", examples=["5.5.58", "5.6.38", "5.7.20", "8.0.3-rc-log"]),
         "connection_id": DebugOnly(Unsigned32BitInteger(doc="The server's internal identifier for this client's connection, sent in the initial HandshakePacket.")),
         "auth_plugin_data": DebugOnly(Binary(doc="Optional plugin-specific data, whose meaning depends on the value of auth_plugin_name. Returned in the initial HandshakePacket.")),
         "capability_flags": mysql_capability_flags,
         "character_set": DebugOnly(Unsigned8BitInteger(doc="The identifier for the character set the server is using. Returned in the initial HandshakePacket.")),
         "status_flags": mysql_server_status_flags,
-        "auth_plugin_name": DebugOnly(String(doc="The name of the authentication plugin, returned in the initial HandshakePacket.")),
+        "auth_plugin_name": DebugOnly(WhitespaceAnalyzedString(doc="The name of the authentication plugin, returned in the initial HandshakePacket.")),
         "error_code": Signed32BitInteger(doc="Only set if there is an error returned by the server, for example if the scanner is not on the allowed hosts list."),
         # error_ids could be an Enum(values=mysql_errors.mysql_error_code_to_id), but that would be brittle to changes.
-        "error_id": String(doc="The friendly name for the error code as defined at https://dev.mysql.com/doc/refman/8.0/en/error-messages-server.html, or UNKNOWN."),
-        "error_message": String(doc="Optional string describing the error. Only set if there is an error."),
+        "error_id": WhitespaceAnalyzedString(doc="The friendly name for the error code as defined at https://dev.mysql.com/doc/refman/8.0/en/error-messages-server.html, or UNKNOWN."),
+        "error_message": WhitespaceAnalyzedString(doc="Optional string describing the error. Only set if there is an error."),
         "raw_packets": ListOf(Binary(), doc="The base64 encoding of all packets sent and received during the scan."),
         "tls": zgrab2.tls_log,
     })
