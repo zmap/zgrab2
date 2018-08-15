@@ -65,7 +65,7 @@ func readCreds(filename string) (map[string]string, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// TODO: Future: Add special case here for if the line starts with a character which has meaning in my planned grouping feature
+		// TODO: Future: Add special case for lines starting with a character meaningful for host-grouping syntax
 		parts := strings.Split(line, " ")
 		host := parts[0]
 		// Preserve any spaces in username:password by combining everything after
@@ -79,13 +79,12 @@ func readCreds(filename string) (map[string]string, error) {
 	return creds, nil
 }
 
-// TODO: Add quite a bit of parsing in order to one day support things like wildcards, IP ranges, etc.
-	// Though it's possible those are undesirable features because effective auth
-	// practices result in large swathes of machines NOT sharing credentials
+// TODO: Future: Add support for IP addresses rather than only hostnames
+// TODO: Future: Parse for wildcards & other options to specify a set of credentials for many hosts
 // TODO: Should whether to use TLS be specified when setting up in the first place or for
 	// each particular instance? Either way, it only needs to be passed in once. It's
 	// really a matter of which makes more sense semantically.
-// TODO: Determine whether an input that doesn't specify host should be assumed to default to all hosts
+// TODO: Future: Create a way to specify and lookup default credentials
 // Subsequent calls to populate (only made from NewAuthenticator) will, if possible,
 // overwrite the result of previous calls.
 func populate(result authenticator, hostsToCreds map[string]string) {
@@ -116,7 +115,7 @@ func parseWwwAuth(header string) map[string]string {
 		// clear to me whether slashes are generally escaped in this context
 		// This assumes that the first character of Www-Authenticate header is not
 		// `"`, which should hold for any extant scheme.
-		if c == '"' && header[i - 1] == '\\' {
+		if c == '"' && header[i - 1] != '\\' {
 			inQuotes = !inQuotes
 		}
 		chunk = append(chunk, c)
@@ -331,6 +330,11 @@ func getBasicAuth(creds *credential) string {
 	// 3) A specified scheme can be "Basic" or "Digest"
 // TODO: Invert this so that resp is checked before presence of host
 func (auther authenticator) TryGetAuth(req *http.Request, resp *http.Response) string {
+	// NOTE: If/when wildcards for hosts are introduced, automatically sending
+		// Basic Auth to a host that matches the specified format could become
+		// problematic, particularly if not implemented very carefully. If
+		// "google.com.attacker.net" matches a specified wildcard of "google.com*",
+		// a user could unknowingly send Google creds to "attacker.net"
 	host := getHost(req)
 	creds, ok := auther.creds[host]
 	// TODO: Maybe act differently if host is empty
