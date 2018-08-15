@@ -158,28 +158,6 @@ func unquote(s string) string {
 	return s
 }
 
-func getHost(req *http.Request) string {
-	// TODO: Consider whether taking in https status would be a good precaution,
-		// in order to somehow warn about plaintext auth or implement safer defaults
-	// TODO: Take in either a target or just a host string as appropriate?
-	//host := t.Domain
-	//if host == "" {
-	//	host = t.IP.String()
-	//}
-	// TODO: Figure out a good way to get the IP address involved in an http request
-		// Otherwise, require the caller pass in the relevant hostname/ip
-	// If both are accepted, could list different creds for IP and hostname.
-		// Unclear how to resolve that conflict.
-	host := req.Host
-	if strings.Contains(host, ":") {
-		// Removes the port (after final colon) from hostname in order to match the
-		// format used in credentials's keys. If present, : is separating port from host.
-		parts := strings.Split(host, ":")
-		host = strings.Join(parts[:len(parts)-1], ":")
-	}
-	return host
-}
-
 func keyedDigest(h func(string) string, secret, data string) (hash string) {
 	return h(secret + ":" + data)
 }
@@ -263,10 +241,7 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 
 	// According to request.go: "For client requests an empty [method] string means GET."
 	method := valueOrDefault(req.Method, "GET")
-	host := getHost(req)
-	// TODO: Use specified requestURI if available.
-	// TODO: Figure out whether there are circumstances in which this wouldn't work to get URI
-	requestURI := strings.Join(strings.Split(req.URL.String(), host)[1:], host)
+	requestURI := req.URL.RequestURI()
 	qop := valueOrDefault(params["qop"], "auth")
 	qop = strings.Split(qop, ", ")[0]
 	// Restores end quote if it was cut off due to truncating a list of values.
@@ -349,7 +324,13 @@ func (auther authenticator) TryGetAuth(req *http.Request, resp *http.Response) s
 		// problematic, particularly if not implemented very carefully. If
 		// "google.com.attacker.net" matches a specified wildcard of "google.com*",
 		// a user could unknowingly send Google creds to "attacker.net"
-	host := getHost(req)
+	// TODO: Consider whether taking in https status would be a good precaution,
+		// in order to somehow warn about plaintext auth or implement safer defaults
+	// TODO: Figure out a good way to get the IP address involved in an http request
+	// Otherwise, require the caller pass in the relevant hostname/ip
+	// If both are accepted, could list different creds for IP and hostname.
+	// Unclear how to resolve that conflict.
+	host := req.URL.Hostname()
 	creds, ok := auther.creds[host]
 	// TODO: Maybe act differently if host is empty
 	// Credentials were found for the relevant host
