@@ -21,15 +21,13 @@ type Authenticator interface {
 }
 
 // TODO: Make this contain state useful for constructing a next response (ie: nextnonce field)
-// TODO: Session state ("-sess") could also be handy here, since it persists from one request to the next.
-	// Though that might also be wrong, since this object should persist while connecting to one host or another.
-// TODO: Similarly, maintaining nonce counter presents some interesting challenges. Maybe more state per-host makes sense.
+// TODO: Session state ("-sess") could also be handy here, since it persists from one request to the next with a given host
+// TODO: Similarly, maintaining nonce counter presents some interesting challenges. Maybe more state mapped from host makes sense
 type authenticator struct {
 	// Map from hosts to credential pointers. Shouldn't be accessed directly.
 	creds map[string]*credential
 }
 
-// TODO: Actually explain this.
 type credential struct {
 	Username, Password string
 }
@@ -65,7 +63,7 @@ func readCreds(filename string) (map[string]string, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// TODO: Future: Add special case for lines starting with a character meaningful for host-grouping syntax
+		// TODO: Future: Add host-grouping syntax & special case for lines starting with a character meaningful therein
 		parts := strings.Split(line, " ")
 		host := parts[0]
 		// Preserve any spaces in username:password by combining everything after
@@ -174,7 +172,7 @@ var algorithms map[string]func(string) string = map[string]func(string) string{
 	},
 }
 
-// TODO: Replace with request.go's (identical) implementation of this if rolled into http package
+// TODO: Future: Replace with request.go's (identical) implementation of this if rolled into http package
 func valueOrDefault(value, def string) string {
 	if value != "" {
 		return value
@@ -183,7 +181,7 @@ func valueOrDefault(value, def string) string {
 }
 
 func generateClientNonce() (string, error) {
-	// Generates random number
+	// Generates random 32-byte number
 	b := make([]byte, 32)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -192,9 +190,7 @@ func generateClientNonce() (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-// TODO: This function totally needs to be split up into constituent parts.
-// TODO: Determine whether these args need to be pointers at all? Efficiency is a real contributor to that.
-// TODO: Figure out whether a method signature that doesn't rely on http for types is better or more versatile
+// TODO: This function is quite long, but does essentially perform one task. Consider refactoring.
 func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) string {
 	// Return quickly in the case that Authorization header can't be constructed
 	if resp == nil || resp.Header == nil {
@@ -202,21 +198,21 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	}
 
 	// TODO: Add an option to work with Proxy-Authenticate header (maybe just take in headers overall?)
-	// TODO: Make sure Get works correctly for this header name
 	// TODO: Make parse (creating params) or accessing params canonicalize param names to all lower-case
 	params := parseWwwAuth(resp.Header.Get("Www-Authenticate"))
-	// Default to MD5 if algorithm isn't specified in response. TODO: Cite RFC for this
+	// Default to MD5 if algorithm isn't specified in response.
+	// Source: Paragraph describing "algorithm" at https://tools.ietf.org/html/rfc7616#section-3.3
 	algoString := valueOrDefault(params["algorithm"], "MD5")
 	var sess bool
-	// Strip "-sess" from algoString if present
+	// Strip "-sess" from algorithm string if present
 	if strings.HasSuffix(algoString, "-sess") {
 		sess = true
-		// This assumes that the algorithm value "-sess" will never be specified, and it shouldn't
+		// This assumes algorithm will never be specified as "-sess", which should hold
 		algoString = algoString[:len(algoString)-5]
 	}
 	var algo func(string) string
 	if algo = algorithms[algoString]; algo == nil {
-		// Full failure if algorithm can't be resolved, since you just can't continue.
+		// Full failure if algorithm can't be resolved; there's no way to continue
 		return ""
 	}
 
@@ -242,7 +238,9 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	// According to request.go: "For client requests an empty [method] string means GET."
 	method := valueOrDefault(req.Method, "GET")
 	requestURI := req.URL.RequestURI()
+	// TODO: Simplify this section
 	qop := valueOrDefault(params["qop"], "auth")
+	// Use first Quality of Protection listed by server
 	qop = strings.Split(qop, ", ")[0]
 	// Restores end quote if it was cut off due to truncating a list of values.
 	if qop[len(qop)-1:] != `"` {
@@ -252,26 +250,14 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	var a2 string
 	a2Components := []string{method, requestURI}
 	if qop == "auth-int" {
-		// TODO: Determine whether this check is actually necessary.
-		if req.Body == nil {
-			return ""
-		}
-		bodyText, err := ioutil.ReadAll(req.Body)
-		// TODO: Actually error correctly
-		if err != nil {
-			fmt.Println(err)
-			return ""
-		}
-		entityBody := string(bodyText)
-
-		a2Components = append(a2Components, algo(entityBody))
-		a2 = strings.Join(a2Components, ":")
+		// TODO: Future: Implement "auth-int" Quality of Protection according to RFC 7616 Section 3.4.3
+		return ""
 	} else {
 		// Execute if qop is "auth" or unspecified
 		a2 = strings.Join(a2Components, ":")
 	}
 
-	// TODO: Stop hard-coding nonceCount (nc) as 1. Somehow keep track of that.
+	// TODO: Future: Stop hard-coding nc (nonce count) as 1. Somehow keep track of that between requests with a host.
 	nc := fmt.Sprintf("%08x", 1)
 
 	dataComponents := []string{unquote(nonce), nc, unquote(cnonce), unquote(qop), algo(a2)}
@@ -304,14 +290,12 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 }
 
 func getBasicAuth(creds *credential) string {
-	// Explicitly declare Header so that it's a non-nil map that can be assigned to in .SetBasicAuth
+	// Explicitly declare Header so that it's non-nil and can be assigned to
 	temp := &http.Request{Header: make(http.Header)}
 	temp.SetBasicAuth(creds.Username, creds.Password)
 	return temp.Header.Get("Authorization")
 }
 
-// TODO: Determine whether these args need to be pointers at all? Efficiency is a real contributor to that.
-// TODO: Figure out whether a method signature that doesn't rely on http for types is better or more versatile
 // TODO: Really nail down what the correct policy is here.
 	// 1) There can be a header or not
 	// 2) There can be credentials for a host or not
@@ -332,7 +316,6 @@ func (auther authenticator) TryGetAuth(req *http.Request, resp *http.Response) s
 	// Unclear how to resolve that conflict.
 	host := req.URL.Hostname()
 	creds, ok := auther.creds[host]
-	// TODO: Maybe act differently if host is empty
 	// Credentials were found for the relevant host
 	if ok {
 		// Response Header exists
@@ -351,9 +334,9 @@ func (auther authenticator) TryGetAuth(req *http.Request, resp *http.Response) s
 			return getBasicAuth(creds)
 		}
 	}
-	// TODO: Otherwise, assign default creds if those are specified
+	// TODO: Future: Otherwise, assign default creds if those are specified
 	return ""
 }
 
 // TODO: Handle discrepencies between hostname and ip address
-// Should probably be resolved by a DNS lookup? Or maybe mandate all input be IP's.
+// Currently only allowing hostnames to be used.
