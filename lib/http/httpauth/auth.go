@@ -311,7 +311,17 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 		username = algo(unquote(username) + ":" + unquote(realm))
 	}
 
-	return "Digest opaque=" + params["opaque"] + ", algorithm=" + algoString + ", response=" + response + ", username=\"" + username + "\", realm=" + realm + ", uri=\"" + requestURI + "\", qop=" + qop + ", cnonce=\"" + cnonce + "\", nc=" + nc + ", userhash=" + userhash
+	return "Digest username=\"" + username +
+			"\", realm=" + realm +
+			", uri=\"" + requestURI +
+			"\", algorithm=" + algoString +
+			", nonce=" + nonce +
+			", nc=" + nc +
+			", cnonce=\"" + cnonce +
+			"\", qop=" + qop +
+			", response=" + response +
+			", opaque=" + params["opaque"] +
+			", userhash=" + userhash
 }
 
 func getBasicAuth(creds *credential) string {
