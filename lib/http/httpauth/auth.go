@@ -311,7 +311,7 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 		username = algo(unquote(username) + ":" + unquote(realm))
 	}
 
-	return "Digest username=\"" + username +
+	ret := "Digest username=\"" + username +
 			"\", realm=" + realm +
 			", uri=\"" + requestURI +
 			"\", algorithm=" + algoString +
@@ -320,8 +320,12 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 			", cnonce=\"" + cnonce +
 			"\", qop=" + qop +
 			", response=" + response +
-			", opaque=" + params["opaque"] +
 			", userhash=" + userhash
+	// Apache refuses request when opaque is empty; output opaque when non-empty
+	if opaque := params["opaque"]; opaque != "" {
+		ret += ", opaque=" + opaque
+	}
+	return ret
 }
 
 func getBasicAuth(creds *credential) string {
