@@ -8,7 +8,6 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -100,21 +99,25 @@ func populate(result authenticator, hostsToCreds map[string]string) {
 
 // TODO: Improve names because "token" is inaccurate and "parts" imprecise. Same goes for "chunk".
 func parseWwwAuth(header string) map[string]string {
-	var inQuotes bool
+	var inQuotes, escaped bool
 	var tokens []string
 	var chunk []rune
-	for i, c := range header {
+	for _, c := range header {
 		if c == '=' && !inQuotes {
 			tokens = append(tokens, string(chunk))
 			chunk = chunk[:0]
 			continue
 		}
-		// TODO: This might be insufficient if you had the sequence `\\"`, but it's not
-		// clear to me whether slashes are generally escaped in this context
-		// This assumes that the first character of Www-Authenticate header is not
-		// `"`, which should hold for any extant scheme.
-		if c == '"' && header[i - 1] != '\\' {
+		// Toggles inQuotes when an unescaped quote is encountered
+		if c == '"' && !escaped {
 			inQuotes = !inQuotes
+		}
+		if c == '\\' {
+			// Toggles escaped when consecutive backslashes are encountered
+			escaped = !escaped
+		} else {
+			// Resets escaped to false once non-backslash is encountered
+			escaped = false
 		}
 		chunk = append(chunk, c)
 	}
@@ -238,12 +241,11 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	// According to request.go: "For client requests an empty [method] string means GET."
 	method := valueOrDefault(req.Method, "GET")
 	requestURI := req.URL.RequestURI()
-	// TODO: Simplify this section
-	qop := valueOrDefault(params["qop"], "auth")
+	qopOptions := strings.Split(valueOrDefault(params["qop"], "auth"), ", ")
 	// Use first Quality of Protection listed by server
-	qop = strings.Split(qop, ", ")[0]
+	qop := qopOptions[0]
 	// Restores end quote if it was cut off due to truncating a list of values.
-	if qop[len(qop)-1:] != `"` {
+	if len(qopOptions) > 1 {
 		qop += `"`
 	}
 	// RFC 7616 Section 3.4.3 https://tools.ietf.org/html/rfc7616#section-3.4.3
