@@ -97,15 +97,17 @@ func populate(result authenticator, hostsToCreds map[string]string) {
 	}
 }
 
-// TODO: Improve names because "token" is inaccurate and "parts" imprecise. Same goes for "chunk".
+// Puts parameters from {Www, Proxy}-Authenticate header into map with all
+// lower-case keys to standardize access
 func parseWwwAuth(header string) map[string]string {
 	var inQuotes, escaped bool
-	var tokens []string
-	var chunk []rune
+	var segments []string
+	var current []rune
 	for _, c := range header {
 		if c == '=' && !inQuotes {
-			tokens = append(tokens, string(chunk))
-			chunk = chunk[:0]
+			segments = append(segments, string(current))
+			// Empty current
+			current = current[:0]
 			continue
 		}
 		// Toggles inQuotes when an unescaped quote is encountered
@@ -119,31 +121,35 @@ func parseWwwAuth(header string) map[string]string {
 			// Resets escaped to false once non-backslash is encountered
 			escaped = false
 		}
-		chunk = append(chunk, c)
+		current = append(current, c)
 	}
-	tokens = append(tokens, string(chunk))
+	segments = append(segments, string(current))
 
 	parameters := make(map[string]string)
-	for i, token := range tokens[1:] {
-		prevParts := strings.Split(tokens[i], " ")
+	for i, segment := range segments[1:] {
+		prevParts := strings.Split(segments[i], " ")
+		// Part after final space of previous segment is the parameter name
 		name := prevParts[len(prevParts)-1]
 		var value string
-		if token[:1] == `"` {
-			parts := strings.Split(token, `"`)
+		if segment[0] == '"' {
+			// If value is quoted, it should contain everything up until last quote
+			parts := strings.Split(segment, `"`)
 			value = strings.Join(parts[:len(parts)-1], `"`) + `"`
 		} else {
-			parts := strings.Split(token, " ")
+			// Otherwise, value is everything up until last space
+			parts := strings.Split(segment, " ")
 			if len(parts) > 1 {
 				value = strings.Join(parts[:len(parts)-1], " ")
 			}
 			value = parts[0]
 		}
-		if value[len(value)-1:] == "," {
+		// If value string ends with comma to separate parameters, remove it
+		if value[len(value)-1] == ',' {
 			value = value[:len(value)-1]
 		}
-		parameters[name] = value
+		// Standardize keys to lower-case to simplify retrieval
+		parameters[strings.ToLower(name)] = value
 	}
-
 	return parameters
 }
 
@@ -200,11 +206,10 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 		return ""
 	}
 
-	// TODO: Add an option to work with Proxy-Authenticate header (maybe just take in headers overall?)
-	// TODO: Make parse (creating params) or accessing params canonicalize param names to all lower-case
-	params := parseWwwAuth(resp.Header.Get("Www-Authenticate"))
-	// Default to MD5 if algorithm isn't specified in response.
-	// Source: Paragraph describing "algorithm" at https://tools.ietf.org/html/rfc7616#section-3.3
+	header := valueOrDefault(resp.Header.Get("Www-Authenticate"), resp.Header.Get("Proxy-Authenticate"))
+	params := parseWwwAuth(header)
+	fmt.Printf("Parameters: %v\n", params)
+	// Default to MD5 if algorithm isn't specified in response. https://tools.ietf.org/html/rfc7616#section-3.3
 	algoString := valueOrDefault(params["algorithm"], "MD5")
 	var sess bool
 	// Strip "-sess" from algorithm string if present
@@ -223,6 +228,7 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	nonce := params["nonce"]
 	cnonce, err := generateClientNonce()
 	if err != nil {
+		// TODO: Handle error here
 		// Refuse to continue if a client nonce can't be generated
 		return ""
 	}
@@ -244,7 +250,7 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	qopOptions := strings.Split(valueOrDefault(params["qop"], "auth"), ", ")
 	// Use first Quality of Protection listed by server
 	qop := qopOptions[0]
-	// Restores end quote if it was cut off due to truncating a list of values.
+	// Restores end quote if it was cut off due to truncating a list of qop values
 	if len(qopOptions) > 1 {
 		qop += `"`
 	}
@@ -265,7 +271,7 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 	dataComponents := []string{unquote(nonce), nc, unquote(cnonce), unquote(qop), algo(a2)}
 	response := `"` + keyedDigest(algo, algo(a1), strings.Join(dataComponents, ":")) + `"`
 
-	// Username must be hashes after any other hashing, per RFC 7616 Section 3.4.4
+	// Username must be hashed after any other hashing, per RFC 7616 Section 3.4.4
 	// TODO: Write logic that determines whether to include username or username*, how to encode that
 	// TODO: If the username would necessitate using username*, but hashing is enabled, no * is required. Just send the hash.
 	username := creds.Username
@@ -322,7 +328,8 @@ func (auther authenticator) TryGetAuth(req *http.Request, resp *http.Response) s
 	if ok {
 		// Response Header exists
 		if resp != nil && resp.Header != nil {
-			scheme := strings.Split(resp.Header.Get("Www-Authenticate"), " ")[0]
+			header := valueOrDefault(resp.Header.Get("Www-Authenticate"), resp.Header.Get("Proxy-Authenticate"))
+			scheme := strings.Split(header, " ")[0]
 			switch scheme {
 			case "Basic":
 				return getBasicAuth(creds)
