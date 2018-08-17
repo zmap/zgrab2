@@ -183,7 +183,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/
 	// Issue " { buildInfo: 1 }" command.
 	msg := getBuildInfoMsg()
-	scan.conn.conn.Write(msg)
+	scan.conn.Write(msg)
 
 	binfo, err := scan.conn.ReadMsg()
 	if err != nil {
