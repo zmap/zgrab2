@@ -12,6 +12,8 @@ WORKDIR /go/src/github.com/zmap/zgrab2
 
 RUN go get -f -u -v .
 RUN go get -f -u -v -t .
+RUN go get -f -u -v $(find ./modules -type d)
+RUN go get -f -u -v -t $(find ./modules -type d)
 
 # This should already be executable, but just in case...
 RUN chmod a+x ./docker-runner/entrypoint.sh
