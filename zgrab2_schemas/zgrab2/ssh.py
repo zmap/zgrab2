@@ -157,6 +157,7 @@ SSHPublicKey = SubRecordType({
     "ed25519_public_key": ED25519PublicKey(),
 })
 
+# lib/ssh/certs.go: JsonCertType
 CertType = SubRecordType({
     "id": Unsigned32BitInteger(doc="The numerical certificate type value. 1 identifies user certificates, 2 identifies host certificates."),
     "name": Enum(values=["USER", "HOST", "unknown"], doc="The human-readable name for the certificate type."),
