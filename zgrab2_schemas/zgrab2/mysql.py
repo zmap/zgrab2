@@ -59,7 +59,7 @@ mysql_capability_flags = zgrab2.FlagsSet([
 # zgrab2/modules/mysql.go: MySQLScanResults
 mysql_scan_response = SubRecord({
     "result": SubRecord({
-        "protocol_version": Unsigned8BitInteger(required=True, doc="8-bit unsigned integer representing the server's protocol version sent in the initial HandshakePacket from the server.", examples=["10"]),
+        "protocol_version": Unsigned8BitInteger(doc="8-bit unsigned integer representing the server's protocol version sent in the initial HandshakePacket from the server.", examples=["10"]),
         "server_version": WhitespaceAnalyzedString(doc="The specific server version returned in the initial HandshakePacket. Often in the form x.y.z, but not always.", examples=["5.5.58", "5.6.38", "5.7.20", "8.0.3-rc-log"]),
         "connection_id": DebugOnly(Unsigned32BitInteger(doc="The server's internal identifier for this client's connection, sent in the initial HandshakePacket.")),
         "auth_plugin_data": DebugOnly(Binary(doc="Optional plugin-specific data, whose meaning depends on the value of auth_plugin_name. Returned in the initial HandshakePacket.")),
