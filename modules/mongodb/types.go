@@ -47,15 +47,15 @@ type Connection struct {
 
 // ReadMsg reads a full MongoDB message from the connection.
 func (conn *Connection) ReadMsg() ([]byte, error) {
-	msglen_buf := make([]byte, 4)
-	_, err := io.ReadFull(conn.conn, msglen_buf)
+	var msglen_buf [4]byte
+	_, err := io.ReadFull(conn.conn, msglen_buf[:])
 	if err != nil {
 		return nil, err
 	}
-	msglen := int(binary.LittleEndian.Uint32(msglen_buf))
+	msglen := binary.LittleEndian.Uint32(msglen_buf[:])
 	msg_buf := make([]byte, msglen)
 	// Extra copy to make result look like spec (only four bytes)
-	binary.LittleEndian.PutUint32(msg_buf[0:], uint32(msglen))
+	binary.LittleEndian.PutUint32(msg_buf[0:], msglen)
 	_, err = io.ReadFull(conn.conn, msg_buf[4:])
 	if err != nil {
 		return nil, err

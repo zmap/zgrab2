@@ -20,7 +20,10 @@ type Flags struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	config *Flags
+	config			*Flags
+	isMasterMsg		[]byte
+	buildInfoCommandMsg	[]byte
+	buildInfoOpMsg		[]byte
 }
 
 // scan holds the state for the scan of an individual target
@@ -68,7 +71,7 @@ func getIsMasterMsg() ([]byte) {
 	query, err := bson.Marshal(bson.M{ "isMaster": 1 })
 	if err != nil {
 		// programmer error
-		panic("Invalid BSON")
+		log.Fatal("Invalid BSON")
 	}
 	query_msg := getOpQuery("admin.$cmd", query)
 	return query_msg
@@ -79,12 +82,12 @@ func getBuildInfoCommandMsg() ([]byte) {
 	metaData, err := bson.Marshal(bson.M{ "buildInfo": 1 })
 	if err != nil {
 		// programmer error
-		panic("Invalid BSON")
+		log.Fatal("Invalid BSON")
 	}
 	commandArgs, err := bson.Marshal(bson.M{})
 	if err != nil {
 		// programmer error
-		panic("Invalid BSON")
+		log.Fatal("Invalid BSON")
 	}
 	// "test" collection gleaned from tshark
 	command_msg := getCommandMsg("test", "buildInfo", metaData, commandArgs)
@@ -136,7 +139,7 @@ func getBuildInfoOpMsg() ([]byte) {
 	section_payload, err := bson.Marshal(bson.M{ "buildinfo": 1, "$db": "admin" })
 	if err != nil {
 		// programmer error
-		panic("Invalid BSON")
+		log.Fatal("Invalid BSON")
 	}
 	section := make([]byte, len(section_payload) + 1)
 	copy(section[1:], section_payload)
@@ -168,6 +171,9 @@ type Result struct {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.isMasterMsg = getIsMasterMsg()
+	scanner.buildInfoCommandMsg = getBuildInfoCommandMsg()
+	scanner.buildInfoOpMsg = getBuildInfoOpMsg()
 	return nil
 }
 
@@ -245,8 +251,7 @@ type IsMasterResult struct {
 func getMaxWireVersion(conn *Connection) (int32, error) {
 	document := &IsMasterResult{}
 	doc_offset := MSGHEADER_LEN + 20
-	query := getIsMasterMsg()
-	conn.Write(query)
+	conn.Write(conn.scanner.isMasterMsg)
 
 	msg, err := conn.ReadMsg()
 	if err != nil {
@@ -300,11 +305,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// and response retrieved at "metadata" offset. At 7 and above, should 
 	// be sent as an OP_MSG in the "section" field, and response is at "body" offset
 	if max_wirev < 7 {
-		query = getBuildInfoCommandMsg()
+		query = scanner.buildInfoCommandMsg
 		resplen_offset = 4
 		resp_offset = 0
 	} else {
-		query = getBuildInfoOpMsg()
+		query = scanner.buildInfoOpMsg
 		resplen_offset = 5
 		resp_offset = 5
 	}
