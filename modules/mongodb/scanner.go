@@ -156,7 +156,7 @@ type BuildEnvironment_t struct {
 	Cxx string `bson:"cxx,omitempty"`
 	CxxFlags string `bson:"cxxflags,omitempty"`
 	LinkFlags string `bson:"linkflags,omitempty"`
-	TargetAarch string `bson:"target_arch,omitempty"`
+	TargetArch string `bson:"target_arch,omitempty"`
 	TargetOS string `bson:"target_os,omitempty"`
 }
 

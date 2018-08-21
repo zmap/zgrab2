@@ -19,7 +19,7 @@ mongodb_scan_response = SubRecord({
             "Cxx": String(),
             "CxxFlags": String(),
             "LinkFlags": String(),
-            "TargetAarch": String(),
+            "TargetArch": String(),
             "TargetOS": String()})
     })
 }, extends=zgrab2.base_scan_response)
