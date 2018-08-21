@@ -3,7 +3,7 @@
 # Keep cleaning up even if something fails
 set +e
 
-# Stop all MySQL containers.
+# Stop all MongoDB containers.
 
 versions="3.2.20 3.6.6 4.0.1 4.1.2"
 

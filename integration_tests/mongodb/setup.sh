@@ -1,5 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
 
+set -e
 versions="3.2.20 3.6.6 4.0.1 4.1.2"
 
 function launch() {
