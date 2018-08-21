@@ -72,6 +72,32 @@ func ConvertURIToIPP(uriString string, tls bool) string {
 	return uri.String()
 }
 
+func validateJobRequest(major, minor int8, uri string) *bytes.Buffer {
+	var b bytes.Buffer
+	b.Write([]byte{byte(major), byte(minor)})
+	//operation-id = validate-job
+	b.Write([]byte{0, 4})
+	//request-id = 1
+	b.Write([]byte{0, 0, 0, 1})
+	//operations-attributes-tag = 1
+	b.Write([]byte{1})
+
+	//attributes-charset (value tag of 0x47 denotes charset value type)
+	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
+	//attributes-charset (value tag of 0x48 denotes natural-language value type)
+	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
+
+	//Value tag of 0x45 denotes uri value type
+	AttributeByteString(0x45, "printer-uri", uri, &b)
+	//Value tag of 0x42 denotes nameWithoutLanguage value type
+	AttributeByteString(0x42, "requesting-user-name", "anonymous", &b)
+	//Value tag of 0x42 denotes nameWithoutLanguage value type
+	AttributeByteString(0x42, "job-name", "zgrab2 Test", &b)
+
+	//end-of-attributes-tag = 3
+	b.Write([]byte{3})
+}
+
 func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	var b bytes.Buffer
 	// Sending too new a version leads to a version-not-supported error, so we'll just send newest
@@ -85,9 +111,9 @@ func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	b.Write([]byte{1})
 
 	// TODO: Handle error ocurring in any AttributeByteString call
-	//attributes-charset
+	//attributes-charset (value tag of 0x47 denotes charset value type)
 	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
-	//attributes-natural-language
+	//attributes-natural-language (value tag of 0x48 denotes natural-language value type)
 	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
 
 	//end-of-attributes-tag = 3
