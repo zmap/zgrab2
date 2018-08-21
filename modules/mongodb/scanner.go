@@ -279,7 +279,6 @@ func getMaxWireVersion(conn *Connection) (int32, error) {
 
 // Scan connects to a host and performs a scan.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	var status zgrab2.ScanStatus
 	scan, err := scanner.StartScan(&target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
@@ -329,7 +328,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	bson.Unmarshal(msg[MSGHEADER_LEN+resp_offset:], &result)
 
-	return status, &result, err
+	return zgrab2.SCAN_SUCCESS, &result, err
 }
 
 // RegisterModule registers the zgrab2 module.
