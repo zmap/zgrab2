@@ -70,7 +70,7 @@ func (conn *Connection) Write(data []byte) error {
 		return err
 	}
 	if n != len(data) {
-		return &zgrab2.ScanError{Status: zgrab2.SCAN_CONNECTION_CLOSED, Err: nil}
+		return &zgrab2.ScanError{Status: zgrab2.SCAN_CONNECTION_CLOSED, Err: io.ErrShortWrite}
 	}
 	return nil
 }
