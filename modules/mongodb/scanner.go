@@ -71,7 +71,7 @@ func getIsMasterMsg() ([]byte) {
 	query, err := bson.Marshal(bson.M{ "isMaster": 1 })
 	if err != nil {
 		// programmer error
-		log.Fatal("Invalid BSON")
+		log.Fatalf("Invalid BSON: %v", err)
 	}
 	query_msg := getOpQuery("admin.$cmd", query)
 	return query_msg
@@ -82,12 +82,12 @@ func getBuildInfoCommandMsg() ([]byte) {
 	metaData, err := bson.Marshal(bson.M{ "buildInfo": 1 })
 	if err != nil {
 		// programmer error
-		log.Fatal("Invalid BSON")
+		log.Fatalf("Invalid BSON: %v", err)
 	}
 	commandArgs, err := bson.Marshal(bson.M{})
 	if err != nil {
 		// programmer error
-		log.Fatal("Invalid BSON")
+		log.Fatalf("Invalid BSON: %v", err)
 	}
 	// "test" collection gleaned from tshark
 	command_msg := getCommandMsg("test", "buildInfo", metaData, commandArgs)
@@ -139,7 +139,7 @@ func getBuildInfoOpMsg() ([]byte) {
 	section_payload, err := bson.Marshal(bson.M{ "buildinfo": 1, "$db": "admin" })
 	if err != nil {
 		// programmer error
-		log.Fatal("Invalid BSON")
+		log.Fatalf("Invalid BSON: %v", err)
 	}
 	section := make([]byte, len(section_payload) + 1)
 	copy(section[1:], section_payload)
@@ -149,22 +149,22 @@ func getBuildInfoOpMsg() ([]byte) {
 
 // BuildEnvironment_t holds build environment information returned by scan.
 type BuildEnvironment_t struct {
-	Distmod string `bson:"distmod,omitempty"`
-	Distarch string `bson:"distarch,omitempty"`
-	Cc string `bson:"cc,omitempty"`
-	CcFlags string `bson:"ccflags,omitempty"`
-	Cxx string `bson:"cxx,omitempty"`
-	CxxFlags string `bson:"cxxflags,omitempty"`
-	LinkFlags string `bson:"linkflags,omitempty"`
-	TargetArch string `bson:"target_arch,omitempty"`
-	TargetOS string `bson:"target_os,omitempty"`
+	Distmod string `bson:"distmod,omitempty" json:"dist_mod,omitempty"`
+	Distarch string `bson:"distarch,omitempty" json:"dist_arch,omitempty"`
+	Cc string `bson:"cc,omitempty" json:"cc,omitempty"`
+	CcFlags string `bson:"ccflags,omitempty" json:"cc_flags,omitempty"`
+	Cxx string `bson:"cxx,omitempty" json:"cxx,omitempty"`
+	CxxFlags string `bson:"cxxflags,omitempty" json:"cxx_flags,omitempty"`
+	LinkFlags string `bson:"linkflags,omitempty" json:"link_flags,omitempty"`
+	TargetArch string `bson:"target_arch,omitempty" json:"target_arch,omitempty"`
+	TargetOS string `bson:"target_os,omitempty" json:"target_os,omitempty"`
 }
 
 // Result holds the data returned by the scan
 type Result struct {
-	Version string `bson:"version,omitempty"`
-	GitVersion string `bson:"gitVersion,omitempty"`
-	BuildEnvironment BuildEnvironment_t `bson:"buildEnvironment,omitempty"`
+	Version string `bson:"version,omitempty" json:"version,omitempty"`
+	GitVersion string `bson:"gitVersion,omitempty" json:"git_version,omitempty"`
+	BuildEnvironment BuildEnvironment_t `bson:"buildEnvironment,omitempty" json:"build_environment,omitempty"`
 }
 
 // Init initializes the scanner

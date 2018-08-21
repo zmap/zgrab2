@@ -9,18 +9,18 @@ import zgrab2
 
 mongodb_scan_response = SubRecord({
     "result": SubRecord({
-        "Version": String(doc="Version of mongodb server"),
-        "GitVersion": String(doc="Git Version of mongodb server"),
-        "BuildEnvironment": SubRecord({
-            "Distmod": String(),
-            "Distarch": String(),
-            "Cc": String(),
-            "CcFlags": String(),
-            "Cxx": String(),
-            "CxxFlags": String(),
-            "LinkFlags": String(),
-            "TargetArch": String(),
-            "TargetOS": String()})
+        "version": String(doc="Version of mongodb server"),
+        "git_version": String(doc="Git Version of mongodb server"),
+        "build_environment": SubRecord({
+            "dist_mod": String(),
+            "dist_arch": String(),
+            "cc": String(),
+            "cc_flags": String(),
+            "cxx": String(),
+            "cxx_flags": String(),
+            "link_flags": String(),
+            "target_arch": String(),
+            "target_os": String()})
     })
 }, extends=zgrab2.base_scan_response)
 
