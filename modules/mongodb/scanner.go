@@ -160,11 +160,29 @@ type BuildEnvironment_t struct {
 	TargetOS string `bson:"target_os,omitempty" json:"target_os,omitempty"`
 }
 
-// Result holds the data returned by the scan
-type Result struct {
+// BuildInfo_t holds the data returned by the the buildInfo query
+type BuildInfo_t struct {
 	Version string `bson:"version,omitempty" json:"version,omitempty"`
 	GitVersion string `bson:"gitVersion,omitempty" json:"git_version,omitempty"`
 	BuildEnvironment BuildEnvironment_t `bson:"buildEnvironment,omitempty" json:"build_environment,omitempty"`
+}
+
+// IsMaster_t holds the data returned by an isMaster query
+type IsMaster_t struct {
+	IsMaster bool `bson:"isMaster" json:"is_master"`
+	MaxWireVersion int32 `bson:"maxWireVersion,omitempty" json:"max_wire_version,omitempty"`
+	MinWireVersion int32 `bson:"minWireVersion,omitempty" json:"min_wire_version,omitempty"`
+	MaxBsonObjectSize int32 `bson:"maxBsonObjectSize,omitempty" json:"max_bson_object_size,omitempty"`
+	MaxWriteBatchSize int32 `bson:"maxWriteBatchSize,omitempty" json:"max_write_batch_size,omitempty"`
+	LogicalSessionTimeoutMinutes int32 `bson:"logicalSessionTimeoutMinutes,omitempty" json:"logical_session_timeout_minutes,omitempty"`
+	MaxMessageSizeBytes int32 `bson:"maxMessageSizeBytes,omitempty" json:"max_message_size_bytes,omitempty"`
+	ReadOnly bool `bson:"readOnly" json:"read_only"`
+}
+
+// Result holds the data returned by a scan
+type Result struct {
+	IsMaster *IsMaster_t `json:"is_master"`
+	BuildInfo *BuildInfo_t `json:"build_info"`
 }
 
 // Init initializes the scanner
@@ -241,45 +259,39 @@ func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 	}, nil
 }
 
-// IsMasterResult hold the result of an isMaster command. Currently,
-// only interested in maxWireVersion.
-type IsMasterResult struct {
-	MaxWireVersion int32 `bson:"maxWireVersion"`
-}
-
-// getMaxWireVersion retrieves the maxWireVersion value reported by the MongoDB server.
-func getMaxWireVersion(conn *Connection) (int32, error) {
-	document := &IsMasterResult{}
+// getIsMaster issues the isMaster command to the MongoDB server and returns the result.
+func getIsMaster(conn *Connection) (*IsMaster_t, error) {
+	document := &IsMaster_t{}
 	doc_offset := MSGHEADER_LEN + 20
 	conn.Write(conn.scanner.isMasterMsg)
 
 	msg, err := conn.ReadMsg()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	if len(msg) < MSGHEADER_LEN + 4 {
 		err = fmt.Errorf("Server truncated message - no query reply (%d bytes: %s)", len(msg), hex.EncodeToString(msg))
-		return 0, err
+		return nil, err
 	}
 	respFlags := binary.LittleEndian.Uint32(msg[MSGHEADER_LEN:MSGHEADER_LEN + 5])
 	if respFlags & QUERY_RESP_FAILED != 0 {
 		err = fmt.Errorf("isMaster query failed")
-		return 0, err
+		return nil, err
 	}
 	doclen := int(binary.LittleEndian.Uint32(msg[doc_offset:doc_offset + 4]))
 	if len(msg[doc_offset:]) < doclen {
 		err = fmt.Errorf("Server truncated BSON reply doc (%d bytes: %s)",
 			  len(msg[doc_offset:]), hex.EncodeToString(msg))
-		return 0, err
+		return nil, err
 	}
 	err = bson.Unmarshal(msg[doc_offset:], &document)
 	if err != nil {
 		err = fmt.Errorf("Server sent invalid BSON reply doc (%d bytes: %s)",
 			  len(msg[doc_offset:]), hex.EncodeToString(msg))
-		return 0, err
+		return nil, err
 	}
-	return document.MaxWireVersion, nil
+	return document, nil
 }
 
 // Scan connects to a host and performs a scan.
@@ -291,7 +303,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	defer scan.Close()
 
 	result := scan.result
-	max_wirev, err := getMaxWireVersion(scan.conn)
+	result.IsMaster, err = getIsMaster(scan.conn)
 	if err != nil {
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
 	}
@@ -304,7 +316,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// "build info" command should be sent in an OP_COMMAND with the query sent
 	// and response retrieved at "metadata" offset. At 7 and above, should 
 	// be sent as an OP_MSG in the "section" field, and response is at "body" offset
-	if max_wirev < 7 {
+	if result.IsMaster.MaxWireVersion < 7 {
 		query = scanner.buildInfoCommandMsg
 		resplen_offset = 4
 		resp_offset = 0
@@ -317,21 +329,21 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	scan.conn.Write(query)
 	msg, err := scan.conn.ReadMsg()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), &result, err
 	}
 
 	if len(msg) < MSGHEADER_LEN + resplen_offset {
 		err = fmt.Errorf("Server truncated message - no metadata doc (%d bytes: %s)", len(msg), hex.EncodeToString(msg))
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
+		return zgrab2.SCAN_PROTOCOL_ERROR, &result, err
 	}
 
 	responselen := int(binary.LittleEndian.Uint32(msg[MSGHEADER_LEN:MSGHEADER_LEN + resplen_offset]))
 	if len(msg[MSGHEADER_LEN:]) < responselen {
 		err =  fmt.Errorf("Server truncated BSON response doc (%d bytes: %s)",
 				  len(msg[MSGHEADER_LEN:]), hex.EncodeToString(msg))
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
+		return zgrab2.SCAN_PROTOCOL_ERROR, &result, err
 	}
-	bson.Unmarshal(msg[MSGHEADER_LEN+resp_offset:], &result)
+	bson.Unmarshal(msg[MSGHEADER_LEN+resp_offset:], &result.BuildInfo)
 
 	return zgrab2.SCAN_SUCCESS, &result, err
 }
