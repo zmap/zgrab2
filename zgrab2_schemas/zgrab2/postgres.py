@@ -27,6 +27,7 @@ postgres_error = SubRecord({
     "schema": WhitespaceAnalyzedString(),
     "table": WhitespaceAnalyzedString(),
     "data": WhitespaceAnalyzedString(),
+    "constraint": WhitespaceAnalyzedString(),
     "file": WhitespaceAnalyzedString(),
     "line": WhitespaceAnalyzedString(),
     "routine": WhitespaceAnalyzedString(),
