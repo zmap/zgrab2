@@ -16,7 +16,7 @@ import (
 // Example (runnable from ipp_test.go):
 //   Input: 0x47, "attributes-charset", "us-ascii"
 //   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
-// TODO: Switch output and Example function to use hex.Dump()
+// TODO: Switch output and Example function to use hex
 // TODO: Should return an error when fed an invalid valueTag
 func AttributeByteString(valueTag byte, name string, value string, target *bytes.Buffer) error {
 	//special byte denoting value syntax
@@ -72,11 +72,18 @@ func ConvertURIToIPP(uriString string, tls bool) string {
 	return uri.String()
 }
 
-func validateJobRequest(major, minor int8, uri string) *bytes.Buffer {
+// Currently unused to avoid burdening print servers with empty jobs.
+// Creates a document-less job on the server awaiting a document from a send-uri or send-document request.
+// If the response to this is successful (0x0000-0x00ff), then a client can print as the specified user.
+// If the repsonse is client-error-not-authorized (0x0403), then the given user cannot print to this printer.
+// This is relevant because (at least CUPS's implmentation of) validate-job doesn't take requesting-user-name
+// into account, so creating a real job is required to check whether a user is authorized to print.
+// When access is unrestricted, all users can be logged in as "anonymous", so that is a useful username value to try.
+func createJobRequest(major, minor int8, uri, requestingUserName string) *bytes.Buffer {
 	var b bytes.Buffer
 	b.Write([]byte{byte(major), byte(minor)})
-	//operation-id = validate-job
-	b.Write([]byte{0, 4})
+	//operation-id = create-job
+	b.Write([]byte{0, 5})
 	//request-id = 1
 	b.Write([]byte{0, 0, 0, 1})
 	//operations-attributes-tag = 1
@@ -90,12 +97,14 @@ func validateJobRequest(major, minor int8, uri string) *bytes.Buffer {
 	//Value tag of 0x45 denotes uri value type
 	AttributeByteString(0x45, "printer-uri", uri, &b)
 	//Value tag of 0x42 denotes nameWithoutLanguage value type
-	AttributeByteString(0x42, "requesting-user-name", "anonymous", &b)
+	AttributeByteString(0x42, "requesting-user-name", requestingUserName, &b)
 	//Value tag of 0x42 denotes nameWithoutLanguage value type
 	AttributeByteString(0x42, "job-name", "zgrab2 Test", &b)
 
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
+
+	return &b
 }
 
 func getPrintersRequest(major, minor int8) *bytes.Buffer {
