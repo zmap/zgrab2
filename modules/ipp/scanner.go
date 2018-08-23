@@ -1,5 +1,4 @@
 // Package ipp provides a zgrab2 module that scans for ipp.
-// TODO: Describe module, the flags, the probe, the output, etc.
 package ipp
 
 import (
@@ -28,24 +27,30 @@ const (
 	PrinterURISupported string = "printer-uri-supported"
 )
 
-// TODO: Standardize more errors as globals (and maybe figure out something better than global vars)
-
 var (
 	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
 	// unless FollowLocalhostRedirects is set.
+	// Taken from HTTP scanner.
 	ErrRedirLocalhost = errors.New("Redirecting to localhost")
 
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
+	// Taken from HTTP scanner.
 	ErrTooManyRedirects = errors.New("Too many redirects")
 
-	// TODO: Explain this error
+	// ErrVersionNotSupported is returned when an IPP response carries an IPP
+	// status-code of server-error-version-not-supported (0x0503).
+	// This indicates an application error; the server reported an error.
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	// TODO: Explain this error
+	// ErrBodyTooShort is returned when data is too short to contain the
+	// required fields at the beginning of an IPP response.
+	// This indicates a protocol error; required fields are missing/incomplete.
     ErrBodyTooShort = errors.New("Fewer body bytes read than expected.")
 
-    // TODO: Explain this error
+    // ErrInvalidLength is returned when the reported length of an IPP attribute
+    // name or value exceeds the remaining length of a non-truncated response.
+    // This indicates a protocol error; the data is likely not well-formed IPP.
     ErrInvalidLength = errors.New("Reported field length runs out of bounds.")
 
 	Versions = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
@@ -61,22 +66,28 @@ type scan struct {
 	tls         bool
 }
 
-//TODO: Tag relevant results and exlain in comments
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
+	// IPP Version reported in Server HTTP header
 	MajorVersion  *int8  `json:"version_major,omitempty"`
 	MinorVersion  *int8  `json:"version_minor,omitempty"`
 	VersionString string `json:"version_string,omitempty"`
+	// CUPS Version reported in Server HTTP header
 	CUPSVersion   string `json:"cups_version,omitempty"`
 
+	// CUPS Version reported as attribute in an IPP response
 	AttributeCUPSVersion string   `json:"attr_cups_version,omitempty"`
+	// IPP Versions reported as attributes in an IPP response
 	AttributeIPPVersions []string `json:"attr_ipp_versions,omitempty"`
+	// URIs or specific printers connected to the server, reported as attributes in IPP response
 	AttributePrinterURIs []string `json:"attr_printer_uris,omitempty"`
+	// Every attribute returned in an IPP response to a get-printer-attributes or CUPS-get-printers request
 	Attributes           []*Attribute `json:"attributes,omitempty"`
 
+	// Log of TLS handshake
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 
-	//TODO: ?Include the request sent as well??
+	// Responses to get-printer-attributes and CUPS-get-printers requests, respectively
 	Response     *http.Response `json:"response,omitempty" zgrab:"debug"`
 	CUPSResponse *http.Response `json:"cups_response,omitempty" zgrab:"debug"`
 
@@ -92,7 +103,6 @@ type Flags struct {
 	zgrab2.TLSFlags
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
-	//FIXME: Borrowed from http module, determine whether this is all needed
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
 	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
@@ -102,13 +112,12 @@ type Flags struct {
 	// ErrRedirLocalhost whenever a redirect points to localhost.
 	FollowLocalhostRedirects bool `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
 
-	// TODO: Maybe separately implement both an ipps connection and upgrade to https
+	// TODO: FUTURE: Implement upgrade to HTTPS rather than just HTTPS
 	IPPSecure bool `long:"ipps" description:"Perform a TLS handshake immediately upon connecting."`
 }
 
 // Module implements the zgrab2.Module interface.
 type Module struct {
-	// TODO: Add any module-global state if necessary
 }
 
 type version struct {
@@ -119,7 +128,6 @@ type version struct {
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
-	// TODO: Add scan state if any is necessary
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -150,7 +158,6 @@ func (flags *Flags) Validate(args []string) error {
 
 // Help returns the module's help string.
 func (flags *Flags) Help() string {
-	//TODO: Write a help string
 	return ""
 }
 
@@ -158,7 +165,6 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	// TODO: Remove debug logging for unexpected behavior after 1% scan
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
@@ -190,7 +196,6 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-// FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
 func storeBody(res *http.Response, scanner *Scanner) {
 	b := bufferFromBody(res, scanner)
 	res.BodyText = b.String()
@@ -226,6 +231,7 @@ type Value struct {
 
 type Attribute struct {
 	Name string    `json:"name,omitempty"`
+	// A single attribute can have multiple values
 	Values []Value `json:"values,omitempty"`
 	ValueTag byte  `json:"tag,omitempty"`
 }
@@ -275,6 +281,8 @@ v     value
 */
 func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 	var attrs []*Attribute
+	// Keeps track of bytes read so far to verify that no reported lengths
+	// run off the end of the response
 	bytesRead := 0
 	buf := bytes.NewBuffer(body)
 	// Each field of this struct is exported to avoid binary.Read panicking
@@ -306,12 +314,14 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 			}
 			bytesRead++
 			// Start a new iteration after reading this tag, since the next tag could be another
-			// delimiter to be caught by this same if block
+			// delimiter to be caught by this same check
 			continue
 		}
-		// TODO: Implement parsing attribute collections, since they're special
-		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
-		// or provides an additonal value for the previous attribute
+		// TODO: FUTURE: Implement parsing attribute collections which differ
+		// slightly from other attributes.
+		// Read in length of attribute's name, which is used to determine
+		// whether this attribute stands alone or provides an additonal
+		// value for the previous attribute.
 		var nameLength int16
 		if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 			return attrs, detectReadBodyError(err)
@@ -396,7 +406,6 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 
 	attrs, err := readAllAttributes(body, scanner)
 	if err != nil {
-		// TODO: Handle error appropriately
 		log.WithFields(log.Fields{
 			"error": err,
 			"body":  resp.BodyText,
@@ -444,7 +453,8 @@ func versionNotSupported(body string) bool {
 	return false
 }
 
-// TODO: Genericize this with passed-in getIPPRequest function and *http.Response for some result field to store into
+// TODO: FUTURE: De-duplicate this code and call in augmentWithCUPSData and
+// Grab, supplying different IPP request bodies, returning an HTTP.Response.
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	cupsBody := getPrintersRequest(version.Major, version.Minor)
 	cupsResp, err := sendIPPRequest(scan, cupsBody)
@@ -465,11 +475,9 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	return nil
 }
 
-// TODO: Let this receive generic *io.Reader rather than *bytes.Buffer in particular
 func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.ScanError) {
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
-		// TODO: Log the error to see what exactly went wrong
 		return nil, zgrab2.DetectScanError(err)
 	}
 	request.Header.Set("Accept", "*/*")
@@ -490,7 +498,8 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 			return resp, zgrab2.DetectScanError(err)
 		}
 	}
-	// TODO: Examine whether an empty response overall is a connection error; see RFC 8011 Section 4.2.5.2
+	// For the purposes of IPP, we can treat the lack of any response as
+	// if there was no connection in the first place.
 	if resp == nil {
 		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
 	}
@@ -523,8 +532,8 @@ func isIPP(resp *http.Response) bool {
 	hasIPP := hasContentType(resp, ContentType)
 	body := []byte(resp.BodyText)
 	// If Content-Type header doesn't clearly indicate IPP, but "attributes-charset"
-	// attribute is specified in the correct format for IPP, still indicate a positive detection
-	// This is in response to empirical evidence of all false negatives specifying "attributes-charset"
+	// attribute is specified in the correct format for IPP, still indicate a positive detection.
+	// This is in response to empirical evidence that many false negatives specify "attributes-charset"
 	// in the correct format.
 	return resp.StatusCode == 200 && (hasIPP || bytes.Contains(body, AttributesCharset))
 }
@@ -532,7 +541,6 @@ func isIPP(resp *http.Response) bool {
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
 	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
-	// TODO: Log any weird errors coming out of this
 	resp, err := sendIPPRequest(scan, body)
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
@@ -544,6 +552,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
 
+	// If IPP or CUPS appear in Server header, record their value to scan.results
 	protocols := strings.Split(resp.Header.Get("Server"), " ")
 	for _, p := range protocols {
 		if strings.HasPrefix(strings.ToUpper(p), "IPP/") {
@@ -581,9 +590,11 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		}
 	}
 
+	// Record all IPP attributes in IPP response
 	if err := scanner.tryReadAttributes(scan.results.Response, scan); err != nil {
 		return err
 	}
+	// If print server is CUPS, send a CUPS-get-printers request and record the results
 	if scan.results.CUPSVersion != "" {
 		err := scanner.augmentWithCUPSData(scan, target, version)
 		if err != nil {
@@ -653,11 +664,11 @@ func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Con
 	}
 }
 
-// This doesn't use ipp(s) scheme, because http doesn't recognize them, so we need http scheme
+// This doesn't use ipp(s) scheme, because http doesn't recognize them
 // We convert as needed later in convertURIToIPP
-func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
+func getHTTPURL(tls bool, host string, port uint16, endpoint string) string {
 	var proto string
-	if https {
+	if tls {
 		proto = "https"
 	} else {
 		proto = "http"
@@ -682,15 +693,16 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
-	newScan.client.Jar = nil // Don't transfer cookies FIXME: Stolen from HTTP, unclear if needed
+	newScan.client.Jar = nil // Don't transfer cookies
 	newScan.tls = tls
 	host := target.Domain
 	if host == "" {
-		// FIXME: I only know this works for sure for IPv4, uri string might get weird w/ IPv6
-		// FIXME: Change this, since ipp uri's cannot contain an IP address. Still valid for HTTP
+		// NOTE: This works for IPv4, uri string might get break w/ IPv6
+		// Literal IP's in IPP uri's are recommended against, but this works in most cases
+		// (Source: https://tools.ietf.org/html/rfc7472#section-4.2)
 		host = target.IP.String()
 	}
-	// FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
+	// Endpoint is "/ipp" because that endpoint tends to accept IPP requests. "/" works just as well for CUPS host.
 	newScan.url = getHTTPURL(tls, host, uint16(scanner.config.BaseFlags.Port), "/ipp")
 	return &newScan
 }
@@ -705,13 +717,14 @@ func (scan *scan) Cleanup() {
 	}
 }
 
-// TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
 func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions []version, tls bool) (*scan, *zgrab2.ScanError) {
 	scan := scanner.newIPPScan(target, tls)
 	defer scan.Cleanup()
 	var err *zgrab2.ScanError
 	for i := 0; i < len(versions); i++ {
 		err = scanner.Grab(scan, target, &versions[i])
+		// Keep going if there's a version-not-supported error and the
+		// attempted version's not the last one to try.
 		if err != nil && err.Err == ErrVersionNotSupported && i < len(versions)-1 {
 			continue
 		}
@@ -720,8 +733,6 @@ func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions [
 	return scan, err
 }
 
-// TODO: Incorporate status into this? I don't think so, b/c with certain statuses, we should return
-// early, so special casing seems to make sense
 func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 	if scan.results.Response != nil {
 		return true
@@ -732,21 +743,26 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 	return false
 }
 
-// Scan TODO: describe how scan operates in appropriate detail
-//1. Send a request (currently get-printer-attributes)
-//2. Take in that response & read out version numbers
+// For each IPP version until we get an IPP response:
+//     Send a get-printer-attributes request
+//     Read version information from HTTP headers
+//     If the host runs CUPS, send a CUPS-get-printers request
+//     Record all IPP attributes returned from each operation
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
 	scan, err := scanner.tryGrabForVersions(&target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure)
 	if err != nil {
-		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
+		// If ErrVersionNotSupported, wrong status code, or ErrTooManyRedirects (all SCAN_APPLICATION_ERROR)
+		// are encountered, the scanner was connecting w/ TLS, so don't retry w/o TLS.
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
 		if err.Status == zgrab2.SCAN_APPLICATION_ERROR || err.Status == zgrab2.SCAN_PROTOCOL_ERROR {
 			return err.Unpack(&scan.results)
 		}
+		// Retry w/o TLS if TLSRetry is specified
 		if scanner.config.TLSRetry && !scanner.config.IPPSecure {
 			retry, retryErr := scanner.tryGrabForVersions(&target, Versions, false)
 			if retryErr != nil {
+				// Return retry result if it has non-nil response or valid ServerHello in TLS handshake.
 				if retry.shouldReportResult(scanner) {
 					return retryErr.Unpack(&retry.results)
 				}
@@ -754,14 +770,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 				if scan.shouldReportResult(scanner) {
 					return err.Unpack(&scan.results)
 				}
+				// Otherwise, return a nil result
 				return zgrab2.TryGetScanStatus(retryErr), nil, retryErr
 			}
+			// Return retry grab's results, since there was no error.
 			return zgrab2.SCAN_SUCCESS, &retry.results, nil
 		}
+		// Return result if it has non-nil response or valid ServerHello in TLS handshake.
 		if scan.shouldReportResult(scanner) {
 			return err.Unpack(&scan.results)
 		}
+		// Otherwise, return a nil result
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	// Return grab results, since there was no error.
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
