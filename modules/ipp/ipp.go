@@ -16,8 +16,7 @@ import (
 // Example (runnable from ipp_test.go):
 //   Input: 0x47, "attributes-charset", "us-ascii"
 //   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
-// TODO: Switch output and Example function to use hex.Dump()
-// TODO: Should return an error when fed an invalid valueTag
+// TODO: FUTURE: Return an error when fed an invalid valueTag
 func AttributeByteString(valueTag byte, name string, value string, target *bytes.Buffer) error {
 	//special byte denoting value syntax
 	binary.Write(target, binary.BigEndian, valueTag)
@@ -29,7 +28,6 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 		//append name
 		binary.Write(target, binary.BigEndian, []byte(name))
 	} else {
-		// TODO: Log error somewhere
 		return errors.New("Name wrong length to encode.")
 	}
 
@@ -40,16 +38,14 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 		//append value
 		binary.Write(target, binary.BigEndian, []byte(value))
 	} else {
-		// TODO: Log error somewhere
 		return errors.New("Value wrong length to encode.")
 	}
 
 	return nil
 }
 
-// TODO: Eventually handle scheme-less urls, even though getHTTPURL will never construct one (we can use regex)
-// TODO: RFC claims that literal IP addresses are not valid IPP uri's, but Wireshark IPP Capture example uses them
-// (Source: https://wiki.wireshark.org/SampleCaptures?action=AttachFile&do=view&target=ipp.pcap)
+// TODO: FUTURE: If required, handle scheme-less urls. This is currently
+// not an issue because getHTTPURL will never construct one
 func ConvertURIToIPP(uriString string, tls bool) string {
 	uri, err := url.Parse(uriString)
 	if err != nil {
@@ -58,7 +54,6 @@ func ConvertURIToIPP(uriString string, tls bool) string {
 			"url": uriString,
 		}).Debug("Failed to parse URL from string")
 	}
-	// TODO: Create a better condition than uri.Scheme == "" b/c url.Parse doesn't know whether there's a scheme
 	if uri.Scheme == "" || uri.Scheme == "http" || uri.Scheme == "https" {
 		if tls {
 			uri.Scheme = "ipps"
@@ -67,6 +62,7 @@ func ConvertURIToIPP(uriString string, tls bool) string {
 		}
 	}
 	if !strings.Contains(uri.Host, ":") {
+		// TODO: FUTURE: Change dynamically if IPP scans are run on non-standard ports
 		uri.Host += ":631"
 	}
 	return uri.String()
@@ -84,7 +80,6 @@ func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
-	// TODO: Handle error ocurring in any AttributeByteString call
 	//attributes-charset
 	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
 	//attributes-natural-language
@@ -96,7 +91,6 @@ func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	return &b
 }
 
-// TODO: Store everything except uri statically?
 // Construct a minimal request that an IPP server will respond to
 // IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
 func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) *bytes.Buffer {
@@ -118,7 +112,6 @@ func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) *bytes
 	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
-	// TODO: Handle error ocurring in any AttributeByteString call
 	//attributes-charset
 	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
 	//attributes-natural-language

@@ -476,7 +476,7 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	return nil
 }
 
-func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.ScanError) {
+func sendIPPRequest(scan *scan, body io.Reader) (*http.Response, *zgrab2.ScanError) {
 	request, err := http.NewRequest("POST", scan.url, body)
 	if err != nil {
 		return nil, zgrab2.DetectScanError(err)
