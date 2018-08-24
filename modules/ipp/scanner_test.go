@@ -4,6 +4,22 @@ import (
 	"testing"
 )
 
+func TestStoreBody(t *testing.T) {
+
+}
+
+func TestBufferFromBody(t *testing.T) {
+
+}
+
+func TestShouldReturnAttrs(t *testing.T) {
+
+}
+
+func TestDetectReadBodyError(t *testing.T) {
+
+}
+
 // TODO: Use testing harness to represent pass/failure conditions
 func TestReadAllAttributes(t *testing.T) {
 	var scanner Scanner
@@ -60,4 +76,67 @@ func TestReadAllAttributes(t *testing.T) {
 
 	//things that should actually make this fail:
 	//just blatantly not IPP: probably fail with wrong field-length error or reported field length error eventually?
+}
+
+// FIXME: Unclear if these tests would differ from readAllAttributes in any meaningful way
+func TestTryReadAttributes(t *testing.T) {
+
+}
+
+func TestVersionNotSupported(t *testing.T) {
+
+}
+
+func TestAugmentWithCUPSData(t *testing.T) {
+
+}
+
+func TestSendIPPRequest(t *testing.T) {
+
+}
+
+func TestHasContentType(t *testing.T) {
+
+}
+
+func TestIsIPP(t *testing.T) {
+
+}
+
+// FIXME: Unclear how to test this instead of lower-down functions
+func TestGrab(t *testing.T) {
+
+}
+
+func TestRedirectsToLocalhost(t *testing.T) {
+
+}
+
+// FIXME: Can functions which return functions really be tested? Maybe by testing their result?
+// func TestGetCheckRedirect
+// func TestGetTLSDialer
+
+func TestGetHTTPURL(t *testing.T) {
+
+}
+
+func TestNewIPPScan(t *testing.T) {
+
+}
+
+func TestCleanup(t *testing.T) {
+
+}
+
+func TestTryGrabForVersions(t *testing.T) {
+
+}
+
+func TestShouldReportResult(t *testing.T) {
+
+}
+
+// FIXME: Unclear how to test this instead of lower-level functions
+func TestScan(t *testing.T) {
+
 }
