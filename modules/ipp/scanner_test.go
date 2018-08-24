@@ -13,65 +13,70 @@ func TestStoreBody(t *testing.T) {
 }
 
 func TestBufferFromBody(t *testing.T) {
+	// What does a test really consist of here?
+	// response to use, buffer to use as body, content length, and desired output length
+	// could all be relevant. Also comparing the actual bytes would be cool
 	var scanner *Scanner
 	scanner = &Scanner{}
 	scanner.config = &Flags{}
 	// Truncation occurs at 1024 bytes b/c MaxSize == 1
 	scanner.config.MaxSize = 1
+	maxLength := scanner.config.MaxSize * 1024
 
-	empty := bytes.NewBuffer([]byte{})
-	nonTruncated := bytes.NewBuffer([]byte("a"))
-	truncated := bytes.NewBuffer(bytes.Repeat([]byte("a"), 1025))
-
-	// Create a dummy HTTP response
 	resp := new(http.Response)
-	// Set ContentLength to -1, which denotes unknown length.
-	resp.ContentLength = -1
+	empty := []byte{}
+	nonTruncated := []byte("a")
+	truncated := bytes.Repeat([]byte("a"), maxLength + 1)
 
-	resp.Body = ioutil.NopCloser(empty)
-	length := empty.Len()
-	if buf := bufferFromBody(resp, scanner); buf.Len() != length {
-		t.Error("Wrong length for empty.")
-	}
-	// Tests executing a second time to ensure that bufferFromBody is properly
-	// re-populating resp.Body
-	if buf := bufferFromBody(resp, scanner); buf.Len() != length {
-		t.Error("Can't execute twice on empty input.")
+	type Test struct {
+		resp *http.Response
+		bytes []byte
+		contentLength int
+		expected []byte
 	}
 
-	resp.Body = ioutil.NopCloser(nonTruncated)
-	length = nonTruncated.Len()
-	if buf := bufferFromBody(resp, scanner); buf.Len() != length {
-		t.Error("Wrong length for non-truncated.")
+	// TODO: Add test(s) with nil response object
+	tables := []Test {
+		// Empty
+		{resp, empty, -1, empty},
+		{resp, empty, len(empty), empty},
+		// Non-truncated
+		{resp, nonTruncated, -1, nonTruncated},
+		{resp, nonTruncated, len(nonTruncated), nonTruncated},
+		// Truncated
+		{resp, truncated, -1, truncated[:maxLength]},
+		{resp, truncated, len(truncated), truncated[:maxLength]},
 	}
-	if buf := bufferFromBody(resp, scanner); buf.Len() != length {
-		t.Error("Can't execute twice on non-truncated input.")
-	}
+	// NOTE: nil argument to bytes.Equal is equivalent to empty slice
+	for i, table := range tables {
+		if table.resp != nil {
+			table.resp.ContentLength = int64(table.contentLength)
+			table.resp.Body = ioutil.NopCloser(bytes.NewBuffer(table.bytes))
+		}
+		buf := bufferFromBody(table.resp, scanner)
+		if !bytes.Equal(buf.Bytes(), table.expected) {
+			t.Errorf("Wrong length for input %d. wanted: %d, got: %d", i, len(table.expected), buf.Len())
+		}
+		// Tests executing a second time to ensure that bufferFromBody is properly
+		// re-populating resp.Body for subsequent calls to bufferFromBody
+		buf = bufferFromBody(table.resp, scanner)
+		if !bytes.Equal(buf.Bytes(), table.expected) {
+			t.Errorf("Can't execute twice on input %d.", i)
+		}
 
-	resp.Body = ioutil.NopCloser(truncated)
-	length = scanner.config.MaxSize * 1024
-	if buf := bufferFromBody(resp, scanner); buf.Len() != length {
-		t.Error("Wrong length for truncated.")
-	}
-	if buf := bufferFromBody(resp, scanner); buf.Len() != length {
-		t.Error("Can't execute twice on truncated input.")
 	}
 
 	var none *http.Response
 	none = nil
-	// TODO: Determine whether there should be a nil buf or an empty one, first thing in the morning.
 	if buf := bufferFromBody(none, scanner); buf.Len() != 0 {
 		t.Error("Nil response doesn't cause empty buffer.")
 	}
 
 	// consecutive runs to check for consistent output
-	// check that body still exists (and is open?; check how much is available to read on ReadCloser) after calling this.
+	// check that body still exists (check how much is available to read on ReadCloser) after calling this.
 	// nil response, empty body, short enough to avoid truncation, long enough for truncation
 	// with and without true ContentLength
 	// negative ContentLength => unknown length; should just copy until the limit or actual length (whichever's shorter)
-
-	// ContentLength must be set manually.
-
 	// TODO: Figure out whether dishonest ContentLength is a case that needs to be handled (It's not in HTTP)
 }
 
