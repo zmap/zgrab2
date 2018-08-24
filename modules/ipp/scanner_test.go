@@ -101,7 +101,29 @@ func TestTryReadAttributes(t *testing.T) {
 }
 
 func TestVersionNotSupported(t *testing.T) {
+	// Empty response
+	empty := ""
+	if versionNotSupported(empty) {
+		t.Fail()
+	}
 
+	// Too-short response
+	tooShort := "abc"
+	if versionNotSupported(tooShort) {
+		t.Fail()
+	}
+
+	// Long enough response w/ status code of 0x0503 (meaning server-error-version-not-supported)
+	badCode := "ab\x05\x03"
+	if !versionNotSupported(badCode) {
+		t.Fail()
+	}
+
+	// Long enough response w/ different status code
+	goodCode := "ab\x04\x06"
+	if versionNotSupported(goodCode) {
+		t.Fail()
+	}
 }
 
 func TestAugmentWithCUPSData(t *testing.T) {
