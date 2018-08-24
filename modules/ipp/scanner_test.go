@@ -13,9 +13,6 @@ func TestStoreBody(t *testing.T) {
 }
 
 func TestBufferFromBody(t *testing.T) {
-	// What does a test really consist of here?
-	// response to use, buffer to use as body, content length, and desired output length
-	// could all be relevant. Also comparing the actual bytes would be cool
 	var scanner *Scanner
 	scanner = &Scanner{}
 	scanner.config = &Flags{}
@@ -35,7 +32,7 @@ func TestBufferFromBody(t *testing.T) {
 		expected []byte
 	}
 
-	// TODO: Add test(s) with nil response object
+	// ContentLength == -1 indicates unknown length, so bufferFromBody will copy up to MaxSize KB
 	tables := []Test {
 		// Empty
 		{resp, empty, -1, empty},
@@ -46,8 +43,11 @@ func TestBufferFromBody(t *testing.T) {
 		// Truncated
 		{resp, truncated, -1, truncated[:maxLength]},
 		{resp, truncated, len(truncated), truncated[:maxLength]},
+		// Nil response
+		// Should result in empty buffer
+		{nil, truncated, -1, empty},
+		{nil, truncated, len(truncated), empty},
 	}
-	// NOTE: nil argument to bytes.Equal is equivalent to empty slice
 	for i, table := range tables {
 		if table.resp != nil {
 			table.resp.ContentLength = int64(table.contentLength)
@@ -55,7 +55,7 @@ func TestBufferFromBody(t *testing.T) {
 		}
 		buf := bufferFromBody(table.resp, scanner)
 		if !bytes.Equal(buf.Bytes(), table.expected) {
-			t.Errorf("Wrong length for input %d. wanted: %d, got: %d", i, len(table.expected), buf.Len())
+			t.Errorf("Incorrect output for input %d. wanted: %v, got: %v", i, table.expected, buf.Bytes())
 		}
 		// Tests executing a second time to ensure that bufferFromBody is properly
 		// re-populating resp.Body for subsequent calls to bufferFromBody
@@ -63,21 +63,7 @@ func TestBufferFromBody(t *testing.T) {
 		if !bytes.Equal(buf.Bytes(), table.expected) {
 			t.Errorf("Can't execute twice on input %d.", i)
 		}
-
 	}
-
-	var none *http.Response
-	none = nil
-	if buf := bufferFromBody(none, scanner); buf.Len() != 0 {
-		t.Error("Nil response doesn't cause empty buffer.")
-	}
-
-	// consecutive runs to check for consistent output
-	// check that body still exists (check how much is available to read on ReadCloser) after calling this.
-	// nil response, empty body, short enough to avoid truncation, long enough for truncation
-	// with and without true ContentLength
-	// negative ContentLength => unknown length; should just copy until the limit or actual length (whichever's shorter)
-	// TODO: Figure out whether dishonest ContentLength is a case that needs to be handled (It's not in HTTP)
 }
 
 func TestShouldReturnAttrs(t *testing.T) {
