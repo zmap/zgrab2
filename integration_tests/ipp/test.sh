@@ -11,12 +11,14 @@ mkdir -p $ZGRAB_OUTPUT/ipp
 
 versions="cups cups-tls"
 
+# TODO: Set up a container that speaks IPP w/o TLS b/c sending IPPS requests to CUPS
+# server configured with "Encryption Never" specified still yields a full handshake.
+# TODO: Add test cases that use --ipps-retry flag
+
 function test_cups() {
     echo "ipp/test: Tests runner for ipp_cups"
 
     CONTAINER_NAME="zgrab_ipp_cups" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3s --verbose > "$OUTPUT_ROOT/cups.json"
-    # FIXME: No good reason to use a tmp file & saved file, b/c I'm not testing any failure states yet
-    #CONTAINER_NAME="zgrab_ipp_cups" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3 --verbose > out.tmp
     major=$($ZGRAB_ROOT/jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups.json")
     minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups.json")
     cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups.json")
@@ -39,14 +41,11 @@ function test_cups_tls() {
     echo "ipp/test: Tests runner for ipp_cups-tls"
 
     CONTAINER_NAME="zgrab_ipp_cups-tls" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3s --ipps --verbose > "$OUTPUT_ROOT/cups-tls.json"
-    # FIXME: No good reason to use a tmp file & saved file, b/c I'm not testing any failure states yet
-    #CONTAINER_NAME="zgrab_ipp_cups-tls" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3 --ipps --verbose > out.tmp
     major=$($ZGRAB_ROOT/jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups-tls.json")
     minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups-tls.json")
     response=$($ZGRAB_ROOT/jp -u data.ipp.result.response < "$OUTPUT_ROOT/cups-tls.json")
     cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups-tls.json")
-    # TODO: Check for a particular field in the tls object, since it may be safer
-    tls=$($ZGRAB_ROOT/jp -u data.ipp.result.tls < "$OUTPUT_ROOT/cups-tls.json")
+    server_hello=$($ZGRAB_ROOT/jp -u data.ipp.result.tls.handshake_log.server_hello < "$OUTPUT_ROOT/cups-tls.json")
     #rm -f out.tmp
     if ! [ $major = "2" ]; then
         echo "ipp/test: Incorrect major version. Expected 2, got $major"
@@ -60,7 +59,7 @@ function test_cups_tls() {
         echo "ipp/test: Incorrect CUPS version. Expected CUPS/2.1, got $cups"
         exit 1
     fi
-    if [ "$tls" = "null" ]; then
+    if [ "$server_hello" = "null" ]; then
         echo "ipp/test: No TLS handshake logged"
         exit 1
     fi
@@ -79,7 +78,6 @@ for version in $versions; do
     docker logs --tail all $CONTAINER_NAME
     echo ")}] END docker logs from $CONTAINER_NAME"
 
-    # TODO: If there are any other relevant log files, dump those to stdout here.
     # FIXME: Only dump these 3 logs if they exist
     #echo "ipp/test: BEGIN cups logs from $CONTAINER_NAME [{("
     #docker exec -t $CONTAINER_NAME cat //var/log/cups/access_log

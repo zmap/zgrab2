@@ -1,8 +1,6 @@
 FROM zgrab2_service_base:latest
 
-RUN apt-get update && apt-get install -y \
-  cups \
-  cups-pdf
+RUN apt-get update && apt-get install -y cups
 WORKDIR /etc/cups
 COPY cupsd.conf cupsd.conf
 
