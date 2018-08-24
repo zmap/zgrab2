@@ -164,37 +164,35 @@ func TestTryReadAttributes(t *testing.T) {
 }
 
 func TestVersionNotSupported(t *testing.T) {
+	// Content other than 3rd and 4th bytes is just filler, since they are ignored while reading
 	// Empty response
 	empty := ""
-	if versionNotSupported(empty) {
-		t.Fail()
-	}
-
-	// Too-short response
-	// Content is arbitrary, as the only point is to be too-short
+	// Response too short to read any status code
 	tooShort := "abc"
-	if versionNotSupported(tooShort) {
-		t.Fail()
-	}
-
 	// Long enough response w/ status code of 0x0503 (meaning server-error-version-not-supported)
-	// First 2 bytes are arbitrary, since they are ignored
 	badCode := "ab\x05\x03"
-	if !versionNotSupported(badCode) {
-		t.Fail()
-	}
-
-	// Long enough response w/ different status code
-	// First 2 bytes are arbitrary, since they are ignored
+	// Long enough response w/ another status code
 	goodCode := "ab\x04\x06"
-	if versionNotSupported(goodCode) {
-		t.Fail()
+	// A full example response w/o server-error-version-not-supported
+	actual := string([]byte{2, 1, 4, 6, 0, 0, 0, 1, 1, 71, 0, 18, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 45, 99, 104, 97, 114, 115, 101, 116, 0, 5, 117, 116, 102, 45, 56, 72, 0, 27, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 45, 110, 97, 116, 117, 114, 97, 108, 45, 108, 97, 110, 103, 117, 97, 103, 101, 0, 5, 101, 110, 45, 117, 115, 65, 0, 14, 115, 116, 97, 116, 117, 115, 45, 109, 101, 115, 115, 97, 103, 101, 0, 36, 84, 104, 101, 32, 112, 114, 105, 110, 116, 101, 114, 32, 111, 114, 32, 99, 108, 97, 115, 115, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 101, 120, 105, 115, 116, 46, 3})
+
+	type Test struct {
+		body string
+		result bool
 	}
 
-	// A full example response
-	actual := string([]byte{2, 1, 4, 6, 0, 0, 0, 1, 1, 71, 0, 18, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 45, 99, 104, 97, 114, 115, 101, 116, 0, 5, 117, 116, 102, 45, 56, 72, 0, 27, 97, 116, 116, 114, 105, 98, 117, 116, 101, 115, 45, 110, 97, 116, 117, 114, 97, 108, 45, 108, 97, 110, 103, 117, 97, 103, 101, 0, 5, 101, 110, 45, 117, 115, 65, 0, 14, 115, 116, 97, 116, 117, 115, 45, 109, 101, 115, 115, 97, 103, 101, 0, 36, 84, 104, 101, 32, 112, 114, 105, 110, 116, 101, 114, 32, 111, 114, 32, 99, 108, 97, 115, 115, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32, 101, 120, 105, 115, 116, 46, 3})
-	if versionNotSupported(actual) {
-		t.Fail()
+	tables := []Test {
+		{empty, false},
+		{tooShort, false},
+		{badCode, true},
+		{goodCode, false},
+		{actual, false},
+	}
+
+	for i, table := range tables {
+		if result := versionNotSupported(table.body); result != table.result {
+			t.Errorf("Test case %d failed. wanted: %t, got: %t", i, table.result, result)
+		}
 	}
 }
 
