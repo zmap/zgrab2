@@ -40,6 +40,10 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
+    ErrBodyTooShort = errors.New("Fewer body bytes read than expected.")
+
+    ErrInvalidLength = errors.New("Reported field length runs out of bounds.")
+
 	Versions = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
 	AttributesCharset = []byte{0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74}
 )
@@ -195,6 +199,9 @@ func storeBody(res *http.Response, scanner *Scanner) {
 
 func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	b := new(bytes.Buffer)
+	if res == nil {
+		return b
+	}
 	maxReadLen := int64(scanner.config.MaxSize) * 1024
 	readLen := maxReadLen
 	if res.ContentLength >= 0 && res.ContentLength < maxReadLen {
@@ -222,7 +229,7 @@ func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 		if size >= upperBound {
 			return true, nil
 		}
-		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, ErrInvalidLength)
 
 	}
 	return false, nil
@@ -230,7 +237,7 @@ func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 
 func detectReadBodyError(err error) error {
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Fewer body bytes read than expected."))
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, ErrBodyTooShort)
 	}
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
