@@ -19,9 +19,9 @@ type Authenticator interface {
 	TryGetAuth(req *http.Request, resp *http.Response) string
 }
 
-// TODO: Make this contain state useful for constructing a next response (ie: nextnonce field)
-// TODO: Session state ("-sess") could also be handy here, since it persists from one request to the next with a given host
-// TODO: Similarly, maintaining nonce counter presents some interesting challenges. Maybe more state mapped from host makes sense
+// TODO: Future: Include state useful for constructing a next response (ie: nextnonce field)
+// TODO: Future: Include isSession state ("-sess"), since it persists from one request to the next with a given host
+// TODO: Future: Include nonce counter, probably maintained per host
 type authenticator struct {
 	// Map from hosts to credential pointers. Shouldn't be accessed directly.
 	creds map[string]*credential
@@ -31,6 +31,8 @@ type credential struct {
 	Username, Password string
 }
 
+// Accepts either a filename or map from string to string, as can be generated
+// by the related command line arguments specified in zgrab2.HTTPFlags
 // TODO: Make sure that you can only specify one file? Maybe supporting multiple files makes sense.
 func NewAuthenticator(credsFilename string, hostsToCreds map[string]string) (authenticator, error) {
 	auther := authenticator{creds: make(map[string]*credential)}
@@ -153,13 +155,18 @@ func parseWwwAuth(header string) map[string]string {
 	return parameters
 }
 
+// TODO: Future: Fall back on strconv.Unquote if that proves better for this
+// purpose. It's unclear whether manually unescaping strings or unescaping
+// everything is preferable. Seems like these strings generally don't contain
+// escapes in the first place.
 func unquote(s string) string {
 	// A string can only be in quotes if it's at least two characters long.
 	if len(s) >= 2 {
 		if s[0] == '"' && s[len(s)-1] == '"' {
 			s = s[1:len(s)-1]
 		}
-		// TODO: Determine if any other escaping needs to be undone. I don't think so, since double-quotes are the relevant problem.
+		// TODO: Replace this with a more aware replacement strategy, interpreting `"\\""` correctly
+		// TODO: Future: Consider whether something like Werkzeug's special-cased implementation of unquote_header_value would be appropriate
 		s = strings.Replace(s, `\"`, `"`, -1)
 	}
 	return s
@@ -199,7 +206,6 @@ func generateClientNonce() (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-// TODO: This function is quite long, but does essentially perform one task. Consider refactoring.
 func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) string {
 	// Return quickly in the case that Authorization header can't be constructed
 	if resp == nil || resp.Header == nil {
@@ -208,7 +214,6 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 
 	header := valueOrDefault(resp.Header.Get("Www-Authenticate"), resp.Header.Get("Proxy-Authenticate"))
 	params := parseWwwAuth(header)
-	fmt.Printf("Parameters: %v\n", params)
 	// Default to MD5 if algorithm isn't specified in response. https://tools.ietf.org/html/rfc7616#section-3.3
 	algoString := valueOrDefault(params["algorithm"], "MD5")
 	var sess bool
@@ -273,7 +278,7 @@ func getDigestAuth(creds *credential, req *http.Request, resp *http.Response) st
 
 	// Username must be hashed after any other hashing, per RFC 7616 Section 3.4.4
 	// TODO: Write logic that determines whether to include username or username*, how to encode that
-	// TODO: If the username would necessitate using username*, but hashing is enabled, no * is required. Just send the hash.
+	// TODO: If the username would necessitate using username*, but hashing is enabled, no username* field is required. Just send the hash.
 	username := creds.Username
 	userhash := valueOrDefault(params["userhash"], "false")
 	if userhash == "true" {
@@ -311,13 +316,14 @@ func getBasicAuth(creds *credential) string {
 	// 3) A specified scheme can be "Basic" or "Digest"
 // TODO: Invert this so that resp is checked before presence of host
 func (auther authenticator) TryGetAuth(req *http.Request, resp *http.Response) string {
+	// NOTE: This function should be called in response to both 401 and 407
+	    // responses. Also before any response to attempt basic auth.
+	// FIXME: This should only return basic authentication when TLS is in use. Otherwise, credentials will simply be leaked.
 	// NOTE: If/when wildcards for hosts are introduced, automatically sending
 		// Basic Auth to a host that matches the specified format could become
 		// problematic, particularly if not implemented very carefully. If
 		// "google.com.attacker.net" matches a specified wildcard of "google.com*",
 		// a user could unknowingly send Google creds to "attacker.net"
-	// TODO: Consider whether taking in https status would be a good precaution,
-		// in order to somehow warn about plaintext auth or implement safer defaults
 	// TODO: Figure out a good way to get the IP address involved in an http request
 	// Otherwise, require the caller pass in the relevant hostname/ip
 	// If both are accepted, could list different creds for IP and hostname.
