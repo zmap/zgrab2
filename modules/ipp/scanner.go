@@ -415,16 +415,21 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	scan.results.Attributes = append(scan.results.Attributes, attrs...)
 
 	for _, attr := range scan.results.Attributes {
+		// Records the first "cups-version" attribute with values that it encounters
 		if attr.Name == CupsVersion && scan.results.AttributeCUPSVersion == "" && len(attr.Values) > 0 {
 			scan.results.AttributeCUPSVersion = string(attr.Values[0].Bytes)
 		}
+		// Copies all version numbers in the first "ipp-versions-supported" attribute encountered
 		if attr.Name == VersionsSupported && len(scan.results.AttributeIPPVersions) == 0 {
 			for _, v := range attr.Values {
 				scan.results.AttributeIPPVersions = append(scan.results.AttributeIPPVersions, string(v.Bytes))
 			}
 		}
-		if attr.Name == PrinterURISupported && len(attr.Values) > 0 {
-			scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(attr.Values[0].Bytes))
+		// Whenever it encounters a "printer-uri-supported" attribute with values, it records all their values
+		if attr.Name == PrinterURISupported {
+			for _, v := range attr.Values {
+				scan.results.AttributePrinterURIs = append(scan.results.AttributePrinterURIs, string(v.Bytes))
+			}
 		}
 	}
 
