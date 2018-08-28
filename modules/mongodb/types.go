@@ -54,9 +54,10 @@ func (conn *Connection) ReadMsg() ([]byte, error) {
 		return nil, err
 	}
 	msglen := binary.LittleEndian.Uint32(msglen_buf[:])
-	if msglen < 4 {
-		// msglen is length of message which includes msglen itself; Less than
-		// four is invalid.
+	if msglen < 4 || msglen > 5125 {
+	        // msglen is length of message which includes msglen itself; Less than
+		// four is invalid. More than a few K probably mean this isn't actually
+		// a mongodb server.
 		return nil, fmt.Errorf("Server sent invalid message: msglen = %d", msglen)
 	}
 	msg_buf := make([]byte, msglen)
