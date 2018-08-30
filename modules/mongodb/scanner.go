@@ -169,7 +169,7 @@ type BuildInfo_t struct {
 
 // IsMaster_t holds the data returned by an isMaster query
 type IsMaster_t struct {
-	IsMaster bool `bson:"isMaster" json:"is_master"`
+	IsMaster bool `bson:"ismaster" json:"is_master"`
 	MaxWireVersion int32 `bson:"maxWireVersion,omitempty" json:"max_wire_version,omitempty"`
 	MinWireVersion int32 `bson:"minWireVersion,omitempty" json:"min_wire_version,omitempty"`
 	MaxBsonObjectSize int32 `bson:"maxBsonObjectSize,omitempty" json:"max_bson_object_size,omitempty"`
