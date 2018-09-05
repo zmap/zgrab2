@@ -1,15 +1,18 @@
 package zgrab2
 
 import (
+	"context"
 	"net"
 	"time"
-	"context"
 )
 
 // TimeoutConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
 type TimeoutConnection struct {
 	net.Conn
+	ctx                   context.Context
 	Timeout               time.Duration
+	ReadTimeout           time.Duration
+	WriteTimeout          time.Duration
 	explicitReadDeadline  bool
 	explicitWriteDeadline bool
 	explicitDeadline      bool
@@ -17,11 +20,14 @@ type TimeoutConnection struct {
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
 func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
+	if err := c.checkContext(); err != nil {
+		return 0, err
+	}
 	if c.explicitReadDeadline || c.explicitDeadline {
 		c.explicitReadDeadline = false
 		c.explicitDeadline = false
-	} else if c.Timeout > 0 {
-		if err = c.Conn.SetReadDeadline(time.Now().Add(c.Timeout)); err != nil {
+	} else if readTimeout := c.getTimeout(c.ReadTimeout); readTimeout > 0 {
+		if err = c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
 			return 0, err
 		}
 	}
@@ -30,11 +36,14 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 
 // TimeoutConnection.Write calls Write() on the underlying connection, using any configured deadlines
 func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
+	if err := c.checkContext(); err != nil {
+		return 0, err
+	}
 	if c.explicitWriteDeadline || c.explicitDeadline {
 		c.explicitWriteDeadline = false
 		c.explicitDeadline = false
-	} else if c.Timeout > 0 {
-		if err = c.Conn.SetWriteDeadline(time.Now().Add(c.Timeout)); err != nil {
+	} else if writeTimeout := c.getTimeout(c.WriteTimeout); writeTimeout > 0 {
+		if err = c.Conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
 			return 0, err
 		}
 	}
@@ -44,6 +53,9 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 // SetReadDeadline sets an explicit ReadDeadline that will override the timeout
 // for one read. Use deadline = 0 to clear the deadline.
 func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
+	if err := c.checkContext(); err != nil {
+		return err
+	}
 	if !deadline.IsZero() {
 		err := c.Conn.SetReadDeadline(deadline)
 		if err != nil {
@@ -57,6 +69,9 @@ func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
 // SetWriteDeadline sets an explicit WriteDeadline that will override the
 // WriteDeadline for one write. Use deadline = 0 to clear the deadline.
 func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
+	if err := c.checkContext(); err != nil {
+		return err
+	}
 	if !deadline.IsZero() {
 		err := c.Conn.SetWriteDeadline(deadline)
 		if err != nil {
@@ -70,6 +85,9 @@ func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
 // SetDeadline sets a read / write deadline that will override the deadline for
 // a single read/write. Use deadline = 0 to clear the deadline.
 func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
+	if err := c.checkContext(); err != nil {
+		return err
+	}
 	if !deadline.IsZero() {
 		err := c.Conn.SetDeadline(deadline)
 		if err != nil {
@@ -92,6 +110,32 @@ func (c *TimeoutConnection) Close() error {
 	return c.Conn.Close()
 }
 
+// Get the timeout for the given field, falling back to the global timeout.
+func (c *TimeoutConnection) getTimeout(field time.Duration) time.Duration {
+	if field == 0 {
+		return c.Timeout
+	}
+	return field
+}
+
+// Check if the context has been cancelled, and if so, return an error (either the context error, or
+// if the context error is nil, ErrTotalTimeout).
+func (c *TimeoutConnection) checkContext() error {
+	if c.ctx == nil {
+		return nil
+	}
+	select {
+	case <-c.ctx.Done():
+		if err := c.ctx.Err(); err != nil {
+			return err
+		} else {
+			return ErrTotalTimeout
+		}
+	default:
+		return nil
+	}
+}
+
 // DialTimeoutConnection dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func DialTimeoutConnection(proto string, target string, timeout time.Duration) (net.Conn, error) {
 	var conn net.Conn
@@ -107,33 +151,61 @@ func DialTimeoutConnection(proto string, target string, timeout time.Duration) (
 		}
 		return nil, err
 	}
+	ctx, _ := context.WithTimeout(context.Background(), timeout)
 	return &TimeoutConnection{
-		Conn:    conn,
-		Timeout: timeout,
+		Conn:         conn,
+		Timeout:      timeout,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		ctx:          ctx,
 	}, nil
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
 type Dialer struct {
-	// Timeout is the maximum time to wait for a connection or I/O.
+	// Timeout is the maximum time to wait for the entire session, after which any operations on the
+	// connection will fail.
 	Timeout time.Duration
 
-	// dialer is an auxiliary dialer used for DialContext (the result gets wrapped in a TimeoutConnection).
+	// ConnectTimeout is the maximum time to wait for a connection.
+	ConnectTimeout time.Duration
+
+	// ReadTimeout is the maximum time to wait for a Read
+	ReadTimeout time.Duration
+
+	// WriteTimeout is the maximum time to wait for a Write
+	WriteTimeout time.Duration
+
+	// Dialer is an auxiliary dialer used for DialContext (the result gets wrapped in a TimeoutConnection).
 	Dialer *net.Dialer
+}
+
+func (d *Dialer) getTimeout(field time.Duration) time.Duration {
+	if field == 0 {
+		return d.Timeout
+	}
+	return field
 }
 
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	// ensure that our aux dialer is up-to-date
-	d.Dialer.Timeout = d.Timeout
+	if d.Timeout != 0 {
+		sessionContext, _ := context.WithTimeout(ctx, d.Timeout)
+		ctx = sessionContext
+	}
+	// ensure that our aux dialer is up-to-date; copied from http/transport.go
+	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
 	d.Dialer.KeepAlive = d.Timeout
 	ret, err := d.Dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}
 	return &TimeoutConnection{
-		Conn:    ret,
-		Timeout: d.Timeout,
+		ctx:          ctx,
+		Conn:         ret,
+		ReadTimeout:  d.ReadTimeout,
+		WriteTimeout: d.WriteTimeout,
+		Timeout:      d.Timeout,
 	}, nil
 }
 
