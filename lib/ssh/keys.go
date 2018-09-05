@@ -381,8 +381,7 @@ func (r *dsaPublicKey) Type() string {
 }
 
 func (r *dsaPublicKey) MarshalJSON() ([]byte, error) {
-	temp := make(map[string]interface{})
-	ztoolsX509.AddDSAPublicKeyToKeyMap(temp, (*dsa.PublicKey)(r))
+	temp := ztoolsX509.GetDSAPublicKeyJSON((*dsa.PublicKey)(r))
 	return json.Marshal(temp)
 }
 
@@ -489,8 +488,7 @@ func (key *ecdsaPublicKey) Type() string {
 }
 
 func (key *ecdsaPublicKey) MarshalJSON() ([]byte, error) {
-	temp := make(map[string]interface{})
-	ztoolsX509.AddECDSAPublicKeyToKeyMap(temp, (*ecdsa.PublicKey)(key))
+	temp := ztoolsX509.GetECDSAPublicKeyJSON((*ecdsa.PublicKey)(key))
 	return json.Marshal(temp)
 }
 
