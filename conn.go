@@ -34,7 +34,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 	return c.Conn.Read(b)
 }
 
-// TimeoutConnection.Write calls Write() on the underlying connection, using any configured deadlines
+// TimeoutConnection.Write calls Write() on the underlying connection, using any configured deadlines.
 func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 	if err := c.checkContext(); err != nil {
 		return 0, err
