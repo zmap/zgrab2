@@ -190,13 +190,14 @@ func (d *Dialer) getTimeout(field time.Duration) time.Duration {
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	if d.Timeout != 0 {
-		sessionContext, _ := context.WithTimeout(ctx, d.Timeout)
-		ctx = sessionContext
+		ctx, _ = context.WithTimeout(ctx, d.Timeout)
 	}
 	// ensure that our aux dialer is up-to-date; copied from http/transport.go
 	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
 	d.Dialer.KeepAlive = d.Timeout
-	ret, err := d.Dialer.DialContext(ctx, network, address)
+	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
+	defer cancelDial()
+	ret, err := d.Dialer.DialContext(dialContext, network, address)
 	if err != nil {
 		return nil, err
 	}
