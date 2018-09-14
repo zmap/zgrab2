@@ -270,11 +270,11 @@ func getIsMaster(conn *Connection) (*IsMaster_t, error) {
 		return nil, err
 	}
 
-	if len(msg) < MSGHEADER_LEN + 4 {
+	if len(msg) < doc_offset + 4 {
 		err = fmt.Errorf("Server truncated message - no query reply (%d bytes: %s)", len(msg), hex.EncodeToString(msg))
 		return nil, err
 	}
-	respFlags := binary.LittleEndian.Uint32(msg[MSGHEADER_LEN:MSGHEADER_LEN + 5])
+	respFlags := binary.LittleEndian.Uint32(msg[MSGHEADER_LEN:MSGHEADER_LEN + 4])
 	if respFlags & QUERY_RESP_FAILED != 0 {
 		err = fmt.Errorf("isMaster query failed")
 		return nil, err
