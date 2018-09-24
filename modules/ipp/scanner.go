@@ -208,11 +208,11 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 }
 
 type AttrValue struct {
-	Bytes []byte `json:"base64,omitempty"`
+	Bytes []byte `json:"raw,omitempty"`
 	// TODO: Figure out whether to add a value that reports out-of-bound values?
 	Unsupported bool `json:"unsupported,omitempty"`
 	Unknown bool `json:"unknown,omitempty"`
-	NoValue bool `json:"no-value,omitempty"`
+	NoValue bool `json:"no_value,omitempty"`
 	Integer *int32 `json:"integer,omitempty"`
 	Boolean *bool `json:"boolean,omitempty"`
 	Enum string `json:"enum,omitempty"`

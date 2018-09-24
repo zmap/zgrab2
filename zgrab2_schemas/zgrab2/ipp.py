@@ -148,8 +148,8 @@ http_response_full = SubRecord({
 })
 
 resolution = SubRecord({
-    "cross-feed-direction": Signed32BitInteger(),
-    "feed-direction": Signed32BitInteger(),
+    "cross_feed_direction": Signed32BitInteger(),
+    "feed_direction": Signed32BitInteger(),
     "unit": String(),
 })
 
@@ -159,8 +159,8 @@ range_of_integer = SubRecord({
 })
 
 string_with_language = SubRecord({
-    "language": String(),
-    "stringWithoutLanguage": String(),
+    "language": WhitespaceAnalyzedString(),
+    "stringWithoutLanguage": WhitespaceAnalyzedString(),
 })
 
 # TODO: Determine whether value-tag types with same underlying form should have a different name in this mapping
@@ -170,10 +170,10 @@ string_with_language = SubRecord({
 # From RFC 8010 Section 3.5.2 (https://tools.ietf.org/html/rfc8010#section-3.5.2)
 # Note: value-tag values are camelCase because the names are specified that way in RFC
 ipp_attribute_value = SubRecord({
-    "base64": Binary(),
+    "raw": Binary(),
     "unsupported": Boolean(),
     "unknown": Boolean(),
-    "no-value": Boolean(),
+    "no_value": Boolean(),
     "integer": Signed32BitInteger(),
     "boolean": Boolean(),
     "enum": String(),
@@ -187,15 +187,15 @@ ipp_attribute_value = SubRecord({
     "nameWithLanguage": string_with_language,
     # TODO: Determine appropriate type for end of attribute collection
     "endCollection": Binary(),
-    "textWithoutLanguage": String(),
-    "nameWithoutLanguage": String(),
-    "keyword": String(),
+    "textWithoutLanguage": WhitespaceAnalyzedString(),
+    "nameWithoutLanguage": WhitespaceAnalyzedString(),
+    "keyword": WhitespaceAnalyzedString(),
     "uri": URI(),
-    "uriScheme": String(),
+    "uriScheme": WhitespaceAnalyzedString(),
     "charset": String(),
-    "naturalLanguage": String(),
+    "naturalLanguage": WhitespaceAnalyzedString(),
     "mimeMediaType": String(),
-    "memberAttrName": String(),
+    "memberAttrName": WhitespaceAnalyzedString(),
 })
 
 ipp_attribute = SubRecord({

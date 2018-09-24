@@ -22,8 +22,8 @@ type IPPTime struct {
 }
 
 type Resolution struct {
-	XFeed int32 `json:"cross-feed-direction"`
-	Feed int32 `json:"feed-direction"`
+	XFeed int32 `json:"cross_feed_direction"`
+	Feed int32 `json:"feed_direction"`
 	Unit string `json:"unit"`
 
 }
