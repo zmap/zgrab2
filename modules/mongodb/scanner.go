@@ -181,8 +181,8 @@ type IsMaster_t struct {
 
 // Result holds the data returned by a scan
 type Result struct {
-	IsMaster *IsMaster_t `json:"is_master"`
-	BuildInfo *BuildInfo_t `json:"build_info"`
+	IsMaster *IsMaster_t `json:"is_master,omitempty"`
+	BuildInfo *BuildInfo_t `json:"build_info,omitempty"`
 }
 
 // Init initializes the scanner
