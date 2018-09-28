@@ -90,7 +90,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 		case ReadLimitExceededActionPanic:
 			panic(ErrReadLimitExceeded)
 		default:
-			logrus.Fatalf("Unrecognized ReadLimitExceededAction: %d", c.ReadLimitExceededAction)
+			logrus.Fatalf("Unrecognized ReadLimitExceededAction: %s", c.ReadLimitExceededAction)
 		}
 	}
 	return n, err
