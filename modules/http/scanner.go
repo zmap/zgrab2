@@ -8,12 +8,14 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"errors"
 	"io"
 	"net"
 	"net/url"
 	"strconv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -76,13 +78,14 @@ type Scanner struct {
 // scan holds the state for a single scan. This may entail multiple connections.
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
-	connections []net.Conn
-	scanner     *Scanner
-	target      *zgrab2.ScanTarget
-	transport   *http.Transport
-	client      *http.Client
-	results     Results
-	url         string
+	connections    []net.Conn
+	scanner        *Scanner
+	target         *zgrab2.ScanTarget
+	transport      *http.Transport
+	client         *http.Client
+	results        Results
+	url            string
+	globalDeadline time.Time
 }
 
 // NewFlags returns an empty Flags object.
@@ -142,15 +145,40 @@ func (scan *scan) Cleanup() {
 	}
 }
 
+// Get a context whose deadline is the earliest of the context's deadline (if it has one) and the
+// global scan deadline.
+func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
+	ctxDeadline, ok := ctx.Deadline()
+	if !ok || scan.globalDeadline.Before(ctxDeadline) {
+		ret, _ := context.WithDeadline(ctx, scan.globalDeadline)
+		return ret
+	}
+	return ctx
+}
+
+// Dial a connection using the configured timeouts, as well as the global deadline, and on success,
+// add the connection to the list of connections to be cleaned up.
+func (scan *scan) dialContext(ctx context.Context, net string, addr string) (net.Conn, error) {
+	dialer := zgrab2.GetTimeoutConnectionDialer(scan.scanner.config.Timeout)
+
+	timeoutContext, _ := context.WithTimeout(context.Background(), scan.scanner.config.Timeout)
+
+	conn, err := dialer.DialContext(scan.withDeadlineContext(timeoutContext), net, addr)
+	if err != nil {
+		return nil, err
+	}
+	scan.connections = append(scan.connections, conn)
+	return conn, nil
+}
+
 // getTLSDialer returns a Dial function that connects using the
 // zgrab2.GetTLSConnection()
 func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, scan.scanner.config.Timeout)
+		outer, err := scan.dialContext(context.Background(), net, addr)
 		if err != nil {
 			return nil, err
 		}
-		scan.connections = append(scan.connections, outer)
 		tlsConn, err := scan.scanner.config.TLSFlags.GetTLSConnection(outer)
 		if err != nil {
 			return nil, err
@@ -242,10 +270,11 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 		},
-		client: http.MakeNewClient(),
+		client:         http.MakeNewClient(),
+		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
 	ret.transport.DialTLS = ret.getTLSDialer()
-	ret.transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.Timeout).DialContext
+	ret.transport.DialContext = ret.dialContext
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
@@ -334,6 +363,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 // zgrab2 framework.
 func RegisterModule() {
 	var module Module
+
 	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", 80, &module)
 	if err != nil {
 		log.Fatal(err)

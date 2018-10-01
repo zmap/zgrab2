@@ -21,6 +21,7 @@ type Config struct {
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
 	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
+	ReadLimitPerHost   int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	inputFile          *os.File
@@ -117,6 +118,11 @@ func validateFrameworkConfiguration() {
 	// Stop the lowliest idiot from using this to DoS people
 	if config.ConnectionsPerHost > 50 {
 		log.Fatalf("connectionsPerHost must be in the range [0,50]")
+	}
+
+	// Stop even third-party libraries from performing unbounded reads on untrusted hosts
+	if config.ReadLimitPerHost > 0 {
+		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
 	}
 }
 
