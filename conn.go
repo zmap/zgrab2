@@ -40,10 +40,12 @@ var (
 	DefaultSessionTimeout = 1 * time.Minute
 )
 
-var ErrReadLimitExceeded error = errors.New("read limit exceeded")
+// ErrReadLimitExceeded is returned / panic'd from Read if the read limit is exceeded when the
+// ReadLimitExceededAction is error / panic.
+var ErrReadLimitExceeded = errors.New("read limit exceeded")
 
-// TODO: Refactor this into TimeoutConnection, BoundedReader, LoggedReader, etc
 // TimeoutConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
+// TODO: Refactor this into TimeoutConnection, BoundedReader, LoggedReader, etc
 type TimeoutConnection struct {
 	net.Conn
 	ctx                     context.Context
@@ -162,7 +164,7 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 	return nil
 }
 
-// GetTimeoutDialer returns a DialFuncn that dials with the given timeout
+// GetTimeoutDialFunc returns a DialFunc that dials with the given timeout
 func GetTimeoutDialFunc(timeout time.Duration) func(string, string) (net.Conn, error) {
 	return func(proto, target string) (net.Conn, error) {
 		return DialTimeoutConnection(proto, target, timeout)
@@ -200,6 +202,7 @@ func (c *TimeoutConnection) checkContext() error {
 	}
 }
 
+// SetDefaults on the connection.
 func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 	if c.BytesReadLimit == 0 {
 		c.BytesReadLimit = DefaultBytesReadLimit
@@ -213,6 +216,7 @@ func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 	return c
 }
 
+// NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration) *TimeoutConnection {
 	ret := (&TimeoutConnection{
 		Conn:         conn,
@@ -336,7 +340,7 @@ func (d *Dialer) SetDefaults() *Dialer {
 	return d
 }
 
-// Create a new Dialer with default settings.
+// NewDialer creates a new Dialer with default settings.
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
