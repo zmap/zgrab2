@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	logrus "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
 
@@ -401,6 +401,9 @@ func (options PreloginOptions) Encode() ([]byte, error) {
 	for _, ik := range sortedKeys {
 		k := PreloginOptionToken(ik)
 		v := options[k]
+		if len(cursor) < 5 {
+			return nil, fmt.Errorf("encode: size mismatch (options.Size()=%d)", options.Size())
+		}
 		cursor[0] = byte(k)
 		if offset > 0xffff {
 			return nil, ErrTooLarge
@@ -410,6 +413,9 @@ func (options PreloginOptions) Encode() ([]byte, error) {
 		copy(ret[offset:offset+len(v)], v)
 		offset += len(v)
 		cursor = cursor[5:]
+	}
+	if len(cursor) < 1 {
+		return nil, fmt.Errorf("encode: size mismatch (options.Size()=%d, len(sortedKeys)=%d)", options.Size(), len(sortedKeys))
 	}
 	// Write the terminator after the last PL_OPTION header
 	// (and just before the first value)
@@ -421,6 +427,9 @@ func (options PreloginOptions) Encode() ([]byte, error) {
 // returned in rest.
 // If body can't be decoded as a PRELOGIN body, returns nil, nil, ErrInvalidData
 func decodePreloginOptions(body []byte) (result *PreloginOptions, rest []byte, err error) {
+	if len(body) < 1 {
+		return nil, nil, ErrInvalidData
+	}
 	cursor := body[:]
 	options := make(PreloginOptions)
 	max := 0
@@ -506,7 +515,13 @@ func (options PreloginOptions) MarshalJSON() ([]byte, error) {
 
 	fedAuthRequired, hasFedAuthRequired := opts[PreloginFedAuthRequired]
 	if hasFedAuthRequired {
-		aux.FedAuthRequired = &fedAuthRequired[0]
+		temp := uint8(0)
+		if len(fedAuthRequired) > 0 {
+			temp = fedAuthRequired[0]
+		} else {
+			logrus.Debugf("fedAuthRequired was present but empty (options=%#v)", options)
+		}
+		aux.FedAuthRequired = &temp
 	}
 
 	nonce, hasNonce := opts[PreloginNonce]
@@ -632,6 +647,7 @@ func (connection *Connection) readPreloginPacket() (*TDSPacket, *PreloginOptions
 	if packet.Type != TDSPacketTypeTabularResult {
 		return packet, nil, &zgrab2.ScanError{Status: zgrab2.SCAN_APPLICATION_ERROR, Err: err}
 	}
+	defer zgrab2.LogPanic("Error decoding Prelogin packet %#v", packet.Body)
 	plOptions, rest, err := decodePreloginOptions(packet.Body)
 	if err != nil {
 		return packet, nil, err
