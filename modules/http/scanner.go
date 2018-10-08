@@ -279,6 +279,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
+	ret.client.Timeout=scanner.config.Timeout
 	host := t.Domain
 	if host == "" {
 		host = t.IP.String()
