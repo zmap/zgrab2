@@ -100,6 +100,10 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	sshConfig.GexMinBits = s.config.GexMinBits
 	sshConfig.GexMaxBits = s.config.GexMaxBits
 	sshConfig.GexPreferredBits = s.config.GexPreferredBits
+	sshConfig.BannerCallback = func(banner string) error {
+		data.Banner = strings.TrimSpace(banner)
+		return nil
+	}
 	_, err := ssh.Dial("tcp", rhost, sshConfig)
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)

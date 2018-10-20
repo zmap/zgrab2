@@ -58,6 +58,10 @@ type handshakeTransport struct {
 	dialAddress     string
 	remoteAddr      net.Addr
 
+	// ClientConfig. In that case it is called during the user authentication
+	// dance to handle a custom server's message.
+	bannerCallback BannerCallback
+
 	readSinceKex uint64
 
 	// Protects the writing side of the connection
@@ -89,6 +93,7 @@ func newClientTransport(conn keyingTransport, clientVersion, serverVersion []byt
 	t.dialAddress = dialAddr
 	t.remoteAddr = addr
 	t.hostKeyCallback = config.HostKeyCallback
+	t.bannerCallback = config.BannerCallback
 	if config.HostKeyAlgorithms != nil {
 		t.hostKeyAlgorithms = config.HostKeyAlgorithms
 	} else {
