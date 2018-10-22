@@ -616,6 +616,9 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 
 // if n, _ := io.Read(body), returns a hex representation of body[:n] that is at most 96 bytes long.
 func trunc(body []byte, n int) string {
+	if body == nil {
+		return "<nil>"
+	}
 	if n > len(body) {
 		n = len(body)
 	}
