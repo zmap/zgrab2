@@ -167,7 +167,7 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 // GetTimeoutDialFunc returns a DialFunc that dials with the given timeout
 func GetTimeoutDialFunc(timeout time.Duration) func(string, string) (net.Conn, error) {
 	return func(proto, target string) (net.Conn, error) {
-		return DialTimeoutConnection(proto, target, timeout)
+		return DialTimeoutConnection(proto, target, timeout, 0)
 	}
 }
 
@@ -217,12 +217,13 @@ func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 }
 
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
-func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration) *TimeoutConnection {
+func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := (&TimeoutConnection{
 		Conn:         conn,
 		Timeout:      timeout,
 		ReadTimeout:  readTimeout,
 		WriteTimeout: writeTimeout,
+		BytesReadLimit: bytesReadLimit,
 	}).SetDefaults()
 	if ctx == nil {
 		ctx = context.Background()
@@ -232,7 +233,7 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 }
 
 // DialTimeoutConnectionEx dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration) (net.Conn, error) {
+func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 	if dialTimeout > 0 {
@@ -246,12 +247,12 @@ func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTi
 		}
 		return nil, err
 	}
-	return NewTimeoutConnection(context.Background(), conn, sessionTimeout, readTimeout, writeTimeout), nil
+	return NewTimeoutConnection(context.Background(), conn, sessionTimeout, readTimeout, writeTimeout, bytesReadLimit), nil
 }
 
 // DialTimeoutConnection dials the target and returns a net.Conn that uses the configured single timeout for all operations.
-func DialTimeoutConnection(proto string, target string, timeout time.Duration) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, timeout, timeout, timeout, timeout)
+func DialTimeoutConnection(proto string, target string, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
+	return DialTimeoutConnectionEx(proto, target, timeout, timeout, timeout, timeout, bytesReadLimit)
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
@@ -303,7 +304,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	if err != nil {
 		return nil, err
 	}
-	ret := NewTimeoutConnection(ctx, conn, d.Timeout, d.ReadTimeout, d.WriteTimeout)
+	ret := NewTimeoutConnection(ctx, conn, d.Timeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
@@ -311,7 +312,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 // Dial returns a connection with the configured timeout.
 func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, d.ConnectTimeout, d.Timeout, d.ReadTimeout, d.WriteTimeout)
+	return DialTimeoutConnectionEx(proto, target, d.ConnectTimeout, d.Timeout, d.ReadTimeout, d.WriteTimeout, 0)
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.

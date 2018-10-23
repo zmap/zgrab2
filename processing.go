@@ -57,7 +57,7 @@ func (target *ScanTarget) Host() string {
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
-	return DialTimeoutConnection("tcp", address, flags.Timeout)
+	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
 }
 
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
@@ -82,7 +82,7 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0), nil
+	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
 }
 
 // grabTarget calls handler for each action
