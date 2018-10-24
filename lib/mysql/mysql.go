@@ -619,8 +619,10 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 // "<first 16 bytes>...[n - 32] bytes remaining<last 16 bytes>").
 func trunc(body []byte, n int) (result string) {
 	defer func() {
-		// Failsafe -- never return more than 96 chars.
-		result = result[:96]
+		if len(result) > 96 {
+			// Failsafe -- never return more than 96 chars.
+			result = result[:96]
+		}
 	}()
 	if body == nil {
 		return "<nil>"
