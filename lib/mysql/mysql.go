@@ -614,8 +614,14 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 	}
 }
 
-// if n, _ := io.Read(body), returns a hex representation of body[:n] that is at most 96 bytes long.
-func trunc(body []byte, n int) string {
+// with n and body as if `n, _ := io.Read(body)`, trunc(body, n) returns a hex representation of
+// body[:n] that is at most 96 characters long (longer strings are returned as
+// "<first 16 bytes>...[n - 32] bytes remaining<last 16 bytes>").
+func trunc(body []byte, n int) (result string) {
+	defer func() {
+		// Failsafe -- never return more than 96 chars.
+		result = result[:96]
+	}()
 	if body == nil {
 		return "<nil>"
 	}
@@ -628,6 +634,9 @@ func trunc(body []byte, n int) string {
 	if n < 48 {
 		return fmt.Sprintf("%x", body[:n])
 	}
+	// 16 bytes = 32 bytes hex * 2 + ellipses = 3 * 2 + len("[%d bytes]") = 8 + log10(len - 32)
+	// max len = 24 bits ~= 16 million = 8 digits
+	// = 64 + 6 + 8 + 8 <= 96
 	return fmt.Sprintf("%x...[%d bytes]...%x", body[:16], n - 32, body[n-16:])
 }
 
@@ -640,10 +649,11 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 		return nil, fmt.Errorf("error reading packet header: %s", err)
 	}
 	if n != 4 {
+		// Note -- because of ReadFull, this should be unreachable
 		return nil, fmt.Errorf("wrong number of bytes returned (got %d, expected 4)", n)
 	}
 	seq := header[3]
-	// length is actually uint24; clear the bogus MSB before decoding
+	// packetSize is actually uint24; clear the bogus MSB before decoding
 	header[3] = 0
 	packetSize := binary.LittleEndian.Uint32(header[:])
 	// While packets can be up to 24 bits (16MB), we cut them off at 19 bits (512kb) -- which should
