@@ -154,22 +154,22 @@ http_response_full = SubRecord({
 # From RFC 8010 Section 3.5.2 (https://tools.ietf.org/html/rfc8010#section-3.5.2)
 # Note: value-tag values are camelCase because the names are specified that way in RFC
 ipp_attribute_value = SubRecord({
-    "raw": Binary(),
+    "raw": IndexedBinary(),
     "integer": Signed32BitInteger(),
     "boolean": Boolean(),
     "enum": String(),
-    "octetString": Binary(),
+    "octetString": IndexedBinary(),
     "dateTime": DateTime(),
     # TODO: Determine appropriate type for resolution
-    "resolution": Binary(),
+    "resolution": IndexedBinary(),
     # TODO: Determine appropriate type for range of Integers (probably {min, max} pair)
-    "rangeOfInteger": Binary(),
+    "rangeOfInteger": IndexedBinary(),
     # TODO: Determine appropriate type for beginning of attribute collection
-    "begCollection": Binary(),
+    "bagCollection": IndexedBinary(),
     "textWithLanguage": String(),
     "nameWithLanguage": String(),
     # TODO: Determine appropriate type for end of attribute collection
-    "endCollection": Binary(),
+    "endCollection": IndexedBinary(),
     "textWithoutLanguage": String(),
     "nameWithoutLanguage": String(),
     "keyword": String(),
