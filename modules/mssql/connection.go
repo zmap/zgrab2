@@ -832,7 +832,7 @@ func (connection *tdsConnection) Read(b []byte) (n int, err error) {
 		connection.remainder = make([]byte, header.Length-8)
 		_, err = io.ReadFull(connection.conn, connection.remainder)
 		if err != nil {
-			logrus.Debugf("Error reading body", err)
+			logrus.Debugf("Error reading body: %v", err)
 			return soFar, err
 		}
 		toCopy := min(len(output), len(connection.remainder))
