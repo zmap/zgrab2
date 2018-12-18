@@ -257,7 +257,7 @@ type directDial struct {
 }
 
 func (d *directDial) connect(ctx context.Context, t *testing.T, port int, idx int) (*TimeoutConnection, error) {
-	conn, err := DialTimeoutConnectionEx("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second, time.Second, time.Second, time.Second)
+	conn, err := DialTimeoutConnectionEx("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second, time.Second, time.Second, time.Second, d.limit)
 	var ret *TimeoutConnection
 	if conn != nil {
 		ret = conn.(*TimeoutConnection)
