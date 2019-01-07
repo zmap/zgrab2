@@ -8,7 +8,7 @@ import pprint
 import os.path
 from imp import load_source
 import unittest
-import zgrab2
+from . import zgrab2
 
 logging.basicConfig(stream=sys.stderr)
 

@@ -5,7 +5,7 @@ from zschema.compounds import *
 import zschema.registry
 
 import zcrypto_schemas
-import zgrab2
+from . import zgrab2
 
 bacnet_scan_response = SubRecord({
     "result": SubRecord({

@@ -5,7 +5,7 @@ from zschema.compounds import *
 import zschema.registry
 
 import zcrypto_schemas.zcrypto as zcrypto
-import zgrab2
+from . import zgrab2
 
 dnp3_scan_response = SubRecord({
     "result": SubRecord({

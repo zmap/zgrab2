@@ -5,7 +5,7 @@ from zschema.compounds import *
 import zschema.registry
 
 import zcrypto_schemas.zcrypto as zcrypto
-import zgrab2
+from . import zgrab2
 
 header_log = {
     'protocol_id': Binary(),

@@ -5,7 +5,7 @@ from zschema.compounds import *
 import zschema.registry
 
 import zcrypto_schemas.zcrypto as zcrypto
-import zgrab2
+from . import zgrab2
 
 # TODO: Eventually re-introduce (non-cicular) dependency on HTTP zgrab2 schema
 # lib/http/header.go: knownHeaders
