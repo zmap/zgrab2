@@ -33,6 +33,11 @@ cd "$ZGRAB_ROOT"
 
 ZGRAB_OUTPUT="zgrab-output"
 
+if ! which jp; then
+    go get github.com/jmespath/jp && go build github.com/jmespath/jp
+    export PATH=$PATH:$GOPATH/bin
+fi
+
 pushd integration_tests
 for mod in $(ls); do
     if [ ".template" != "$mod" ] && [ -d "$mod" ] && ( [ -z $TEST_MODULES ] || [ $mod = *"$TEST_MODULES"* ]); then
@@ -79,7 +84,7 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
             fi
             status=1
         else
-            scan_status=$(./jp -u data.${protocol}.status < $target)
+            scan_status=$(jp -u data.${protocol}.status < $target)
             if ! [ $scan_status = "success" ]; then
                 echo "Scan returned success=$scan_status for $protocol/$outfile"
                 err="scan failure(${scan_status})@$protocol/$outfile"

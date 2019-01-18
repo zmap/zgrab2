@@ -20,7 +20,7 @@ function doTest() {
   OUTPUT_FILE="$ZGRAB_OUTPUT/mysql/$MYSQL_VERSION.json"
   echo "mysql/test: Testing MySQL Version $MYSQL_VERSION..."
   CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mysql --timeout 10s > $OUTPUT_FILE
-  SERVER_VERSION=$($ZGRAB_ROOT/jp -u data.mysql.result.server_version < $OUTPUT_FILE)
+  SERVER_VERSION=$(jp -u data.mysql.result.server_version < $OUTPUT_FILE)
   if [[ "$SERVER_VERSION" == "$MYSQL_VERSION."* ]]; then
     echo "mysql/test: Server version matches expected version: $SERVER_VERSION == $MYSQL_VERSION.*"
   else

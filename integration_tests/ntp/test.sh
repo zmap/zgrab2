@@ -19,8 +19,8 @@ function test_openntp() {
     
     # Don't drop this in the standard output root, since it will not have status = success
     CONTAINER_NAME="zgrab_ntp_openntp" $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3s --monlist > out.tmp
-    time=$($ZGRAB_ROOT/jp -u data.ntp.result.time < out.tmp)
-    version=$($ZGRAB_ROOT/jp -u data.ntp.result.version < out.tmp)
+    time=$(jp -u data.ntp.result.time < out.tmp)
+    version=$(jp -u data.ntp.result.version < out.tmp)
     rm -f out.tmp
     if [ $time = "null" ]; then
         echo "ntp/test: Failed to get partial result from monlist on openntp (time = null)"
@@ -36,8 +36,8 @@ function test_bad_req() {
     code=$1
     expected_error=$2
     CONTAINER_NAME="zgrab_ntp_4.2.6" $ZGRAB_ROOT/docker-runner/docker-run.sh ntp --timeout 3s --monlist --request-code $code --skip-get-time > out.tmp
-    status=$($ZGRAB_ROOT/jp -u data.ntp.status < out.tmp)
-    error=$($ZGRAB_ROOT/jp -u data.ntp.error < out.tmp)
+    status=$(jp -u data.ntp.status < out.tmp)
+    error=$(jp -u data.ntp.error < out.tmp)
     rm -f out.tmp
     if ! [ $status = "application-error" ]; then
         echo "ntp/test: Got error '$error', expected '$expected_error' on $code"
