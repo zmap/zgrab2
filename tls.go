@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zcrypto/x509"
 )
 
 // Shared code for TLS scans.
@@ -41,8 +43,7 @@ type TLSFlags struct {
 	Certificates string `long:"certificates" description:"Set of certificates to present to the server"`
 	// TODO: re-evaluate this, or at least specify the file format
 	CertificateMap string `long:"certificate-map" description:"A file mapping server names to certificates"`
-	// TODO: directory? glob?
-	RootCAs string `long:"root-cas" description:"Set of certificates to use when verifying server certificates"`
+	RootCAs string `long:"root-cas" description:"PEM file of certificates to use when verifying server certificates"`
 	// TODO: format?
 	NextProtos              string `long:"next-protos" description:"A list of supported application-level protocols"`
 	ServerName              string `long:"server-name" description:"Server name used for certificate verification and (optionally) SNI"`
@@ -120,8 +121,15 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 		log.Fatalf("--certificate-map not implemented")
 	}
 	if t.RootCAs != "" {
-		// TODO FIXME: Implement
-		log.Fatalf("--root-cas not implemented")
+		rootCABytes, err := ioutil.ReadFile(t.RootCAs)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to open Root CA file ({}): {}", t.RootCAs, err)
+		}
+        ret.RootCAs = x509.NewCertPool()
+		ok := ret.RootCAs.AppendCertsFromPEM(rootCABytes)
+		if !ok {
+			return nil, fmt.Errorf("Failed to parse Root CA file ({})", t.RootCAs)
+		}
 	}
 	if t.NextProtos != "" {
 		// TODO: Different format?
