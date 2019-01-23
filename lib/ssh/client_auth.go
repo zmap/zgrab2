@@ -325,7 +325,9 @@ func handleAuthResponse(c packetConn) (bool, []string, error) {
 
 		switch packet[0] {
 		case msgUserAuthBanner:
-			// TODO: add callback to present the banner to the user
+			if err := handleBannerResponse(c, packet); err != nil {
+				return false, nil, err
+			}
 		case msgUserAuthFailure:
 			var msg userAuthFailureMsg
 			if err := Unmarshal(packet, &msg); err != nil {
@@ -338,6 +340,24 @@ func handleAuthResponse(c packetConn) (bool, []string, error) {
 			return false, nil, unexpectedMessageError(msgUserAuthSuccess, packet[0])
 		}
 	}
+}
+
+func handleBannerResponse(c packetConn, packet []byte) error {
+	var msg userAuthBannerMsg
+	if err := Unmarshal(packet, &msg); err != nil {
+		return err
+	}
+
+	transport, ok := c.(*handshakeTransport)
+	if !ok {
+		return nil
+	}
+
+	if transport.bannerCallback != nil {
+		return transport.bannerCallback(msg.Message)
+	}
+
+	return nil
 }
 
 // KeyboardInteractiveChallenge should print questions, optionally
@@ -385,7 +405,9 @@ func (cb KeyboardInteractiveChallenge) auth(session []byte, user string, c packe
 		// like handleAuthResponse, but with less options.
 		switch packet[0] {
 		case msgUserAuthBanner:
-			// TODO: Print banners during userauth.
+			if err := handleBannerResponse(c, packet); err != nil {
+				return false, nil, err
+			}
 			continue
 		case msgUserAuthInfoRequest:
 			// OK
