@@ -230,6 +230,10 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 	return NewClient(c, chans, reqs), nil
 }
 
+// BannerCallback is the function type used for treat the banner sent by
+// the server. A BannerCallback receives the message sent by the remote server.
+type BannerCallback func(message string) error
+
 // A ClientConfig structure is used to configure a Client. It must not be
 // modified after having been passed to an SSH function.
 type ClientConfig struct {
@@ -249,6 +253,12 @@ type ClientConfig struct {
 	// handshake to validate the server's host key. A nil HostKeyCallback
 	// implies that all host keys are accepted.
 	HostKeyCallback func(hostname string, remote net.Addr, key PublicKey) error
+
+	// BannerCallback is called during the SSH dance to display a custom
+	// server's message. The client configuration can supply this callback to
+	// handle it as wished. The function BannerDisplayStderr can be used for
+	// simplistic display on Stderr.
+	BannerCallback BannerCallback
 
 	// ClientVersion contains the version identification string that will
 	// be used for the connection. If empty, a reasonable default is used.
