@@ -170,7 +170,7 @@ string_with_language = SubRecord({
 # From RFC 8010 Section 3.5.2 (https://tools.ietf.org/html/rfc8010#section-3.5.2)
 # Note: value-tag values are camelCase because the names are specified that way in RFC
 ipp_attribute_value = SubRecord({
-    "base64": Binary(),
+    "raw": IndexedBinary(),
     "unsupported": Boolean(),
     "unknown": Boolean(),
     "no-value": Boolean(),
