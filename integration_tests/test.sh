@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
+set -o pipefail
 
 # Do all integration tests for all protocols
 # To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
@@ -29,9 +30,13 @@ set -e
 # Run from root of project
 TEST_DIR=$(dirname "$0")
 ZGRAB_ROOT="$TEST_DIR/.."
+INTEGRATION_TEST_VENV=".integration_tests.venv"
+
 cd "$ZGRAB_ROOT"
 
 ZGRAB_OUTPUT="zgrab-output"
+
+mkdir -p $ZGRAB_OUTPUT
 
 pushd integration_tests
 for mod in $(ls); do
@@ -63,6 +68,15 @@ fi
 status=0
 failures=""
 echo "Doing schema validation..."
+
+if ! [ -f "${INTEGRATION_TEST_VENV}/bin/python" ]; then
+	virtualenv "${INTEGRATION_TEST_VENV}"
+	"${INTEGRATION_TEST_VENV}/bin/pip" install zschema
+	"${INTEGRATION_TEST_VENV}/bin/pip" install -r requirements.txt
+fi
+
+. "${INTEGRATION_TEST_VENV}/bin/activate"
+
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
         target="$ZGRAB_OUTPUT/$protocol/$outfile"
