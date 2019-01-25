@@ -68,6 +68,7 @@ echo "Doing schema validation..."
 
 if ! [ -d "${INTEGRATION_TEST_VENV}" ]; then
 	virtualenv "${INTEGRATION_TEST_VENV}"
+	"${INTEGRATION_TEST_VENV}/bin/pip" install zschema
 	"${INTEGRATION_TEST_VENV}/bin/pip" install -r requirements.txt
 fi
 
