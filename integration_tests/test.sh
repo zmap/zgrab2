@@ -35,6 +35,8 @@ cd "$ZGRAB_ROOT"
 
 ZGRAB_OUTPUT="zgrab-output"
 
+mkdir -p $ZGRAB_OUTPUT
+
 pushd integration_tests
 for mod in $(ls); do
     if [ ".template" != "$mod" ] && [ -d "$mod" ] && ( [ -z $TEST_MODULES ] || [ $mod = *"$TEST_MODULES"* ]); then
