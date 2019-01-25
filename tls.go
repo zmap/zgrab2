@@ -80,6 +80,10 @@ func getCSV(arg string) []string {
 }
 
 func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
+	return t.GetTLSConfigForTarget(nil)
+}
+
+func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error) {
 	var err error
 
 	// TODO: Find standard names
@@ -129,7 +133,14 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 	}
 	if t.ServerName != "" {
 		// TODO: In the original zgrab, this was only set of NoSNI was not set (though in that case, it set it to the scanning host name)
+		// Here, if an explicit ServerName is given, set that, ignoring NoSNI.
 		ret.ServerName = t.ServerName
+	} else {
+		// If no explicit ServerName is given, and SNI is not disabled, use the
+		// target's domain name (if available).
+		if !t.NoSNI && target != nil {
+			ret.ServerName = target.Domain
+		}
 	}
 	if t.VerifyServerCertificate {
 		ret.InsecureSkipVerify = false
@@ -281,8 +292,23 @@ func (conn *TLSConnection) Close() error {
 	return conn.Conn.Close()
 }
 
+// Connect opens the TCP connection to the target using the given configuration,
+// and then returns the configured wrapped TLS connection. The caller must still
+// call Handshake().
+func (t *TLSFlags) Connect(target *ScanTarget, flags *BaseFlags) (*TLSConnection, error) {
+	tcpConn, err := target.Open(flags)
+	if err != nil {
+		return nil, err
+	}
+	return t.GetTLSConnectionForTarget(tcpConn, target)
+}
+
 func (t *TLSFlags) GetTLSConnection(conn net.Conn) (*TLSConnection, error) {
-	cfg, err := t.GetTLSConfig()
+	return t.GetTLSConnectionForTarget(conn, nil)
+}
+
+func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) (*TLSConnection, error) {
+	cfg, err := t.GetTLSConfigForTarget(target)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
 	}

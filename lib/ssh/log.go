@@ -17,6 +17,7 @@ package ssh
 // HandshakeLog contains detailed information about each step of the
 // SSH handshake, and can be encoded to JSON.
 type HandshakeLog struct {
+	Banner             string       `json:"banner,omitempty"`
 	ServerID           *EndpointId  `json:"server_id,omitempty"`
 	ClientID           *EndpointId  `json:"client_id,omitempty"`
 	ServerKex          *kexInitMsg  `json:"server_key_exchange,omitempty"`
