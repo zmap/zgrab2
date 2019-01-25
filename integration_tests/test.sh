@@ -29,6 +29,8 @@ set -e
 # Run from root of project
 TEST_DIR=$(dirname "$0")
 ZGRAB_ROOT="$TEST_DIR/.."
+INTEGRATION_TEST_VENV=".integration_tests.venv"
+
 cd "$ZGRAB_ROOT"
 
 ZGRAB_OUTPUT="zgrab-output"
@@ -63,6 +65,14 @@ fi
 status=0
 failures=""
 echo "Doing schema validation..."
+
+if ! [ -d "${INTEGRATION_TEST_VENV}" ]; then
+	virtualenv "${INTEGRATION_TEST_VENV}"
+	"${INTEGRATION_TEST_VENV}/bin/pip" install -r requirements.txt
+fi
+
+. "${INTEGRATION_TEST_VENV}/bin/activate"
+
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
         target="$ZGRAB_OUTPUT/$protocol/$outfile"
