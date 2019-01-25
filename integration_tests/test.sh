@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
+set -o pipefail
 
 # Do all integration tests for all protocols
 # To add tests for a new protocol, run `./integration_tests/new.sh <new_protocol>` and implement the appropriate test scripts.
@@ -68,7 +69,7 @@ status=0
 failures=""
 echo "Doing schema validation..."
 
-if ! [ -d "${INTEGRATION_TEST_VENV}" ]; then
+if ! [ -f "${INTEGRATION_TEST_VENV}/bin/python" ]; then
 	virtualenv "${INTEGRATION_TEST_VENV}"
 	"${INTEGRATION_TEST_VENV}/bin/pip" install zschema
 	"${INTEGRATION_TEST_VENV}/bin/pip" install -r requirements.txt
