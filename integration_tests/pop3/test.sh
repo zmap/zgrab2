@@ -25,7 +25,7 @@ status=0
 for field in $FIELDS; do
     for file in $(find $OUTPUT_ROOT -iname "*$field*.json"); do
         echo "check $file for $field"
-        RESULT=$($ZGRAB_ROOT/jp data.pop3.result.$field < $file)
+        RESULT=$(jp data.pop3.result.$field < $file)
         if [ "$RESULT" = "null" ]; then
             echo "Did not find $field in $file [["
             cat $file
