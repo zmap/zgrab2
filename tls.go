@@ -4,13 +4,16 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zcrypto/x509"
 )
 
 // Shared code for TLS scans.
@@ -124,8 +127,19 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		log.Fatalf("--certificate-map not implemented")
 	}
 	if t.RootCAs != "" {
-		// TODO FIXME: Implement
-		log.Fatalf("--root-cas not implemented")
+		var fd *os.File
+		if fd, err = os.Open(t.RootCAs); err != nil {
+			log.Fatal(err)
+		}
+		caBytes, readErr := ioutil.ReadAll(fd)
+		if readErr != nil {
+			log.Fatal(err)
+		}
+		ret.RootCAs = x509.NewCertPool()
+		ok := ret.RootCAs.AppendCertsFromPEM(caBytes)
+		if !ok {
+			log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
+		}
 	}
 	if t.NextProtos != "" {
 		// TODO: Different format?
