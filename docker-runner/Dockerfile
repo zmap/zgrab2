@@ -1,6 +1,8 @@
 FROM zgrab2_runner_base:latest
 
-WORKDIR /go/src/github.com/zmap
+RUN go get github.com/buger/jsonparser
+
+WORKDIR /go/src/github.com/packetloop
 
 # Grab the currently-active version of the source
 ADD . zgrab2

@@ -1,7 +1,11 @@
 package zgrab2
 
 import (
+        "encoding/binary"
+        "bufio"
+        "compress/gzip"
 	"encoding/csv"
+        "errors"
 	"fmt"
 	"io"
 	"net"
@@ -78,6 +82,57 @@ func duplicateIP(ip net.IP) net.IP {
 	dup := make(net.IP, len(ip))
 	copy(dup, ip)
 	return dup
+}
+
+func int2ip(nn uint32) net.IP {
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, nn)
+	return ip
+}
+
+// GetTargetsBitmap reads targets from a bitmap source
+func GetTargetsBitmap(source io.Reader, ch chan<- ScanTarget, compressed bool) error {
+        var err error
+        var bufreader io.Reader
+        if compressed {
+                bufreader, err = gzip.NewReader(source)
+                if err != nil {
+                        return err
+                }
+        } else {
+                bufreader = bufio.NewReader(source)
+        }
+        var MaxInt = 1<<32 - 1
+        currentByte := make([]byte, 1)
+        for ip := 0; ip <= MaxInt ; ip++ {
+                if ip % 8 == 0 {
+                        _, err = bufreader.Read(currentByte)
+                        if err != nil {
+                                return err
+                        }
+                        if currentByte[0] == 0 { // optimisation
+                                ip += 7
+                                continue
+                        }
+                }
+                if currentByte[0] & (1 << uint32(ip % 8)) > 0 {
+                        ch <- ScanTarget{IP: int2ip(uint32(ip)), Domain: "", Tag: ""}
+                }
+        }
+        // check that we ar at the end of file
+        _, err = bufreader.Read(currentByte)
+        if err != io.EOF {
+                return errors.New("Input bitmap file is too big. It's size should be 2^32 / 8 bytes.")
+        }
+        return nil
+}
+
+func InputTargetsBmp(ch chan<- ScanTarget) error {
+        return GetTargetsBitmap(config.inputFile, ch, false)
+}
+
+func InputTargetsGzipBmp(ch chan<- ScanTarget) error {
+        return GetTargetsBitmap(config.inputFile, ch, true)
 }
 
 // InputTargetsCSV is an InputTargetsFunc that calls GetTargetsCSV with

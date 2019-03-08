@@ -18,6 +18,10 @@ type Config struct {
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	Interface          string          `short:"i" long:"interface" description:"Network interface to send on"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
+        InBitmapFormat     bool            `long:"input-bitmap-format" description:"Use bitmap format for input."`
+        InGzBitmapFormat   bool            `long:"input-gz-bitmap-format" description:"Use gzipped bitmap format for input."`
+        OutBitmapFormat    bool            `long:"output-bitmap-format" description:"Use bitmap format for output."`
+        OutGzBitmapFormat  bool            `long:"output-gz-bitmap-format" description:"Use gzipped bitmap format for output."`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
 	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
@@ -59,7 +63,21 @@ func validateFrameworkConfiguration() {
 		}
 		log.SetOutput(config.logFile)
 	}
-	SetInputFunc(InputTargetsCSV)
+
+        if config.InBitmapFormat && config.InGzBitmapFormat {
+                log.Fatal("Cannot use both --input-gz-bitmap-format and --input-bitmap-format simultaineously.")
+        }
+        if config.OutBitmapFormat && config.OutGzBitmapFormat {
+                log.Fatal("Cannot use both --output-gz-bitmap-format and --output-bitmap-format simultaineously.")
+        }
+
+        if config.InBitmapFormat {
+                SetInputFunc(InputTargetsBmp)
+        } else if config.InGzBitmapFormat {
+                SetInputFunc(InputTargetsGzipBmp)
+        } else {
+                SetInputFunc(InputTargetsCSV)
+        }
 
 	if config.InputFileName == "-" {
 		config.inputFile = os.Stdin
@@ -78,7 +96,13 @@ func validateFrameworkConfiguration() {
 			log.Fatal(err)
 		}
 	}
-	SetOutputFunc(OutputResultsFile)
+        if config.OutBitmapFormat {
+                SetOutputFunc(OutputResultsFileBitmap)
+        } else if config.OutGzBitmapFormat {
+                SetOutputFunc(OutputResultsFileGzipBitmap)
+        } else {
+                SetOutputFunc(OutputResultsFile)
+        }
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr

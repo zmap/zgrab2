@@ -2,7 +2,13 @@ package zgrab2
 
 import (
 	"bufio"
+        "compress/gzip"
+        "encoding/binary"
 	"fmt"
+        "github.com/buger/jsonparser"
+        "log"
+        "net"
+        "strings"
 )
 
 // FlagMap is a function that maps a single-bit bitmask (i.e. a number of the
@@ -147,4 +153,52 @@ func OutputResultsFile(results <-chan []byte) error {
 		}
 	}
 	return nil
+}
+
+func ip2int(ip net.IP) uint32 {
+        if len(ip) == 16 {
+                return binary.BigEndian.Uint32(ip[12:16])
+        }
+        return binary.BigEndian.Uint32(ip)
+}
+
+func GetIpFromJson(js []byte) uint32 {
+        value, err := jsonparser.GetString(js, "ip")
+        if err != nil {
+                log.Fatal(err)
+        }
+        ip := net.ParseIP(value)
+        return ip2int(ip)
+}
+
+func OutputResultsFileBitmap(results <-chan []byte) error {
+        return GetResultsFileBitmap(results, false)
+}
+
+func OutputResultsFileGzipBitmap(results <-chan []byte) error {
+        return GetResultsFileBitmap(results, false)
+}
+
+func GetResultsFileBitmap(results <-chan []byte, compress bool) error {
+        bitmap := make([]byte, 1<<29)
+        for result := range results {
+                if strings.Contains(string(result), "success") {
+                        ipUint := GetIpFromJson(result)
+                        bitmap[ipUint / 8] |= 1 << (ipUint % 8)
+                }
+        }
+        if compress {
+                writer := gzip.NewWriter(config.outputFile)
+                if _, err := writer.Write(bitmap); err != nil {
+                        return err
+                }
+                writer.Close()
+        } else {
+                writer := bufio.NewWriter(config.outputFile)
+                if _, err := writer.Write(bitmap); err != nil {
+                        return err
+                }
+                writer.Flush()
+        }
+        return nil
 }
