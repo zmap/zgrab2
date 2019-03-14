@@ -180,21 +180,27 @@ func OutputResultsFileGzipBitmap(results <-chan []byte) error {
 }
 
 func GetResultsFileBitmap(results <-chan []byte, compress bool) error {
+        json_chan := make(chan []byte)
+        defer close(json_chan)
+        go OutputResultsFile(json_chan)
+
         bitmap := make([]byte, 1<<29)
         for result := range results {
-                if strings.Contains(string(result), "success") {
+                json_chan <- result // write to json
+                // and fill in bitmap
+                if strings.Contains(string(result), config.ScanSuccessTerm) {
                         ipUint := GetIpFromJson(result)
                         bitmap[ipUint / 8] |= 1 << (ipUint % 8)
                 }
         }
         if compress {
-                writer := gzip.NewWriter(config.outputFile)
+                writer := gzip.NewWriter(config.outputBitmapFile)
                 if _, err := writer.Write(bitmap); err != nil {
                         return err
                 }
                 writer.Close()
         } else {
-                writer := bufio.NewWriter(config.outputFile)
+                writer := bufio.NewWriter(config.outputBitmapFile)
                 if _, err := writer.Write(bitmap); err != nil {
                         return err
                 }
