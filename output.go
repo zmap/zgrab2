@@ -8,7 +8,6 @@ import (
         "github.com/buger/jsonparser"
         "log"
         "net"
-        "strings"
 )
 
 // FlagMap is a function that maps a single-bit bitmask (i.e. a number of the
@@ -179,6 +178,17 @@ func OutputResultsFileGzipBitmap(results <-chan []byte) error {
         return GetResultsFileBitmap(results, false)
 }
 
+func allKeysAreInJson(jsonString []byte, keyPaths [][]string) bool {
+        var result bool = true
+        for _, keyPath := range keyPaths {
+                _, _, _, err := jsonparser.Get(jsonString, keyPath...)
+                if err != nil {
+                        result = false
+                }
+        }
+        return result
+}
+
 func GetResultsFileBitmap(results <-chan []byte, compress bool) error {
         json_chan := make(chan []byte)
         defer close(json_chan)
@@ -188,7 +198,7 @@ func GetResultsFileBitmap(results <-chan []byte, compress bool) error {
         for result := range results {
                 json_chan <- result // write to json
                 // and fill in bitmap
-                if strings.Contains(string(result), config.ScanSuccessTerm) {
+                if allKeysAreInJson(result, config.scanSuccessKeyPaths) {
                         ipUint := GetIpFromJson(result)
                         bitmap[ipUint / 8] |= 1 << (ipUint % 8)
                 }

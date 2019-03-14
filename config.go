@@ -7,6 +7,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 // Config is the high level framework options that will be parsed
@@ -18,7 +19,7 @@ type Config struct {
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	Interface          string          `short:"i" long:"interface" description:"Network interface to send on"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
-	ScanSuccessTerm    string          `long:"scan-success-term" description:"What substring should json response contain to be considered successful response."`
+	ScanSuccessKeys    string          `long:"scan-success-keys" description:"Comma-separated list of json keys, that zgrab2 response should contain to be considered succesful response(i.e. for ntp - data.ntp.result.monlist_response)."`
 	BitmapFormat       bool            `long:"bitmap-format" description:"Use bitmap format for input&output."`
 	GzBitmapFormat     bool            `long:"gz-bitmap-format" description:"Use gzipped bitmap format for input&output."`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
@@ -29,7 +30,8 @@ type Config struct {
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	inputFile          *os.File
 	outputFile         *os.File
-        outputBitmapFile   *os.File
+	outputBitmapFile   *os.File
+	scanSuccessKeyPaths [][]string
 	metaFile           *os.File
 	logFile            *os.File
 	inputTargets       InputTargetsFunc
@@ -67,8 +69,8 @@ func validateFrameworkConfiguration() {
         if config.BitmapFormat && config.GzBitmapFormat {
                 log.Fatal("Cannot use both --gz-bitmap-format and --bitmap-format simultaineously.")
         }
-        if (config.BitmapFormat || config.GzBitmapFormat) && config.ScanSuccessTerm == "" {
-                log.Fatal("Set --scan--success-term parameter(i.e. for ntp - \"\\\"monlist_response\\\"\").")
+        if (config.BitmapFormat || config.GzBitmapFormat) && config.ScanSuccessKeys == "" {
+                log.Fatal("Set --scan--success-keys parameter(i.e. for ntp - \"data.ntp.result.monlist_response\").")
         }
 
         if config.BitmapFormat {
@@ -117,6 +119,11 @@ func validateFrameworkConfiguration() {
         } else {
                 SetOutputFunc(OutputResultsFile)
         }
+
+	config.scanSuccessKeyPaths = make([][]string, len(strings.Split(config.ScanSuccessKeys, ",")))
+	for i, path := range strings.Split(config.ScanSuccessKeys, ",") {
+		config.scanSuccessKeyPaths[i] = strings.Split(path, ".")
+	}
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr
