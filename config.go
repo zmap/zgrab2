@@ -18,10 +18,9 @@ type Config struct {
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	Interface          string          `short:"i" long:"interface" description:"Network interface to send on"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
-        InBitmapFormat     bool            `long:"input-bitmap-format" description:"Use bitmap format for input."`
-        InGzBitmapFormat   bool            `long:"input-gz-bitmap-format" description:"Use gzipped bitmap format for input."`
-        OutBitmapFormat    bool            `long:"output-bitmap-format" description:"Use bitmap format for output."`
-        OutGzBitmapFormat  bool            `long:"output-gz-bitmap-format" description:"Use gzipped bitmap format for output."`
+	ScanSuccessTerm    string          `long:"scan-success-term" description:"What substring should json response contain to be considered successful response."`
+	BitmapFormat       bool            `long:"bitmap-format" description:"Use bitmap format for input&output."`
+	GzBitmapFormat     bool            `long:"gz-bitmap-format" description:"Use gzipped bitmap format for input&output."`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
 	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
@@ -30,6 +29,7 @@ type Config struct {
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	inputFile          *os.File
 	outputFile         *os.File
+        outputBitmapFile   *os.File
 	metaFile           *os.File
 	logFile            *os.File
 	inputTargets       InputTargetsFunc
@@ -64,16 +64,16 @@ func validateFrameworkConfiguration() {
 		log.SetOutput(config.logFile)
 	}
 
-        if config.InBitmapFormat && config.InGzBitmapFormat {
-                log.Fatal("Cannot use both --input-gz-bitmap-format and --input-bitmap-format simultaineously.")
+        if config.BitmapFormat && config.GzBitmapFormat {
+                log.Fatal("Cannot use both --gz-bitmap-format and --bitmap-format simultaineously.")
         }
-        if config.OutBitmapFormat && config.OutGzBitmapFormat {
-                log.Fatal("Cannot use both --output-gz-bitmap-format and --output-bitmap-format simultaineously.")
+        if (config.BitmapFormat || config.GzBitmapFormat) && config.ScanSuccessTerm == "" {
+                log.Fatal("Set --scan--success-term parameter(i.e. for ntp - \"\\\"monlist_response\\\"\").")
         }
 
-        if config.InBitmapFormat {
+        if config.BitmapFormat {
                 SetInputFunc(InputTargetsBmp)
-        } else if config.InGzBitmapFormat {
+        } else if config.GzBitmapFormat {
                 SetInputFunc(InputTargetsGzipBmp)
         } else {
                 SetInputFunc(InputTargetsCSV)
@@ -92,13 +92,27 @@ func validateFrameworkConfiguration() {
 		config.outputFile = os.Stdout
 	} else {
 		var err error
+
+		if config.BitmapFormat {
+			config.OutputFileName += ".json"
+			if config.outputBitmapFile, err = os.Create(config.OutputFileName + ".bmp"); err != nil {
+				log.Fatal(err)
+			}
+		}
+                if config.GzBitmapFormat {
+                        config.OutputFileName += ".json"
+                        if config.outputBitmapFile, err = os.Create(config.OutputFileName + ".bmp.gz"); err != nil {
+                                log.Fatal(err)
+                        }
+                }
+
 		if config.outputFile, err = os.Create(config.OutputFileName); err != nil {
 			log.Fatal(err)
 		}
 	}
-        if config.OutBitmapFormat {
+        if config.BitmapFormat {
                 SetOutputFunc(OutputResultsFileBitmap)
-        } else if config.OutGzBitmapFormat {
+        } else if config.GzBitmapFormat {
                 SetOutputFunc(OutputResultsFileGzipBitmap)
         } else {
                 SetOutputFunc(OutputResultsFile)
