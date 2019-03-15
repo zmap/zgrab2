@@ -175,7 +175,7 @@ func OutputResultsFileBitmap(results <-chan []byte) error {
 }
 
 func OutputResultsFileGzipBitmap(results <-chan []byte) error {
-        return GetResultsFileBitmap(results, false)
+        return GetResultsFileBitmap(results, true)
 }
 
 func allKeysAreInJson(jsonString []byte, keyPaths [][]string) bool {
