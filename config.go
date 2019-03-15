@@ -70,7 +70,7 @@ func validateFrameworkConfiguration() {
                 log.Fatal("Cannot use both --gz-bitmap-format and --bitmap-format simultaineously.")
         }
         if (config.BitmapFormat || config.GzBitmapFormat) && config.ScanSuccessKeys == "" {
-                log.Fatal("Set --scan--success-keys parameter(i.e. for ntp - \"data.ntp.result.monlist_response\").")
+                log.Fatal("Set --scan-success-keys parameter(i.e. for ntp - \"data.ntp.result.monlist_response\").")
         }
 
         if config.BitmapFormat {
@@ -96,16 +96,16 @@ func validateFrameworkConfiguration() {
 		var err error
 
 		if config.BitmapFormat {
-			config.OutputFileName += ".json"
 			if config.outputBitmapFile, err = os.Create(config.OutputFileName + ".bmp"); err != nil {
 				log.Fatal(err)
 			}
+                        config.OutputFileName += ".json"
 		}
                 if config.GzBitmapFormat {
-                        config.OutputFileName += ".json"
                         if config.outputBitmapFile, err = os.Create(config.OutputFileName + ".bmp.gz"); err != nil {
                                 log.Fatal(err)
                         }
+                        config.OutputFileName += ".json"
                 }
 
 		if config.outputFile, err = os.Create(config.OutputFileName); err != nil {
