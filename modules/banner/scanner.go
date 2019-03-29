@@ -17,7 +17,7 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags
 	Probe   string `long:"probe" default:"\n" description:"Probe to send to the server."`
-	Pattern string `long:"pattern" description:"Pattern to match, must be vaild regexp."`
+	Pattern string `long:"pattern" description:"Pattern to match, must be valid regexp."`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
