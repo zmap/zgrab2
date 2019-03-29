@@ -108,8 +108,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	r := strings.NewReplacer(`\n`, "\n", `\r`, "\r", `\t`, "\t")
 	probe := r.Replace(scanner.config.Probe)
 	conn.Write([]byte(probe))
-	// buf := make([]byte, 8192)
-	//buflen, err := zgrab2.ReadUntilRegex(conn, buf, scanner.regex)
 	ret, err := zgrab2.ReadAvailable(conn)
 	if err != io.EOF && err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
