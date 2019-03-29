@@ -1,5 +1,5 @@
 // Package banner provides simple banner grab and matching implementation of the zgrab2.Module.
-// It sends a customizble probe (default to "\n") and filters the results based on custom input (--match)
+// It sends a customizble probe (default to "\n") and filters the results based on a custom regexp (--pattern)
 
 package banner
 
