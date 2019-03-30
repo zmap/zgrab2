@@ -1,5 +1,5 @@
 // Package banner provides simple banner grab and matching implementation of the zgrab2.Module.
-// It sends a customizble probe (default to "\n") and filters the results based on a custom regexp (--pattern)
+// It sends a customizble probe (default to "\n") and filters the results based on custom regexp (--pattern)
 
 package banner
 
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"regexp"
 	"strings"
 
@@ -16,8 +17,9 @@ import (
 // Flags give the command-line flags for the banner module.
 type Flags struct {
 	zgrab2.BaseFlags
-	Probe   string `long:"probe" default:"\n" description:"Probe to send to the server."`
-	Pattern string `long:"pattern" description:"Pattern to match, must be valid regexp."`
+	Probe    string `long:"probe" default:"\n" description:"Probe to send to the server."`
+	Pattern  string `long:"pattern" description:"Pattern to match, must be valid regexp."`
+	MaxTries int    `long:"maxtries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -100,17 +102,45 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 var NoMatchError = errors.New("pattern did not match")
 
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+	try := 0
+	var (
+		conn    net.Conn
+		err     error
+		readerr error
+	)
+	for try < scanner.config.MaxTries {
+		try += 1
+		conn, err = target.Open(&scanner.config.BaseFlags)
+		if err != nil {
+			continue
+		}
+		break
+	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer conn.Close()
 	r := strings.NewReplacer(`\n`, "\n", `\r`, "\r", `\t`, "\t")
 	probe := r.Replace(scanner.config.Probe)
-	conn.Write([]byte(probe))
-	ret, err := zgrab2.ReadAvailable(conn)
-	if err != io.EOF && err != nil {
+	var ret []byte
+	try = 0
+	for try < scanner.config.MaxTries {
+		try += 1
+		_, err = conn.Write([]byte(probe))
+		ret, readerr = zgrab2.ReadAvailable(conn)
+		if err != nil {
+			continue
+		}
+		if readerr != io.EOF && readerr != nil {
+			continue
+		}
+		break
+	}
+	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	if readerr != io.EOF && readerr != nil {
+		return zgrab2.TryGetScanStatus(readerr), nil, readerr
 	}
 	results := Results{Banner: string(ret), Length: len(ret)}
 	if scanner.regex.Match(ret) {
