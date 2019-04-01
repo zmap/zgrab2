@@ -120,7 +120,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer conn.Close()
-	r := strings.NewReplacer(`\n`, "\n", `\r`, "\r", `\t`, "\t")
+	r := strings.NewReplacer(`\n`, "\n", `\r`, "\r", `\t`, "\t",`\x`,"\x")
 	probe := r.Replace(scanner.config.Probe)
 	var ret []byte
 	try = 0
