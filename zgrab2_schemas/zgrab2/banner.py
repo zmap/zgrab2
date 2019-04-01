@@ -7,7 +7,7 @@ import zschema.registry
 import zcrypto_schemas.zcrypto as zcrypto
 from . import zgrab2
 
-# modules/cassandra.go - CassandraScanResults
+# modules/banner/scanner.go - Results
 banner_scan_response = SubRecord({
     "result": SubRecord({
         "banner": String(),
