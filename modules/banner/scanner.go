@@ -19,7 +19,7 @@ type Flags struct {
 	zgrab2.BaseFlags
 	Probe    string `long:"probe" default:"\n" description:"Probe to send to the server."`
 	Pattern  string `long:"pattern" description:"Pattern to match, must be valid regexp."`
-	MaxTries int    `long:"maxtries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
+	MaxTries int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
