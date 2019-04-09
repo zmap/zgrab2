@@ -5,11 +5,12 @@ package banner
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"regexp"
-	"strings"
+	"strconv"
 
 	"github.com/zmap/zgrab2"
 )
@@ -17,7 +18,7 @@ import (
 // Flags give the command-line flags for the banner module.
 type Flags struct {
 	zgrab2.BaseFlags
-	Probe    string `long:"probe" default:"\n" description:"Probe to send to the server."`
+	Probe    string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n" `
 	Pattern  string `long:"pattern" description:"Pattern to match, must be valid regexp."`
 	MaxTries int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
 }
@@ -30,6 +31,7 @@ type Module struct {
 type Scanner struct {
 	config *Flags
 	regex  *regexp.Regexp
+	probe  []byte
 }
 
 type Results struct {
@@ -96,6 +98,11 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	scanner.regex = regexp.MustCompile(scanner.config.Pattern)
+	probe, err := strconv.Unquote(fmt.Sprintf(`"%s"`, scanner.config.Probe))
+	if err != nil {
+		panic("Probe error")
+	}
+	scanner.probe = []byte(probe)
 	return nil
 }
 
@@ -108,6 +115,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		err     error
 		readerr error
 	)
+	fmt.Printf("Probe: %v", scanner.probe)
 	for try < scanner.config.MaxTries {
 		try += 1
 		conn, err = target.Open(&scanner.config.BaseFlags)
@@ -120,13 +128,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer conn.Close()
-	r := strings.NewReplacer(`\n`, "\n", `\r`, "\r", `\t`, "\t",`\x`,"\x")
-	probe := r.Replace(scanner.config.Probe)
+
 	var ret []byte
 	try = 0
 	for try < scanner.config.MaxTries {
 		try += 1
-		_, err = conn.Write([]byte(probe))
+		_, err = conn.Write(scanner.probe)
 		ret, readerr = zgrab2.ReadAvailable(conn)
 		if err != nil {
 			continue
