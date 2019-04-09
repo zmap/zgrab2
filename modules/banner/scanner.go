@@ -115,7 +115,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		err     error
 		readerr error
 	)
-	fmt.Printf("Probe: %v", scanner.probe)
 	for try < scanner.config.MaxTries {
 		try += 1
 		conn, err = target.Open(&scanner.config.BaseFlags)
