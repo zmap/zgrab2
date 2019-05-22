@@ -6,7 +6,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"encoding/base64"
-	"encoding/binary"
 	"io"
         "encoding/hex"
         ber "gopkg.in/asn1-ber.v1"
@@ -98,7 +97,7 @@ func (scanner *Scanner) GetPort() uint {
 }
 
 var cldap_ddos_query []byte = CldapRecursionQuery()
-var transaction_id uint32 = ber.DecodePacket(cldap_ddos_query).Children[0].Value
+var transaction_id int64 = ber.DecodePacket(cldap_ddos_query).Children[0].Value.(int64)
 
 func CldapRecursionQuery() ([]byte) {
         // zmap/examples/udp-probes/ldap_389.pkt content
@@ -127,7 +126,13 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
         parsed_packet := ber.DecodePacket(buf)
 
-        is_cldap := parsed_packet != nil && len(parsed_packet.Children) > 0 && parsed_packet.Children[0].Value == transaction_id
+        var is_cldap bool = false
+        if parsed_packet != nil && len(parsed_packet.Children) > 0 {
+                v, er := parsed_packet.Children[0].Value.(int64)
+                if !er && v == transaction_id {
+                        is_cldap = true
+                }
+        }
 	response_base64 := base64.StdEncoding.EncodeToString(buf[:n])
 
 	return zgrab2.SCAN_SUCCESS, Results{is_cldap, response_base64}, nil
