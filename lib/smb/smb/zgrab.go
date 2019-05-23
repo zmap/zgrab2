@@ -14,12 +14,15 @@ import (
 	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
 )
 
-// HeaderLog contains the relevant parts of the header that is included with each packet.
+// HeaderLog contains the relevant parts of the header that is included with
+// each packet.
 type HeaderLog struct {
-	// ProtocolID identifies the SMB protocol version (e.g. ProtocolSmb == "\xFFSMB")
+	// ProtocolID identifies the SMB protocol version (e.g. ProtocolSmb ==
+	// "\xFFSMB")
 	ProtocolID []byte `json:"protocol_id"`
 
-	// Status is the server's status; e.g. NTSTATUS (https://msdn.microsoft.com/en-us/library/cc704588.aspx).
+	// Status is the server's status; e.g. NTSTATUS
+	// (https://msdn.microsoft.com/en-us/library/cc704588.aspx).
 	Status uint32 `json:"status"`
 
 	// Command is the command identifier.
@@ -28,16 +31,18 @@ type HeaderLog struct {
 	// Credits is the number of credits granted to the client.
 	Credits uint16 `json:"credits"`
 
-	// Flags is the flags for the request (see https://msdn.microsoft.com/en-us/library/cc246529.aspx)
+	// Flags is the flags for the request (see
+	// https://msdn.microsoft.com/en-us/library/cc246529.aspx)
 	Flags uint32 `json:"flags"`
 }
 
-// NegotiationLog contains the relevant parts of the negotiation response packet.
-// See https://msdn.microsoft.com/en-us/library/cc246561.aspx.
+// NegotiationLog contains the relevant parts of the negotiation response
+// packet.  See https://msdn.microsoft.com/en-us/library/cc246561.aspx.
 type NegotiationLog struct {
 	HeaderLog
 
-	// SecurityMode is the server's security mode (e.g. signing enabled/required).
+	// SecurityMode is the server's security mode (e.g. signing
+	// enabled/required).
 	SecurityMode uint16 `json:"security_mode"`
 
 	// DialectRevision is the SMB2 dialect number; 0x2FF is the wildcard.
@@ -49,19 +54,20 @@ type NegotiationLog struct {
 	// Capabilities specifies protocol capabilities for the server.
 	Capabilities uint32 `json:"capabilities"`
 
-	// SystemTime is the time (in seconds since Unix epoch) the server received the negotiation request.
+	// SystemTime is the time (in seconds since Unix epoch) the server received
+	// the negotiation request.
 	SystemTime uint32 `json:"system_time"`
 
 	// ServerStartTime is the time (in seconds since the Unix epoch) the server started.
 	ServerStartTime uint32 `json:"server_start_time"`
 
-	// AuthenticationTypes is a list of OBJECT IDENTIFIERs (in dotted-decimal format) identifying authentication modes
-	// // that the server supports.
+	// AuthenticationTypes is a list of OBJECT IDENTIFIERs (in dotted-decimal
+	// format) identifying authentication modes that the server supports.
 	AuthenticationTypes []string `json:"authentication_types,omitempty"`
 }
 
-// SessionSetupLog contains the relevant parts of the first session setup response packet.
-// See https://msdn.microsoft.com/en-us/library/cc246564.aspx
+// SessionSetupLog contains the relevant parts of the first session setup
+// response packet.  See https://msdn.microsoft.com/en-us/library/cc246564.aspx
 type SessionSetupLog struct {
 	HeaderLog
 
@@ -77,29 +83,36 @@ type SessionSetupLog struct {
 
 // SMBLog logs the relevant information about the session.
 type SMBLog struct {
-	// SupportV1 is true if the server's protocol ID indicates support for version 1.
+	// SupportV1 is true if the server's protocol ID indicates support for
+	// version 1.
 	SupportV1 bool `json:"smbv1_support"`
 
 	// HasNTLM is true if the server supports the NTLM authentication method.
 	HasNTLM bool `json:"has_ntlm"`
 
-	// NegotiationLog, if present, contains the server's response to the negotiation request.
+	// NegotiationLog, if present, contains the server's response to the
+	// negotiation request.
 	NegotiationLog *NegotiationLog `json:"negotiation_log"`
 
-	// SessionSetupLog, if present, contains the server's response to the session setup request.
+	// SessionSetupLog, if present, contains the server's response to the
+	// session setup request.
 	SessionSetupLog *SessionSetupLog `json:"session_setup_log"`
 }
 
-// LoggedSession wraps the Session struct, and holds a Log struct alongside it to track its progress.
+// LoggedSession wraps the Session struct, and holds a Log struct alongside it
+// to track its progress.
 type LoggedSession struct {
 	Session
 	Log *SMBLog
 }
 
-// zschema doesn't support uint64, so convert this into a standard 32-bit timestamp
+// zschema doesn't support uint64, so convert this into a standard 32-bit
+// timestamp
 func getTime(time uint64) uint32 {
 	// SMB timestamps are tenths of a millisecond since 1/1/1601.
-	// Between Jan 1, 1601 and Jan 1, 1970, you have 369 complete years, of which 89 are leap years (1700, 1800, and 1900 were not leap years). That gives you a total of 134774 days or 11644473600 seconds
+	// Between Jan 1, 1601 and Jan 1, 1970, you have 369 complete years, of
+	// which 89 are leap years (1700, 1800, and 1900 were not leap years). That
+	// gives you a total of 134774 days or 11644473600 seconds
 	const offset uint64 = 11644473600
 	return uint32(time/1e7 - offset)
 }
@@ -143,7 +156,8 @@ func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
 	return s.Log, err
 }
 
-// GetSMBBanner sends a single negotiate packet to the server to perform a scan equivalent to the original ZGrab.
+// GetSMBBanner sends a single negotiate packet to the server to perform a scan
+// equivalent to the original ZGrab.
 func GetSMBBanner(conn net.Conn, debug bool) (*SMBLog, error) {
 	opt := Options{}
 
@@ -176,8 +190,9 @@ func wstring(input []byte) string {
 	return string(utf16.Decode(u16))
 }
 
-// LoggedNegotiateProtocol performs the same operations as Session.NegotiateProtocol() up to the point where user
-// credentials would be required, and logs the server's responses.
+// LoggedNegotiateProtocol performs the same operations as
+// Session.NegotiateProtocol() up to the point where user credentials would be
+// required, and logs the server's responses.
 // If setup is false, stop after reading the response to Negotiate.
 // If setup is true, send a SessionSetup1 request.
 func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
