@@ -92,11 +92,11 @@ type SMBLog struct {
 
 	// NegotiationLog, if present, contains the server's response to the
 	// negotiation request.
-	NegotiationLog *NegotiationLog `json:"negotiation_log"`
+	NegotiationLog *NegotiationLog `json:"negotiation_log,omitempty"`
 
 	// SessionSetupLog, if present, contains the server's response to the
 	// session setup request.
-	SessionSetupLog *SessionSetupLog `json:"session_setup_log"`
+	SessionSetupLog *SessionSetupLog `json:"session_setup_log,omitempty"`
 }
 
 // LoggedSession wraps the Session struct, and holds a Log struct alongside it
