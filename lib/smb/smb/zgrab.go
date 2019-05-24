@@ -81,11 +81,31 @@ type SessionSetupLog struct {
 	NegotiateFlags uint32 `json:"negotiate_flags"`
 }
 
+// Parse the SMB version and dialect; version string
+// will be of the form: Major.Minor.Revision.
+//
+// 'Revisions' are set to 0 if not specified (e.g. 2.1 is 2.1.0)
+// The following versions/dialects are known:
+// SMB 1.0.0
+// SMB 2.0.2
+// SMB 2.1.0
+// SMB 3.0.0
+// SMB 3.0.2
+// SMB 3.1.1
+type SMBVersions struct {
+	Major     int    `json:"major"`
+	Minor     int    `json:"minor"`
+	Revision  int    `json:"revision"`
+	VerString string `json:"version_string"`
+}
+
 // SMBLog logs the relevant information about the session.
 type SMBLog struct {
 	// SupportV1 is true if the server's protocol ID indicates support for
 	// version 1.
 	SupportV1 bool `json:"smbv1_support"`
+
+	Version *SMBVersions `json:"smb_version,omitempty"`
 
 	// HasNTLM is true if the server supports the NTLM authentication method.
 	HasNTLM bool `json:"has_ntlm"`
@@ -214,7 +234,49 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	logStruct := new(SMBLog)
 
 	ls.Log = logStruct
-	ls.Log.SupportV1 = string(negRes.Header.ProtocolID) == ProtocolSmb
+
+	switch string(negRes.Header.ProtocolID) {
+	case ProtocolSmb:
+		ls.Log.SupportV1 = true
+		ls.Log.Version = &SMBVersions{Major: 1,
+			Minor:     0,
+			Revision:  0,
+			VerString: "SMB 1.0"}
+	case ProtocolSmb2:
+		switch negRes.DialectRevision {
+		case 0x0202:
+			ls.Log.Version = &SMBVersions{
+				Major: 2,
+				Minor: 0,
+				Revision: 2,
+				VerString: "SMB 2.0.2"}
+		case 0x0210:
+			ls.Log.Version = &SMBVersions{
+				Major: 2,
+				Minor: 1,
+				Revision: 0,
+				VerString: "SMB 2.1"}
+		case 0x0300:
+			ls.Log.Version = &SMBVersions{
+				Major: 3,
+				Minor: 0,
+				Revision: 0,
+				VerString: "SMB 3.0"}
+		case 0x0302:
+			ls.Log.Version = &SMBVersions{
+				Major: 3,
+				Minor: 0,
+				Revision: 2,
+				VerString: "SMB 3.0.2"}
+		case 0x0311:
+			ls.Log.Version = &SMBVersions{
+				Major: 3,
+				Minor: 1,
+				Revision: 1,
+				VerString: "SMB 3.1.1"}
+		}
+	}
+
 	logStruct.NegotiationLog = &NegotiationLog{
 		HeaderLog:       getHeaderLog(&negRes.Header),
 		SecurityMode:    negRes.SecurityMode,

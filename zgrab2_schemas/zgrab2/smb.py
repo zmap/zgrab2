@@ -42,9 +42,16 @@ session_setup_log = SubRecord(extended(header_log, {
     'negotiate_flags': Unsigned32BitInteger(),
 }))
 
+
 smb_scan_response = SubRecord({
     'result': SubRecord({
         'smbv1_support': Boolean(),
+        "smb_version": SubRecord({
+            "major": Uinsigned8BitInteger(doc="Major version"),
+            "minor": Unsigned8BitInteger(doc="Minor version"),
+            "revision": Unsigned8BitInteger(doc="Protocol Revision"),
+            "version_string": String(doc="Full SBM Version String"),
+            }),
         'negotiation_log': negotiate_log,
         'has_ntlm': Boolean(),
         'session_setup_log': session_setup_log,
