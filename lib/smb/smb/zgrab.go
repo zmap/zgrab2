@@ -93,10 +93,33 @@ type SessionSetupLog struct {
 // SMB 3.0.2
 // SMB 3.1.1
 type SMBVersions struct {
-	Major     int    `json:"major"`
-	Minor     int    `json:"minor"`
-	Revision  int    `json:"revision"`
+	Major     uint8  `json:"major"`
+	Minor     uint8  `json:"minor"`
+	Revision  uint8  `json:"revision"`
 	VerString string `json:"version_string"`
+}
+
+// See [MS-SMB2] Sect. 2.2.4
+// These are the flags for the Capabilties field, and are use
+// for determining the SMBCapabilties booleans (below).
+const (
+	SMB2_CAP_DFS                = 0x00000001 // Distributed Filesystem
+	SMB2_CAP_LEASING            = 0x00000002 // Leasing Support
+	SMB2_CAP_LARGE_MTU          = 0x00000004 // Muti-credit support
+	SMB2_CAP_MULTI_CHANNEL      = 0x00000008 // Multi-channel support
+	SMB2_CAP_PERSISTENT_HANDLES = 0x00000010 // Persistent handles
+	SMB2_CAP_DIRECTORY_LEASING  = 0x00000020 // Directory leasing
+	SMB2_CAP_ENCRYPTION         = 0x00000040 // Encryption support
+)
+
+type SMBCapabilities struct {
+	DFSSupport bool `json:"smb_dfs_support"`
+	Leasing    bool `json:"smb_leasing_support,omitempty"`           // Valid for >2.0.2
+	LargeMTU   bool `json:"smb_multicredit_support,omitempty"`       // Valid for >2.0.2
+	MultiChan  bool `json:"smb_multichan_support,omitempty"`         // Valid for >2.1
+	Persist    bool `json:"smb_persistent_handle_support,omitempty"` // Valid for >2.1
+	DirLeasing bool `json:"smb_directory_leasing_support,omitempty"` // Valid for >2.1
+	Encryption bool `json:"smb_encryption_support,omitempty"`        // Only for 3.0, 3.0.2
 }
 
 // SMBLog logs the relevant information about the session.
@@ -106,6 +129,17 @@ type SMBLog struct {
 	SupportV1 bool `json:"smbv1_support"`
 
 	Version *SMBVersions `json:"smb_version,omitempty"`
+
+	// While the NegotiationLogs and SessionSetupLog each have their own
+	// Capabilties field, we are ignoring the SessionsSetupLog capability
+	// when decoding, and only representing the server capabilties based
+	// on what is present in the NegotiationLog capability bitmask field,
+	// which is why this capability decode is presented at this level
+	// in the results.
+	//
+	// This is based on Sect. 2.2.4 from the [MS-SMB2] document, which states:
+	// "The Capabilities field specifies protocol capabilities for the server."
+	Capabilities *SMBCapabilities `json:"smb_capabilities,omitempty"`
 
 	// HasNTLM is true if the server supports the NTLM authentication method.
 	HasNTLM bool `json:"has_ntlm"`
@@ -243,37 +277,62 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 			Revision:  0,
 			VerString: "SMB 1.0"}
 	case ProtocolSmb2:
+		major := uint8(0x0f & (negRes.DialectRevision >> 8))
+		minor := uint8(0x0f & (negRes.DialectRevision >> 4))
+		revision := uint8(0x0f & negRes.DialectRevision)
+		caps := negRes.Capabilities
+		ls.Log.Version = &SMBVersions{}
+		// Intentional cascading fallthroughs on the dialect revision, to match
+		// the description in [MS-SMB2] Sect. 2.2.4. The Capabilites flags are
+		// masked based on what capabilities are valid to infer based on the
+		// server version.
 		switch negRes.DialectRevision {
 		case 0x0202:
-			ls.Log.Version = &SMBVersions{
-				Major: 2,
-				Minor: 0,
-				Revision: 2,
-				VerString: "SMB 2.0.2"}
+			caps &= 0x01
+			fallthrough
 		case 0x0210:
+			caps &= 0x07
+			fallthrough
+		// Version 3.1.1 supporting fewer flags than 3.0.0 and 3.0.2 is
+		// intentional, based on the chart from [MS-SMB2] Sect 2.2.4,
+		// "Capabilities", which states (in reference to the  Encryption flag):
+		// "This flag is valid for the SMB 3.0 and 3.0.2 dialects", explicitly
+		// excluding 3.1.1
+		case 0x311:
+			caps &= 0x3f
+			fallthrough
+		case 0x300, 0x0302:
+			caps &= 0x7f
+			// At this point, the capabilities flags are properly masked, so we
+			// can decode them for all versions.  We also node the computed
+			// major/minor/revision numbers are valid, and match the explicitly
+			// defined versions in [MS-SMB2].
+			var verString string
+
+			// To be pedantic, to match the MS documents in reference to SMB
+			// versions, we will not include revision values of '0' in the
+			// version string.  E.g., SMB 2.1 instead of SMB 2.1.0
+			if revision > 0 {
+				verString = fmt.Sprintf("SMB %d.%d.%d", major, minor, revision)
+			} else {
+				verString = fmt.Sprintf("SMB %d.%d", major, minor)
+			}
 			ls.Log.Version = &SMBVersions{
-				Major: 2,
-				Minor: 1,
-				Revision: 0,
-				VerString: "SMB 2.1"}
-		case 0x0300:
-			ls.Log.Version = &SMBVersions{
-				Major: 3,
-				Minor: 0,
-				Revision: 0,
-				VerString: "SMB 3.0"}
-		case 0x0302:
-			ls.Log.Version = &SMBVersions{
-				Major: 3,
-				Minor: 0,
-				Revision: 2,
-				VerString: "SMB 3.0.2"}
-		case 0x0311:
-			ls.Log.Version = &SMBVersions{
-				Major: 3,
-				Minor: 1,
-				Revision: 1,
-				VerString: "SMB 3.1.1"}
+				Major:     major,
+				Minor:     minor,
+				Revision:  revision,
+				VerString: verString,
+			}
+			ls.Log.Capabilities = &SMBCapabilities{
+				DFSSupport: caps&SMB2_CAP_DFS != 0,
+				Leasing:    caps&SMB2_CAP_LEASING != 0,
+				LargeMTU:   caps&SMB2_CAP_LARGE_MTU != 0,
+				MultiChan:  caps&SMB2_CAP_MULTI_CHANNEL != 0,
+				Persist:    caps&SMB2_CAP_PERSISTENT_HANDLES != 0,
+				DirLeasing: caps&SMB2_CAP_DIRECTORY_LEASING != 0,
+				Encryption: caps&SMB2_CAP_ENCRYPTION != 0,
+			}
+		default:
 		}
 	}
 
