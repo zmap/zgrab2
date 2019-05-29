@@ -47,10 +47,10 @@ smb_scan_response = SubRecord({
     'result': SubRecord({
         'smbv1_support': Boolean(),
         "smb_version": SubRecord({
-            "major": Uinsigned8BitInteger(doc="Major version"),
+            "major": Unsigned8BitInteger(doc="Major version"),
             "minor": Unsigned8BitInteger(doc="Minor version"),
             "revision": Unsigned8BitInteger(doc="Protocol Revision"),
-            "version_string": String(doc="Full SBM Version String"),
+            "version_string": String(doc="Full SMB Version String"),
             }),
         "smb_capabilities": SubRecord({
             "smb_dfs_support": Boolean(doc="Server supports Distributed File System"),
@@ -60,7 +60,7 @@ smb_scan_response = SubRecord({
             "smb_persistent_handle_support": Boolean(doc="Server supports persistent handles"),
             "smb_directory_leasing_support": Boolean(doc="Server supports directory leasing"),
             "smb_encryption_support": Boolean(doc="Server supports encryption"),
-            }),
+            }, doc="Capabilities flags for the connection. See [MS-SMB2] Sect. 2.2.4."),
         'negotiation_log': negotiate_log,
         'has_ntlm': Boolean(),
         'session_setup_log': session_setup_log,
