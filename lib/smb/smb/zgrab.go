@@ -14,12 +14,15 @@ import (
 	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
 )
 
-// HeaderLog contains the relevant parts of the header that is included with each packet.
+// HeaderLog contains the relevant parts of the header that is included with
+// each packet.
 type HeaderLog struct {
-	// ProtocolID identifies the SMB protocol version (e.g. ProtocolSmb == "\xFFSMB")
+	// ProtocolID identifies the SMB protocol version (e.g. ProtocolSmb ==
+	// "\xFFSMB")
 	ProtocolID []byte `json:"protocol_id"`
 
-	// Status is the server's status; e.g. NTSTATUS (https://msdn.microsoft.com/en-us/library/cc704588.aspx).
+	// Status is the server's status; e.g. NTSTATUS
+	// (https://msdn.microsoft.com/en-us/library/cc704588.aspx).
 	Status uint32 `json:"status"`
 
 	// Command is the command identifier.
@@ -28,16 +31,18 @@ type HeaderLog struct {
 	// Credits is the number of credits granted to the client.
 	Credits uint16 `json:"credits"`
 
-	// Flags is the flags for the request (see https://msdn.microsoft.com/en-us/library/cc246529.aspx)
+	// Flags is the flags for the request (see
+	// https://msdn.microsoft.com/en-us/library/cc246529.aspx)
 	Flags uint32 `json:"flags"`
 }
 
-// NegotiationLog contains the relevant parts of the negotiation response packet.
-// See https://msdn.microsoft.com/en-us/library/cc246561.aspx.
+// NegotiationLog contains the relevant parts of the negotiation response
+// packet.  See https://msdn.microsoft.com/en-us/library/cc246561.aspx.
 type NegotiationLog struct {
 	HeaderLog
 
-	// SecurityMode is the server's security mode (e.g. signing enabled/required).
+	// SecurityMode is the server's security mode (e.g. signing
+	// enabled/required).
 	SecurityMode uint16 `json:"security_mode"`
 
 	// DialectRevision is the SMB2 dialect number; 0x2FF is the wildcard.
@@ -49,19 +54,20 @@ type NegotiationLog struct {
 	// Capabilities specifies protocol capabilities for the server.
 	Capabilities uint32 `json:"capabilities"`
 
-	// SystemTime is the time (in seconds since Unix epoch) the server received the negotiation request.
+	// SystemTime is the time (in seconds since Unix epoch) the server received
+	// the negotiation request.
 	SystemTime uint32 `json:"system_time"`
 
 	// ServerStartTime is the time (in seconds since the Unix epoch) the server started.
 	ServerStartTime uint32 `json:"server_start_time"`
 
-	// AuthenticationTypes is a list of OBJECT IDENTIFIERs (in dotted-decimal format) identifying authentication modes
-	// // that the server supports.
+	// AuthenticationTypes is a list of OBJECT IDENTIFIERs (in dotted-decimal
+	// format) identifying authentication modes that the server supports.
 	AuthenticationTypes []string `json:"authentication_types,omitempty"`
 }
 
-// SessionSetupLog contains the relevant parts of the first session setup response packet.
-// See https://msdn.microsoft.com/en-us/library/cc246564.aspx
+// SessionSetupLog contains the relevant parts of the first session setup
+// response packet.  See https://msdn.microsoft.com/en-us/library/cc246564.aspx
 type SessionSetupLog struct {
 	HeaderLog
 
@@ -75,31 +81,92 @@ type SessionSetupLog struct {
 	NegotiateFlags uint32 `json:"negotiate_flags"`
 }
 
+// Parse the SMB version and dialect; version string
+// will be of the form: Major.Minor.Revision.
+//
+// 'Revisions' are set to 0 if not specified (e.g. 2.1 is 2.1.0)
+// The following versions/dialects are known:
+// SMB 1.0.0
+// SMB 2.0.2
+// SMB 2.1.0
+// SMB 3.0.0
+// SMB 3.0.2
+// SMB 3.1.1
+type SMBVersions struct {
+	Major     uint8  `json:"major"`
+	Minor     uint8  `json:"minor"`
+	Revision  uint8  `json:"revision"`
+	VerString string `json:"version_string"`
+}
+
+// See [MS-SMB2] Sect. 2.2.4
+// These are the flags for the Capabilties field, and are use
+// for determining the SMBCapabilties booleans (below).
+const (
+	SMB2_CAP_DFS                = 0x00000001 // Distributed Filesystem
+	SMB2_CAP_LEASING            = 0x00000002 // Leasing Support
+	SMB2_CAP_LARGE_MTU          = 0x00000004 // Muti-credit support
+	SMB2_CAP_MULTI_CHANNEL      = 0x00000008 // Multi-channel support
+	SMB2_CAP_PERSISTENT_HANDLES = 0x00000010 // Persistent handles
+	SMB2_CAP_DIRECTORY_LEASING  = 0x00000020 // Directory leasing
+	SMB2_CAP_ENCRYPTION         = 0x00000040 // Encryption support
+)
+
+type SMBCapabilities struct {
+	DFSSupport bool `json:"smb_dfs_support"`
+	Leasing    bool `json:"smb_leasing_support,omitempty"`           // Valid for >2.0.2
+	LargeMTU   bool `json:"smb_multicredit_support,omitempty"`       // Valid for >2.0.2
+	MultiChan  bool `json:"smb_multichan_support,omitempty"`         // Valid for >2.1
+	Persist    bool `json:"smb_persistent_handle_support,omitempty"` // Valid for >2.1
+	DirLeasing bool `json:"smb_directory_leasing_support,omitempty"` // Valid for >2.1
+	Encryption bool `json:"smb_encryption_support,omitempty"`        // Only for 3.0, 3.0.2
+}
+
 // SMBLog logs the relevant information about the session.
 type SMBLog struct {
-	// SupportV1 is true if the server's protocol ID indicates support for version 1.
+	// SupportV1 is true if the server's protocol ID indicates support for
+	// version 1.
 	SupportV1 bool `json:"smbv1_support"`
+
+	Version *SMBVersions `json:"smb_version,omitempty"`
+
+	// While the NegotiationLogs and SessionSetupLog each have their own
+	// Capabilties field, we are ignoring the SessionsSetupLog capability
+	// when decoding, and only representing the server capabilties based
+	// on what is present in the NegotiationLog capability bitmask field,
+	// which is why this capability decode is presented at this level
+	// in the results.
+	//
+	// This is based on Sect. 2.2.4 from the [MS-SMB2] document, which states:
+	// "The Capabilities field specifies protocol capabilities for the server."
+	Capabilities *SMBCapabilities `json:"smb_capabilities,omitempty"`
 
 	// HasNTLM is true if the server supports the NTLM authentication method.
 	HasNTLM bool `json:"has_ntlm"`
 
-	// NegotiationLog, if present, contains the server's response to the negotiation request.
-	NegotiationLog *NegotiationLog `json:"negotiation_log"`
+	// NegotiationLog, if present, contains the server's response to the
+	// negotiation request.
+	NegotiationLog *NegotiationLog `json:"negotiation_log,omitempty"`
 
-	// SessionSetupLog, if present, contains the server's response to the session setup request.
-	SessionSetupLog *SessionSetupLog `json:"session_setup_log"`
+	// SessionSetupLog, if present, contains the server's response to the
+	// session setup request.
+	SessionSetupLog *SessionSetupLog `json:"session_setup_log,omitempty"`
 }
 
-// LoggedSession wraps the Session struct, and holds a Log struct alongside it to track its progress.
+// LoggedSession wraps the Session struct, and holds a Log struct alongside it
+// to track its progress.
 type LoggedSession struct {
 	Session
 	Log *SMBLog
 }
 
-// zschema doesn't support uint64, so convert this into a standard 32-bit timestamp
+// zschema doesn't support uint64, so convert this into a standard 32-bit
+// timestamp
 func getTime(time uint64) uint32 {
 	// SMB timestamps are tenths of a millisecond since 1/1/1601.
-	// Between Jan 1, 1601 and Jan 1, 1970, you have 369 complete years, of which 89 are leap years (1700, 1800, and 1900 were not leap years). That gives you a total of 134774 days or 11644473600 seconds
+	// Between Jan 1, 1601 and Jan 1, 1970, you have 369 complete years, of
+	// which 89 are leap years (1700, 1800, and 1900 were not leap years). That
+	// gives you a total of 134774 days or 11644473600 seconds
 	const offset uint64 = 11644473600
 	return uint32(time/1e7 - offset)
 }
@@ -143,7 +210,8 @@ func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
 	return s.Log, err
 }
 
-// GetSMBBanner sends a single negotiate packet to the server to perform a scan equivalent to the original ZGrab.
+// GetSMBBanner sends a single negotiate packet to the server to perform a scan
+// equivalent to the original ZGrab.
 func GetSMBBanner(conn net.Conn, debug bool) (*SMBLog, error) {
 	opt := Options{}
 
@@ -176,8 +244,9 @@ func wstring(input []byte) string {
 	return string(utf16.Decode(u16))
 }
 
-// LoggedNegotiateProtocol performs the same operations as Session.NegotiateProtocol() up to the point where user
-// credentials would be required, and logs the server's responses.
+// LoggedNegotiateProtocol performs the same operations as
+// Session.NegotiateProtocol() up to the point where user credentials would be
+// required, and logs the server's responses.
 // If setup is false, stop after reading the response to Negotiate.
 // If setup is true, send a SessionSetup1 request.
 func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
@@ -199,7 +268,74 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	logStruct := new(SMBLog)
 
 	ls.Log = logStruct
-	ls.Log.SupportV1 = string(negRes.Header.ProtocolID) == ProtocolSmb
+
+	switch string(negRes.Header.ProtocolID) {
+	case ProtocolSmb:
+		ls.Log.SupportV1 = true
+		ls.Log.Version = &SMBVersions{Major: 1,
+			Minor:     0,
+			Revision:  0,
+			VerString: "SMB 1.0"}
+	case ProtocolSmb2:
+		major := uint8(0x0f & (negRes.DialectRevision >> 8))
+		minor := uint8(0x0f & (negRes.DialectRevision >> 4))
+		revision := uint8(0x0f & negRes.DialectRevision)
+		caps := negRes.Capabilities
+		ls.Log.Version = &SMBVersions{}
+		// Intentional cascading fallthroughs on the dialect revision, to match
+		// the description in [MS-SMB2] Sect. 2.2.4. The Capabilites flags are
+		// masked based on what capabilities are valid to infer based on the
+		// server version.
+		switch negRes.DialectRevision {
+		case 0x0202:
+			caps &= 0x01
+			fallthrough
+		case 0x0210:
+			caps &= 0x07
+			fallthrough
+		// Version 3.1.1 supporting fewer flags than 3.0.0 and 3.0.2 is
+		// intentional, based on the chart from [MS-SMB2] Sect 2.2.4,
+		// "Capabilities", which states (in reference to the  Encryption flag):
+		// "This flag is valid for the SMB 3.0 and 3.0.2 dialects", explicitly
+		// excluding 3.1.1
+		case 0x311:
+			caps &= 0x3f
+			fallthrough
+		case 0x300, 0x0302:
+			caps &= 0x7f
+			// At this point, the capabilities flags are properly masked, so we
+			// can decode them for all versions.  We also node the computed
+			// major/minor/revision numbers are valid, and match the explicitly
+			// defined versions in [MS-SMB2].
+			var verString string
+
+			// To be pedantic, to match the MS documents in reference to SMB
+			// versions, we will not include revision values of '0' in the
+			// version string.  E.g., SMB 2.1 instead of SMB 2.1.0
+			if revision > 0 {
+				verString = fmt.Sprintf("SMB %d.%d.%d", major, minor, revision)
+			} else {
+				verString = fmt.Sprintf("SMB %d.%d", major, minor)
+			}
+			ls.Log.Version = &SMBVersions{
+				Major:     major,
+				Minor:     minor,
+				Revision:  revision,
+				VerString: verString,
+			}
+			ls.Log.Capabilities = &SMBCapabilities{
+				DFSSupport: caps&SMB2_CAP_DFS != 0,
+				Leasing:    caps&SMB2_CAP_LEASING != 0,
+				LargeMTU:   caps&SMB2_CAP_LARGE_MTU != 0,
+				MultiChan:  caps&SMB2_CAP_MULTI_CHANNEL != 0,
+				Persist:    caps&SMB2_CAP_PERSISTENT_HANDLES != 0,
+				DirLeasing: caps&SMB2_CAP_DIRECTORY_LEASING != 0,
+				Encryption: caps&SMB2_CAP_ENCRYPTION != 0,
+			}
+		default:
+		}
+	}
+
 	logStruct.NegotiationLog = &NegotiationLog{
 		HeaderLog:       getHeaderLog(&negRes.Header),
 		SecurityMode:    negRes.SecurityMode,
