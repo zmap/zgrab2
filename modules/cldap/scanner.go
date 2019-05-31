@@ -101,9 +101,9 @@ var transaction_id int64 = ber.DecodePacket(cldap_ddos_query).Children[0].Value.
 
 func CldapRecursionQuery() ([]byte) {
         // zmap/examples/udp-probes/ldap_389.pkt content
-        // only change - 30840000002d020101 -> 30840000002d0201de
-        // to make unique id(01 -> de)
-        v, _ := hex.DecodeString("30840000002d0201de63840000002404000a01000a0100020100020100010100870b6f626a656374636c617373308400000000000a")
+        // only change - 30840000002d020101 -> 30840000002d02013e
+        // to make unique id(01 -> 3e)
+        v, _ := hex.DecodeString("30840000002d02013e63840000002404000a01000a0100020100020100010100870b6f626a656374636c617373308400000000000a")
 	return v
 }
 
@@ -128,8 +128,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
         var is_cldap bool = false
         if parsed_packet != nil && len(parsed_packet.Children) > 0 {
-                v, er := parsed_packet.Children[0].Value.(int64)
-                if !er && v == transaction_id {
+                v, succ := parsed_packet.Children[0].Value.(int64)
+                if succ && v == transaction_id {
                         is_cldap = true
                 }
         }
