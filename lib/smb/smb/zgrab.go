@@ -189,7 +189,7 @@ func fillHeaderLog(src *Header, dest *HeaderLog) *HeaderLog {
 
 // GetSMBLog() determines the Protocol version and dialect, and optionally
 // negotiates a session.
-func GetSMBLog(conn net.Conn, session bool, debug bool) (smbLog *SMBLog, err error) {
+func GetSMBLog(conn net.Conn, session bool, v1 bool, debug bool) (smbLog *SMBLog, err error) {
 	opt := Options{}
 
 	s := &LoggedSession{
@@ -207,7 +207,11 @@ func GetSMBLog(conn net.Conn, session bool, debug bool) (smbLog *SMBLog, err err
 		},
 	}
 
-	err = s.LoggedNegotiateProtocol(session)
+	if v1 {
+		err = s.LoggedNegotiateProtocolv1(session)
+	} else {
+		err = s.LoggedNegotiateProtocol(session)
+	}
 	return s.Log, err
 }
 
