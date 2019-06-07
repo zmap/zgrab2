@@ -187,8 +187,9 @@ func fillHeaderLog(src *Header, dest *HeaderLog) *HeaderLog {
 	return dest
 }
 
-// GetSMBLog attempts to negotiate a SMB session on the given connection.
-func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
+// GetSMBLog() determines the Protocol version and dialect, and optionally
+// negotiates a session.
+func GetSMBLog(conn net.Conn, session bool, debug bool) (smbLog *SMBLog, err error) {
 	opt := Options{}
 
 	s := &LoggedSession{
@@ -206,31 +207,7 @@ func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
 		},
 	}
 
-	err := s.LoggedNegotiateProtocol(true)
-	return s.Log, err
-}
-
-// GetSMBBanner sends a single negotiate packet to the server to perform a scan
-// equivalent to the original ZGrab.
-func GetSMBBanner(conn net.Conn, debug bool) (*SMBLog, error) {
-	opt := Options{}
-
-	s := &LoggedSession{
-		Session: Session{
-			IsSigningRequired: false,
-			IsAuthenticated:   false,
-			debug:             debug,
-			securityMode:      0,
-			messageID:         0,
-			sessionID:         0,
-			dialect:           0,
-			conn:              conn,
-			options:           opt,
-			trees:             make(map[string]uint32),
-		},
-	}
-
-	err := s.LoggedNegotiateProtocol(false)
+	err = s.LoggedNegotiateProtocol(session)
 	return s.Log, err
 }
 
