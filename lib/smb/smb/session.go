@@ -381,6 +381,7 @@ func (s *Session) send(req interface{}) (res []byte, err error) {
 	switch string(protID) {
 	default:
 		return nil, errors.New("Protocol Not Implemented")
+	case ProtocolSmb:
 	case ProtocolSmb2:
 	}
 
