@@ -187,8 +187,9 @@ func fillHeaderLog(src *Header, dest *HeaderLog) *HeaderLog {
 	return dest
 }
 
-// GetSMBLog attempts to negotiate a SMB session on the given connection.
-func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
+// GetSMBLog() determines the Protocol version and dialect, and optionally
+// negotiates a session.
+func GetSMBLog(conn net.Conn, session bool, v1 bool, debug bool) (smbLog *SMBLog, err error) {
 	opt := Options{}
 
 	s := &LoggedSession{
@@ -206,31 +207,11 @@ func GetSMBLog(conn net.Conn, debug bool) (*SMBLog, error) {
 		},
 	}
 
-	err := s.LoggedNegotiateProtocol(true)
-	return s.Log, err
-}
-
-// GetSMBBanner sends a single negotiate packet to the server to perform a scan
-// equivalent to the original ZGrab.
-func GetSMBBanner(conn net.Conn, debug bool) (*SMBLog, error) {
-	opt := Options{}
-
-	s := &LoggedSession{
-		Session: Session{
-			IsSigningRequired: false,
-			IsAuthenticated:   false,
-			debug:             debug,
-			securityMode:      0,
-			messageID:         0,
-			sessionID:         0,
-			dialect:           0,
-			conn:              conn,
-			options:           opt,
-			trees:             make(map[string]uint32),
-		},
+	if v1 {
+		err = s.LoggedNegotiateProtocolv1(session)
+	} else {
+		err = s.LoggedNegotiateProtocol(session)
 	}
-
-	err := s.LoggedNegotiateProtocol(false)
 	return s.Log, err
 }
 
@@ -244,11 +225,57 @@ func wstring(input []byte) string {
 	return string(utf16.Decode(u16))
 }
 
+// Temporary placeholder to detect SMB v1 by sending a simple v1
+// header with an invalid command; the response with be an error
+// code, but with a v1 ProtocolID
+// TODO: Parse the unmarshaled results.
+func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
+	s := &ls.Session
+
+	negReq := s.NewNegotiateReqV1()
+	s.Debug("Sending LoggedNegotiateProtocolV1 request", nil)
+	buf, err := s.send(negReq)
+	if err != nil {
+		s.Debug("", err)
+		return err
+	}
+
+	logStruct := new(SMBLog)
+	ls.Log = logStruct
+
+	// s.send() will return error if buf size is < 4.
+	// Check the for the protocol identifier here, so that we at least
+	// log that this is an SMB1 server even if the full unmarshal fails.
+	if string(buf[0:4]) == ProtocolSmb {
+		ls.Log.SupportV1 = true
+		ls.Log.Version = &SMBVersions{Major: 1,
+			Minor:     0,
+			Revision:  0,
+			VerString: "SMB 1.0"}
+	} else {
+		return fmt.Errorf("Invalid v1 Protocol ID\n")
+	}
+
+	negRes := NegotiateResV1{}
+	// TODO: Unmarshal struct depends on the CIF dialect response field.
+	if err := encoder.Unmarshal(buf, &negRes); err != nil {
+		s.Debug("Raw:\n"+hex.Dump(buf), err)
+		// Not returning error here, because the NegotiationResV1 is
+		// only valid for the extended NT LM 0.12 dialect of SMB1.
+	}
+
+	// TODO: Parse capabilities and return those results
+
+	return nil
+}
+
 // LoggedNegotiateProtocol performs the same operations as
 // Session.NegotiateProtocol() up to the point where user credentials would be
 // required, and logs the server's responses.
 // If setup is false, stop after reading the response to Negotiate.
 // If setup is true, send a SessionSetup1 request.
+//
+// Note: This supports SMB2 only.
 func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	s := &ls.Session
 	negReq := s.NewNegotiateReq()
