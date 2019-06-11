@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"io"
 
 	"github.com/zmap/zgrab2"
 )
