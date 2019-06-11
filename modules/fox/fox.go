@@ -57,7 +57,7 @@ func GetFoxBanner(logStruct *FoxLog, connection net.Conn) error {
 	}
 
 	data, err := zgrab2.ReadAvailable(connection)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return err
 	}
 
