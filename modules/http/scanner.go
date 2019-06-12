@@ -173,13 +173,13 @@ func (scan *scan) dialContext(ctx context.Context, net string, addr string) (net
 
 // getTLSDialer returns a Dial function that connects using the
 // zgrab2.GetTLSConnection()
-func (scan *scan) getTLSDialer() func(net, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
 		outer, err := scan.dialContext(context.Background(), net, addr)
 		if err != nil {
 			return nil, err
 		}
-		tlsConn, err := scan.scanner.config.TLSFlags.GetTLSConnection(outer)
+		tlsConn, err := scan.scanner.config.TLSFlags.GetTLSConnectionForTarget(outer, t)
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +273,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
-	ret.transport.DialTLS = ret.getTLSDialer()
+	ret.transport.DialTLS = ret.getTLSDialer(t)
 	ret.transport.DialContext = ret.dialContext
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
