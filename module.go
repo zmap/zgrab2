@@ -68,12 +68,12 @@ type BaseFlags struct {
 	Timeout        time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
 	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
 	BytesReadLimit int           `short:"m" long:"maxbytes" description:"Maximum byte read limit per scan (0 = defaults)"`
+	LocalAddress   string        `short:"l" long:"local-addr" description:"Set an explicit local address for traffic"`
 }
 
 // UDPFlags contains the common options used for all UDP scans
 type UDPFlags struct {
 	LocalPort    uint   `long:"local-port" description:"Set an explicit local port for UDP traffic"`
-	LocalAddress string `long:"local-addr" description:"Set an explicit local address for UDP traffic"`
 }
 
 // GetName returns the name of the respective scanner
