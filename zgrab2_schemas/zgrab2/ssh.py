@@ -237,6 +237,7 @@ AlgorithmSelection = SubRecordType({
 # TODO: Can ssh re-use any of the generic TLS model?
 ssh_scan_response = SubRecord({
     "result": SubRecord({
+        "banner": WhitespaceAnalyzedString(),
         "server_id": AnalyzedEndpointID(),
         "client_id": EndpointID(),
         "server_key_exchange": KexInitMessage(),
