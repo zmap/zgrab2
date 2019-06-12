@@ -57,7 +57,7 @@ func (target *ScanTarget) Host() string {
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
-	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
+	return DialTimeoutConnection("tcp", flags.LocalAddress, address, flags.Timeout, flags.BytesReadLimit)
 }
 
 // OpenTLS connects to the ScanTarget using the configured flags, then performs
@@ -77,10 +77,10 @@ func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TL
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
 	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
 	var local *net.UDPAddr
-	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
+	if udp != nil && (flags.LocalAddress != "" || udp.LocalPort != 0) {
 		local = &net.UDPAddr{}
-		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
-			local.IP = net.ParseIP(udp.LocalAddress)
+		if flags.LocalAddress != "" && flags.LocalAddress != "*" {
+			local.IP = net.ParseIP(flags.LocalAddress)
 		}
 		if udp.LocalPort != 0 {
 			local.Port = int(udp.LocalPort)

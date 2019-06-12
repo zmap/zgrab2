@@ -623,7 +623,7 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 // Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
 func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, scanner.config.BaseFlags.Timeout, 0)
+		outer, err := zgrab2.DialTimeoutConnection(net, scanner.config.BaseFlags.LocalAddress, addr, scanner.config.BaseFlags.Timeout, 0)
 		if err != nil {
 			return nil, err
 		}
