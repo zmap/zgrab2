@@ -82,7 +82,7 @@ func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 				if log.HandshakeLog.ServerHello != nil {
 					// If we got far enough to get a valid ServerHello, then
 					// consider it to be a positive TLS detection.
-					return zgrab2.TryGetScanStatus(err), log, err
+					return zgrab2.TryGetScanStatus(err), nil, err
 				}
 				// Otherwise, detection failed.
 			}
