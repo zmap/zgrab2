@@ -1,4 +1,5 @@
 [
     "PING",
-    "AUTH password!"
+    "AUTH password!",
+    "YOUR-COMMAND args"
 ]

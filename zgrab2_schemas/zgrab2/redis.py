@@ -25,6 +25,11 @@ redis_scan_response = SubRecord({
         ]),
         "quit_response": String(doc="The response to the QUIT command.", examples=["OK"]),
         "version": String(doc="The version string, read from the the info_response (if available)."),
+        "custom_responses": ListOf(SubRecord({
+            "command": String(doc="The command portion of the command sent."),
+            "arguments": String(doc="The arguments portion of the command sent."),
+            "response": String(doc="The response from the sent command and arguments."),
+        }), doc="The responses from the user-passed custom commands."),
     })
 }, extends=zgrab2.base_scan_response)
 

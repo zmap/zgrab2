@@ -29,8 +29,7 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags
 
-	// TODO: Take a JSON/YAML file with a list of custom commands to execute? array?
-	CustomCommands string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute."`
+	CustomCommands string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
 	Mappings       string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
 	Password       string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
 	DoInline       bool   `long:"inline" description:"Send commands using the inline syntax"`
@@ -95,6 +94,10 @@ type Result struct {
 	// Version is read from the InfoResponse (the field "server_version"), if
 	// present.
 	Version string `json:"version,omitempty"`
+
+	// CustomResponses is an array that holds the commands, arguments, and
+	// responses from user-inputted commands.
+	CustomResponses []CustomResponse `json:"custom_responses,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module
@@ -337,6 +340,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
 	result.NonexistentResponse = forceToString(bogusResponse)
+	for i := range scanner.customCommands {
+		full_cmd := strings.Fields(scanner.customCommands[i])
+		resp, err := scan.SendCommand(full_cmd[0], full_cmd[1:]...)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), result, err
+		}
+		customResponse := CustomResponse{
+			Command:   full_cmd[0],
+			Arguments: strings.Join(full_cmd[1:], " "),
+			Response:  forceToString(resp),
+		}
+		result.CustomResponses = append(result.CustomResponses, customResponse)
+	}
 	quitResponse, err := scan.SendCommand(scanner.commandMappings["QUIT"].(string))
 	if err != nil && err != io.EOF {
 		return zgrab2.TryGetScanStatus(err), result, err
