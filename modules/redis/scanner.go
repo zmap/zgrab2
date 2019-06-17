@@ -13,24 +13,28 @@
 package redis
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"gopkg.in/yaml.v2"
 )
 
 // Flags contains redis-specific command-line flags.
 type Flags struct {
 	zgrab2.BaseFlags
 
-	// TODO: Take a JSON/YAML file with a list of custom commands to execute?
-	// TODO: Take a JSON/YAML file with mappings for command names?
-	AuthCommand string `long:"auth-command" default:"AUTH" description:"Override the command used to authenticate. Ignored if no password is set."`
-	Password    string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
-	DoInline    bool   `long:"inline" description:"Send commands using the inline syntax"`
-	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	// TODO: Take a JSON/YAML file with a list of custom commands to execute? array?
+	CustomCommands string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute."`
+	Mappings       string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
+	Password       string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
+	DoInline       bool   `long:"inline" description:"Send commands using the inline syntax"`
+	Verbose        bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface
@@ -39,7 +43,9 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	config *Flags
+	config          *Flags
+	commandMappings map[string]interface{}
+	customCommands  []string
 }
 
 // scan holds the state for the scan of an individual target
@@ -124,6 +130,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	err := scanner.initCommands()
+	if err != nil {
+		log.Fatal(err)
+	}
 	return nil
 }
 
@@ -150,6 +160,71 @@ func (scanner *Scanner) GetPort() uint {
 // Close cleans up the scanner.
 func (scan *scan) Close() {
 	defer scan.close()
+}
+
+func getUnmarshaler(file string) (func([]byte, interface{}) error, error) {
+	var unmarshaler func([]byte, interface{}) error
+	switch ext := filepath.Ext(file); ext {
+	case ".json":
+		unmarshaler = json.Unmarshal
+	case ".yaml", ".yml":
+		unmarshaler = yaml.Unmarshal
+	default:
+		err := fmt.Errorf("File type %s not valid.", ext)
+		return nil, err
+	}
+	return unmarshaler, nil
+}
+
+func getFileContents(file string, output interface{}) error {
+	unmarshaler, err := getUnmarshaler(file)
+	if err != nil {
+		return err
+	}
+	fileContent, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	err = unmarshaler([]byte(fileContent), output)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Initializes the command mappings
+func (scanner *Scanner) initCommands() error {
+	scanner.commandMappings = map[string]interface{}{
+		"PING":        "PING",
+		"AUTH":        "AUTH",
+		"INFO":        "INFO",
+		"NONEXISTENT": "NONEXISTENT",
+		"QUIT":        "QUIT",
+	}
+
+	if scanner.config.CustomCommands != "" {
+		var customCommands []string
+		err := getFileContents(scanner.config.CustomCommands, &customCommands)
+		if err != nil {
+			return err
+		}
+		scanner.customCommands = customCommands
+	}
+
+	// User supplied a file for updated command mappings
+	if scanner.config.Mappings != "" {
+		var mappings map[string]string
+		err := getFileContents(scanner.config.Mappings, &mappings)
+		if err != nil {
+			return err
+		}
+		for origCommand, newCommand := range mappings {
+			scanner.commandMappings[strings.ToUpper(origCommand)] = strings.ToUpper(newCommand)
+		}
+	}
+
+	return nil
 }
 
 // SendCommand sends the given command/args to the server, using the scanner's
@@ -228,9 +303,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	defer scan.Close()
 	result := scan.result
-	pingResponse, err := scan.SendCommand("PING")
+	pingResponse, err := scan.SendCommand(scanner.commandMappings["PING"].(string))
 	if err != nil {
-		// if the first command fails (as opposed to succeeding but returning an
+		// If the first command fails (as opposed to succeeding but returning an
 		// ErrorMessage response), then flag the probe as having failed.
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
@@ -238,19 +313,18 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// we have positively identified that a redis service is present.
 	result.PingResponse = forceToString(pingResponse)
 	if scanner.config.Password != "" {
-		authResponse, err := scan.SendCommand(scanner.config.AuthCommand, scanner.config.Password)
+		authResponse, err := scan.SendCommand(scanner.commandMappings["AUTH"].(string), scanner.config.Password)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.AuthResponse = forceToString(authResponse)
 	}
-	infoResponse, err := scan.SendCommand("INFO")
+	infoResponse, err := scan.SendCommand(scanner.commandMappings["INFO"].(string))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
 	result.InfoResponse = forceToString(infoResponse)
-	infoResponseBulk, ok := infoResponse.(BulkString)
-	if ok {
+	if infoResponseBulk, ok := infoResponse.(BulkString); ok {
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
 			if strings.HasPrefix(line, "redis_version:") {
 				result.Version = strings.SplitN(line, ":", 2)[1]
@@ -258,12 +332,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			}
 		}
 	}
-	bogusResponse, err := scan.SendCommand("NONEXISTENT")
+	bogusResponse, err := scan.SendCommand(scanner.commandMappings["NONEXISTENT"].(string))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
 	result.NonexistentResponse = forceToString(bogusResponse)
-	quitResponse, err := scan.SendCommand("QUIT")
+	quitResponse, err := scan.SendCommand(scanner.commandMappings["QUIT"].(string))
 	if err != nil && err != io.EOF {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
