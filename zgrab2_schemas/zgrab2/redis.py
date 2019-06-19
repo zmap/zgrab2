@@ -26,6 +26,7 @@ redis_scan_response = SubRecord({
         "quit_response": String(doc="The response to the QUIT command.", examples=["OK"]),
         "version": String(doc="The version string, read from the the info_response (if available)."),
         "os": String(doc="The os the redis server is running, read from the the info_response (if available)."),
+        "mode": String(doc="The mode the redis server is running (standalone or cluster), read from the the info_response (if available)."),
         "custom_responses": ListOf(SubRecord({
             "command": String(doc="The command portion of the command sent."),
             "arguments": String(doc="The arguments portion of the command sent."),

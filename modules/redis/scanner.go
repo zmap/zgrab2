@@ -43,7 +43,7 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
 	config          *Flags
-	commandMappings map[string]interface{}
+	commandMappings map[string]string
 	customCommands  []string
 }
 
@@ -89,6 +89,10 @@ type Result struct {
 	// OS is read from the InfoResponse (the field "os"), if present. It specifies
 	// the OS the redis server is running.
 	OS string `json:"os,omitempty"`
+
+	// Mode is read from the InfoResponse (the field "redis_mode"), if present.
+	// It specifies the mode the redis server is running, either cluster or standalone.
+	Mode string `json:"mode,omitempty"`
 
 	// NonexistentResponse is the response to the non-existent command; even if
 	// auth is required, this may give a different error than existing commands.
@@ -202,7 +206,7 @@ func getFileContents(file string, output interface{}) error {
 
 // Initializes the command mappings
 func (scanner *Scanner) initCommands() error {
-	scanner.commandMappings = map[string]interface{}{
+	scanner.commandMappings = map[string]string{
 		"PING":        "PING",
 		"AUTH":        "AUTH",
 		"INFO":        "INFO",
@@ -299,7 +303,8 @@ func (s *Scanner) Protocol() string {
 // 2. (only if --password is provided) AUTH <password>
 // 3. INFO
 // 4. NONEXISTENT
-// 5. QUIT
+// 5. (only if --custom-commands is provided) CustomCommands <args>
+// 6. QUIT
 // The responses for each of these is logged, and if INFO succeeds, the version
 // is scraped from it.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
@@ -310,7 +315,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	defer scan.Close()
 	result := scan.result
-	pingResponse, err := scan.SendCommand(scanner.commandMappings["PING"].(string))
+	pingResponse, err := scan.SendCommand(scanner.commandMappings["PING"])
 	if err != nil {
 		// If the first command fails (as opposed to succeeding but returning an
 		// ErrorMessage response), then flag the probe as having failed.
@@ -320,19 +325,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// we have positively identified that a redis service is present.
 	result.PingResponse = forceToString(pingResponse)
 	if scanner.config.Password != "" {
-		authResponse, err := scan.SendCommand(scanner.commandMappings["AUTH"].(string), scanner.config.Password)
+		authResponse, err := scan.SendCommand(scanner.commandMappings["AUTH"], scanner.config.Password)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.AuthResponse = forceToString(authResponse)
 	}
-	infoResponse, err := scan.SendCommand(scanner.commandMappings["INFO"].(string))
+	infoResponse, err := scan.SendCommand(scanner.commandMappings["INFO"])
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
 	result.InfoResponse = forceToString(infoResponse)
 	if infoResponseBulk, ok := infoResponse.(BulkString); ok {
-		version_found, os_found := false, false
+		version_found, os_found, mode_found := false, false, false
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
 			if strings.HasPrefix(line, "redis_version:") {
 				result.Version = strings.SplitN(line, ":", 2)[1]
@@ -340,13 +345,16 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			} else if strings.HasPrefix(line, "os:") {
 				result.OS = strings.SplitN(line, ":", 2)[1]
 				os_found = true
+			} else if strings.HasPrefix(line, "redis_mode:") {
+				result.Mode = strings.SplitN(line, ":", 2)[1]
+				mode_found = true
 			}
-			if version_found && os_found {
+			if version_found && os_found && mode_found {
 				break
 			}
 		}
 	}
-	bogusResponse, err := scan.SendCommand(scanner.commandMappings["NONEXISTENT"].(string))
+	bogusResponse, err := scan.SendCommand(scanner.commandMappings["NONEXISTENT"])
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
@@ -364,11 +372,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 		result.CustomResponses = append(result.CustomResponses, customResponse)
 	}
-	quitResponse, err := scan.SendCommand(scanner.commandMappings["QUIT"].(string))
-	if err == io.EOF && quitResponse == nil {
-		quitResponse = NullValue
-	} else if err != nil {
+	quitResponse, err := scan.SendCommand(scanner.commandMappings["QUIT"])
+	if err != nil && err != io.EOF {
 		return zgrab2.TryGetScanStatus(err), result, err
+	} else if quitResponse == nil {
+		quitResponse = NullValue
 	}
 	result.QuitResponse = forceToString(quitResponse)
 	return zgrab2.SCAN_SUCCESS, &result, nil
