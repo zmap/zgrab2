@@ -74,30 +74,34 @@ type Result struct {
 	// required error even if --password is provided.
 	PingResponse string `json:"ping_response,omitempty"`
 
+	// AuthResponse is only included if --password is set.
+	AuthResponse string `json:"auth_response,omitempty"`
+
 	// InfoResponse is the response from the INFO command: "Lines can contain a
 	// section name (starting with a # character) or a property. All the
 	// properties are in the form of field:value terminated by \r\n."
 	InfoResponse string `json:"info_response,omitempty"`
 
-	// QuitResponse is the response from the QUIT command -- should be the
-	// simple string "OK" even when authentication is required, unless the
-	// QUIT command was renamed.
-	QuitResponse string `json:"quit_response,omitempty"`
+	// Version is read from the InfoResponse (the field "server_version"), if
+	// present.
+	Version string `json:"version,omitempty"`
+
+	// OS is read from the InfoResponse (the field "os"), if present. It specifies
+	// the OS the redis server is running.
+	OS string `json:"os,omitempty"`
 
 	// NonexistentResponse is the response to the non-existent command; even if
 	// auth is required, this may give a different error than existing commands.
 	NonexistentResponse string `json:"nonexistent_response,omitempty"`
 
-	// AuthResponse is only included if --password is set.
-	AuthResponse string `json:"auth_response,omitempty"`
-
-	// Version is read from the InfoResponse (the field "server_version"), if
-	// present.
-	Version string `json:"version,omitempty"`
-
 	// CustomResponses is an array that holds the commands, arguments, and
 	// responses from user-inputted commands.
 	CustomResponses []CustomResponse `json:"custom_responses,omitempty"`
+
+	// QuitResponse is the response from the QUIT command -- should be the
+	// simple string "OK" even when authentication is required, unless the
+	// QUIT command was renamed.
+	QuitResponse string `json:"quit_response,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module
@@ -328,9 +332,16 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	result.InfoResponse = forceToString(infoResponse)
 	if infoResponseBulk, ok := infoResponse.(BulkString); ok {
+		version_found, os_found := false, false
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
 			if strings.HasPrefix(line, "redis_version:") {
 				result.Version = strings.SplitN(line, ":", 2)[1]
+				version_found = true
+			} else if strings.HasPrefix(line, "os:") {
+				result.OS = strings.SplitN(line, ":", 2)[1]
+				os_found = true
+			}
+			if version_found && os_found {
 				break
 			}
 		}
@@ -354,7 +365,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		result.CustomResponses = append(result.CustomResponses, customResponse)
 	}
 	quitResponse, err := scan.SendCommand(scanner.commandMappings["QUIT"].(string))
-	if err != nil && err != io.EOF {
+	if err == io.EOF && quitResponse == nil {
+		quitResponse = NullValue
+	} else if err != nil {
 		return zgrab2.TryGetScanStatus(err), result, err
 	}
 	result.QuitResponse = forceToString(quitResponse)
