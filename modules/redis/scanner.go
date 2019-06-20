@@ -416,7 +416,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 				fieldsFound += 1
 				result.Uptime = convToUint32(line_prefix_suffix[1])
 			case "used_memory":
-				used_memory_found = true
+				fieldsFound += 1
 				result.UsedMemory = convToUint32(line_prefix_suffix[1])
 			case "total_connections_received":
 				fieldsFound += 1
