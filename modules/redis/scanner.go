@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -90,9 +91,45 @@ type Result struct {
 	// the OS the redis server is running.
 	OS string `json:"os,omitempty"`
 
+	// ArchBits is read from the InfoResponse (the field "arch_bits"), if present.
+	// It specifies the architecture bits (32 or 64) the redis server used to build.
+	ArchBits string `json:"arch_bits,omitempty"`
+
 	// Mode is read from the InfoResponse (the field "redis_mode"), if present.
 	// It specifies the mode the redis server is running, either cluster or standalone.
 	Mode string `json:"mode,omitempty"`
+
+	// GitSha1 is read from the InfoResponse (the field "redis_git_sha1"), if present.
+	// It specifies the Git Sha 1 the redis server used.
+	GitSha1 string `json:"git_sha1,omitempty"`
+
+	// BuildID is read from the InfoResponse (the field "redis_build_id"), if present.
+	// It specifies the Build ID of the redis server.
+	BuildID string `json:"build_id,omitempty"`
+
+	// GCCVersion is read from the InfoResponse (the field "gcc_version"), if present.
+	// It specifies the version of the GCC compiler used to compile the Redis server.
+	GCCVersion string `json:"gcc_version,omitempty"`
+
+	// MemAllocator is read from the InfoResponse (the field "mem_allocator"), if present.
+	// It specifies the memory allocator.
+	MemAllocator string `json:"mem_allocator,omitempty"`
+
+	// Uptime is read from the InfoResponse (the field "uptime_in_seconds"), if present.
+	// It specifies the number of seconds since Redis server start.
+	Uptime uint32 `json:"uptime_in_seconds,omitempty"`
+
+	// UsedMemory is read from the InfoResponse (the field "used_memory"), if present.
+	// It specifies the total number of bytes allocated by Redis using its allocator.
+	UsedMemory uint32 `json:"used_memory,omitempty"`
+
+	// ConnectionsReceived is read from the InfoResponse (the field "total_connections_received"),
+	// if present. It specifies the total number of connections accepted by the server.
+	ConnectionsReceived uint32 `json:"total_connections_received,omitempty"`
+
+	// CommandsProcessed is read from the InfoResponse (the field "total_commands_processed"),
+	// if present. It specifies the total number of commands processed by the server.
+	CommandsProcessed uint32 `json:"total_commands_processed,omitempty"`
 
 	// NonexistentResponse is the response to the non-existent command; even if
 	// auth is required, this may give a different error than existing commands.
@@ -298,6 +335,16 @@ func (s *Scanner) Protocol() string {
 	return "redis"
 }
 
+// Converts the string to a Uint32 if possible. If not, returns 0 (the zero value of a uin32)
+func convToUint32(s string) uint32 {
+	s_64, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		// TODO: LEARN HOW TO LOG
+		return 0
+	}
+	return uint32(s_64)
+}
+
 // Scan executes the following commands:
 // 1. PING
 // 2. (only if --password is provided) AUTH <password>
@@ -337,19 +384,48 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	result.InfoResponse = forceToString(infoResponse)
 	if infoResponseBulk, ok := infoResponse.(BulkString); ok {
-		version_found, os_found, mode_found := false, false, false
+		fieldsWeAreLookingFor := 12
+		fieldsFound := 0
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
-			if strings.HasPrefix(line, "redis_version:") {
-				result.Version = strings.SplitN(line, ":", 2)[1]
-				version_found = true
-			} else if strings.HasPrefix(line, "os:") {
-				result.OS = strings.SplitN(line, ":", 2)[1]
-				os_found = true
-			} else if strings.HasPrefix(line, "redis_mode:") {
-				result.Mode = strings.SplitN(line, ":", 2)[1]
-				mode_found = true
+			switch line_prefix_suffix := strings.SplitN(line, ":", 2); line_prefix_suffix[0] {
+			case "redis_version":
+				fieldsFound += 1
+				result.Version = line_prefix_suffix[1]
+			case "os":
+				fieldsFound += 1
+				result.OS = line_prefix_suffix[1]
+			case "arch_bits":
+				fieldsFound += 1
+				result.ArchBits = line_prefix_suffix[1]
+			case "redis_mode":
+				fieldsFound += 1
+				result.Mode = line_prefix_suffix[1]
+			case "redis_git_sha1":
+				fieldsFound += 1
+				result.GitSha1 = line_prefix_suffix[1]
+			case "redis_build_id":
+				fieldsFound += 1
+				result.BuildID = line_prefix_suffix[1]
+			case "gcc_version":
+				fieldsFound += 1
+				result.GCCVersion = line_prefix_suffix[1]
+			case "mem_allocator":
+				fieldsFound += 1
+				result.MemAllocator = line_prefix_suffix[1]
+			case "uptime_in_seconds":
+				fieldsFound += 1
+				result.Uptime = convToUint32(line_prefix_suffix[1])
+			case "used_memory":
+				used_memory_found = true
+				result.UsedMemory = convToUint32(line_prefix_suffix[1])
+			case "total_connections_received":
+				fieldsFound += 1
+				result.ConnectionsReceived = convToUint32(line_prefix_suffix[1])
+			case "total_commands_processed":
+				fieldsFound += 1
+				result.CommandsProcessed = convToUint32(line_prefix_suffix[1])
 			}
-			if version_found && os_found && mode_found {
+			if fieldsWeAreLookingFor == fieldsFound {
 				break
 			}
 		}
