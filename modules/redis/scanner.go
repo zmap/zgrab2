@@ -383,8 +383,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	result.InfoResponse = forceToString(infoResponse)
 	if infoResponseBulk, ok := infoResponse.(BulkString); ok {
-		fieldsWeAreLookingFor := 12
-		fieldsFound := 0
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
 			line_prefix_suffix := strings.SplitN(line, ":", 2)
 			if len(line_prefix_suffix) == 1 {
@@ -392,44 +390,29 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			}
 			switch line_prefix_suffix[0] {
 			case "redis_version":
-				fieldsFound += 1
 				result.Version = line_prefix_suffix[1]
 			case "os":
-				fieldsFound += 1
 				result.OS = line_prefix_suffix[1]
 			case "arch_bits":
-				fieldsFound += 1
 				result.ArchBits = line_prefix_suffix[1]
 			case "redis_mode":
-				fieldsFound += 1
 				result.Mode = line_prefix_suffix[1]
 			case "redis_git_sha1":
-				fieldsFound += 1
 				result.GitSha1 = line_prefix_suffix[1]
 			case "redis_build_id":
-				fieldsFound += 1
 				result.BuildID = line_prefix_suffix[1]
 			case "gcc_version":
-				fieldsFound += 1
 				result.GCCVersion = line_prefix_suffix[1]
 			case "mem_allocator":
-				fieldsFound += 1
 				result.MemAllocator = line_prefix_suffix[1]
 			case "uptime_in_seconds":
-				fieldsFound += 1
 				result.Uptime = convToUint32(line_prefix_suffix[1])
 			case "used_memory":
-				fieldsFound += 1
 				result.UsedMemory = convToUint32(line_prefix_suffix[1])
 			case "total_connections_received":
-				fieldsFound += 1
 				result.ConnectionsReceived = convToUint32(line_prefix_suffix[1])
 			case "total_commands_processed":
-				fieldsFound += 1
 				result.CommandsProcessed = convToUint32(line_prefix_suffix[1])
-			}
-			if fieldsWeAreLookingFor == fieldsFound {
-				break
 			}
 		}
 	}
