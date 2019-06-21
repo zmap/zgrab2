@@ -339,7 +339,6 @@ func (s *Scanner) Protocol() string {
 func convToUint32(s string) uint32 {
 	s_64, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
-		// TODO: LEARN HOW TO LOG
 		return 0
 	}
 	return uint32(s_64)
@@ -387,7 +386,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		fieldsWeAreLookingFor := 12
 		fieldsFound := 0
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
-			switch line_prefix_suffix := strings.SplitN(line, ":", 2); line_prefix_suffix[0] {
+			line_prefix_suffix := strings.SplitN(line, ":", 2)
+			if len(line_prefix_suffix) == 1 {
+				line_prefix_suffix = append(line_prefix_suffix, "")
+			}
+			switch line_prefix_suffix[0] {
 			case "redis_version":
 				fieldsFound += 1
 				result.Version = line_prefix_suffix[1]
