@@ -397,9 +397,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			linePrefixSuffix := strings.SplitN(line, ":", 2)
 			prefix := linePrefixSuffix[0]
 			var suffix string
-			if len(linePrefixSuffix) == 1 {
-				suffix = ""
-			} else {
+			if len(linePrefixSuffix) > 1 {
 				suffix = linePrefixSuffix[1]
 			}
 			switch prefix {
