@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -30,11 +31,12 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags
 
-	CustomCommands string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
-	Mappings       string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
-	Password       string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
-	DoInline       bool   `long:"inline" description:"Send commands using the inline syntax"`
-	Verbose        bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	CustomCommands   string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
+	Mappings         string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
+	MaxInputFileSize int64  `long:"max-input-file-size" default:"102400" description:"Maximum size for either input file."`
+	Password         string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
+	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
+	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface
@@ -218,15 +220,23 @@ func getUnmarshaler(file string) (func([]byte, interface{}) error, error) {
 	case ".yaml", ".yml":
 		unmarshaler = yaml.Unmarshal
 	default:
-		err := fmt.Errorf("File type %s not valid.", ext)
+		err := fmt.Errorf("file type %s not valid", ext)
 		return nil, err
 	}
 	return unmarshaler, nil
 }
 
-func getFileContents(file string, output interface{}) error {
+func (scanner *Scanner) getFileContents(file string, output interface{}) error {
 	unmarshaler, err := getUnmarshaler(file)
 	if err != nil {
+		return err
+	}
+	fileStat, err := os.Stat(file)
+	if err != nil {
+		return err
+	}
+	if fileStat.Size() > scanner.config.MaxInputFileSize {
+		err = fmt.Errorf("input file too large")
 		return err
 	}
 	fileContent, err := ioutil.ReadFile(file)
@@ -253,7 +263,7 @@ func (scanner *Scanner) initCommands() error {
 
 	if scanner.config.CustomCommands != "" {
 		var customCommands []string
-		err := getFileContents(scanner.config.CustomCommands, &customCommands)
+		err := scanner.getFileContents(scanner.config.CustomCommands, &customCommands)
 		if err != nil {
 			return err
 		}
@@ -263,7 +273,7 @@ func (scanner *Scanner) initCommands() error {
 	// User supplied a file for updated command mappings
 	if scanner.config.Mappings != "" {
 		var mappings map[string]string
-		err := getFileContents(scanner.config.Mappings, &mappings)
+		err := scanner.getFileContents(scanner.config.Mappings, &mappings)
 		if err != nil {
 			return err
 		}
@@ -331,17 +341,17 @@ func forceToString(val RedisValue) string {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "redis"
 }
 
 // Converts the string to a Uint32 if possible. If not, returns 0 (the zero value of a uin32)
 func convToUint32(s string) uint32 {
-	s_64, err := strconv.ParseUint(s, 10, 32)
+	s64, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
 		return 0
 	}
-	return uint32(s_64)
+	return uint32(s64)
 }
 
 // Scan executes the following commands:
@@ -384,35 +394,39 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	result.InfoResponse = forceToString(infoResponse)
 	if infoResponseBulk, ok := infoResponse.(BulkString); ok {
 		for _, line := range strings.Split(string(infoResponseBulk), "\r\n") {
-			line_prefix_suffix := strings.SplitN(line, ":", 2)
-			if len(line_prefix_suffix) == 1 {
-				line_prefix_suffix = append(line_prefix_suffix, "")
+			linePrefixSuffix := strings.SplitN(line, ":", 2)
+			prefix := linePrefixSuffix[0]
+			var suffix string
+			if len(linePrefixSuffix) == 1 {
+				suffix = ""
+			} else {
+				suffix = linePrefixSuffix[1]
 			}
-			switch line_prefix_suffix[0] {
+			switch prefix {
 			case "redis_version":
-				result.Version = line_prefix_suffix[1]
+				result.Version = suffix
 			case "os":
-				result.OS = line_prefix_suffix[1]
+				result.OS = suffix
 			case "arch_bits":
-				result.ArchBits = line_prefix_suffix[1]
+				result.ArchBits = suffix
 			case "redis_mode":
-				result.Mode = line_prefix_suffix[1]
+				result.Mode = suffix
 			case "redis_git_sha1":
-				result.GitSha1 = line_prefix_suffix[1]
+				result.GitSha1 = suffix
 			case "redis_build_id":
-				result.BuildID = line_prefix_suffix[1]
+				result.BuildID = suffix
 			case "gcc_version":
-				result.GCCVersion = line_prefix_suffix[1]
+				result.GCCVersion = suffix
 			case "mem_allocator":
-				result.MemAllocator = line_prefix_suffix[1]
+				result.MemAllocator = suffix
 			case "uptime_in_seconds":
-				result.Uptime = convToUint32(line_prefix_suffix[1])
+				result.Uptime = convToUint32(suffix)
 			case "used_memory":
-				result.UsedMemory = convToUint32(line_prefix_suffix[1])
+				result.UsedMemory = convToUint32(suffix)
 			case "total_connections_received":
-				result.ConnectionsReceived = convToUint32(line_prefix_suffix[1])
+				result.ConnectionsReceived = convToUint32(suffix)
 			case "total_commands_processed":
-				result.CommandsProcessed = convToUint32(line_prefix_suffix[1])
+				result.CommandsProcessed = convToUint32(suffix)
 			}
 		}
 	}
@@ -422,14 +436,14 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	result.NonexistentResponse = forceToString(bogusResponse)
 	for i := range scanner.customCommands {
-		full_cmd := strings.Fields(scanner.customCommands[i])
-		resp, err := scan.SendCommand(full_cmd[0], full_cmd[1:]...)
+		fullCmd := strings.Fields(scanner.customCommands[i])
+		resp, err := scan.SendCommand(fullCmd[0], fullCmd[1:]...)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		customResponse := CustomResponse{
-			Command:   full_cmd[0],
-			Arguments: strings.Join(full_cmd[1:], " "),
+			Command:   fullCmd[0],
+			Arguments: strings.Join(fullCmd[1:], " "),
 			Response:  forceToString(resp),
 		}
 		result.CustomResponses = append(result.CustomResponses, customResponse)
