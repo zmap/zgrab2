@@ -89,6 +89,15 @@ type Result struct {
 	// present.
 	Version string `json:"version,omitempty"`
 
+	// Major is the version's major number.
+	Major uint32 `json:"major,omitempty"`
+
+	// Minor is the version's minor number.
+	Minor uint32 `json:"minor,omitempty"`
+
+	// Patchlevel is the version's patchlevel number.
+	Patchlevel uint32 `json:"patchlevel,omitempty"`
+
 	// OS is read from the InfoResponse (the field "os"), if present. It specifies
 	// the OS the redis server is running.
 	OS string `json:"os,omitempty"`
@@ -403,6 +412,16 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			switch prefix {
 			case "redis_version":
 				result.Version = suffix
+				versionSegments := strings.SplitN(suffix, ".", 3)
+				if len(versionSegments) > 0 {
+					result.Major = convToUint32(versionSegments[0])
+				}
+				if len(versionSegments) > 1 {
+					result.Minor = convToUint32(versionSegments[1])
+				}
+				if len(versionSegments) > 2 {
+					result.Patchlevel = convToUint32(versionSegments[2])
+				}
 			case "os":
 				result.OS = suffix
 			case "arch_bits":
