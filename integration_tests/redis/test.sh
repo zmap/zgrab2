@@ -6,6 +6,17 @@ ZGRAB_ROOT=$MODULE_DIR/../..
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 CONTAINER_DIR="./integration_tests/redis/container"
 
+test_for_vendor() {
+    pwd | grep -q vendor
+}
+
+retval=0
+test_for_vendor || retval=$? && true
+if [ $retval -eq 0 ]
+then
+    CONTAINER_DIR="./vendor/github.com/zmap/zgrab2/integration_tests/redis/container"
+fi
+
 mkdir -p $ZGRAB_OUTPUT/redis
 
 echo "redis/test: Tests runner for redis"
