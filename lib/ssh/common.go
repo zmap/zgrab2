@@ -233,6 +233,7 @@ type Config struct {
 	GexMinBits       uint
 	GexMaxBits       uint
 	GexPreferredBits uint
+	HelloOnly        bool
 }
 
 // SetDefaults sets sensible values for unset fields in config. This is

@@ -148,6 +148,10 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 		newTransport(c.sshConn.conn, config.Rand, true /* is client */),
 		c.clientVersion, c.serverVersion, config, dialAddress, c.sshConn.RemoteAddr())
 
+	if config.HelloOnly == true {
+		return nil
+	}
+
 	if err := c.transport.requestInitialKeyChange(); err != nil {
 		return err
 	}
