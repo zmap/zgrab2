@@ -424,3 +424,9 @@ func (conn *Connection) ReadRedisValue() (RedisValue, error) {
 	}
 	return reader(conn)
 }
+
+type CustomResponse struct {
+	Command   string `json:"command,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+	Response  string `json:"response,omitempty"`
+}
