@@ -85,11 +85,6 @@ func (scanner *Scanner) Protocol() string {
 	return "fox"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Scan probes for a Tridium Fox service.
 // 1. Opens a TCP connection to the configured port (default 1911)
 // 2. Sends a static query

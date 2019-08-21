@@ -211,11 +211,6 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// GetPort returns the port being scanned
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Close cleans up the scanner.
 func (scan *scan) Close() {
 	defer scan.close()

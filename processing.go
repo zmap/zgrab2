@@ -22,6 +22,7 @@ type ScanTarget struct {
 	IP     net.IP
 	Domain string
 	Tag    string
+	Port   *uint
 }
 
 func (target ScanTarget) String() string {
@@ -56,7 +57,15 @@ func (target *ScanTarget) Host() string {
 
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
+	var port uint
+	// If the port is supplied in ScanTarget, let that override the cmdline option
+	if target.Port != nil {
+		port = *target.Port
+	} else {
+		port = flags.Port
+	}
+
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
 	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
 }
 
@@ -75,7 +84,14 @@ func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TL
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
+	var port uint
+	// If the port is supplied in ScanTarget, let that override the cmdline option
+	if target.Port != nil {
+		port = *target.Port
+	} else {
+		port = flags.Port
+	}
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
 	var local *net.UDPAddr
 	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 		local = &net.UDPAddr{}

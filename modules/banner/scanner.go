@@ -68,11 +68,6 @@ func (scanner *Scanner) Protocol() string {
 	return "banner"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // InitPerSender initializes the scanner for a given sender.
 func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil

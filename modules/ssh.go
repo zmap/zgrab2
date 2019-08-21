@@ -80,8 +80,15 @@ func (s *SSHScanner) GetTrigger() string {
 func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	data := new(ssh.HandshakeLog)
 
-	port := strconv.FormatUint(uint64(s.config.Port), 10)
-	rhost := net.JoinHostPort(t.Host(), port)
+	var port uint
+	// If the port is supplied in ScanTarget, let that override the cmdline option
+	if t.Port != nil {
+		port = *t.Port
+	} else {
+		port = s.config.Port
+	}
+	portStr := strconv.FormatUint(uint64(port), 10)
+	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()
 	sshConfig.Timeout = s.config.Timeout

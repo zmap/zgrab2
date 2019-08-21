@@ -87,11 +87,6 @@ func (scanner *Scanner) Protocol() string {
 	return "bacnet"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Scan probes for a BACNet service.
 // Behavior taken from original zgrab.
 // Connects to the configured port over UDP (default 47808/0xBAC0).

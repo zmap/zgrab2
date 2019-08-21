@@ -183,11 +183,6 @@ func (scanner *Scanner) Protocol() string {
 	return "oracle"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 func (scanner *Scanner) getTNSDriver() *TNSDriver {
 	mode := TNSModeOld
 	if scanner.config.NewTNS {

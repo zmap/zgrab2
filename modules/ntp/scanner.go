@@ -868,11 +868,6 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// GetPort returns the port that is being scanned
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
 func (scanner *Scanner) SendAndReceive(impl ImplNumber, req RequestCode, body []byte, sock net.Conn) (*PrivatePacketHeader, []byte, error) {
 	outHeader, err := (&PrivatePacketHeader{

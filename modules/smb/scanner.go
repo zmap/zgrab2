@@ -87,11 +87,6 @@ func (scanner *Scanner) Protocol() string {
 	return "smb"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Scan performs the following:
 // 1. Connect to the TCP port (default 445).
 // 2. Send a negotiation packet with the default values:

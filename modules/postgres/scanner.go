@@ -319,11 +319,6 @@ func (s *Scanner) GetTrigger() string {
 	return s.Config.Trigger
 }
 
-// GetPort returns the port being scanned.
-func (s *Scanner) GetPort() uint {
-	return s.Config.Port
-}
-
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
 func (s *Scanner) DoSSL(sql *Connection) error {
 	var conn *zgrab2.TLSConnection

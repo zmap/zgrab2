@@ -177,11 +177,6 @@ func (scanner *Scanner) Protocol() string {
 	return "ipp"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
 func storeBody(res *http.Response, scanner *Scanner) {
 	b := bufferFromBody(res, scanner)
