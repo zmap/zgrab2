@@ -91,11 +91,6 @@ func (scanner *Scanner) Protocol() string {
 	return "telnet"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)

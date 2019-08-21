@@ -108,11 +108,6 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// GetPort returns the configured scanner port.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Scan performs the MSSQL scan.
 // 1. Open a TCP connection to the target port (default 1433).
 // 2. Send a PRELOGIN packet to the server.

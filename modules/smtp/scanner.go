@@ -176,11 +176,6 @@ func (scanner *Scanner) Protocol() string {
 	return "smtp"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 func getSMTPCode(response string) (int, error) {
 	if len(response) < 5 {
 		return 0, ErrInvalidResponse

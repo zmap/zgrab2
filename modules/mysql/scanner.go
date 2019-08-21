@@ -205,11 +205,6 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// GetPort returns the port that is being scanned.
-func (s *Scanner) GetPort() uint {
-	return s.config.Port
-}
-
 // Scan probles the target for a MySQL server.
 // 1. Connects and waits to receive the handshake packet.
 // 2. If the server supports SSL, send an SSLRequest packet, then
