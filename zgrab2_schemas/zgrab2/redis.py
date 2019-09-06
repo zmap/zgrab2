@@ -20,7 +20,7 @@ redis_scan_response = SubRecord({
             "(Error: NOAUTH Authentication required.)",
         ]),
         "auth_response": String(doc="The response from the AUTH command, if sent."),
-        "nonexistent_response": String("The response from the NONEXISTENT command.", examples=[
+        "nonexistent_response": String(doc="The response from the NONEXISTENT command.", examples=[
             "(Error: ERR unknown command 'NONEXISTENT')",
         ]),
         "quit_response": String(doc="The response to the QUIT command.", examples=["OK"]),
