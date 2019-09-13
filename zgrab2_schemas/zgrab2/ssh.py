@@ -54,7 +54,7 @@ KeyAlgorithms = ListOf.with_args(KeyAlgorithm())
 
 # From lib/ssh/common.go -- allSupportedCiphers
 CipherAlgorithm = String.with_args(
-    doc="An ssh cipher algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-16 for standard values.", 
+    doc="An ssh cipher algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-16 for standard values.",
     examples=[
         "aes128-ctr", "aes192-ctr", "aes256-ctr", "aes128-gcm@openssh.com",
         "aes128-cbc", "3des-cbc", "arcfour256", "arcfour128", "arcfour",
@@ -63,7 +63,7 @@ CipherAlgorithm = String.with_args(
 
 CipherAlgorithms = ListOf.with_args(CipherAlgorithm())
 
-# From lib/ssh/common.go -- supportedMACs. 
+# From lib/ssh/common.go -- supportedMACs.
 MACAlgorithm = String.with_args(
     doc="An ssh MAC algorithm identifier, named according to section 6 of https://www.ietf.org/rfc/rfc4251.txt; see https://www.iana.org/assignments/ssh-parameters/ssh-parameters.xhtml#ssh-parameters-18 for standard values.",
     examples=["hmac-sha2-256", "hmac-sha1", "hmac-sha1-96"]
@@ -243,7 +243,6 @@ ssh_scan_response = SubRecord({
         "server_key_exchange": KexInitMessage(),
         "client_key_exchange": KexInitMessage(),
         "algorithm_selection": AlgorithmSelection(),
-        "key_exchange": KeyExchange(),
         "userauth": ListOf(String()),
         "crypto": KexResult(),
     })
