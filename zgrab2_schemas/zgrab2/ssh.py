@@ -222,7 +222,6 @@ KeyExchange = SubRecordType({
     "ecdh_params": zcrypto.ECDHParams(),
     "dh_params": zcrypto.DHParams(),
     "server_signature": Signature(),
-    "server_host_key": SSHPublicKeyCert(),
 })
 
 # zgrab2/lib/ssh/common.go: algorithms (aux in MarshalJSON)
@@ -243,6 +242,7 @@ ssh_scan_response = SubRecord({
         "server_key_exchange": KexInitMessage(),
         "client_key_exchange": KexInitMessage(),
         "algorithm_selection": AlgorithmSelection(),
+        "key_exchange": KeyExchange(),
         "userauth": ListOf(String()),
         "crypto": KexResult(),
     })
