@@ -65,7 +65,8 @@ type ScanFlags interface {
 type BaseFlags struct {
 	Port           uint          `short:"p" long:"port" description:"Specify port to grab on"`
 	Name           string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
-	Timeout        time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
+	Timeout        time.Duration `short:"t" long:"timeout" description:"Set connection timeout in seconds(0 = no timeout)" default:"10s"`
+	RwTimeout      time.Duration `          long:"rw-timeout" description:"Set read/write timeout in seconds(0 = no timeout)" default:"0s"`
 	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
 	BytesReadLimit int           `short:"m" long:"maxbytes" description:"Maximum byte read limit per scan (0 = defaults)"`
 	LocalAddress   string        `short:"l" long:"local-addr" description:"Set an explicit local address for traffic"`

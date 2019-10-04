@@ -94,7 +94,7 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
+	return NewTimeoutConnection(nil, conn, flags.Timeout, flags.RwTimeout, flags.RwTimeout, flags.BytesReadLimit), nil
 }
 
 // grabTarget calls handler for each action
