@@ -47,6 +47,9 @@ func (target ScanTarget) String() string {
 // or the domain if not.
 func (target *ScanTarget) Host() string {
 	if target.IP != nil {
+		if target.IP.To4() == nil {
+			return fmt.Sprintf("[%s]", target.IP)
+		}
 		return target.IP.String()
 	} else if target.Domain != "" {
 		return target.Domain

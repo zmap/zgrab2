@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -282,7 +283,11 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	ret.client.Timeout = scanner.config.Timeout
 	host := t.Domain
 	if host == "" {
-		host = t.IP.String()
+		if t.IP.To4() == nil {
+			host = fmt.Sprintf("[%s]", t.IP.String())
+		} else {
+			host = t.IP.String()
+		}
 	}
 	ret.url = getHTTPURL(scanner.config.UseHTTPS, host, uint16(scanner.config.BaseFlags.Port), scanner.config.Endpoint)
 
