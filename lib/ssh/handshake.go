@@ -176,17 +176,10 @@ func (t *handshakeTransport) readOnePacket() ([]byte, error) {
 	if p[0] != msgKexInit {
 		return p, nil
 	}
-
 	t.mu.Lock()
 
 	firstKex := t.sessionID == nil
-	if t.config.HelloOnly {
-		t.sentInitMsg = nil
-		t.sentInitPacket = nil
-		t.cond.Broadcast()
-		t.writtenSinceKex = 0
-		t.mu.Unlock()
-	} else {
+	if !t.config.HelloOnly {
 		err = t.enterKeyExchangeLocked(p)
 		if err != nil {
 			// drop connection
@@ -197,17 +190,16 @@ func (t *handshakeTransport) readOnePacket() ([]byte, error) {
 		if debugHandshake {
 			log.Printf("%s exited key exchange (first %v), err %v", t.id(), firstKex, err)
 		}
+	}
+	// Unblock writers.
+	t.sentInitMsg = nil
+	t.sentInitPacket = nil
+	t.cond.Broadcast()
+	t.writtenSinceKex = 0
+	t.mu.Unlock()
 
-		// Unblock writers.
-		t.sentInitMsg = nil
-		t.sentInitPacket = nil
-		t.cond.Broadcast()
-		t.writtenSinceKex = 0
-		t.mu.Unlock()
-
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
 	t.readSinceKex = 0
 
