@@ -768,6 +768,7 @@ func decodePrivatePacketHeader(buf []byte) (*PrivatePacketHeader, error) {
 
 // Results is the struct that is returned to the zgrab2 framework from Scan()
 type Results struct {
+        PacketLength *int `json:"packet_length,omitempty"`
 	// Version is the version number returned in the get time response header.
 	// Absent if --skip-get-time is set.
 	Version *uint8 `json:"version,omitempty"`
@@ -874,7 +875,7 @@ func (scanner *Scanner) GetPort() uint {
 }
 
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
-func (scanner *Scanner) SendAndReceive(impl ImplNumber, req RequestCode, body []byte, sock net.Conn) (*PrivatePacketHeader, []byte, error) {
+func (scanner *Scanner) SendAndReceive(impl ImplNumber, req RequestCode, body []byte, sock net.Conn) (*PrivatePacketHeader, int, []byte, error) {
 	outHeader, err := (&PrivatePacketHeader{
 		Version:              scanner.config.Version,
 		Mode:                 Private,
@@ -884,60 +885,61 @@ func (scanner *Scanner) SendAndReceive(impl ImplNumber, req RequestCode, body []
 		Error:                0x00,
 	}).Encode()
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 	outPacket := append(outHeader, body...)
 	n, err := sock.Write(outPacket)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 	if n != len(outPacket) {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
-	buf := make([]byte, 512)
+	buf := make([]byte, 4096)
 	n, err = sock.Read(buf)
+        pkt_len := n
 	if err != nil || n == 0 {
-		return nil, nil, err
+		return nil, pkt_len, nil, err
 	}
 	if n < 8 {
 		log.Debugf("Returned data too small (%d bytes)", n)
-		return nil, nil, err
+		return nil, pkt_len, nil, err
 	}
 	response := buf[0:n]
 	inPacket, err := decodePrivatePacketHeader(response)
 	if err != nil {
-		return inPacket, nil, err
+		return inPacket, pkt_len, nil, err
 	}
 	// Validation logic taken from getresponse@ntpdc/ntpdc.c
 	// check if version is in bounds
 	if inPacket.Mode != Private {
 		log.Debugf("Received non Private-mode packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
-		return inPacket, nil, err
+		return inPacket, pkt_len, nil, err
 	}
 	if !inPacket.IsResponse {
 		log.Debugf("Received non response packet (mode=0x%02x), packet=%v", inPacket.Mode, inPacket)
-		return inPacket, nil, err
+		return inPacket, pkt_len, nil, err
 	}
 	if inPacket.MBZ != 0 {
 		log.Debugf("Received nonzero MBZ in response packet (mbz=0x%02x), packet=%v", inPacket.MBZ, inPacket)
 		// TODO: continue?
-		return inPacket, nil, err
+		return inPacket, pkt_len, nil, err
 	}
 	if inPacket.ImplementationNumber != impl {
 		log.Debugf("Received mismatched implementation number in response packe (expected 0x%02x, got 0x%02x), packet=%v", impl, inPacket.ImplementationNumber, inPacket)
 		// TODO: continue?
-		return inPacket, nil, err
+		return inPacket, pkt_len, nil, err
 	}
 	if inPacket.Error != InfoErrorOkay {
 		log.Debugf("Got error in non-final response packet (error=0x%02x), packet=%v", inPacket.Error, inPacket)
-		return inPacket, nil, inPacket.Error
+		return inPacket, pkt_len, nil, inPacket.Error
 	}
 	ret := response[8:]
 	if len(ret) != int(inPacket.ItemSize*inPacket.NumItems) {
 		log.Debugf("Body length (%d) does not match record size (%d) * num records (%d)", len(ret), inPacket.ItemSize, inPacket.NumItems)
-		return inPacket, ret, ErrInvalidResponse
+		return inPacket, pkt_len, ret, ErrInvalidResponse
 	}
-	return inPacket, ret, nil
+	return inPacket, pkt_len, ret, nil
 }
 
 // MonList does a ReqMonGetList call to the Server and populates result with the output
@@ -947,9 +949,10 @@ func (scanner *Scanner) MonList(sock net.Conn, result *Results) (zgrab2.ScanStat
 		panic(err)
 	}
 	body := make([]byte, 40)
-	header, ret, err := scanner.SendAndReceive(ImplXNTPD, ReqCode, body, sock)
+	header, pkt_len, ret, err := scanner.SendAndReceive(ImplXNTPD, ReqCode, body, sock)
 	if ret != nil {
 		result.MonListResponse = ret
+                result.PacketLength = &pkt_len
 	}
 	if header != nil {
 		result.MonListHeader = header
