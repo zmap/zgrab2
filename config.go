@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"net"
 	"net/http"
 	"os"
 	"runtime"
