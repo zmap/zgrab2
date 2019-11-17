@@ -30,6 +30,7 @@ type Config struct {
 	logFile            *os.File
 	inputTargets       InputTargetsFunc
 	outputResults      OutputResultsFunc
+	localAddr          *net.TCPAddr
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -60,6 +61,14 @@ func validateFrameworkConfiguration() {
 		log.SetOutput(config.logFile)
 	}
 	SetInputFunc(InputTargetsCSV)
+
+	if config.Interface != "" {
+		parsed := net.ParseIP(config.Interface)
+		if parsed == nil {
+			log.Fatalf("Error parsing local interface %s as IP\n", config.Interface)
+		}
+		config.localAddr = &net.TCPAddr{parsed, 0, ""}
+	}
 
 	if config.InputFileName == "-" {
 		config.inputFile = os.Stdin
