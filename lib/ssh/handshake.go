@@ -176,22 +176,21 @@ func (t *handshakeTransport) readOnePacket() ([]byte, error) {
 	if p[0] != msgKexInit {
 		return p, nil
 	}
-
 	t.mu.Lock()
 
 	firstKex := t.sessionID == nil
+	if !t.config.HelloOnly {
+		err = t.enterKeyExchangeLocked(p)
+		if err != nil {
+			// drop connection
+			t.conn.Close()
+			t.writeError = err
+		}
 
-	err = t.enterKeyExchangeLocked(p)
-	if err != nil {
-		// drop connection
-		t.conn.Close()
-		t.writeError = err
+		if debugHandshake {
+			log.Printf("%s exited key exchange (first %v), err %v", t.id(), firstKex, err)
+		}
 	}
-
-	if debugHandshake {
-		log.Printf("%s exited key exchange (first %v), err %v", t.id(), firstKex, err)
-	}
-
 	// Unblock writers.
 	t.sentInitMsg = nil
 	t.sentInitPacket = nil
@@ -202,7 +201,6 @@ func (t *handshakeTransport) readOnePacket() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	t.readSinceKex = 0
 
 	// By default, a key exchange is hidden from higher layers by

@@ -85,11 +85,6 @@ func (scanner *Scanner) Protocol() string {
 	return "dnp3"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Scan probes for a DNP3 service.
 // Connects to the configured TCP port (default 20000) and reads the banner.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {

@@ -126,11 +126,6 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// GetPort returns the configured port for the Scanner.
-func (s *Scanner) GetPort() uint {
-	return s.config.Port
-}
-
 // ftpEndRegex matches zero or more lines followed by a numeric FTP status code and linebreak, e.g. "200 OK\r\n"
 var ftpEndRegex = regexp.MustCompile(`^(?:.*\r?\n)*([0-9]{3})( [^\r\n]*)?\r?\n$`)
 

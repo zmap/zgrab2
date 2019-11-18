@@ -215,11 +215,6 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// GetPort returns the port being scanned
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 // Validate checks that the flags are valid
 func (flags *Flags) Validate(args []string) error {
 	return nil

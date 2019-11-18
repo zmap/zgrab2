@@ -135,11 +135,6 @@ func (scanner *Scanner) Protocol() string {
 	return "imap"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 func getIMAPError(response string) error {
 	if strings.HasPrefix(response, "a001 OK") {
 		return nil

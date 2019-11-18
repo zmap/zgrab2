@@ -150,11 +150,6 @@ func (scanner *Scanner) Protocol() string {
 	return "pop3"
 }
 
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
-}
-
 func getPOP3Error(response string) error {
 	if !strings.HasPrefix(response, "-") {
 		return nil
