@@ -219,10 +219,10 @@ func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := (&TimeoutConnection{
-		Conn:         conn,
-		Timeout:      timeout,
-		ReadTimeout:  readTimeout,
-		WriteTimeout: writeTimeout,
+		Conn:           conn,
+		Timeout:        timeout,
+		ReadTimeout:    readTimeout,
+		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
 	}).SetDefaults()
 	if ctx == nil {
@@ -299,7 +299,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
 	d.Dialer.KeepAlive = d.Timeout
 
-	if config.Interface != "" {
+	if config.localAddr != nil {
 		d.Dialer.LocalAddr = config.localAddr
 	}
 
