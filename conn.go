@@ -298,6 +298,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	// ensure that our aux dialer is up-to-date; copied from http/transport.go
 	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
 	d.Dialer.KeepAlive = d.Timeout
+
+	if config.Interface != "" {
+		d.Dialer.LocalAddr = config.localAddr
+	}
+
 	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
 	defer cancelDial()
 	conn, err := d.Dialer.DialContext(dialContext, network, address)
