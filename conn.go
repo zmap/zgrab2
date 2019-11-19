@@ -299,9 +299,8 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
 	d.Dialer.KeepAlive = d.Timeout
 
-	if config.localAddr != nil {
-		d.Dialer.LocalAddr = config.localAddr
-	}
+	// Copy over the source IP if set, or nil
+	d.Dialer.LocalAddr = config.localAddr
 
 	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
 	defer cancelDial()
