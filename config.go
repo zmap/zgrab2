@@ -66,7 +66,7 @@ func validateFrameworkConfiguration() {
 	if config.LocalAddress != "" {
 		parsed := net.ParseIP(config.LocalAddress)
 		if parsed == nil {
-			log.Fatalf("Error parsing local interface %s as IP\n", config.LocalAddress)
+			log.Fatalf("Error parsing local interface %s as IP", config.LocalAddress)
 		}
 		config.localAddr = &net.TCPAddr{parsed, 0, ""}
 	}
