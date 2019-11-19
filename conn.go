@@ -219,10 +219,10 @@ func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := (&TimeoutConnection{
-		Conn:         conn,
-		Timeout:      timeout,
-		ReadTimeout:  readTimeout,
-		WriteTimeout: writeTimeout,
+		Conn:           conn,
+		Timeout:        timeout,
+		ReadTimeout:    readTimeout,
+		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
 	}).SetDefaults()
 	if ctx == nil {
@@ -298,6 +298,10 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	// ensure that our aux dialer is up-to-date; copied from http/transport.go
 	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
 	d.Dialer.KeepAlive = d.Timeout
+
+	// Copy over the source IP if set, or nil
+	d.Dialer.LocalAddr = config.localAddr
+
 	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
 	defer cancelDial()
 	conn, err := d.Dialer.DialContext(dialContext, network, address)

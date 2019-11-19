@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -16,7 +17,7 @@ type Config struct {
 	InputFileName      string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName       string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
-	Interface          string          `short:"i" long:"interface" description:"Network interface to send on"`
+	LocalAddress       string          `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
 	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
@@ -30,6 +31,7 @@ type Config struct {
 	logFile            *os.File
 	inputTargets       InputTargetsFunc
 	outputResults      OutputResultsFunc
+	localAddr          *net.TCPAddr
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -60,6 +62,14 @@ func validateFrameworkConfiguration() {
 		log.SetOutput(config.logFile)
 	}
 	SetInputFunc(InputTargetsCSV)
+
+	if config.LocalAddress != "" {
+		parsed := net.ParseIP(config.LocalAddress)
+		if parsed == nil {
+			log.Fatalf("Error parsing local interface %s as IP", config.LocalAddress)
+		}
+		config.localAddr = &net.TCPAddr{parsed, 0, ""}
+	}
 
 	if config.InputFileName == "-" {
 		config.inputFile = os.Stdin
