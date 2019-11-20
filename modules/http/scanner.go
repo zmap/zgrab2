@@ -284,7 +284,14 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	if host == "" {
 		host = t.IP.String()
 	}
-	ret.url = getHTTPURL(scanner.config.UseHTTPS, host, uint16(scanner.config.BaseFlags.Port), scanner.config.Endpoint)
+	// Scanner Target port overrides config flag port
+	var port uint16
+	if t.Port != nil {
+		port = uint16(*t.Port)
+	} else {
+		port = uint16(scanner.config.BaseFlags.Port)
+	}
+	ret.url = getHTTPURL(scanner.config.UseHTTPS, host, port, scanner.config.Endpoint)
 
 	return &ret
 }
