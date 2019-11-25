@@ -145,6 +145,9 @@ func OutputResultsFile(results <-chan []byte) error {
 		if err := out.WriteByte('\n'); err != nil {
 			return err
 		}
+		if config.Flush {
+			out.Flush()
+		}
 	}
 	return nil
 }
