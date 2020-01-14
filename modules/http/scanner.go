@@ -280,10 +280,6 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	ret.client.Timeout = scanner.config.Timeout
-	host := t.Domain
-	if host == "" {
-		host = t.IP.String()
-	}
 	// Scanner Target port overrides config flag port
 	var port uint16
 	if t.Port != nil {
@@ -291,7 +287,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	} else {
 		port = uint16(scanner.config.BaseFlags.Port)
 	}
-	ret.url = getHTTPURL(scanner.config.UseHTTPS, host, port, scanner.config.Endpoint)
+	ret.url = getHTTPURL(scanner.config.UseHTTPS, t.IP.String(), port, scanner.config.Endpoint)
 
 	return &ret
 }
@@ -299,7 +295,8 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
-	request, err := http.NewRequest(scan.scanner.config.Method, scan.url, nil)
+	request, err := http.NewRequestWithHost(scan.scanner.config.Method,
+		scan.url, scan.target.Domain, nil)
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
