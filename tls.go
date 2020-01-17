@@ -28,6 +28,8 @@ import (
 // Common flags for TLS configuration -- include this in your module's ScanFlags implementation to use the common TLS code
 // Adapted from modules/ssh.go
 type TLSFlags struct {
+	Config *tls.Config // Config is ready to use TLS configuration
+
 	Heartbleed bool `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
 
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
@@ -88,6 +90,11 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 
 func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error) {
 	var err error
+
+	// Config already exists
+	if t.Config != nil {
+		return t.Config, nil
+	}
 
 	// TODO: Find standard names
 	cipherMap := map[string][]uint16{
