@@ -582,12 +582,23 @@ func (e *envOnce) reset() {
 	e.val = ""
 }
 
+
 func (t *Transport) connectMethodForRequest(treq *transportRequest) (cm connectMethod, err error) {
 	if port := treq.URL.Port(); !validPort(port) {
 		return cm, fmt.Errorf("invalid URL port %q", port)
 	}
 	cm.targetScheme = treq.URL.Scheme
-	cm.targetAddr = canonicalAddr(treq.URL)
+
+	if treq.Request.RemoteAddr != "" {
+		port := treq.URL.Port()
+		if port == "" {
+			port = portMap[treq.URL.Scheme]
+		}
+		cm.targetAddr = net.JoinHostPort(treq.Request.RemoteAddr, port)
+	} else {
+		cm.targetAddr = canonicalAddr(treq.URL)
+	}
+
 	if t.Proxy != nil {
 		cm.proxyURL, err = t.Proxy(treq.Request)
 		if err == nil && cm.proxyURL != nil {
