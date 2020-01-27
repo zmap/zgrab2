@@ -261,6 +261,11 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
+	if scanner.config.UseHTTPS {
+		scanner.config.BaseFlags.Port = 443
+	} else {
+		scanner.config.BaseFlags.Port = 80
+	}
 	ret := scan{
 		scanner: scanner,
 		target:  t,
@@ -305,6 +310,10 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 	// TODO: Headers from input?
 	request.Header.Set("Accept", "*/*")
+	//request.RemoteAddr = scan.target.IP
+	if scan.target.IP != nil {
+		request.RemoteAddr = scan.target.IP.String()
+	}
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
