@@ -161,6 +161,12 @@ func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
 func (scan *scan) dialContext(ctx context.Context, net string, addr string) (net.Conn, error) {
 	dialer := zgrab2.GetTimeoutConnectionDialer(scan.scanner.config.Timeout)
 
+	resolver, err := zgrab2.NewFakeResolver(scan.target.IP.String())
+	if err != nil {
+		return nil, err
+	}
+	dialer.Dialer.Resolver = resolver
+
 	timeoutContext, _ := context.WithTimeout(context.Background(), scan.scanner.config.Timeout)
 
 	conn, err := dialer.DialContext(scan.withDeadlineContext(timeoutContext), net, addr)
@@ -210,7 +216,8 @@ func redirectsToLocalhost(host string) bool {
 	return false
 }
 
-// Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses the redirectToLocalhost and MaxRedirects config
+// Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses
+// the redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
