@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -161,11 +162,16 @@ func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
 func (scan *scan) dialContext(ctx context.Context, net string, addr string) (net.Conn, error) {
 	dialer := zgrab2.GetTimeoutConnectionDialer(scan.scanner.config.Timeout)
 
-	resolver, err := zgrab2.NewFakeResolver(scan.target.IP.String())
-	if err != nil {
-		return nil, err
+	if scan.target.IP != nil {
+		targetAddr := fmt.Sprintf("%s:%d", scan.target.Domain, scan.getPort())
+		if addr == targetAddr {
+			resolver, err := zgrab2.NewFakeResolver(scan.target.IP.String())
+			if err != nil {
+				return nil, err
+			}
+			dialer.Dialer.Resolver = resolver
+		}
 	}
-	dialer.Dialer.Resolver = resolver
 
 	timeoutContext, _ := context.WithTimeout(context.Background(), scan.scanner.config.Timeout)
 
@@ -266,6 +272,13 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	return proto + "://" + net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10)) + endpoint
 }
 
+func (scan *scan) getPort() uint16 {
+	if scan.target.Port != nil {
+		return uint16(*scan.target.Port)
+	}
+	return uint16(scan.scanner.config.BaseFlags.Port)
+}
+
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	ret := scan{
@@ -292,12 +305,8 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 		host = t.IP.String()
 	}
 	// Scanner Target port overrides config flag port
-	var port uint16
-	if t.Port != nil {
-		port = uint16(*t.Port)
-	} else {
-		port = uint16(scanner.config.BaseFlags.Port)
-	}
+	port := ret.getPort()
+
 	ret.url = getHTTPURL(scanner.config.UseHTTPS, host, port, scanner.config.Endpoint)
 
 	return &ret

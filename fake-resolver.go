@@ -17,12 +17,9 @@ func NewFakeResolver(ipstr string) (*net.Resolver, error) {
 	if len(ip) < 4 {
 		return nil, fmt.Errorf("Fake resolver can't use non-IP '%s'", ipstr)
 	}
-	var d net.Dialer
 	fDNS := FakeDNSServer{
-		IP:         ip,
-		realDialer: d.DialContext,
+		IP: ip,
 	}
-	fDNS.names = make(map[string]bool)
 	return &net.Resolver{
 		PreferGo: true,
 		Dial:     fDNS.DialContext,
@@ -30,22 +27,11 @@ func NewFakeResolver(ipstr string) (*net.Resolver, error) {
 }
 
 type FakeDNSServer struct {
-	IP         net.IP
-	cnt        int
-	names      map[string]bool
-	latch      bool
-	realDialer func(ctx context.Context, network, address string) (net.Conn, error)
+	IP net.IP
 }
 
 func (f *FakeDNSServer) fakeDNS(_, s string, q dnsmessage.Message,
 	deadline time.Time) (r dnsmessage.Message, err error) {
-
-	if f.cnt > 0 && !f.names[q.Questions[0].Name.String()] {
-		f.latch = true
-	} else {
-		f.cnt++
-		f.names[q.Questions[0].Name.String()] = true
-	}
 
 	r = dnsmessage.Message{
 		Header: dnsmessage.Header{
@@ -97,11 +83,7 @@ func (f *FakeDNSServer) fakeDNS(_, s string, q dnsmessage.Message,
 }
 
 func (f *FakeDNSServer) DialContext(ctx context.Context, n, s string) (net.Conn, error) {
-	if f.latch {
-		return f.realDialer(ctx, n, s)
-	} else {
-		return &fakeDNSPacketConn{fakeDNSConn: fakeDNSConn{server: f, n: n, s: s}}, nil
-	}
+	return &fakeDNSPacketConn{fakeDNSConn: fakeDNSConn{server: f, n: n, s: s}}, nil
 }
 
 type fakeDNSConn struct {
