@@ -280,9 +280,9 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	ret.client.Timeout = scanner.config.Timeout
-	host := t.Domain
-	if host == "" {
-		host = t.IP.String()
+	host := t.IP.String()
+	if t.IP == nil {
+		host = t.Domain
 	}
 	// Scanner Target port overrides config flag port
 	var port uint16
@@ -305,6 +305,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 	// TODO: Headers from input?
 	request.Header.Set("Accept", "*/*")
+	if scan.target.Domain != "" {
+		request.Host = scan.target.Domain
+	}
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
