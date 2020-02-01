@@ -1,7 +1,3 @@
-// Fake DNS lookups, so that they always returned the specified
-// IP
-//
-// Inspired by the golang net/dnsclient_unix_test.go code
 package zgrab2
 
 import (
@@ -13,6 +9,9 @@ import (
 	"time"
 )
 
+// Fake DNS Resolver, to force a DNS lookup to return a pinned address
+// Inspired by the golang net/dnsclient_unix_test.go code
+//
 // For a given IP, create a new Resolver that wraps a fake
 // DNS server. This resolver will always return an IP that
 // is represented by "ipstr", for DNS queries of the same
