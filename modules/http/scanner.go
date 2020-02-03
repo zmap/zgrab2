@@ -158,12 +158,40 @@ func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
 
 // Dial a connection using the configured timeouts, as well as the global deadline, and on success,
 // add the connection to the list of connections to be cleaned up.
-func (scan *scan) dialContext(ctx context.Context, net string, addr string) (net.Conn, error) {
+func (scan *scan) dialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	dialer := zgrab2.GetTimeoutConnectionDialer(scan.scanner.config.Timeout)
+
+	switch network {
+	case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
+		// If the scan is for a specific IP, and a domain name is provided, we
+		// don't want to just let the http library resolve the domain.  Create
+		// a fake resolver that we will use, that always returns the IP we are
+		// given to scan.
+		if scan.target.IP != nil && scan.target.Domain != "" {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
+				log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
+			} else {
+				// In the case of redirects, we don't want to blindly use the
+				// IP we were given to scan, however.  Only use the fake
+				// resolver if the domain originally specified for the scan
+				// target matches the current address being looked up in this
+				// DialContext.
+				if host == scan.target.Domain {
+					resolver, err := zgrab2.NewFakeResolver(scan.target.IP.String())
+					if err != nil {
+						return nil, err
+					}
+					dialer.Dialer.Resolver = resolver
+				}
+			}
+		}
+	}
 
 	timeoutContext, _ := context.WithTimeout(context.Background(), scan.scanner.config.Timeout)
 
-	conn, err := dialer.DialContext(scan.withDeadlineContext(timeoutContext), net, addr)
+	conn, err := dialer.DialContext(scan.withDeadlineContext(timeoutContext), network, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +238,8 @@ func redirectsToLocalhost(host string) bool {
 	return false
 }
 
-// Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses the redirectToLocalhost and MaxRedirects config
+// Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses
+// the redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
