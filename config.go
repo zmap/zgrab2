@@ -46,6 +46,7 @@ func SetOutputFunc(f OutputResultsFunc) {
 
 func init() {
 	config.Multiple.ContinueOnError = true // set default for multiple value
+	config.Multiple.BreakOnSuccess = false // set default for multiple value
 }
 
 var config Config
