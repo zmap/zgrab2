@@ -135,6 +135,9 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
 		}
+		if res.Status == SCAN_SUCCESS && config.Multiple.BreakOnSuccess {
+			break
+		}
 	}
 
 	var ipstr string
