@@ -289,7 +289,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
+func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 	ret := scan{
 		scanner: scanner,
 		target:  t,
@@ -320,7 +320,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget) *scan {
 	} else {
 		port = uint16(scanner.config.BaseFlags.Port)
 	}
-	ret.url = getHTTPURL(scanner.config.UseHTTPS, host, port, scanner.config.Endpoint)
+	ret.url = getHTTPURL(useHTTPS, host, port, scanner.config.Endpoint)
 
 	return &ret
 }
@@ -376,14 +376,13 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	scan := scanner.newHTTPScan(&t)
+	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS)
 	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
 		if scanner.config.RetryHTTPS && !scanner.config.UseHTTPS {
 			scan.Cleanup()
-			scanner.config.UseHTTPS = true
-			retry := scanner.newHTTPScan(&t)
+			retry := scanner.newHTTPScan(&t, true)
 			defer retry.Cleanup()
 			retryError := retry.Grab()
 			if retryError != nil {
