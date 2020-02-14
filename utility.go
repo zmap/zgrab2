@@ -1,7 +1,9 @@
 package zgrab2
 
 import (
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"regexp"
 	"strconv"
@@ -9,9 +11,10 @@ import (
 
 	"time"
 
-	"github.com/zmap/zflags"
-	"github.com/sirupsen/logrus"
 	"runtime/debug"
+
+	"github.com/sirupsen/logrus"
+	flags "github.com/zmap/zflags"
 )
 
 var parser *flags.Parser
@@ -217,7 +220,7 @@ func IsTimeoutError(err error) bool {
 // before re-raising the original panic.
 // Example:
 //     defer zgrab2.LogPanic("Error decoding body '%x'", body)
-func LogPanic(format string, args...interface{}) {
+func LogPanic(format string, args ...interface{}) {
 	err := recover()
 	if err == nil {
 		return
@@ -225,4 +228,52 @@ func LogPanic(format string, args...interface{}) {
 	logrus.Errorf("Uncaught panic at %s: %v", string(debug.Stack()), err)
 	logrus.Errorf(format, args...)
 	panic(err)
+}
+
+// ParseIPv4RangeString parses IPv4 ranges or address passed as strings. Addresses
+// use dot notation. Ranges use dashes and are inclusive.
+//
+// The range is returned as an array of length 1 to 256. It does not support
+// ranges larger than a /24. At that point, find a solution using CIDRs.
+//
+// IPv6 is not supported.
+func ParseIPv4RangeString(ipRange string) ([]net.IP, error) {
+	rangeParts := strings.SplitN(ipRange, "-", 2)
+	baseString := strings.TrimSpace(rangeParts[0])
+	baseIP := net.ParseIP(baseString)
+	if baseIP == nil {
+		return nil, fmt.Errorf("invalid starting source IP: %s", baseString)
+	}
+	baseIsV4 := (baseIP.To4() != nil)
+	if !baseIsV4 {
+		return nil, fmt.Errorf("got a v6 address: %s", baseIP.String())
+	}
+	if len(rangeParts) == 1 {
+		return []net.IP{baseIP}, nil
+	}
+	endString := strings.TrimSpace(rangeParts[1])
+	endIP := net.ParseIP(endString)
+	if endIP == nil {
+		return nil, fmt.Errorf("invalid ending source IP: %s", endIP)
+	}
+	endIsV4 := (endIP.To4() != nil)
+	if !endIsV4 {
+		return nil, fmt.Errorf("got a v6 address: %s", endIP.String())
+	}
+	start := binary.BigEndian.Uint32(baseIP.To4())
+	end := binary.BigEndian.Uint32(endIP.To4())
+	if start > end {
+		return nil, fmt.Errorf("invalid range %s-%s, start is before end", baseIP.String(), endIP.String())
+	}
+	rangeSize := end - start + 1
+	if rangeSize > 256 {
+		return nil, fmt.Errorf("IP range size is bigger than a /24, use a CIDR")
+	}
+	out := make([]net.IP, rangeSize)
+	for i := uint32(0); i < rangeSize; i++ {
+		current := start + i
+		out[i] = make(net.IP, 4)
+		binary.BigEndian.PutUint32(out[i], current)
+	}
+	return out, nil
 }

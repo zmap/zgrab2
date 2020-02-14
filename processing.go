@@ -64,9 +64,9 @@ func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	} else {
 		port = flags.Port
 	}
-
 	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
+	sourceIP := flags.GetRandomSourceIP()
+	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit, sourceIP)
 }
 
 // OpenTLS connects to the ScanTarget using the configured flags, then performs

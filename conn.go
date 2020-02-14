@@ -85,7 +85,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 		// we had to shrink the output buffer AND we used up the whole shrunk size, AND we're not at EOF
 		switch c.ReadLimitExceededAction {
 		case ReadLimitExceededActionTruncate:
-			logrus.Debug("Truncated read from %d bytes to %d bytes (hit limit of %d bytes)", origSize, n, c.BytesReadLimit)
+			logrus.Debugf("Truncated read from %d bytes to %d bytes (hit limit of %d bytes)", origSize, n, c.BytesReadLimit)
 			err = io.EOF
 		case ReadLimitExceededActionError:
 			return n, ErrReadLimitExceeded
@@ -164,13 +164,6 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 	return nil
 }
 
-// GetTimeoutDialFunc returns a DialFunc that dials with the given timeout
-func GetTimeoutDialFunc(timeout time.Duration) func(string, string) (net.Conn, error) {
-	return func(proto, target string) (net.Conn, error) {
-		return DialTimeoutConnection(proto, target, timeout, 0)
-	}
-}
-
 // Close the underlying connection.
 func (c *TimeoutConnection) Close() error {
 	return c.Conn.Close()
@@ -233,14 +226,23 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 }
 
 // DialTimeoutConnectionEx dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	var conn net.Conn
-	var err error
+func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int, localAddr net.IP) (net.Conn, error) {
+	var dialerTimeout time.Duration
 	if dialTimeout > 0 {
-		conn, err = net.DialTimeout(proto, target, dialTimeout)
+		dialerTimeout = dialTimeout
 	} else {
-		conn, err = net.DialTimeout(proto, target, sessionTimeout)
+		dialTimeout = sessionTimeout
 	}
+	dialer := &net.Dialer{
+		Timeout: dialerTimeout,
+	}
+	if localAddr != nil {
+		dialer.LocalAddr = &net.IPAddr{
+			IP: localAddr,
+		}
+	}
+
+	conn, err := dialer.Dial(proto, target)
 	if err != nil {
 		if conn != nil {
 			conn.Close()
@@ -251,8 +253,8 @@ func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTi
 }
 
 // DialTimeoutConnection dials the target and returns a net.Conn that uses the configured single timeout for all operations.
-func DialTimeoutConnection(proto string, target string, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, timeout, timeout, timeout, timeout, bytesReadLimit)
+func DialTimeoutConnection(proto string, target string, timeout time.Duration, bytesReadLimit int, localAddr net.IP) (net.Conn, error) {
+	return DialTimeoutConnectionEx(proto, target, timeout, timeout, timeout, timeout, bytesReadLimit, localAddr)
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
