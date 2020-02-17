@@ -1,15 +1,13 @@
-package bin
+package zgrab2
 
 import (
 	"fmt"
 
-	"github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
-	"github.com/zmap/zgrab2"
 )
 
-func ConfigFromCLI(args []string, knownModules map[string]zgrab2.ScanModule) (*zgrab2.GlobalFlags, error) {
-	globalFlags := zgrab2.GlobalFlags{}
+func ConfigFromCLI(args []string, knownModules map[string]ScanModule) (*GlobalFlags, error) {
+	globalFlags := GlobalFlags{}
 	parser := flags.NewParser(&globalFlags, flags.Default)
 	for moduleName, m := range knownModules {
 		// TODO: Pass descriptions through module definition
@@ -24,8 +22,9 @@ func ConfigFromCLI(args []string, knownModules map[string]zgrab2.ScanModule) (*z
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debug(posArgs)
-	logrus.Debug(commandName)
-	logrus.Debug(subflags)
+	logger := globalFlags.InitLogging()
+	logger.Debug(posArgs)
+	logger.Debug(commandName)
+	logger.Debug(subflags)
 	return nil, nil
 }

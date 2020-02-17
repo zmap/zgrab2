@@ -8,13 +8,14 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zgrab2/cli"
 )
 
 type GlobalFlags struct {
+	cli.LoggerArguments
 	OutputFileName     string `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
 	InputFileName      string `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName       string `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
-	LogFileName        string `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	LocalAddress       string `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	Debug              bool   `long:"debug" description:"Include debug fields in the output."`
@@ -57,15 +58,7 @@ var config Config
 
 func validateFrameworkConfiguration() {
 	// validate files
-	if config.LogFileName == "-" {
-		config.logFile = os.Stderr
-	} else {
-		var err error
-		if config.logFile, err = os.Create(config.LogFileName); err != nil {
-			log.Fatal(err)
-		}
-		log.SetOutput(config.logFile)
-	}
+	config.InitLogging()
 	SetInputFunc(InputTargetsCSV)
 
 	if config.LocalAddress != "" {
