@@ -15,5 +15,9 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("failed to parse CLI: %s", err)
 	}
+	if globalFlags == nil {
+		// Help text was printed, exit quietly
+		return
+	}
 	logrus.Infof("%v", globalFlags)
 }
