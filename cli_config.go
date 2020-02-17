@@ -6,10 +6,10 @@ import (
 	flags "github.com/zmap/zflags"
 )
 
-func ConfigFromCLI(args []string, knownModules map[string]ScanModule) (*GlobalFlags, error) {
+func ConfigFromCLI(args []string, modules ModuleSet) (*GlobalFlags, error) {
 	globalFlags := GlobalFlags{}
 	parser := flags.NewParser(&globalFlags, flags.Default)
-	for moduleName, m := range knownModules {
+	for moduleName, m := range modules {
 		// TODO: Pass descriptions through module definition
 		shortDescription := fmt.Sprintf("%s - short", moduleName)
 		longDescription := fmt.Sprintf("%s - long", moduleName)
