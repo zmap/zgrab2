@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/bin"
@@ -19,5 +20,21 @@ func main() {
 		// Help text was printed, exit quietly
 		return
 	}
-	logrus.Infof("%v", globalFlags)
+	logger := globalFlags.InitLogging()
+	logger.Infof("%v", globalFlags)
+	in, err := globalFlags.OpenInputSource()
+	if err != nil {
+		logger.Fatalf("failed to open input: %s", err)
+	}
+	logger.Infof("using input: %s", globalFlags.InputFlags.Describe())
+	env := zgrab2.Environment{
+		Input: in,
+	}
+	logger.Infof("%v", env)
+	start := time.Now()
+	logger.Infof("started ZGrab2 at %s", start.Format(time.RFC3339))
+	env.Start()
+	env.Wait()
+	end := time.Now()
+	logger.Infof("finished ZGrab2 at %s", end.Format(time.RFC3339))
 }
