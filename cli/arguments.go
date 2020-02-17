@@ -1,10 +1,13 @@
-package bin
+package cli
 
 import "github.com/sirupsen/logrus"
 
+import "os"
+
 // LoggerArguments holds command-line arguments for logger output.
 type LoggerArguments struct {
-	Verbose bool `short:"v" long:"verbose" description:"debug-level logging" env:"CENSYS_LOG_VERBOSE"`
+	Verbose     bool   `short:"v" long:"verbose" description:"debug-level logging"`
+	LogFilePath string `long:"log-file" description:"File to save log output"`
 }
 
 func (args *LoggerArguments) setUpLogger(logger *logrus.Logger) {
@@ -21,6 +24,15 @@ func (args *LoggerArguments) setUpLogger(logger *logrus.Logger) {
 func (args *LoggerArguments) InitLogging() *logrus.Logger {
 	logger := logrus.StandardLogger()
 	args.setUpLogger(logger)
+	if args.LogFilePath != "" && args.LogFilePath != "-" {
+		outputFile, err := os.Create(args.LogFilePath)
+		if err != nil {
+			logger.SetLevel(logrus.FatalLevel)
+			logger.Fatalf("could not open %s for logging: %s", args.LogFilePath, err)
+		}
+		logger.SetOutput(outputFile)
+		logger.Infof("logging to %s", args.LogFilePath)
+	}
 	return logger
 }
 
