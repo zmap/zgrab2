@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -13,8 +14,8 @@ import (
 
 type GlobalFlags struct {
 	cli.LoggerArguments
+	InputFlags
 	OutputFileName     string `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
-	InputFileName      string `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName       string `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
 	LocalAddress       string `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
@@ -23,6 +24,31 @@ type GlobalFlags struct {
 	ConnectionsPerHost int    `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	ReadLimitPerHost   int    `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 	Prometheus         string `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+}
+
+type InputFlags struct {
+	InputFileName string `short:"i" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
+}
+
+func (f *InputFlags) OpenReader() (io.Reader, error) {
+	if f.InputFileName == "" || f.InputFileName == "-" {
+		return os.Stdin, nil
+	}
+	return os.Open(f.InputFileName)
+}
+
+func (f *InputFlags) Describe() string {
+	return f.InputFileName
+}
+
+func (f *InputFlags) OpenInputSource() (*InputSource, error) {
+	r, err := f.OpenReader()
+	if err != nil {
+		return nil, err
+	}
+	return &InputSource{
+		r: r,
+	}, nil
 }
 
 // Config is the high level framework options that will be parsed

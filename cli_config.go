@@ -25,5 +25,5 @@ func ConfigFromCLI(args []string, modules ModuleSet) (*GlobalFlags, error) {
 	logger.Debug(posArgs)
 	logger.Debug(commandName)
 	logger.Debug(subflags)
-	return nil, nil
+	return &globalFlags, nil
 }
