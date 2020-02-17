@@ -25,9 +25,10 @@ package imap
 import (
 	"fmt"
 
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"strings"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -76,7 +77,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("imap", "imap", "Probe for IMAP", 143, &module)
+	_, err := zgrab2.AddCommand("imap", "imap", module.Description(), 143, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,6 +91,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Fetch an IMAP banner, optionally over TLS"
 }
 
 // Validate checks that the flags are valid.

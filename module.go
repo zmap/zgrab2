@@ -48,6 +48,10 @@ type ScanModule interface {
 	// NewScanner is called by the framework for each time an individual scan is specified in the config or on
 	// the command-line. The framework will then call scanner.Init(name, flags).
 	NewScanner() Scanner
+
+	// Description returns a string suitable for use as an overview of this
+	// module within usage text.
+	Description() string
 }
 
 // ScanFlags is an interface which must be implemented by all types sent to

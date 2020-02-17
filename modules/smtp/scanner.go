@@ -108,7 +108,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("smtp", "smtp", "Probe for smtp", 25, &module)
+	_, err := zgrab2.AddCommand("smtp", "smtp", module.Description(), 25, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -122,6 +122,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Fetch an SMTP server banner, optionally over TLS"
 }
 
 // Validate checks that the flags are valid.

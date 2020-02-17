@@ -159,7 +159,7 @@ type Result struct {
 // RegisterModule registers the zgrab2 module
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("redis", "redis", "Probe for redis", 6379, &module)
+	_, err := zgrab2.AddCommand("redis", "redis", module.Description(), 6379, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -173,6 +173,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner provides a new scanner instance
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for Redis"
 }
 
 // Validate checks that the flags are valid

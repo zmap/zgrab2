@@ -42,7 +42,7 @@ type Results struct {
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("banner", "Banner", "Grab banner by sending probe and match with regexp", 80, &module)
+	_, err := zgrab2.AddCommand("banner", "Banner", module.Description(), 80, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,6 +81,11 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 // Validate validates the flags and returns nil on success.
 func (f *Flags) Validate(args []string) error {
 	return nil
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Fetch a raw banner by sending a static probe and checking the result against a regular expression"
 }
 
 // Help returns the module's help string.

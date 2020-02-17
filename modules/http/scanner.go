@@ -98,6 +98,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
 
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Send an HTTP request and read the response, optionally following redirects."
+}
+
 // Validate performs any needed validation on the arguments
 func (flags *Flags) Validate(args []string) error {
 	return nil
@@ -401,7 +406,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 func RegisterModule() {
 	var module Module
 
-	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", "Grab a banner over HTTP", 80, &module)
+	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", module.Description(), 80, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
