@@ -1,8 +1,6 @@
 package zgrab2
 
 import (
-	"fmt"
-
 	flags "github.com/zmap/zflags"
 )
 
@@ -10,16 +8,17 @@ func ConfigFromCLI(args []string, modules ModuleSet) (*GlobalFlags, error) {
 	globalFlags := GlobalFlags{}
 	parser := flags.NewParser(&globalFlags, flags.Default)
 	for moduleName, m := range modules {
-		// TODO: Pass descriptions through module definition
-		shortDescription := fmt.Sprintf("%s - short", moduleName)
-		longDescription := fmt.Sprintf("%s - long", moduleName)
-		_, err := parser.AddCommand(moduleName, shortDescription, longDescription, m)
+		_, err := parser.AddCommand(moduleName, m.Description(), "", m)
 		if err != nil {
 			return nil, err
 		}
 	}
 	posArgs, commandName, subflags, err := parser.ParseCommandLine(args)
 	if err != nil {
+		flagsErr, ok := err.(*flags.Error)
+		if ok && flagsErr.Type == flags.ErrHelp {
+			return nil, nil
+		}
 		return nil, err
 	}
 	logger := globalFlags.InitLogging()
