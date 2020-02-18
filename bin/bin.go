@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"runtime/pprof"
+	"sync"
 	"time"
 
 	"fmt"
@@ -132,7 +133,8 @@ func ZGrab2Main() {
 		s.Init(flag)
 		zgrab2.RegisterScan(moduleType, s)
 	}
-	monitor := zgrab2.MakeMonitor(1)
+	wg := sync.WaitGroup{}
+	monitor := zgrab2.MakeMonitor(1, &wg)
 	monitor.Callback = func(_ string) {
 		dumpHeapProfile()
 	}
@@ -141,6 +143,8 @@ func ZGrab2Main() {
 	zgrab2.Process(monitor)
 	end := time.Now()
 	log.Infof("finished grab at %s", end.Format(time.RFC3339))
+	monitor.Stop()
+	wg.Wait()
 	s := Summary{
 		StatusesPerModule: monitor.GetStatuses(),
 		StartTime:         start.Format(time.RFC3339),
