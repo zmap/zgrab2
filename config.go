@@ -82,7 +82,7 @@ func init() {
 
 var config Config
 
-func validateFrameworkConfiguration() {
+func validateFrameworkConfiguration(config Config) {
 	// validate files
 	config.InitLogging()
 	SetInputFunc(InputTargetsCSV)
