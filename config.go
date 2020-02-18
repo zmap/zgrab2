@@ -16,7 +16,7 @@ type GlobalFlags struct {
 	cli.LoggerArguments
 	InputFlags
 	OutputFlags
-	MetaFileName       string `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
+	StatsFlags
 	LocalAddress       string `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	Debug              bool   `long:"debug" description:"Include debug fields in the output."`
@@ -81,6 +81,18 @@ func (f *OutputFlags) OpenOutputDestination() (*OutputDestination, error) {
 	return &OutputDestination{
 		w: w,
 	}, nil
+}
+
+type StatsFlags struct {
+	MetaFileName string `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
+}
+
+// OpenWriter returns an io.Writer for the given file, with a default of stderr.
+func (f *StatsFlags) OpenWriter() (io.Writer, error) {
+	if f.MetaFileName == "" || f.MetaFileName == "-" {
+		return os.Stderr, nil
+	}
+	return os.Create(f.MetaFileName)
 }
 
 // Config is the high level framework options that will be parsed
