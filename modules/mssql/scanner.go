@@ -12,9 +12,10 @@
 package mssql
 
 import (
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"strings"
 )
 
 // ScanResults contains detailed information about each step of the
@@ -66,6 +67,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Perform a handshake for MSSQL databases"
 }
 
 // Validate does nothing in this module.
@@ -172,7 +178,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 // RegisterModule is called by modules/mssql.go's init()
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mssql", "MSSQL", "Grab a mssql handshake", 1433, &module)
+	_, err := zgrab2.AddCommand("mssql", "MSSQL", module.Description(), 1433, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

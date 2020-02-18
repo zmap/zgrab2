@@ -1,11 +1,12 @@
 package mongodb
 
 import (
-	"fmt"
-	"encoding/hex"
 	"encoding/binary"
-	"github.com/zmap/zgrab2"
+	"encoding/hex"
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zgrab2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -20,10 +21,10 @@ type Flags struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	config			*Flags
-	isMasterMsg		[]byte
-	buildInfoCommandMsg	[]byte
-	buildInfoOpMsg		[]byte
+	config              *Flags
+	isMasterMsg         []byte
+	buildInfoCommandMsg []byte
+	buildInfoOpMsg      []byte
 }
 
 // scan holds the state for the scan of an individual target
@@ -42,7 +43,7 @@ func (scan *scan) Close() {
 
 // getCommandMsg returns a mongodb message containing the specified BSON-encoded command.
 // metdata and commandArgs expected to be BSON byte arrays.
-func getCommandMsg(database string, commandName string, metadata []byte, commandArgs []byte) ([]byte) {
+func getCommandMsg(database string, commandName string, metadata []byte, commandArgs []byte) []byte {
 	dblen := len(database) + 1
 	cnlen := len(commandName) + 1
 	mdlen := len(metadata)
@@ -67,8 +68,8 @@ func getCommandMsg(database string, commandName string, metadata []byte, command
 
 // getIsMasterMsg returns a mongodb message containing isMaster command.
 // https://docs.mongodb.com/manual/reference/command/isMaster/
-func getIsMasterMsg() ([]byte) {
-	query, err := bson.Marshal(bson.M{ "isMaster": 1 })
+func getIsMasterMsg() []byte {
+	query, err := bson.Marshal(bson.M{"isMaster": 1})
 	if err != nil {
 		// programmer error
 		log.Fatalf("Invalid BSON: %v", err)
@@ -78,8 +79,8 @@ func getIsMasterMsg() ([]byte) {
 }
 
 // getBuildInfoCommandMsg returns a mongodb message containing a command to retrieve MongoDB build info.
-func getBuildInfoCommandMsg() ([]byte) {
-	metaData, err := bson.Marshal(bson.M{ "buildInfo": 1 })
+func getBuildInfoCommandMsg() []byte {
+	metaData, err := bson.Marshal(bson.M{"buildInfo": 1})
 	if err != nil {
 		// programmer error
 		log.Fatalf("Invalid BSON: %v", err)
@@ -96,7 +97,7 @@ func getBuildInfoCommandMsg() ([]byte) {
 
 // getOpQuery returns a mongodb OP_QUERY message containing the specified BSON-encoded query.
 // query expected to be BSON byte array.
-func getOpQuery(collname string, query []byte) ([]byte) {
+func getOpQuery(collname string, query []byte) []byte {
 	flagslen := 4
 	collname_len := len(collname) + 1
 	nskiplen := 4
@@ -119,7 +120,7 @@ func getOpQuery(collname string, query []byte) ([]byte) {
 
 // getOpMsg returns a mongodb OP_MSG message containing the specified BSON-encoded command.
 // section expected to be BSON byte array.
-func getOpMsg(section []byte) ([]byte) {
+func getOpMsg(section []byte) []byte {
 	flagslen := 4
 	slen := len(section)
 	msglen := MSGHEADER_LEN + flagslen + slen
@@ -134,14 +135,14 @@ func getOpMsg(section []byte) ([]byte) {
 }
 
 // getBuildInfoOpMsg returns a mongodb "OP" message containing query to retrieve MongoDB build info.
-func getBuildInfoOpMsg() ([]byte) {
+func getBuildInfoOpMsg() []byte {
 	// gleaned from tshark
-	section_payload, err := bson.Marshal(bson.M{ "buildinfo": 1, "$db": "admin" })
+	section_payload, err := bson.Marshal(bson.M{"buildinfo": 1, "$db": "admin"})
 	if err != nil {
 		// programmer error
 		log.Fatalf("Invalid BSON: %v", err)
 	}
-	section := make([]byte, len(section_payload) + 1)
+	section := make([]byte, len(section_payload)+1)
 	copy(section[1:], section_payload)
 	op_msg := getOpMsg(section)
 	return op_msg
@@ -149,39 +150,39 @@ func getBuildInfoOpMsg() ([]byte) {
 
 // BuildEnvironment_t holds build environment information returned by scan.
 type BuildEnvironment_t struct {
-	Distmod string `bson:"distmod,omitempty" json:"dist_mod,omitempty"`
-	Distarch string `bson:"distarch,omitempty" json:"dist_arch,omitempty"`
-	Cc string `bson:"cc,omitempty" json:"cc,omitempty"`
-	CcFlags string `bson:"ccflags,omitempty" json:"cc_flags,omitempty"`
-	Cxx string `bson:"cxx,omitempty" json:"cxx,omitempty"`
-	CxxFlags string `bson:"cxxflags,omitempty" json:"cxx_flags,omitempty"`
-	LinkFlags string `bson:"linkflags,omitempty" json:"link_flags,omitempty"`
+	Distmod    string `bson:"distmod,omitempty" json:"dist_mod,omitempty"`
+	Distarch   string `bson:"distarch,omitempty" json:"dist_arch,omitempty"`
+	Cc         string `bson:"cc,omitempty" json:"cc,omitempty"`
+	CcFlags    string `bson:"ccflags,omitempty" json:"cc_flags,omitempty"`
+	Cxx        string `bson:"cxx,omitempty" json:"cxx,omitempty"`
+	CxxFlags   string `bson:"cxxflags,omitempty" json:"cxx_flags,omitempty"`
+	LinkFlags  string `bson:"linkflags,omitempty" json:"link_flags,omitempty"`
 	TargetArch string `bson:"target_arch,omitempty" json:"target_arch,omitempty"`
-	TargetOS string `bson:"target_os,omitempty" json:"target_os,omitempty"`
+	TargetOS   string `bson:"target_os,omitempty" json:"target_os,omitempty"`
 }
 
 // BuildInfo_t holds the data returned by the the buildInfo query
 type BuildInfo_t struct {
-	Version string `bson:"version,omitempty" json:"version,omitempty"`
-	GitVersion string `bson:"gitVersion,omitempty" json:"git_version,omitempty"`
+	Version          string             `bson:"version,omitempty" json:"version,omitempty"`
+	GitVersion       string             `bson:"gitVersion,omitempty" json:"git_version,omitempty"`
 	BuildEnvironment BuildEnvironment_t `bson:"buildEnvironment,omitempty" json:"build_environment,omitempty"`
 }
 
 // IsMaster_t holds the data returned by an isMaster query
 type IsMaster_t struct {
-	IsMaster bool `bson:"ismaster" json:"is_master"`
-	MaxWireVersion int32 `bson:"maxWireVersion,omitempty" json:"max_wire_version,omitempty"`
-	MinWireVersion int32 `bson:"minWireVersion,omitempty" json:"min_wire_version,omitempty"`
-	MaxBsonObjectSize int32 `bson:"maxBsonObjectSize,omitempty" json:"max_bson_object_size,omitempty"`
-	MaxWriteBatchSize int32 `bson:"maxWriteBatchSize,omitempty" json:"max_write_batch_size,omitempty"`
+	IsMaster                     bool  `bson:"ismaster" json:"is_master"`
+	MaxWireVersion               int32 `bson:"maxWireVersion,omitempty" json:"max_wire_version,omitempty"`
+	MinWireVersion               int32 `bson:"minWireVersion,omitempty" json:"min_wire_version,omitempty"`
+	MaxBsonObjectSize            int32 `bson:"maxBsonObjectSize,omitempty" json:"max_bson_object_size,omitempty"`
+	MaxWriteBatchSize            int32 `bson:"maxWriteBatchSize,omitempty" json:"max_write_batch_size,omitempty"`
 	LogicalSessionTimeoutMinutes int32 `bson:"logicalSessionTimeoutMinutes,omitempty" json:"logical_session_timeout_minutes,omitempty"`
-	MaxMessageSizeBytes int32 `bson:"maxMessageSizeBytes,omitempty" json:"max_message_size_bytes,omitempty"`
-	ReadOnly bool `bson:"readOnly" json:"read_only"`
+	MaxMessageSizeBytes          int32 `bson:"maxMessageSizeBytes,omitempty" json:"max_message_size_bytes,omitempty"`
+	ReadOnly                     bool  `bson:"readOnly" json:"read_only"`
 }
 
 // Result holds the data returned by a scan
 type Result struct {
-	IsMaster *IsMaster_t `json:"is_master,omitempty"`
+	IsMaster  *IsMaster_t  `json:"is_master,omitempty"`
 	BuildInfo *BuildInfo_t `json:"build_info,omitempty"`
 }
 
@@ -235,6 +236,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
 
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Perform a handshake with a MongoDB server"
+}
+
 // StartScan opens a connection to the target and sets up a scan instance for it.
 func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
@@ -265,25 +271,25 @@ func getIsMaster(conn *Connection) (*IsMaster_t, error) {
 		return nil, err
 	}
 
-	if len(msg) < doc_offset + 4 {
+	if len(msg) < doc_offset+4 {
 		err = fmt.Errorf("Server truncated message - no query reply (%d bytes: %s)", len(msg), hex.EncodeToString(msg))
 		return nil, err
 	}
-	respFlags := binary.LittleEndian.Uint32(msg[MSGHEADER_LEN:MSGHEADER_LEN + 4])
-	if respFlags & QUERY_RESP_FAILED != 0 {
+	respFlags := binary.LittleEndian.Uint32(msg[MSGHEADER_LEN : MSGHEADER_LEN+4])
+	if respFlags&QUERY_RESP_FAILED != 0 {
 		err = fmt.Errorf("isMaster query failed")
 		return nil, err
 	}
-	doclen := int(binary.LittleEndian.Uint32(msg[doc_offset:doc_offset + 4]))
+	doclen := int(binary.LittleEndian.Uint32(msg[doc_offset : doc_offset+4]))
 	if len(msg[doc_offset:]) < doclen {
 		err = fmt.Errorf("Server truncated BSON reply doc (%d bytes: %s)",
-			  len(msg[doc_offset:]), hex.EncodeToString(msg))
+			len(msg[doc_offset:]), hex.EncodeToString(msg))
 		return nil, err
 	}
 	err = bson.Unmarshal(msg[doc_offset:], &document)
 	if err != nil {
 		err = fmt.Errorf("Server sent invalid BSON reply doc (%d bytes: %s)",
-			  len(msg[doc_offset:]), hex.EncodeToString(msg))
+			len(msg[doc_offset:]), hex.EncodeToString(msg))
 		return nil, err
 	}
 	return document, nil
@@ -309,7 +315,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	// Gleaned from wireshark - if "MaxWireVersion" is less than 7, then
 	// "build info" command should be sent in an OP_COMMAND with the query sent
-	// and response retrieved at "metadata" offset. At 7 and above, should 
+	// and response retrieved at "metadata" offset. At 7 and above, should
 	// be sent as an OP_MSG in the "section" field, and response is at "body" offset
 	if result.IsMaster.MaxWireVersion < 7 {
 		query = scanner.buildInfoCommandMsg
@@ -327,15 +333,15 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		return zgrab2.TryGetScanStatus(err), &result, err
 	}
 
-	if len(msg) < MSGHEADER_LEN + resplen_offset {
+	if len(msg) < MSGHEADER_LEN+resplen_offset {
 		err = fmt.Errorf("Server truncated message - no metadata doc (%d bytes: %s)", len(msg), hex.EncodeToString(msg))
 		return zgrab2.SCAN_PROTOCOL_ERROR, &result, err
 	}
 
-	responselen := int(binary.LittleEndian.Uint32(msg[MSGHEADER_LEN:MSGHEADER_LEN + resplen_offset]))
+	responselen := int(binary.LittleEndian.Uint32(msg[MSGHEADER_LEN : MSGHEADER_LEN+resplen_offset]))
 	if len(msg[MSGHEADER_LEN:]) < responselen {
-		err =  fmt.Errorf("Server truncated BSON response doc (%d bytes: %s)",
-				  len(msg[MSGHEADER_LEN:]), hex.EncodeToString(msg))
+		err = fmt.Errorf("Server truncated BSON response doc (%d bytes: %s)",
+			len(msg[MSGHEADER_LEN:]), hex.EncodeToString(msg))
 		return zgrab2.SCAN_PROTOCOL_ERROR, &result, err
 	}
 	bson.Unmarshal(msg[MSGHEADER_LEN+resp_offset:], &result.BuildInfo)
@@ -346,7 +352,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mongodb", "mongodb", "Probe for mongodb", 27017, &module)
+	_, err := zgrab2.AddCommand("mongodb", "mongodb", module.Description(), 27017, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

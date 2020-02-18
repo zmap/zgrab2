@@ -33,7 +33,7 @@ type SSHScanner struct {
 
 func init() {
 	var sshModule SSHModule
-	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", 22, &sshModule)
+	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -49,6 +49,11 @@ func (m *SSHModule) NewFlags() interface{} {
 
 func (m *SSHModule) NewScanner() zgrab2.Scanner {
 	return new(SSHScanner)
+}
+
+// Description returns an overview of this module.
+func (m *SSHModule) Description() string {
+	return "Fetch an SSH server banner and collect key exchange information"
 }
 
 func (f *SSHFlags) Validate(args []string) error {

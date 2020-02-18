@@ -30,7 +30,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("dnp3", "dnp3", "Probe for dnp3", 20000, &module)
+	_, err := zgrab2.AddCommand("dnp3", "dnp3", module.Description(), 20000, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,6 +44,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for DNP3, a SCADA protocol"
 }
 
 // Validate checks that the flags are valid.
