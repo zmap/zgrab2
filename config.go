@@ -15,7 +15,7 @@ import (
 type GlobalFlags struct {
 	cli.LoggerArguments
 	InputFlags
-	OutputFileName     string `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
+	OutputFlags
 	MetaFileName       string `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
 	LocalAddress       string `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
@@ -48,6 +48,38 @@ func (f *InputFlags) OpenInputSource() (*InputSource, error) {
 	}
 	return &InputSource{
 		r: r,
+	}, nil
+}
+
+// OutputFlags contains the CLI flags for setting the output file, and any
+// associated parameters. It can be used to construct a ZGrab2
+// OutputDestination.
+type OutputFlags struct {
+	OutputFileName string `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
+}
+
+// OpenWriter returns an io.Writer for the given file, with a default of stdout.
+func (f *OutputFlags) OpenWriter() (io.Writer, error) {
+	if f.OutputFileName == "" || f.OutputFileName == "-" {
+		return os.Stdout, nil
+	}
+	return os.Create(f.OutputFileName)
+}
+
+// Describe is suitable for logging.
+func (f *OutputFlags) Describe() string {
+	return f.OutputFileName
+}
+
+// OpenOutputDestination wraps the writer from OpenWriter in a
+// zgrab2.OutputDestination.
+func (f *OutputFlags) OpenOutputDestination() (*OutputDestination, error) {
+	w, err := f.OpenWriter()
+	if err != nil {
+		return nil, err
+	}
+	return &OutputDestination{
+		w: w,
 	}, nil
 }
 
