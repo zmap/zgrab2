@@ -9,9 +9,10 @@ import (
 
 	"time"
 
-	"github.com/zmap/zflags"
-	"github.com/sirupsen/logrus"
 	"runtime/debug"
+
+	"github.com/sirupsen/logrus"
+	flags "github.com/zmap/zflags"
 )
 
 var parser *flags.Parser
@@ -51,7 +52,7 @@ func AddCommand(command string, shortDescription string, longDescription string,
 func ParseCommandLine(flags []string) ([]string, string, ScanFlags, error) {
 	posArgs, moduleType, f, err := parser.ParseCommandLine(flags)
 	if err == nil {
-		validateFrameworkConfiguration()
+		validateFrameworkConfiguration(config)
 	}
 	sf, _ := f.(ScanFlags)
 	return posArgs, moduleType, sf, err
@@ -217,7 +218,7 @@ func IsTimeoutError(err error) bool {
 // before re-raising the original panic.
 // Example:
 //     defer zgrab2.LogPanic("Error decoding body '%x'", body)
-func LogPanic(format string, args...interface{}) {
+func LogPanic(format string, args ...interface{}) {
 	err := recover()
 	if err == nil {
 		return
