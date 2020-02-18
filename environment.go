@@ -35,15 +35,18 @@ type Environment struct {
 
 	scanTargetChannel     chan ScanTarget
 	encodedResultsChannel chan []byte
+	monitor               *Monitor
 }
 
 func (env *Environment) Start() {
 	env.scanTargetChannel = make(chan ScanTarget)
 	env.encodedResultsChannel = make(chan []byte)
-	env.Add(2)
+	env.Add(3)
+	env.monitor = MakeMonitor(1, &env.WaitGroup)
 	go env.ReadInput()
 	go env.WriteOutput()
 	go func() {
+		defer env.Done()
 		for t := range env.scanTargetChannel {
 			// Scanning not yet implemented
 			env.Logger.Debugf("received scan target: %v", t)
@@ -56,7 +59,8 @@ func (env *Environment) Start() {
 func (env *Environment) WriteOutput() {
 	defer env.Done()
 	env.Output.WriteOutputsFromChannel(env.encodedResultsChannel)
-	env.Logger.Debug("finished writing output")
+	env.Logger.Debug("finished writing output, stopping monitor")
+	env.monitor.Stop()
 }
 
 func (env *Environment) ReadInput() {
