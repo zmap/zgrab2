@@ -27,10 +27,17 @@ func main() {
 		logger.Fatalf("failed to open input: %s", err)
 	}
 	logger.Infof("using input: %s", globalFlags.InputFlags.Describe())
-	env := zgrab2.Environment{
-		Input: in,
+	out, err := globalFlags.OpenOutputDestination()
+	if err != nil {
+		logger.Fatalf("failed to set output: %s", err)
 	}
-	logger.Infof("%v", env)
+	logger.Infof("using output: %s", globalFlags.OutputFlags.Describe())
+	env := zgrab2.Environment{
+		Input:  in,
+		Output: out,
+		Logger: logger,
+	}
+	logger.Infof("%v", &env)
 	start := time.Now()
 	logger.Infof("started ZGrab2 at %s", start.Format(time.RFC3339))
 	env.Start()
