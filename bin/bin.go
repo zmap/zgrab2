@@ -132,7 +132,7 @@ func ZGrab2Main() {
 		s.Init(flag)
 		zgrab2.RegisterScan(moduleType, s)
 	}
-	monitor := zgrab2.MakeMonitor()
+	monitor := zgrab2.MakeMonitor(1)
 	monitor.Callback = func(_ string) {
 		dumpHeapProfile()
 	}

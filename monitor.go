@@ -6,7 +6,7 @@ type Monitor struct {
 	states       map[string]*State
 	statusesChan chan moduleStatus
 	// Callback is invoked after each scan.
-	Callback     func(string)
+	Callback func(string)
 }
 
 // State contains the respective number of successes and failures
@@ -36,9 +36,9 @@ func (m *Monitor) GetStatuses() map[string]*State {
 
 // MakeMonitor returns a Monitor object that can be used to collect and send
 // the status of a running scan
-func MakeMonitor() *Monitor {
+func MakeMonitor(statusChanSize int) *Monitor {
 	m := new(Monitor)
-	m.statusesChan = make(chan moduleStatus, config.Senders*4)
+	m.statusesChan = make(chan moduleStatus, statusChanSize)
 	m.states = make(map[string]*State, 10)
 	go func() {
 		for s := range m.statusesChan {
