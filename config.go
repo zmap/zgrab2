@@ -89,7 +89,8 @@ func validateFrameworkConfiguration() {
 			log.Fatal(err)
 		}
 	}
-	SetOutputFunc(OutputResultsFile)
+	outputFunc := OutputResultsWriterFunc(config.outputFile)
+	SetOutputFunc(outputFunc)
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr
