@@ -22,6 +22,10 @@ func main() {
 	}
 	logger := globalFlags.InitLogging()
 	logger.Infof("%v", globalFlags)
+	scanWorkers, err := globalFlags.ScanWorkerFlags.NewScanWorkers()
+	if err != nil {
+		logger.Fatalf("failed to initialize scanners: %s", err)
+	}
 	in, err := globalFlags.OpenInputSource()
 	if err != nil {
 		logger.Fatalf("failed to open input: %s", err)
@@ -36,6 +40,7 @@ func main() {
 		Input:  in,
 		Output: out,
 		Logger: logger,
+		Scans:  scanWorkers,
 	}
 	logger.Infof("%v", &env)
 	start := time.Now()
