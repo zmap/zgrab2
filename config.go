@@ -50,7 +50,6 @@ func (f *ScanWorkerFlags) NewScanWorkers() (*ScanWorkers, error) {
 	return &ScanWorkers{
 		workerCount:        workerCount,
 		connectionsPerHost: f.ConnectionsPerHost,
-		scanners:           []Scanner{},
 	}, nil
 }
 
