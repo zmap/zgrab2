@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -17,13 +18,40 @@ type GlobalFlags struct {
 	InputFlags
 	OutputFlags
 	StatsFlags
-	LocalAddress       string `long:"source-ip" description:"Local source IP address to use for making connections"`
-	Senders            int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
-	Debug              bool   `long:"debug" description:"Include debug fields in the output."`
-	GOMAXPROCS         int    `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
-	ConnectionsPerHost int    `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
-	ReadLimitPerHost   int    `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
-	Prometheus         string `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+	ScanWorkerFlags
+	LocalAddress     string `long:"source-ip" description:"Local source IP address to use for making connections"`
+	Debug            bool   `long:"debug" description:"Include debug fields in the output."`
+	GOMAXPROCS       int    `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
+	ReadLimitPerHost int    `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
+	Prometheus       string `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+}
+
+type ScanWorkerFlags struct {
+	Senders            int `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
+	ConnectionsPerHost int `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
+}
+
+func (f *ScanWorkerFlags) NewScanWorkers() (*ScanWorkers, error) {
+	if f.Senders < 0 {
+		return nil, fmt.Errorf("invalid --senders: %d", f.Senders)
+	}
+	workerCount := f.Senders
+	if workerCount == 0 {
+		workerCount = 1000
+	}
+	if f.ConnectionsPerHost < 0 {
+		return nil, fmt.Errorf("invalid --connections-per-host: %d", f.ConnectionsPerHost)
+	}
+	connectionsPerHost := f.ConnectionsPerHost
+	if connectionsPerHost == 0 {
+		connectionsPerHost = 1
+	}
+	// TODO: Scanners
+	return &ScanWorkers{
+		workerCount:        workerCount,
+		connectionsPerHost: f.ConnectionsPerHost,
+		scanners:           []Scanner{},
+	}, nil
 }
 
 type InputFlags struct {

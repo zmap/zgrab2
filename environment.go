@@ -27,10 +27,43 @@ func (out *OutputDestination) WriteOutputsFromChannel(resultsChannel <-chan []by
 	OutputResults(buf, resultsChannel)
 }
 
+type ScanWorkers struct {
+	scanners           []Scanner
+	workerCount        int
+	connectionsPerHost int
+}
+
+func (env *Environment) ScanTargets() {
+	defer env.Done()
+	for i, scanner := range env.Scans.scanners {
+		scanner.InitPerSender(i)
+	}
+	wg := sync.WaitGroup{}
+	wg.Add(env.Scans.workerCount)
+	for i := 0; i < env.Scans.workerCount; i++ {
+		go func() {
+			defer wg.Done()
+			for t := range env.scanTargetChannel {
+				env.Logger.Debugf("received scan target: %v", t)
+				for run := 0; run < env.Scans.connectionsPerHost; run++ {
+					for _, s := range env.Scans.scanners {
+						env.Logger.Debugf("scanning %v with scanner %v, execution %d", t, s, run)
+					}
+				}
+			}
+		}()
+	}
+	env.Logger.Debug("started scanners, blocking until targets are completed")
+	wg.Wait()
+	env.Logger.Debug("finished scanning, closing output channel")
+	close(env.encodedResultsChannel)
+}
+
 type Environment struct {
 	Input  *InputSource
 	Output *OutputDestination
 	Logger *logrus.Logger
+	Scans  *ScanWorkers
 	sync.WaitGroup
 
 	scanTargetChannel     chan ScanTarget
@@ -43,17 +76,9 @@ func (env *Environment) Start() {
 	env.encodedResultsChannel = make(chan []byte)
 	env.Add(3)
 	env.monitor = MakeMonitor(1, &env.WaitGroup)
-	go env.ReadInput()
 	go env.WriteOutput()
-	go func() {
-		defer env.Done()
-		for t := range env.scanTargetChannel {
-			// Scanning not yet implemented
-			env.Logger.Debugf("received scan target: %v", t)
-		}
-		env.Logger.Debug("finished scanning, closing output channel")
-		close(env.encodedResultsChannel)
-	}()
+	go env.ScanTargets()
+	go env.ReadInput()
 }
 
 func (env *Environment) WriteOutput() {
