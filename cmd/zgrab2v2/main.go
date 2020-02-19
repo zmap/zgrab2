@@ -12,7 +12,7 @@ import (
 
 func main() {
 	modules := bin.NewModuleSetWithDefaults()
-	globalFlags, err := zgrab2.ConfigFromCLI(os.Args[1:], modules)
+	globalFlags, scanners, err := zgrab2.ConfigFromCLI(os.Args[1:], modules)
 	if err != nil {
 		logrus.Fatalf("failed to parse CLI: %s", err)
 	}
@@ -37,10 +37,11 @@ func main() {
 	}
 	logger.Infof("using output: %s", globalFlags.OutputFlags.Describe())
 	env := zgrab2.Environment{
-		Input:  in,
-		Output: out,
-		Logger: logger,
-		Scans:  scanWorkers,
+		Input:    in,
+		Output:   out,
+		Logger:   logger,
+		Workers:  scanWorkers,
+		Scanners: scanners,
 	}
 	logger.Infof("%v", &env)
 	start := time.Now()
