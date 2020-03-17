@@ -53,6 +53,9 @@ type Flags struct {
 	// UseHTTPS causes the first request to be over TLS, without requiring a
 	// redirect to HTTPS. It does not change the port used for the connection.
 	UseHTTPS bool `long:"use-https" description:"Perform an HTTPS connection on the initial host"`
+
+	// RedirectsSucceed causes the ErrTooManRedirects error to be suppressed
+	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -354,6 +357,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		case ErrRedirLocalhost:
 			break
 		case ErrTooManyRedirects:
+			if scan.scanner.config.RedirectsSucceed {
+				return nil
+			}
 			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 		default:
 			return zgrab2.DetectScanError(err)
