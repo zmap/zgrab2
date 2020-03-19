@@ -165,8 +165,8 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 				panic(e)
 			}
 		}(scannerName)
-		name, res := RunScanner(*scanner, m, input)
-		moduleResult[name] = res
+		res := RunScanner(*scanner, m, input, scannerName)
+		moduleResult[scannerName] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
 		}

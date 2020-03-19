@@ -11,9 +11,6 @@ type Scanner interface {
 	// subset of the input scan targets
 	InitPerSender(senderID int) error
 
-	// Returns the name passed at init
-	GetName() string
-
 	// Returns the trigger passed at init
 	GetTrigger() string
 

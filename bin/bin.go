@@ -125,7 +125,7 @@ func ZGrab2Main() {
 			mod := zgrab2.GetModule(modTypes[i])
 			s := mod.NewScanner()
 			s.Init(f)
-			zgrab2.RegisterScan(s.GetName(), s)
+			zgrab2.RegisterScan(mod.Attributes().Name, s)
 		}
 	} else {
 		mod := zgrab2.GetModule(moduleType)
