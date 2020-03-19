@@ -39,8 +39,10 @@ type targetResponses struct {
 
 func (env *Environment) ScanTargets() {
 	defer env.Done()
-	for i, scanner := range env.Scanners {
-		scanner.InitPerSender(i)
+	for _, scanner := range env.Scanners {
+		for i := 0; i < env.Workers.workerCount; i++ {
+			scanner.InitPerSender(i)
+		}
 	}
 	env.Logger.Debug("starting scanners")
 	wg := sync.WaitGroup{}
