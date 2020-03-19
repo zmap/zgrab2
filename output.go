@@ -154,5 +154,5 @@ func OutputResults(w *bufio.Writer, results <-chan []byte) error {
 			return err
 		}
 	}
-	return nil
+	return w.Flush()
 }

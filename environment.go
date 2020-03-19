@@ -32,6 +32,11 @@ type ScanWorkers struct {
 	connectionsPerHost int
 }
 
+type targetResponses struct {
+	t         *ScanTarget
+	responses map[string]ScanResponse
+}
+
 func (env *Environment) ScanTargets() {
 	defer env.Done()
 	for i, scanner := range env.Scanners {
@@ -46,10 +51,15 @@ func (env *Environment) ScanTargets() {
 			for t := range env.scanTargetChannel {
 				env.Logger.Debugf("received scan target: %v", t)
 				for run := 0; run < env.Workers.connectionsPerHost; run++ {
+					responses := make(map[string]ScanResponse, len(env.Scanners))
 					for _, s := range env.Scanners {
 						env.Logger.Debugf("scanning %v with scanner %v, execution %d", t, s, run)
-						_, res := RunScanner(s, env.monitor, t)
-						env.scanResponseChannel <- res
+						name, res := RunScanner(s, env.monitor, t)
+						responses[name] = res
+					}
+					env.scanResponseChannel <- targetResponses{
+						t:         &t,
+						responses: nil,
 					}
 				}
 			}
@@ -57,13 +67,19 @@ func (env *Environment) ScanTargets() {
 	}
 	// Encoders
 	go func() {
-		for range env.scanResponseChannel {
-			// TODO
+		for tr := range env.scanResponseChannel {
+			g := BuildGrabFromInputResponse(tr.t, tr.responses)
+			env.Logger.Debug(tr.responses)
+			b, err := EncodeGrab(g, true)
+			if err != nil {
+				env.Logger.Fatalf("could not encode grab: %s", err)
+			}
+			env.encodedResultsChannel <- b
 		}
 		env.Logger.Debug("finished encoding results, closing output channel")
 		close(env.encodedResultsChannel)
 	}()
-	env.Logger.Debug("started scanners, blocking until completion")
+	env.Logger.Debug("started encoders, blocking until completion")
 	wg.Wait()
 	env.Logger.Debug("finished scanning, closing scan response channel")
 	close(env.scanResponseChannel)
@@ -78,14 +94,14 @@ type Environment struct {
 	sync.WaitGroup
 
 	scanTargetChannel     chan ScanTarget
-	scanResponseChannel   chan ScanResponse
+	scanResponseChannel   chan targetResponses
 	encodedResultsChannel chan []byte
 	monitor               *Monitor
 }
 
 func (env *Environment) Start() {
 	env.scanTargetChannel = make(chan ScanTarget)
-	env.scanResponseChannel = make(chan ScanResponse)
+	env.scanResponseChannel = make(chan targetResponses)
 	env.encodedResultsChannel = make(chan []byte)
 	env.Add(3)
 	env.monitor = MakeMonitor(1, &env.WaitGroup)
