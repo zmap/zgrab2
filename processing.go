@@ -66,6 +66,7 @@ func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
 	}
 
 	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
+	log.Debugf("opening connection to %s", address)
 	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
 }
 

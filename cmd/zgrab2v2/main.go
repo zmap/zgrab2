@@ -21,7 +21,6 @@ func main() {
 		return
 	}
 	logger := globalFlags.InitLogging()
-	logger.Infof("%v", globalFlags)
 	scanWorkers, err := globalFlags.ScanWorkerFlags.NewScanWorkers()
 	if err != nil {
 		logger.Fatalf("failed to initialize scanners: %s", err)
@@ -43,7 +42,6 @@ func main() {
 		Workers:  scanWorkers,
 		Scanners: scanners,
 	}
-	logger.Infof("%v", &env)
 	start := time.Now()
 	logger.Infof("started ZGrab2 at %s", start.Format(time.RFC3339))
 	env.Start()
