@@ -23,14 +23,16 @@ func TestKexes(t *testing.T) {
 
 		s := make(chan kexResultErr, 1)
 		c := make(chan kexResultErr, 1)
+		var config Config
+		config.GexMinBits = 1024
 		var magics handshakeMagics
 		go func() {
-			r, e := kex.Client(a, rand.Reader, &magics)
+			r, e := kex.Client(a, rand.Reader, &magics, &config)
 			a.Close()
 			c <- kexResultErr{r, e}
 		}()
 		go func() {
-			r, e := kex.Server(b, rand.Reader, &magics, testSigners["ecdsa"])
+			r, e := kex.Server(b, rand.Reader, &magics, testSigners["ecdsa"], &config)
 			b.Close()
 			s <- kexResultErr{r, e}
 		}()

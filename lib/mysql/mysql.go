@@ -20,10 +20,11 @@ import (
 	"net"
 	"strings"
 
+	"io"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"time"
-	"io"
 )
 
 const (
@@ -429,7 +430,7 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 		ret.StatusFlags = binary.LittleEndian.Uint16(rest[0:2])
 		rest = rest[2:]
 		if flags&CLIENT_PROTOCOL_41 != 0 {
-			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading Warnings")
+			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading Warnings", flags)
 			ret.Warnings = binary.LittleEndian.Uint16(rest[0:2])
 			rest = rest[2:]
 		}
@@ -512,7 +513,7 @@ func (e *ERRPacket) GetErrorID() string {
 func (e *ERRPacket) GetScanError() *zgrab2.ScanError {
 	return &zgrab2.ScanError{
 		Status: zgrab2.SCAN_APPLICATION_ERROR,
-		Err: e,
+		Err:    e,
 	}
 }
 
@@ -639,7 +640,7 @@ func trunc(body []byte, n int) (result string) {
 	// 16 bytes = 32 bytes hex * 2 + ellipses = 3 * 2 + len("[%d bytes]") = 8 + log10(len - 32)
 	// max len = 24 bits ~= 16 million = 8 digits
 	// = 64 + 6 + 8 + 8 <= 96
-	return fmt.Sprintf("%x...[%d bytes]...%x", body[:16], n - 32, body[n-16:])
+	return fmt.Sprintf("%x...[%d bytes]...%x", body[:16], n-32, body[n-16:])
 }
 
 // Read a packet and sequence identifier off of the given connection
@@ -802,8 +803,8 @@ func readLenInt(body []byte) (uint64, []byte, error) {
 		return uint64(v), body[1:], nil
 	}
 	size := int(v - 0xfa)
-	if bodyLen - 1 < size {
-		return 0, nil, fmt.Errorf("invalid data: first byte=0x%02x, required size=%d, got %d", v, size, bodyLen - 1)
+	if bodyLen-1 < size {
+		return 0, nil, fmt.Errorf("invalid data: first byte=0x%02x, required size=%d, got %d", v, size, bodyLen-1)
 	}
 	switch v {
 	case 0xfb:
@@ -817,7 +818,7 @@ func readLenInt(body []byte) (uint64, []byte, error) {
 		return uint64(binary.LittleEndian.Uint32(body[1:5]) & 0x00ffffff), body[4:], nil
 	case 0xfe:
 		if bodyLen < 9 {
-			return 0, nil, fmt.Errorf("invalid data: first byte=0xfe, required size=8, got %d", bodyLen - 1)
+			return 0, nil, fmt.Errorf("invalid data: first byte=0xfe, required size=8, got %d", bodyLen-1)
 		}
 		// eight little-endian bytes
 		return binary.LittleEndian.Uint64(body[1:9]), body[9:], nil
