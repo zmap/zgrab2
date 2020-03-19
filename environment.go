@@ -39,9 +39,9 @@ type targetResponses struct {
 
 func (env *Environment) ScanTargets() {
 	defer env.Done()
-	for _, scanner := range env.Scanners {
+	for _, ns := range env.Scanners {
 		for i := 0; i < env.Workers.workerCount; i++ {
-			scanner.InitPerSender(i)
+			ns.Scanner.InitPerSender(i)
 		}
 	}
 	env.Logger.Debug("starting scanners")
@@ -54,14 +54,14 @@ func (env *Environment) ScanTargets() {
 				env.Logger.Debugf("received scan target: %v", t)
 				for run := 0; run < env.Workers.connectionsPerHost; run++ {
 					responses := make(map[string]ScanResponse, len(env.Scanners))
-					for _, s := range env.Scanners {
-						env.Logger.Debugf("scanning %v with scanner %v, execution %d", t, s, run)
-						name, res := RunScanner(s, env.monitor, t)
-						responses[name] = res
+					for _, ns := range env.Scanners {
+						env.Logger.Debugf("scanning %v with scanner %s (%v), execution %d", t, ns.Name, ns.Scanner, run)
+						res := RunScanner(ns.Scanner, env.monitor, t, ns.Name)
+						responses[ns.Name] = res
 					}
 					env.scanResponseChannel <- targetResponses{
 						t:         &t,
-						responses: nil,
+						responses: responses,
 					}
 				}
 			}
@@ -87,12 +87,17 @@ func (env *Environment) ScanTargets() {
 	close(env.scanResponseChannel)
 }
 
+type NamedScanner struct {
+	Name    string
+	Scanner Scanner
+}
+
 type Environment struct {
 	Input    *InputSource
 	Output   *OutputDestination
 	Logger   *logrus.Logger
 	Workers  *ScanWorkers
-	Scanners []Scanner
+	Scanners []NamedScanner
 	sync.WaitGroup
 
 	scanTargetChannel     chan ScanTarget

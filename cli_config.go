@@ -6,7 +6,7 @@ import (
 	flags "github.com/zmap/zflags"
 )
 
-func ConfigFromCLI(args []string, modules ModuleSet) (*GlobalFlags, []Scanner, error) {
+func ConfigFromCLI(args []string, modules ModuleSet) (*GlobalFlags, []NamedScanner, error) {
 	globalFlags := GlobalFlags{}
 	parser := flags.NewParser(&globalFlags, flags.Default)
 	for moduleName, m := range modules {
@@ -39,8 +39,11 @@ func ConfigFromCLI(args []string, modules ModuleSet) (*GlobalFlags, []Scanner, e
 	}
 	scanner := mod.NewScanner()
 	scanner.Init(scanFlags)
-	scanners := []Scanner{
-		scanner,
+	scanners := []NamedScanner{
+		NamedScanner{
+			Name:    mod.Attributes().Name,
+			Scanner: scanner,
+		},
 	}
 	return &globalFlags, scanners, nil
 }
