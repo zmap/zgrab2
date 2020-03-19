@@ -23,6 +23,11 @@ type Flags struct {
 	MaxTries int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
 }
 
+var bannerModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "banner",
+	DefaultPort: 80,
+}
+
 // Module is the implementation of the zgrab2.Module interface.
 type Module struct {
 }
@@ -86,6 +91,11 @@ func (f *Flags) Validate(args []string) error {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Fetch a raw banner by sending a static probe and checking the result against a regular expression"
+}
+
+// Attributes returns a ScanModuleAttributes for the banner module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return bannerModuleAttributes
 }
 
 // Help returns the module's help string.

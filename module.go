@@ -38,6 +38,11 @@ type ScanResponse struct {
 	Error     *string     `json:"error,omitempty"`
 }
 
+type ScanModuleAttributes struct {
+	Name        string
+	DefaultPort uint
+}
+
 // ScanModule is an interface which represents a module that the framework can
 // manipulate
 type ScanModule interface {
@@ -52,6 +57,8 @@ type ScanModule interface {
 	// Description returns a string suitable for use as an overview of this
 	// module within usage text.
 	Description() string
+
+	Attributes() ScanModuleAttributes
 }
 
 // ScanFlags is an interface which must be implemented by all types sent to

@@ -99,6 +99,11 @@ type Flags struct {
 	IPPSecure bool `long:"ipps" description:"Perform a TLS handshake immediately upon connecting."`
 }
 
+var ippModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "ipp",
+	DefaultPort: 631,
+}
+
 // Module implements the zgrab2.Module interface.
 type Module struct {
 	// TODO: Add any module-global state if necessary
@@ -137,6 +142,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Probe for printers via IPP"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return ippModuleAttributes
 }
 
 // Validate checks that the flags are valid.

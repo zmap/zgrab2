@@ -131,6 +131,11 @@ type Scanner struct {
 	Config *Flags
 }
 
+var postgresModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "postgres",
+	DefaultPort: 5432,
+}
+
 // Module is the zgrab2 module for the postgres protocol
 type Module struct {
 }
@@ -283,6 +288,11 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (m *Module) Description() string {
 	return "Perform a handshake with a PostgreSQL server"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return postgresModuleAttributes
 }
 
 // Validate checks the arguments; on success, returns nil.

@@ -20,6 +20,11 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
+var bacnetModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "bacnet",
+	DefaultPort: 0xBAC0,
+}
+
 // Module implements the zgrab2.Module interface.
 type Module struct {
 }
@@ -51,6 +56,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns text uses in the help for this module.
 func (module *Module) Description() string {
 	return "Probe for devices that speak Bacnet, commonly used for HVAC control."
+}
+
+// Attributes returns a ScanModuleAttributes for Bacnet.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return bacnetModuleAttributes
 }
 
 // Validate checks that the flags are valid.

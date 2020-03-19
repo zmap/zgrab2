@@ -18,6 +18,11 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
+var dnp3ModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "dnp3",
+	DefaultPort: 20000,
+}
+
 // Module implements the zgrab2.Module interface.
 type Module struct {
 }
@@ -49,6 +54,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Probe for DNP3, a SCADA protocol"
+}
+
+// Attributes return the ScanModuleAttributes for DNP3.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return dnp3ModuleAttributes
 }
 
 // Validate checks that the flags are valid.

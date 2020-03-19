@@ -803,6 +803,11 @@ type Flags struct {
 	RequestCode   string `long:"request-code" description:"Specify a request code for MonList other than ReqMonGetList" default:"REQ_MON_GETLIST"`
 }
 
+var ntpModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "ntp",
+	DefaultPort: 123,
+}
+
 // Module is the zgrab2 module implementation
 type Module struct {
 }
@@ -834,6 +839,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Scan for NTP"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return ntpModuleAttributes
 }
 
 // Validate checks that the flags are valid

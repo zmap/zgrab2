@@ -48,6 +48,11 @@ type Flags struct {
 	FTPAuthTLS bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
 }
 
+var ftpModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "ftp",
+	DefaultPort: 21,
+}
+
 // Module implements the zgrab2.Module interface.
 type Module struct {
 }
@@ -91,6 +96,11 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (m *Module) Description() string {
 	return "Grab an FTP banner"
+}
+
+// Attributes returns the ScanModuleAttributes for FTP.
+func (m *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return ftpModuleAttributes
 }
 
 // Validate does nothing in this module.

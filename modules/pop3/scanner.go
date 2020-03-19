@@ -80,6 +80,11 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
+var pop3ModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "pop3",
+	DefaultPort: 110,
+}
+
 // Module implements the zgrab2.Module interface.
 type Module struct {
 }
@@ -111,6 +116,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Fetch POP3 banners, optionally over TLS"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return pop3ModuleAttributes
 }
 
 // Validate checks that the flags are valid.

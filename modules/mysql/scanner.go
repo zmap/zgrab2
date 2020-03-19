@@ -137,6 +137,11 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
+var mysqlModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "mysql",
+	DefaultPort: 3306,
+}
+
 // Module is the implementation of the zgrab2.Module interface.
 type Module struct {
 }
@@ -168,6 +173,11 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (m *Module) Description() string {
 	return "Perform a handshake with a MySQL database"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (m *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return mysqlModuleAttributes
 }
 
 // Validate validates the flags and returns nil on success.

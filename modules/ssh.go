@@ -24,6 +24,11 @@ type SSHFlags struct {
 	Verbose           bool   `long:"verbose" description:"Output additional information, including SSH client properties from the SSH handshake."`
 }
 
+var sshModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "ssh",
+	DefaultPort: 22,
+}
+
 type SSHModule struct {
 }
 
@@ -54,6 +59,11 @@ func (m *SSHModule) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (m *SSHModule) Description() string {
 	return "Fetch an SSH server banner and collect key exchange information"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (m *SSHModule) Attributes() zgrab2.ScanModuleAttributes {
+	return sshModuleAttributes
 }
 
 func (f *SSHFlags) Validate(args []string) error {

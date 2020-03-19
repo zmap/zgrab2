@@ -10,6 +10,11 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+var mongodbModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "mongodb",
+	DefaultPort: 27017,
+}
+
 // Module implements the zgrab2.Module interface
 type Module struct {
 }
@@ -239,6 +244,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Perform a handshake with a MongoDB server"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return mongodbModuleAttributes
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it.

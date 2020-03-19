@@ -18,6 +18,11 @@ type Flags struct {
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
+var siemensModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "siemens",
+	DefaultPort: 102,
+}
+
 // Module implements the zgrab2.Module interface.
 type Module struct {
 }
@@ -49,6 +54,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Probe for Siemens S7 devices"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return siemensModuleAttributes
 }
 
 // Validate checks that the flags are valid.

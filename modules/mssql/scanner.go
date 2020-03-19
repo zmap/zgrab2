@@ -49,6 +49,11 @@ type Flags struct {
 	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
+var mssqlModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "mssql",
+	DefaultPort: 1433,
+}
+
 // Module is the implementation of zgrab2.Module for the MSSQL protocol.
 type Module struct {
 }
@@ -72,6 +77,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Perform a handshake for MSSQL databases"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (module *Module) Attributes() zgrab2.ScanModuleAttributes {
+	return mssqlModuleAttributes
 }
 
 // Validate does nothing in this module.

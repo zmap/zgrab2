@@ -10,6 +10,11 @@ type TLSFlags struct {
 	zgrab2.TLSFlags
 }
 
+var tlsModuleAttributes = zgrab2.ScanModuleAttributes{
+	Name:        "tls",
+	DefaultPort: 443,
+}
+
 type TLSModule struct {
 }
 
@@ -36,6 +41,11 @@ func (m *TLSModule) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (m *TLSModule) Description() string {
 	return "Perform a TLS handshake"
+}
+
+// Attributes returns the ScanModuleAttributes for this module.
+func (m *TLSModule) Attributes() zgrab2.ScanModuleAttributes {
+	return tlsModuleAttributes
 }
 
 func (f *TLSFlags) Validate(args []string) error {
