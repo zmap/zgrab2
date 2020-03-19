@@ -23,3 +23,5 @@ venv/*
 zgrab2_schemas.egg-info/*
 build/*
 dist/*
+
+.vscode/*
