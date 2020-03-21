@@ -20,6 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"golang.org/x/net/html/charset"
 )
 
 var (
@@ -373,7 +374,22 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		readLen = resp.ContentLength
 	}
 	io.CopyN(buf, resp.Body, readLen)
-	scan.results.Response.BodyText = buf.String()
+	bufAsString := buf.String()
+
+	// do best effort attempt to determine the response's encoding
+	// ignore the certainty and just go with it
+	encoder, _, _ := charset.DetermineEncoding(buf.Bytes(), resp.Header.Get("content_type"))
+	decoder := encoder.NewDecoder()
+
+	decoded, decErr := decoder.String(bufAsString)
+
+	// if the decoder errors out just use the buffer as a string
+	if decErr == nil {
+		scan.results.Response.BodyText = decoded
+	} else {
+		scan.results.Response.BodyText = bufAsString
+	}
+
 	if len(scan.results.Response.BodyText) > 0 {
 		m := sha256.New()
 		m.Write(buf.Bytes())
