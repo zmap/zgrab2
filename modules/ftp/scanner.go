@@ -1,8 +1,13 @@
 // Package ftp contains the zgrab2 Module implementation for FTP(S).
 //
+// The --ftps tells the scanner to perform a TLS handshake immediately
+// after connecting, before even attempting to read the banner.
 // Setting the --authtls flag will cause the scanner to attempt a upgrade the
 // connection to TLS. Settings for the TLS handshake / probe can be set with
-// the standard TLSFlags.
+// the standard TLS Flags.
+// --ftps and --authtls are mutually exclusive.
+// --ftps does not change the default port number from 21, so it should
+// usually be coupled with e.g. --port 990.
 //
 // The scan performs a banner grab and (optionally) a TLS handshake.
 //
@@ -45,6 +50,7 @@ type Flags struct {
 	zgrab2.TLSFlags
 
 	Verbose    bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	FTPSecure  bool `long:"ftps" description:"Immediately negotiate a TLS connection"`
 	FTPAuthTLS bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
 }
 
@@ -64,7 +70,7 @@ type Connection struct {
 	// sendCommand calls on a given connection
 	buffer  [1024]byte
 	config  *Flags
-	results ScanResults
+	results *ScanResults
 	conn    net.Conn
 }
 
@@ -94,7 +100,11 @@ func (m *Module) Description() string {
 }
 
 // Validate does nothing in this module.
-func (f *Flags) Validate(args []string) error {
+func (flags *Flags) Validate(args []string) error {
+	if flags.FTPAuthTLS && flags.FTPSecure {
+		log.Error("Cannot send both --authtls and --ftps")
+		return zgrab2.ErrInvalidArguments
+	}
 	return nil
 }
 
@@ -231,22 +241,34 @@ func (ftp *Connection) GetFTPSCertificates() error {
 // * Perform ths TLS handshake / any configured TLS scans, populating
 //   results.TLSLog.
 // * Return SCAN_SUCCESS, &results, nil
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, res interface{}, thrown error) {
 	var err error
 	conn, err := t.Open(&s.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer conn.Close()
-	ftp := Connection{conn: conn, config: s.config, results: ScanResults{}}
+	result := &ScanResults{}
+	if s.config.FTPSecure {
+		tlsConn, err := s.config.TLSFlags.GetTLSConnection(conn)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+		result.TLSLog = tlsConn.GetLog()
+		if err := tlsConn.Handshake(); err != nil {
+			return zgrab2.TryGetScanStatus(err), result, err
+		}
+		conn = tlsConn
+	}
+	ftp := Connection{conn: conn, config: s.config, results: result}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &ftp.results, err
+		return zgrab2.TryGetScanStatus(err), result, err
 	}
 	if s.config.FTPAuthTLS && is200Banner {
 		if err := ftp.GetFTPSCertificates(); err != nil {
-			return zgrab2.SCAN_APPLICATION_ERROR, &ftp.results, err
+			return zgrab2.SCAN_APPLICATION_ERROR, result, err
 		}
 	}
-	return zgrab2.SCAN_SUCCESS, &ftp.results, nil
+	return zgrab2.SCAN_SUCCESS, result, nil
 }
