@@ -403,12 +403,12 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 		}
 	}
 
-	kex, ok := kexAlgoMap[algs.kex]
+	kex, ok := kexAlgoMap[algs.Kex]
 	if !ok {
-		return fmt.Errorf("ssh: unexpected key exchange algorithm %v", algs.kex)
+		return fmt.Errorf("ssh: unexpected key exchange algorithm %v", algs.Kex)
 	}
 
-	kex = kex.GetNew(algs.kex)
+	kex = kex.GetNew(algs.Kex)
 
 	if t.config.ConnLog != nil {
 		t.config.ConnLog.DHKeyExchange = kex
@@ -450,7 +450,7 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 func (t *handshakeTransport) server(kex kexAlgorithm, algs *Algorithms, magics *handshakeMagics) (*kexResult, error) {
 	var hostKey Signer
 	for _, k := range t.hostKeys {
-		if algs.hostKey == k.PublicKey().Type() {
+		if algs.HostKey == k.PublicKey().Type() {
 			hostKey = k
 		}
 	}

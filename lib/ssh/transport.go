@@ -69,13 +69,13 @@ type connectionState struct {
 // both directions are triggered by reading and writing a msgNewKey packet
 // respectively.
 func (t *transport) prepareKeyChange(algs *Algorithms, kexResult *kexResult) error {
-	if ciph, err := newPacketCipher(t.reader.dir, algs.r, kexResult); err != nil {
+	if ciph, err := newPacketCipher(t.reader.dir, algs.R, kexResult); err != nil {
 		return err
 	} else {
 		t.reader.pendingKeyChange <- ciph
 	}
 
-	if ciph, err := newPacketCipher(t.writer.dir, algs.w, kexResult); err != nil {
+	if ciph, err := newPacketCipher(t.writer.dir, algs.W, kexResult); err != nil {
 		return err
 	} else {
 		t.writer.pendingKeyChange <- ciph
