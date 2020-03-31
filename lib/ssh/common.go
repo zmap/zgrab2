@@ -119,25 +119,25 @@ func findCommon(what string, client []string, server []string) (common string, e
 	return "", fmt.Errorf("ssh: no common algorithm for %s; client offered: %v, server offered: %v", what, client, server)
 }
 
-type directionAlgorithms struct {
+type DirectionAlgorithms struct {
 	Cipher      string `json:"cipher"`
 	MAC         string `json:"mac"`
 	Compression string `json:"compression"`
 }
 
-type algorithms struct {
+type Algorithms struct {
 	kex     string
 	hostKey string
-	w       directionAlgorithms
-	r       directionAlgorithms
+	w       DirectionAlgorithms
+	r       DirectionAlgorithms
 }
 
-func (alg *algorithms) MarshalJSON() ([]byte, error) {
+func (alg *Algorithms) MarshalJSON() ([]byte, error) {
 	aux := struct {
 		Kex     string              `json:"dh_kex_algorithm"`
 		HostKey string              `json:"host_key_algorithm"`
-		W       directionAlgorithms `json:"client_to_server_alg_group"`
-		R       directionAlgorithms `json:"server_to_client_alg_group"`
+		W       DirectionAlgorithms `json:"client_to_server_alg_group"`
+		R       DirectionAlgorithms `json:"server_to_client_alg_group"`
 	}{
 		Kex:     alg.kex,
 		HostKey: alg.hostKey,
@@ -148,8 +148,8 @@ func (alg *algorithms) MarshalJSON() ([]byte, error) {
 	return json.Marshal(aux)
 }
 
-func findAgreedAlgorithms(clientKexInit, serverKexInit *kexInitMsg) (algs *algorithms, err error) {
-	result := &algorithms{}
+func findAgreedAlgorithms(clientKexInit, serverKexInit *KexInitMsg) (algs *Algorithms, err error) {
+	result := &Algorithms{}
 
 	result.kex, err = findCommon("key exchange", clientKexInit.KexAlgos, serverKexInit.KexAlgos)
 	if err != nil {

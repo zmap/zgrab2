@@ -68,7 +68,7 @@ type connectionState struct {
 // prepareKeyChange sets up key material for a keychange. The key changes in
 // both directions are triggered by reading and writing a msgNewKey packet
 // respectively.
-func (t *transport) prepareKeyChange(algs *algorithms, kexResult *kexResult) error {
+func (t *transport) prepareKeyChange(algs *Algorithms, kexResult *kexResult) error {
 	if ciph, err := newPacketCipher(t.reader.dir, algs.r, kexResult); err != nil {
 		return err
 	} else {
@@ -192,7 +192,7 @@ var (
 )
 
 // generateKeys generates key material for IV, MAC and encryption.
-func generateKeys(d direction, algs directionAlgorithms, kex *kexResult) (iv, key, macKey []byte) {
+func generateKeys(d direction, algs DirectionAlgorithms, kex *kexResult) (iv, key, macKey []byte) {
 	cipherMode := cipherModes[algs.Cipher]
 	macMode := macModes[algs.MAC]
 
@@ -209,7 +209,7 @@ func generateKeys(d direction, algs directionAlgorithms, kex *kexResult) (iv, ke
 // setupKeys sets the cipher and MAC keys from kex.K, kex.H and sessionId, as
 // described in RFC 4253, section 6.4. direction should either be serverKeys
 // (to setup server->client keys) or clientKeys (for client->server keys).
-func newPacketCipher(d direction, algs directionAlgorithms, kex *kexResult) (packetCipher, error) {
+func newPacketCipher(d direction, algs DirectionAlgorithms, kex *kexResult) (packetCipher, error) {
 	iv, key, macKey := generateKeys(d, algs, kex)
 
 	if algs.Cipher == gcmCipherID {

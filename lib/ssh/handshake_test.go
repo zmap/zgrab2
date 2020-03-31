@@ -354,7 +354,7 @@ type errorKeyingTransport struct {
 	readLeft, writeLeft int
 }
 
-func (n *errorKeyingTransport) prepareKeyChange(*algorithms, *kexResult) error {
+func (n *errorKeyingTransport) prepareKeyChange(*Algorithms, *kexResult) error {
 	return nil
 }
 func (n *errorKeyingTransport) getSessionID() []byte {
