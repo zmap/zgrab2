@@ -326,10 +326,14 @@ func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) 
 	if err != nil {
 		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
 	}
+	return t.GetWrappedConnection(conn, cfg), nil
+}
+
+func (t *TLSFlags) GetWrappedConnection(conn net.Conn, cfg *tls.Config) *TLSConnection {
 	tlsClient := tls.Client(conn, cfg)
 	wrappedClient := TLSConnection{
 		Conn:  *tlsClient,
 		flags: t,
 	}
-	return &wrappedClient, nil
+	return &wrappedClient
 }
