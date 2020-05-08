@@ -18,6 +18,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
 	"golang.org/x/net/html/charset"
@@ -57,6 +58,8 @@ type Flags struct {
 
 	// RedirectsSucceed causes the ErrTooManRedirects error to be suppressed
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
+
+	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -216,10 +219,26 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(net, addr string) (net
 		if err != nil {
 			return nil, err
 		}
-		tlsConn, err := scan.scanner.config.TLSFlags.GetTLSConnectionForTarget(outer, t)
+
+		cfg, err := scan.scanner.config.TLSFlags.GetTLSConfigForTarget(t)
 		if err != nil {
 			return nil, err
 		}
+
+		if scan.scanner.config.OverrideSH {
+			cfg.SignatureAndHashes = []tls.SigAndHash{
+				{0x01, 0x04}, // rsa, sha256
+				{0x03, 0x04}, // ecdsa, sha256
+				{0x01, 0x02}, // rsa, sha1
+				{0x03, 0x02}, // ecdsa, sha1
+				{0x01, 0x04}, // rsa, sha256
+				{0x01, 0x05}, // rsa, sha384
+				{0x01, 0x06}, // rsa, sha512
+			}
+		}
+
+		tlsConn := scan.scanner.config.TLSFlags.GetWrappedConnection(outer, cfg)
+
 		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
 		err = tlsConn.Handshake()
 		return tlsConn, err
