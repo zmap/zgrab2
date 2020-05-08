@@ -19,7 +19,7 @@ type TLSScanner struct {
 
 func init() {
 	var tlsModule TLSModule
-	_, err := zgrab2.AddCommand("tls", "TLS Banner Grab", "Grab banner over TLS", 443, &tlsModule)
+	_, err := zgrab2.AddCommand("tls", "TLS Banner Grab", tlsModule.Description(), 443, &tlsModule)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,6 +31,11 @@ func (m *TLSModule) NewFlags() interface{} {
 
 func (m *TLSModule) NewScanner() zgrab2.Scanner {
 	return new(TLSScanner)
+}
+
+// Description returns an overview of this module.
+func (m *TLSModule) Description() string {
+	return "Perform a TLS handshake"
 }
 
 func (f *TLSFlags) Validate(args []string) error {

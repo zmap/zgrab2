@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -107,7 +108,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("smtp", "smtp", "Probe for smtp", 25, &module)
+	_, err := zgrab2.AddCommand("smtp", "smtp", module.Description(), 25, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -121,6 +122,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Fetch an SMTP server banner, optionally over TLS"
 }
 
 // Validate checks that the flags are valid.
@@ -265,7 +271,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		if code < 200 || code >= 300 {
-			return zgrab2.SCAN_APPLICATION_ERROR, result, fmt.Errorf("SMTP error code %d returned from STARTTLS command (%s)", code, ret)
+			return zgrab2.SCAN_APPLICATION_ERROR, result, fmt.Errorf("SMTP error code %d returned from STARTTLS command (%s)", code, strings.TrimSpace(ret))
 		}
 		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(conn.Conn)
 		if err != nil {

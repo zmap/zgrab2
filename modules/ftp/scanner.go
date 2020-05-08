@@ -71,7 +71,7 @@ type Connection struct {
 // RegisterModule registers the ftp zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("ftp", "FTP", "Grab an FTP banner", 21, &module)
+	_, err := zgrab2.AddCommand("ftp", "FTP", module.Description(), 21, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,6 +86,11 @@ func (m *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (m *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (m *Module) Description() string {
+	return "Grab an FTP banner"
 }
 
 // Validate does nothing in this module.

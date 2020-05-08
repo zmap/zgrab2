@@ -32,7 +32,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("smb", "smb", "Probe for smb", 445, &module)
+	_, err := zgrab2.AddCommand("smb", "smb", module.Description(), 445, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,6 +46,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for SMB servers (Windows filesharing / SAMBA)"
 }
 
 // Validate checks that the flags are valid.

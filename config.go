@@ -47,6 +47,7 @@ func SetOutputFunc(f OutputResultsFunc) {
 
 func init() {
 	config.Multiple.ContinueOnError = true // set default for multiple value
+	config.Multiple.BreakOnSuccess = false // set default for multiple value
 }
 
 var config Config
@@ -89,7 +90,8 @@ func validateFrameworkConfiguration() {
 			log.Fatal(err)
 		}
 	}
-	SetOutputFunc(OutputResultsFile)
+	outputFunc := OutputResultsWriterFunc(config.outputFile)
+	SetOutputFunc(outputFunc)
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr

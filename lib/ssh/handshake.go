@@ -28,7 +28,7 @@ type keyingTransport interface {
 	// prepareKeyChange sets up a key change. The key change for a
 	// direction will be effected if a msgNewKeys message is sent
 	// or received.
-	prepareKeyChange(*algorithms, *kexResult) error
+	prepareKeyChange(*Algorithms, *kexResult) error
 }
 
 // handshakeTransport implements rekeying on top of a keyingTransport
@@ -68,7 +68,7 @@ type handshakeTransport struct {
 	mu              sync.Mutex
 	cond            *sync.Cond
 	sentInitPacket  []byte
-	sentInitMsg     *kexInitMsg
+	sentInitMsg     *KexInitMsg
 	writtenSinceKex uint64
 	writeError      error
 
@@ -264,7 +264,7 @@ func (t *handshakeTransport) requestKeyChange() error {
 
 // sendKexInitLocked sends a key change message. t.mu must be locked
 // while this happens.
-func (t *handshakeTransport) sendKexInitLocked(isFirst keyChangeCategory) (*kexInitMsg, []byte, error) {
+func (t *handshakeTransport) sendKexInitLocked(isFirst keyChangeCategory) (*KexInitMsg, []byte, error) {
 	// kexInits may be sent either in response to the other side,
 	// or because our side wants to initiate a key change, so we
 	// may have already sent a kexInit. In that case, don't send a
@@ -273,7 +273,7 @@ func (t *handshakeTransport) sendKexInitLocked(isFirst keyChangeCategory) (*kexI
 		return t.sentInitMsg, t.sentInitPacket, nil
 	}
 
-	msg := &kexInitMsg{
+	msg := &KexInitMsg{
 		KexAlgos:                t.config.KeyExchanges,
 		CiphersClientServer:     t.config.Ciphers,
 		CiphersServerClient:     t.config.Ciphers,
@@ -352,7 +352,7 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 		}
 	}
 
-	otherInit := &kexInitMsg{}
+	otherInit := &KexInitMsg{}
 	if err := Unmarshal(otherInitPacket, otherInit); err != nil {
 		return err
 	}
@@ -403,12 +403,12 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 		}
 	}
 
-	kex, ok := kexAlgoMap[algs.kex]
+	kex, ok := kexAlgoMap[algs.Kex]
 	if !ok {
-		return fmt.Errorf("ssh: unexpected key exchange algorithm %v", algs.kex)
+		return fmt.Errorf("ssh: unexpected key exchange algorithm %v", algs.Kex)
 	}
 
-	kex = kex.GetNew(algs.kex)
+	kex = kex.GetNew(algs.Kex)
 
 	if t.config.ConnLog != nil {
 		t.config.ConnLog.DHKeyExchange = kex
@@ -447,10 +447,10 @@ func (t *handshakeTransport) enterKeyExchangeLocked(otherInitPacket []byte) erro
 	return nil
 }
 
-func (t *handshakeTransport) server(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, error) {
+func (t *handshakeTransport) server(kex kexAlgorithm, algs *Algorithms, magics *handshakeMagics) (*kexResult, error) {
 	var hostKey Signer
 	for _, k := range t.hostKeys {
-		if algs.hostKey == k.PublicKey().Type() {
+		if algs.HostKey == k.PublicKey().Type() {
 			hostKey = k
 		}
 	}
@@ -459,7 +459,7 @@ func (t *handshakeTransport) server(kex kexAlgorithm, algs *algorithms, magics *
 	return r, err
 }
 
-func (t *handshakeTransport) client(kex kexAlgorithm, algs *algorithms, magics *handshakeMagics) (*kexResult, error) {
+func (t *handshakeTransport) client(kex kexAlgorithm, algs *Algorithms, magics *handshakeMagics) (*kexResult, error) {
 	result, err := kex.Client(t.conn, t.config.Rand, magics, t.config)
 	if err != nil {
 		return nil, err

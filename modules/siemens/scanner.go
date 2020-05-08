@@ -4,9 +4,10 @@
 package siemens
 
 import (
+	"net"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
-	"net"
 )
 
 // Flags holds the command-line configuration for the siemens scan module.
@@ -29,7 +30,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("siemens", "siemens", "Probe for Siemens S7", 102, &module)
+	_, err := zgrab2.AddCommand("siemens", "siemens", module.Description(), 102, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,6 +44,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for Siemens S7 devices"
 }
 
 // Validate checks that the flags are valid.
