@@ -117,8 +117,7 @@ func GetTelnetBanner(logStruct *TelnetLog, conn net.Conn, maxReadSize int) (err 
 	}
 	// Make sure it is a telnet banner
 	if !logStruct.isTelnet() {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR,
-																errors.New("Invalid response for Telnet"))
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for Telnet"))
 	}
 	return nil
 }

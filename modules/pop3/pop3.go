@@ -30,11 +30,9 @@ func VerifyPOP3Contents(n int, ret []byte) (string, error) {
 			return s, nil
 	}
 	if strings.HasPrefix(s, "+ERR "){
-			return s, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR,
-																		errors.New("POP3 Reported Error"))
+			return s, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errors.New("POP3 Reported Error"))
 	}
-	return s, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR,
-																errors.New("Invalid response for POP3"))
+	return s, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for POP3"))
 }
 
 // ReadResponse reads from the connection until it matches the pop3EndRegex. Copied from the original zgrab.
