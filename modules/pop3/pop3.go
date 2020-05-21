@@ -26,16 +26,12 @@ type Connection struct {
 // Verifies that a POP3 banner begins with a valid status indicator
 func VerifyPOP3Contents(n int, ret []byte) (string, error) {
 	s := string(ret[0:n])
-	iword := strings.Index(s, " ")
-	if iword > 2 {
-		subst := s[:iword]
-		if subst == "+OK" {
+	if strings.HasPrefix(s, "+OK "){
 			return s, nil
-		}
-		if subst == "+ERR" {
+	}
+	if strings.HasPrefix(s, "+ERR "){
 			return s, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR,
 																		errors.New("POP3 Reported Error"))
-		}
 	}
 	return s, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR,
 																errors.New("Invalid response for POP3"))
