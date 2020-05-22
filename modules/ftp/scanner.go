@@ -11,6 +11,7 @@
 package ftp
 
 import (
+	"fmt"
 	"net"
 	"regexp"
 	"strings"
@@ -33,6 +34,10 @@ type ScanResults struct {
 	// Only present if the FTPAuthTLS flag is set and AUTH TLS failed.
 	AuthSSLResp string `json:"auth_ssl,omitempty"`
 
+	// ImplicitTLS is true if the connection is wrapped in TLS, as opposed
+	// to via AUTH TLS or AUTH SSL.
+	ImplicitTLS bool `json:"implicit_tls,omitempty"`
+
 	// TLSLog is the standard shared TLS handshake log.
 	// Only present if the FTPAuthTLS flag is set.
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
@@ -44,8 +49,9 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	Verbose    bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	FTPAuthTLS bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
+	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	FTPAuthTLS  bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
+	ImplicitTLS bool `long:"implicit-tls" description:"Attempt to connect via a TLS wrapped connection"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -93,9 +99,12 @@ func (m *Module) Description() string {
 	return "Grab an FTP banner"
 }
 
-// Validate does nothing in this module.
-func (f *Flags) Validate(args []string) error {
-	return nil
+// Validate flags
+func (f *Flags) Validate(args []string) (err error) {
+	if f.FTPAuthTLS && f.ImplicitTLS {
+		err = fmt.Errorf("Cannot specify both '--authtls' and '--implicit-tls' together")
+	}
+	return
 }
 
 // Help returns this module's help string.
@@ -131,13 +140,16 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// ftpEndRegex matches zero or more lines followed by a numeric FTP status code and linebreak, e.g. "200 OK\r\n"
+// ftpEndRegex matches zero or more lines followed by a numeric FTP status code
+// and linebreak, e.g. "200 OK\r\n"
 var ftpEndRegex = regexp.MustCompile(`^(?:.*\r?\n)*([0-9]{3})( [^\r\n]*)?\r?\n$`)
 
 // isOKResponse returns true iff and only if the given response code indicates
 // success (e.g. 2XX)
 func (ftp *Connection) isOKResponse(retCode string) bool {
-	// TODO: This is the current behavior; should it check that it isn't garbage that happens to start with 2 (e.g. it's only ASCII chars, the prefix is 2[0-9]+, etc)?
+	// TODO: This is the current behavior; should it check that it isn't
+	// garbage that happens to start with 2 (e.g. it's only ASCII chars, the
+	// prefix is 2[0-9]+, etc)?
 	return strings.HasPrefix(retCode, "2")
 }
 
@@ -216,7 +228,10 @@ func (ftp *Connection) GetFTPSCertificates() error {
 	ftp.results.TLSLog = conn.GetLog()
 
 	if err = conn.Handshake(); err != nil {
-		// NOTE: With the default config of vsftp (without ssl_ciphers=HIGH), AUTH TLS succeeds, but the handshake fails, dumping "error:1408A0C1:SSL routines:ssl3_get_client_hello:no shared cipher" to the socket.
+		// NOTE: With the default config of vsftp (without ssl_ciphers=HIGH),
+		// AUTH TLS succeeds, but the handshake fails, dumping
+		// "error:1408A0C1:SSL routines:ssl3_get_client_hello:no shared cipher"
+		// to the socket.
 		return err
 	}
 	ftp.conn = conn
@@ -237,8 +252,24 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	defer conn.Close()
-	ftp := Connection{conn: conn, config: s.config, results: ScanResults{}}
+	cn := conn
+	defer func() {
+		cn.Close()
+	}()
+
+	results := ScanResults{}
+	if s.config.ImplicitTLS {
+		tlsConn, err := s.config.TLSFlags.GetTLSConnection(conn)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+		results.ImplicitTLS = true
+		results.TLSLog = tlsConn.GetLog()
+		tlsConn.Handshake()
+		cn = tlsConn
+	}
+
+	ftp := Connection{conn: cn, config: s.config, results: results}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), &ftp.results, err
