@@ -24,6 +24,7 @@ package imap
 
 import (
 	"fmt"
+	"errors"
 
 	"strings"
 
@@ -148,6 +149,21 @@ func getIMAPError(response string) error {
 	return fmt.Errorf("error: %s", response)
 }
 
+// Check the contents of the IMAP banner and return a relevant ScanStatus
+func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
+	switch {
+	case strings.HasPrefix(banner, "* OK"),
+	     strings.HasPrefix(banner, "* PREAUTH"),
+	     strings.HasPrefix(banner, "* BYE"):
+			return zgrab2.SCAN_SUCCESS
+	case strings.HasPrefix(banner, "* NO"),
+	     strings.HasPrefix(banner, "* BAD"):
+			return zgrab2.SCAN_APPLICATION_ERROR
+	default:
+			return zgrab2.SCAN_PROTOCOL_ERROR
+	}
+}
+
 // Scan performs the IMAP scan.
 // 1. Open a TCP connection to the target port (default 143).
 // 2. If --imaps is set, perform a TLS handshake using the command-line
@@ -180,6 +196,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+	// Quit early if we didn't get a valid response
+	// OR save a valid scan result for later
+	sr := VerifyIMAPContents(banner)
+	if (sr == zgrab2.SCAN_PROTOCOL_ERROR){
+		return sr, nil, errors.New("Invalid response for IMAP")
+	}
 	result.Banner = banner
 	if scanner.config.StartTLS {
 		ret, err := conn.SendCommand("a001 STARTTLS")
@@ -209,5 +231,5 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 		result.CLOSE = ret
 	}
-	return zgrab2.SCAN_SUCCESS, result, nil
+	return sr, result, nil
 }
