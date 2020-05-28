@@ -3,7 +3,6 @@ package smtp
 import (
 	"net"
 	"regexp"
-	"fmt"
 	"io"
 
 	"github.com/zmap/zgrab2"
@@ -20,19 +19,6 @@ type Connection struct {
 	Conn net.Conn
 }
 
-// Verify that an SMTP code was returned, and that it is a successful one!
-func VerifySMTPContents(n int, ret []byte) (string, error){
-	s := string(ret[:n])
-	code, err := getSMTPCode(s)
-	if err != nil {
-		return s, err
-	}
-	if code < 200 || code >= 300 {
-		return s, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("SMTP returned error code %d", code))
-	}
-	return s, nil
-}
-
 // ReadResponse reads from the connection until it matches the smtpEndRegex. Copied from the original zgrab.
 // TODO: Catch corner cases
 func (conn *Connection) ReadResponse() (string, error) {
@@ -41,7 +27,7 @@ func (conn *Connection) ReadResponse() (string, error) {
 	if err != nil && err != io.EOF && !zgrab2.IsTimeoutError(err) {
 		return "", err
 	}
-	return VerifySMTPContents(n, ret)
+	return string(ret[:n]), nil
 }
 
 // SendCommand sends a command, followed by a CRLF, then wait for / read the server's response.

@@ -199,7 +199,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// Quit early if we didn't get a valid response
 	// OR save a valid scan result for later
 	sr := VerifyIMAPContents(banner)
-	if (sr == zgrab2.SCAN_PROTOCOL_ERROR){
+	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
 		return sr, nil, errors.New("Invalid response for IMAP")
 	}
 	result.Banner = banner

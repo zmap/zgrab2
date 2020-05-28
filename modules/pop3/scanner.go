@@ -211,7 +211,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// Quit early if no valid response
 	// OR save it to return later
 	sr := VerifyPOP3Contents(banner)
-	if (sr == zgrab2.SCAN_PROTOCOL_ERROR){
+	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
 		return sr, nil, errors.New("Invalid response for POP3")
 	}
 	result.Banner = banner

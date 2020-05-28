@@ -201,6 +201,19 @@ func getCommand(cmd string, arg string) string {
 	return cmd + " " + arg
 }
 
+// Verify that an SMTP code was returned, and that it is a successful one!
+// Return code on SCAN_APPLICATION_ERROR for better info
+func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
+	code, err := getSMTPCode(banner)
+	if err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, 0
+	}
+	if code < 200 || code >= 300 {
+		return zgrab2.SCAN_APPLICATION_ERROR, code
+	}
+	return zgrab2.SCAN_SUCCESS, 0
+}
+
 // Scan performs the SMTP scan.
 // 1. Open a TCP connection to the target port (default 25).
 // 2. If --smtps is set, perform a TLS handshake.
@@ -237,6 +250,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			result = nil
 		}
 		return zgrab2.TryGetScanStatus(err), result, err
+	}
+	// Quit early if we didn't get a valid response
+	// OR save response to return later
+	sr, bannerResponseCode := VerifySMTPContents(banner)
+	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
+		return sr, nil, errors.New("Invalid response for SMTP")
 	}
 	result.Banner = banner
 	if scanner.config.SendHELO {
@@ -292,5 +311,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 		result.QUIT = ret
 	}
-	return zgrab2.SCAN_SUCCESS, result, nil
+	if sr == zgrab2.SCAN_APPLICATION_ERROR {
+		return sr, result, fmt.Errorf("SMTP error code %d returned in banner grab", bannerResponseCode)
+	}
+	return sr, result, nil
 }
