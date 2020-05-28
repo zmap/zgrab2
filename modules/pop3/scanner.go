@@ -27,7 +27,7 @@ package pop3
 
 import (
 	"fmt"
-
+	"errors"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -163,6 +163,17 @@ func getPOP3Error(response string) error {
 	return fmt.Errorf("POP3 error: %s", response[1:])
 }
 
+// Check the contents of the POP3 header and return a relevant ScanStatus
+func VerifyPOP3Contents(banner string) zgrab2.ScanStatus {
+	if strings.HasPrefix(banner, "+OK "){
+		return zgrab2.SCAN_SUCCESS
+	}
+	if strings.HasPrefix(banner, "-ERR "){
+		return zgrab2.SCAN_APPLICATION_ERROR
+	}
+	return zgrab2.SCAN_PROTOCOL_ERROR
+}
+
 // Scan performs the POP3 scan.
 // 1. Open a TCP connection to the target port (default 110).
 // 2. If --pop3s is set, perform a TLS handshake using the command-line
@@ -196,6 +207,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	banner, err := conn.ReadResponse()
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	// Quit early if no valid response
+	// OR save it to return later
+	sr := VerifyPOP3Contents(banner)
+	if (sr == zgrab2.SCAN_PROTOCOL_ERROR){
+		return sr, nil, errors.New("Invalid response for POP3")
 	}
 	result.Banner = banner
 	if scanner.config.SendHELP {
@@ -240,5 +257,5 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 		result.QUIT = ret
 	}
-	return zgrab2.SCAN_SUCCESS, result, nil
+	return sr, result, nil
 }
