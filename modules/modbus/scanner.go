@@ -171,10 +171,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	res, err := c.GetModbusResponse()
 	if res == nil {
-		if err == nil {
-			// unreachable
-			log.Fatalf("Unreachable: no result, no error from modbus.GetModbusResponse()")
-		}
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 
