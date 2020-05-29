@@ -151,16 +151,24 @@ func getIMAPError(response string) error {
 
 // Check the contents of the IMAP banner and return a relevant ScanStatus
 func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
+	lowerBanner := strings.ToLower(banner)
 	switch {
-	case strings.HasPrefix(banner, "* OK"),
-	     strings.HasPrefix(banner, "* PREAUTH"),
-	     strings.HasPrefix(banner, "* BYE"):
-			return zgrab2.SCAN_SUCCESS
 	case strings.HasPrefix(banner, "* NO"),
 	     strings.HasPrefix(banner, "* BAD"):
-			return zgrab2.SCAN_APPLICATION_ERROR
+		return zgrab2.SCAN_APPLICATION_ERROR
+	case strings.HasPrefix(banner, "* OK"),
+	     strings.HasPrefix(banner, "* PREAUTH"),
+	     strings.HasPrefix(banner, "* BYE"),
+	     strings.HasPrefix(banner, "* OKAY"),
+	     strings.Contains(banner, "IMAP"),
+	     strings.Contains(lowerBanner, "blacklist"),
+	     strings.Contains(lowerBanner, "abuse"),
+	     strings.Contains(lowerBanner, "rbl"),
+	     strings.Contains(lowerBanner, "spamhaus"),
+	     strings.Contains(lowerBanner, "relay"):
+		return zgrab2.SCAN_SUCCESS
 	default:
-			return zgrab2.SCAN_PROTOCOL_ERROR
+		return zgrab2.SCAN_PROTOCOL_ERROR
 	}
 }
 

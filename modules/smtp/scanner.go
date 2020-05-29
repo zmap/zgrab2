@@ -205,13 +205,21 @@ func getCommand(cmd string, arg string) string {
 // Return code on SCAN_APPLICATION_ERROR for better info
 func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 	code, err := getSMTPCode(banner)
-	if err != nil {
+	lowerBanner := strings.ToLower(banner)
+	switch {
+	case err == nil && (code < 200 || code >= 300):
+		return zgrab2.SCAN_APPLICATION_ERROR, code
+	case err == nil,
+	     strings.Contains(banner, "STMP"),
+	     strings.Contains(lowerBanner, "blacklist"),
+	     strings.Contains(lowerBanner, "abuse"),
+	     strings.Contains(lowerBanner, "rbl"),
+	     strings.Contains(lowerBanner, "spamhaus"),
+	     strings.Contains(lowerBanner, "relay"):
+		return zgrab2.SCAN_SUCCESS, 0
+	default:
 		return zgrab2.SCAN_PROTOCOL_ERROR, 0
 	}
-	if code < 200 || code >= 300 {
-		return zgrab2.SCAN_APPLICATION_ERROR, code
-	}
-	return zgrab2.SCAN_SUCCESS, 0
 }
 
 // Scan performs the SMTP scan.
