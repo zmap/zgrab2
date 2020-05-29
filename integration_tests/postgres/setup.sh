@@ -37,8 +37,13 @@ function waitFor() {
       sleep 1
     done
   else
-    while ! (docker exec $CONTAINER_NAME ps -Af | grep -q "postgres: logger process" > /dev/null); do
-      echo -n "*"
+    CNT=0
+    while ! (docker exec $CONTAINER_NAME ps -Af | grep -q "postgres: logger process"); do
+      echo -n "*" 
+      CNT=$((CNT+1))
+      if [ $CNT > 20 ]; then
+        break
+      fi
       sleep 1
     done
     while ! (docker exec -t $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log | grep -q "STARTED; state"); do
