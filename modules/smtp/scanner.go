@@ -58,6 +58,10 @@ type ScanResults struct {
 	// QUIT is the server's response to the QUIT command, if it is sent.
 	QUIT string `json:"quit,omitempty"`
 
+	// ImplicitTLS is true if the connection was wrapped in TLS, as opposed
+	// to using StartTls
+	ImplicitTLS bool `json:"implicit_tls,omitempty"`
+
 	// TLSLog is the standard TLS log, if STARTTLS is sent.
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
@@ -250,6 +254,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		c = tlsConn
+		result.ImplicitTLS = true
 	}
 	conn := Connection{Conn: c}
 	banner, err := conn.ReadResponse()
