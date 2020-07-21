@@ -20,7 +20,9 @@ type Flags struct {
 	zgrab2.BaseFlags
 	Probe    string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n" `
 	Pattern  string `long:"pattern" description:"Pattern to match, must be valid regexp."`
-	MaxTries int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
+	UseTLS   bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options. "`
+	MaxTries int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
+	zgrab2.TLSFlags
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -34,6 +36,7 @@ type Scanner struct {
 	probe  []byte
 }
 
+// ScanResults instances are returned by the module's Scan function.
 type Results struct {
 	Banner string `json:"banner,omitempty"`
 	Length int    `json:"length,omitempty"`
@@ -112,15 +115,27 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	try := 0
 	var (
 		conn    net.Conn
+		tlsConn *zgrab2.TLSConnection
 		err     error
 		readerr error
 	)
 	for try < scanner.config.MaxTries {
-		try += 1
+		try++
 		conn, err = target.Open(&scanner.config.BaseFlags)
 		if err != nil {
 			continue
 		}
+		if scanner.config.UseTLS {
+			tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
+			if err != nil {
+				continue
+			}
+			if err = tlsConn.Handshake(); err != nil {
+				continue
+			}
+			conn = tlsConn
+		}
+
 		break
 	}
 	if err != nil {
@@ -131,7 +146,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	var ret []byte
 	try = 0
 	for try < scanner.config.MaxTries {
-		try += 1
+		try++
 		_, err = conn.Write(scanner.probe)
 		ret, readerr = zgrab2.ReadAvailable(conn)
 		if err != nil {
