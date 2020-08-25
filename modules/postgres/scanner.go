@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"encoding/json"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -279,6 +280,11 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
 
+// Description returns an overview of this module.
+func (m *Module) Description() string {
+	return "Perform a handshake with a PostgreSQL server"
+}
+
 // Validate checks the arguments; on success, returns nil.
 func (f *Flags) Validate(args []string) error {
 	return nil
@@ -317,11 +323,6 @@ func (s *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (s *Scanner) GetTrigger() string {
 	return s.Config.Trigger
-}
-
-// GetPort returns the port being scanned.
-func (s *Scanner) GetPort() uint {
-	return s.Config.Port
 }
 
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
@@ -538,7 +539,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 // the postgres module with the zgrab2 framework.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("postgres", "Postgres", "Grab a Postgres handshake", 5432, &module)
+	_, err := zgrab2.AddCommand("postgres", "Postgres", module.Description(), 5432, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

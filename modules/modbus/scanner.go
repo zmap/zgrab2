@@ -52,7 +52,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("modbus", "modbus", "Probe for modbus", 502, &module)
+	_, err := zgrab2.AddCommand("modbus", "modbus", module.Description(), 502, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,6 +66,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for Modbus devices, usually PLCs as part of a SCADA system"
 }
 
 // Validate checks that the flags are valid.
@@ -111,11 +116,6 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "modbus"
-}
-
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
 }
 
 // Conn wraps the connection state (more importantly, it provides the interface used by the old zgrab code, so that it
@@ -171,10 +171,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	res, err := c.GetModbusResponse()
 	if res == nil {
-		if err == nil {
-			// unreachable
-			log.Fatalf("Unreachable: no result, no error from modbus.GetModbusResponse()")
-		}
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 

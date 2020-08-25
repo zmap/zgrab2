@@ -17,9 +17,9 @@ function test_cups() {
     CONTAINER_NAME="zgrab_ipp_cups" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3s --verbose > "$OUTPUT_ROOT/cups.json"
     # FIXME: No good reason to use a tmp file & saved file, b/c I'm not testing any failure states yet
     #CONTAINER_NAME="zgrab_ipp_cups" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3 --verbose > out.tmp
-    major=$($ZGRAB_ROOT/jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups.json")
-    minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups.json")
-    cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups.json")
+    major=$(jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups.json")
+    minor=$(jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups.json")
+    cups=$(jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups.json")
     rm -f out.tmp
     if ! [ $major = "2" ]; then
         echo "ipp/test: Incorrect major version. Expected 2, got $major"
@@ -41,12 +41,12 @@ function test_cups_tls() {
     CONTAINER_NAME="zgrab_ipp_cups-tls" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3s --ipps --verbose > "$OUTPUT_ROOT/cups-tls.json"
     # FIXME: No good reason to use a tmp file & saved file, b/c I'm not testing any failure states yet
     #CONTAINER_NAME="zgrab_ipp_cups-tls" $ZGRAB_ROOT/docker-runner/docker-run.sh ipp --timeout 3 --ipps --verbose > out.tmp
-    major=$($ZGRAB_ROOT/jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups-tls.json")
-    minor=$($ZGRAB_ROOT/jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups-tls.json")
-    response=$($ZGRAB_ROOT/jp -u data.ipp.result.response < "$OUTPUT_ROOT/cups-tls.json")
-    cups=$($ZGRAB_ROOT/jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups-tls.json")
+    major=$(jp -u data.ipp.result.version_major < "$OUTPUT_ROOT/cups-tls.json")
+    minor=$(jp -u data.ipp.result.version_minor < "$OUTPUT_ROOT/cups-tls.json")
+    response=$(jp -u data.ipp.result.response < "$OUTPUT_ROOT/cups-tls.json")
+    cups=$(jp -u data.ipp.result.cups_version < "$OUTPUT_ROOT/cups-tls.json")
     # TODO: Check for a particular field in the tls object, since it may be safer
-    tls=$($ZGRAB_ROOT/jp -u data.ipp.result.tls < "$OUTPUT_ROOT/cups-tls.json")
+    tls=$(jp -u data.ipp.result.tls < "$OUTPUT_ROOT/cups-tls.json")
     #rm -f out.tmp
     if ! [ $major = "2" ]; then
         echo "ipp/test: Incorrect major version. Expected 2, got $major"

@@ -363,7 +363,7 @@ func (s *Session) send(req interface{}) (res []byte, err error) {
 		s.Debug("", err)
 		return
 	}
-	if size > 0x00FFFFFF {
+	if size > 0x00FFFFFF || size < 4 {
 		return nil, errors.New("Invalid NetBIOS Session message")
 	}
 
@@ -381,6 +381,7 @@ func (s *Session) send(req interface{}) (res []byte, err error) {
 	switch string(protID) {
 	default:
 		return nil, errors.New("Protocol Not Implemented")
+	case ProtocolSmb:
 	case ProtocolSmb2:
 	}
 

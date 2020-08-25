@@ -33,6 +33,8 @@ const DialectSmb_3_0_2 = 0x0302
 const DialectSmb_3_1_1 = 0x0311
 const DialectSmb2_ALL = 0x02FF
 
+const DialectSmb_1_0 = "\x02NT LM 0.12\x00"
+
 const (
 	CommandNegotiate uint16 = iota
 	CommandSessionSetup
@@ -93,6 +95,21 @@ const (
 	ShareCapAsymmetric             uint32 = 0x00000080
 )
 
+type HeaderV1 struct {
+	ProtocolID       []byte `smb:"fixed:4"`
+	Command          uint8
+	Status           uint32
+	Flags            uint8
+	Flags2           uint16
+	PIDHigh          uint16
+	SecurityFeatures []byte `smb:"fixed:8"`
+	Reserved         uint16
+	TID              uint16
+	PIDLow           uint16
+	UID              uint16
+	MID              uint16
+}
+
 type Header struct {
 	ProtocolID    []byte `smb:"fixed:4"`
 	StructureSize uint16
@@ -107,6 +124,31 @@ type Header struct {
 	TreeID        uint32
 	SessionID     uint64
 	Signature     []byte `smb:"fixed:16"`
+}
+
+type NegotiateReqV1 struct {
+	HeaderV1
+	WordCount uint8
+	ByteCount uint16  // hardcoded to 14
+	Dialects  []uint8 `smb:"fixed:12"`
+}
+
+type NegotiateResV1 struct {
+	HeaderV1
+	WordCount       uint8
+	DialectIndex    uint16
+	SecurityMode    uint8
+	MaxMpxCount     uint16
+	MaxNumberVcs    uint16
+	MaxBufferSize   uint32
+	MaxRawSize      uint32
+	SessionKey      uint32
+	Capabilities    uint32
+	SystemTime      uint64
+	ServerTimezon   uint16
+	ChallengeLength uint8
+	ByteCount       uint16
+	// variable data afterwords that we don't care about
 }
 
 type NegotiateReq struct {
@@ -215,6 +257,12 @@ type TreeDisconnectRes struct {
 	Reserved      uint16
 }
 
+func newHeaderV1() HeaderV1 {
+	return HeaderV1{
+		ProtocolID: []byte(ProtocolSmb),
+	}
+}
+
 func newHeader() Header {
 	return Header{
 		ProtocolID:    []byte(ProtocolSmb2),
@@ -230,6 +278,17 @@ func newHeader() Header {
 		TreeID:        0,
 		SessionID:     0,
 		Signature:     make([]byte, 16),
+	}
+}
+
+func (s *Session) NewNegotiateReqV1() NegotiateReqV1 {
+	header := newHeaderV1()
+	header.Command = 0x72 // SMB1 Negotiate
+	return NegotiateReqV1{
+		HeaderV1:  header,
+		WordCount: 0,
+		ByteCount: 14,
+		Dialects:  []uint8(DialectSmb_1_0),
 	}
 }
 

@@ -6,11 +6,11 @@ echo "redis/setup: Tests setup for redis"
 
 CONTAINER_TAG="zgrab_redis"
 
-configs="password renamed default"
+configs="default password renamed"
 
 for cfg in $configs; do
     CONTAINER_NAME="zgrab_redis_$cfg"
-    
+
     RUN_ARGS="--rm --name $CONTAINER_NAME -td $CONTAINER_TAG redis-server //usr/local/etc/redis/${cfg}.conf"
     # If the container is already running, use it.
     if docker ps --filter "name=$CONTAINER_NAME" | grep -q $CONTAINER_NAME; then
@@ -18,7 +18,7 @@ for cfg in $configs; do
         exit 0
     fi
 
-    # If it is not running, try launching it -- on success, use that. 
+    # If it is not running, try launching it -- on success, use that.
     echo "redis/setup: Trying to launch $CONTAINER_NAME..."
     if ! docker run $RUN_ARGS; then
         echo "redis/setup: Building docker image $CONTAINER_TAG..."

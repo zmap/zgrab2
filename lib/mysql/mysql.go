@@ -22,6 +22,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"time"
+	"io"
 )
 
 const (
@@ -612,31 +614,75 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 	}
 }
 
+// with n and body as if `n, _ := io.Read(body)`, trunc(body, n) returns a hex representation of
+// body[:n] that is at most 96 characters long (longer strings are returned as
+// "<first 16 bytes>...[n - 32] bytes remaining<last 16 bytes>").
+func trunc(body []byte, n int) (result string) {
+	defer func() {
+		if len(result) > 96 {
+			// Failsafe -- never return more than 96 chars.
+			result = result[:96]
+		}
+	}()
+	if body == nil {
+		return "<nil>"
+	}
+	if n > len(body) {
+		n = len(body)
+	}
+	if n < 1 {
+		return "<empty>"
+	}
+	if n < 48 {
+		return fmt.Sprintf("%x", body[:n])
+	}
+	// 16 bytes = 32 bytes hex * 2 + ellipses = 3 * 2 + len("[%d bytes]") = 8 + log10(len - 32)
+	// max len = 24 bits ~= 16 million = 8 digits
+	// = 64 + 6 + 8 + 8 <= 96
+	return fmt.Sprintf("%x...[%d bytes]...%x", body[:16], n - 32, body[n-16:])
+}
+
 // Read a packet and sequence identifier off of the given connection
 func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
-	// @TODO @FIXME Find/use conventional buffered packet-reading functions, handle timeouts / connection reset / etc
 	reader := bufio.NewReader(c.Connection)
 	var header [4]byte
-	n, err := reader.Read(header[:])
+	n, err := io.ReadFull(reader, header[:])
 	if err != nil {
-		return nil, fmt.Errorf("Error reading packet header: %s", err)
+		return nil, fmt.Errorf("error reading packet header: %s", err)
 	}
 	if n != 4 {
-		return nil, fmt.Errorf("Wrong number of bytes returned (got %d, expected 4)", n)
+		// Note -- because of ReadFull, this should be unreachable
+		return nil, fmt.Errorf("wrong number of bytes returned (got %d, expected 4)", n)
 	}
 	seq := header[3]
-	// length is actually Uint24; clear the bogus MSB before decoding
+	// packetSize is actually uint24; clear the bogus MSB before decoding
 	header[3] = 0
-	len := binary.LittleEndian.Uint32(header[:])
+	packetSize := binary.LittleEndian.Uint32(header[:])
+	// While packets can be up to 24 bits (16MB), we cut them off at 19 bits (512kb) -- which should
+	// be more than enough for any legitimate handshake packet.
+	if packetSize > 0x00080000 {
+		var temp [32]byte
+		// try to read up to 32 bytes, or whatever we can in 5ms, to give context for the error.
+		c.Connection.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
+		n, _ := reader.Read(temp[:])
+		err := fmt.Errorf("packet too large (0x%08x bytes): header=%x, next %d bytes=%x", packetSize, header, n, temp[:n])
+		log.Debugf("Received suspiciously large packet: %s", err.Error())
+		status := zgrab2.SCAN_UNKNOWN_ERROR
+		if n > 1 && temp[0] == 0xff {
+			// it looks like an ERRPacket: return SCAN_APPLICATION_ERROR
+			status = zgrab2.SCAN_APPLICATION_ERROR
+		}
+		return nil, zgrab2.NewScanError(status, err)
+	}
 	packet := ConnectionLogEntry{
-		Length:         len,
+		Length:         packetSize,
 		SequenceNumber: seq,
 	}
 
-	var body = make([]byte, len, len)
-	n, err = reader.Read(body)
+	var body = make([]byte, packetSize, packetSize)
+	n, err = io.ReadFull(reader, body)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading %d bytes: %s", len, err)
+		return nil, fmt.Errorf("error reading %d bytes (sequence number = %d, partial body=%s): %s", packetSize, c.SequenceNumber, trunc(body, n), err)
 	}
 	// Log the raw body, even if the parsing fails
 	packet.Raw = base64.StdEncoding.EncodeToString(body)
@@ -648,7 +694,7 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	c.SequenceNumber = seq + 1
 	ret, err := c.decodePacket(body)
 	if err != nil {
-		return nil, fmt.Errorf("Error decoding packet body (length = %d, sequence number = %d): %s", len, seq, err)
+		return nil, fmt.Errorf("error decoding packet body (length = %d, sequence number = %d, body=%s): %s", packetSize, seq, trunc(body, n), err)
 	}
 	packet.Parsed = ret
 
@@ -747,25 +793,36 @@ func readNulString(body []byte) (string, []byte) {
 
 // LEN INT type from https://web.archive.org/web/20160316122921/https://dev.mysql.com/doc/internals/en/integer.html
 func readLenInt(body []byte) (uint64, []byte, error) {
+	bodyLen := len(body)
+	if bodyLen == 0 {
+		return 0, nil, fmt.Errorf("invalid data: empty LEN INT")
+	}
 	v := body[0]
 	if v < 0xfb {
 		return uint64(v), body[1:], nil
 	}
+	size := int(v - 0xfa)
+	if bodyLen - 1 < size {
+		return 0, nil, fmt.Errorf("invalid data: first byte=0x%02x, required size=%d, got %d", v, size, bodyLen - 1)
+	}
 	switch v {
 	case 0xfb:
-		// single byte greater than 0xFA
+		// 0xfb can represent the "null result", but since we are not doing queries, treat it as 0
 		return 0, body[1:], nil
 	case 0xfc:
 		// two little-endian bytes
 		return uint64(binary.LittleEndian.Uint16(body[1:3])), body[3:], nil
 	case 0xfd:
-		// three little-endian bytes (ignore fourth) @TODO @FIXME check that there is actually a fourth byte!
+		// three little-endian bytes (ignore fourth)
 		return uint64(binary.LittleEndian.Uint32(body[1:5]) & 0x00ffffff), body[4:], nil
 	case 0xfe:
+		if bodyLen < 9 {
+			return 0, nil, fmt.Errorf("invalid data: first byte=0xfe, required size=8, got %d", bodyLen - 1)
+		}
 		// eight little-endian bytes
 		return binary.LittleEndian.Uint64(body[1:9]), body[9:], nil
 	default:
-		return 0, nil, fmt.Errorf("Invalid length field for variable-length integer 0x%x", v)
+		return 0, nil, fmt.Errorf("invalid data: first byte=0x%02x is not valid for LEN INT", v)
 	}
 }
 

@@ -149,7 +149,7 @@ type Scanner struct {
 // RegisterModule is called by modules/mysql.go to register the scanner.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mysql", "MySQL", "Grab a MySQL handshake", 3306, &module)
+	_, err := zgrab2.AddCommand("mysql", "MySQL", module.Description(), 3306, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -163,6 +163,11 @@ func (m *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner object.
 func (m *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (m *Module) Description() string {
+	return "Perform a handshake with a MySQL database"
 }
 
 // Validate validates the flags and returns nil on success.
@@ -203,11 +208,6 @@ func (s *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
-}
-
-// GetPort returns the port that is being scanned.
-func (s *Scanner) GetPort() uint {
-	return s.config.Port
 }
 
 // Scan probles the target for a MySQL server.

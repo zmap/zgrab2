@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/zmap/zflags"
+	"github.com/sirupsen/logrus"
+	"runtime/debug"
 )
 
 var parser *flags.Parser
@@ -208,4 +210,19 @@ func IsTimeoutError(err error) bool {
 	}
 
 	return false
+}
+
+// LogPanic is intended to be called from within defer -- if there was no panic, it returns without
+// doing anything. Otherwise, it logs the stacktrace, the panic error, and the provided message
+// before re-raising the original panic.
+// Example:
+//     defer zgrab2.LogPanic("Error decoding body '%x'", body)
+func LogPanic(format string, args...interface{}) {
+	err := recover()
+	if err == nil {
+		return
+	}
+	logrus.Errorf("Uncaught panic at %s: %v", string(debug.Stack()), err)
+	logrus.Errorf(format, args...)
+	panic(err)
 }

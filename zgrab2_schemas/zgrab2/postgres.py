@@ -5,7 +5,7 @@ from zschema.compounds import *
 import zschema.registry
 
 import zcrypto_schemas.zcrypto as zcrypto
-import zgrab2
+from . import zgrab2
 
 # modules/postgres/scanner.go - decodeError() (TODO: Currently an unconstrained
 # map[string]string; it is possible to get "unknown (0x%x)" fields, but it
@@ -14,9 +14,9 @@ import zgrab2
 # These are defined in detail at
 #   https://www.postgresql.org/docs/10/static/protocol-error-fields.html
 postgres_error = SubRecord({
-    "severity": WhitespaceAnalyzedString(required=True),
+    "severity": WhitespaceAnalyzedString(),
     "severity_v": WhitespaceAnalyzedString(),
-    "code": WhitespaceAnalyzedString(required=True),
+    "code": WhitespaceAnalyzedString(),
     "message": WhitespaceAnalyzedString(),
     "detail": WhitespaceAnalyzedString(),
     "hint": WhitespaceAnalyzedString(),
@@ -27,6 +27,7 @@ postgres_error = SubRecord({
     "schema": WhitespaceAnalyzedString(),
     "table": WhitespaceAnalyzedString(),
     "data": WhitespaceAnalyzedString(),
+    "constraint": WhitespaceAnalyzedString(),
     "file": WhitespaceAnalyzedString(),
     "line": WhitespaceAnalyzedString(),
     "routine": WhitespaceAnalyzedString(),
@@ -58,7 +59,7 @@ postgres_scan_response = SubRecord({
         "supported_versions": WhitespaceAnalyzedString(),
         "protocol_error": postgres_error,
         "startup_error": postgres_error,
-        "is_ssl": Boolean(required=True),
+        "is_ssl": Boolean(),
         "authentication_mode": postgres_auth_mode,
         # TODO FIXME: This is currendly an unconstrained map[string]string
         "server_parameters": WhitespaceAnalyzedString(),

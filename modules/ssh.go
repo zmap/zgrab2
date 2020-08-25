@@ -20,6 +20,7 @@ type SSHFlags struct {
 	GexMinBits        uint   `long:"gex-min-bits" description:"The minimum number of bits for the DH GEX prime." default:"1024"`
 	GexMaxBits        uint   `long:"gex-max-bits" description:"The maximum number of bits for the DH GEX prime." default:"8192"`
 	GexPreferredBits  uint   `long:"gex-preferred-bits" description:"The preferred number of bits for the DH GEX prime." default:"2048"`
+	HelloOnly         bool   `long:"hello-only" description:"Limit scan to the initial hello message"`
 	Verbose           bool   `long:"verbose" description:"Output additional information, including SSH client properties from the SSH handshake."`
 }
 
@@ -32,7 +33,7 @@ type SSHScanner struct {
 
 func init() {
 	var sshModule SSHModule
-	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", "Grab a banner over SSH", 22, &sshModule)
+	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,6 +49,11 @@ func (m *SSHModule) NewFlags() interface{} {
 
 func (m *SSHModule) NewScanner() zgrab2.Scanner {
 	return new(SSHScanner)
+}
+
+// Description returns an overview of this module.
+func (m *SSHModule) Description() string {
+	return "Fetch an SSH server banner and collect key exchange information"
 }
 
 func (f *SSHFlags) Validate(args []string) error {
@@ -79,13 +85,21 @@ func (s *SSHScanner) GetTrigger() string {
 func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	data := new(ssh.HandshakeLog)
 
-	port := strconv.FormatUint(uint64(s.config.Port), 10)
-	rhost := net.JoinHostPort(t.Host(), port)
+	var port uint
+	// If the port is supplied in ScanTarget, let that override the cmdline option
+	if t.Port != nil {
+		port = *t.Port
+	} else {
+		port = s.config.Port
+	}
+	portStr := strconv.FormatUint(uint64(port), 10)
+	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()
 	sshConfig.Timeout = s.config.Timeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
+	sshConfig.HelloOnly = s.config.HelloOnly
 	if err := sshConfig.SetHostKeyAlgorithms(s.config.HostKeyAlgorithms); err != nil {
 		log.Fatal(err)
 	}
@@ -100,6 +114,10 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	sshConfig.GexMinBits = s.config.GexMinBits
 	sshConfig.GexMaxBits = s.config.GexMaxBits
 	sshConfig.GexPreferredBits = s.config.GexPreferredBits
+	sshConfig.BannerCallback = func(banner string) error {
+		data.Banner = strings.TrimSpace(banner)
+		return nil
+	}
 	_, err := ssh.Dial("tcp", rhost, sshConfig)
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)

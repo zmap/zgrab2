@@ -22,6 +22,7 @@ type ScanTarget struct {
 	IP     net.IP
 	Domain string
 	Tag    string
+	Port   *uint
 }
 
 func (target ScanTarget) String() string {
@@ -56,14 +57,41 @@ func (target *ScanTarget) Host() string {
 
 // Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
-	return DialTimeoutConnection("tcp", address, flags.Timeout)
+	var port uint
+	// If the port is supplied in ScanTarget, let that override the cmdline option
+	if target.Port != nil {
+		port = *target.Port
+	} else {
+		port = flags.Port
+	}
+
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
+	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
+}
+
+// OpenTLS connects to the ScanTarget using the configured flags, then performs
+// the TLS handshake. On success error is nil, but the connection can be non-nil
+// even if there is an error (this allows fetching the handshake log).
+func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TLSConnection, error) {
+	conn, err := tlsFlags.Connect(target, baseFlags)
+	if err != nil {
+		return conn, err
+	}
+	err = conn.Handshake()
+	return conn, err
 }
 
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
 func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", flags.Port))
+	var port uint
+	// If the port is supplied in ScanTarget, let that override the cmdline option
+	if target.Port != nil {
+		port = *target.Port
+	} else {
+		port = flags.Port
+	}
+	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
 	var local *net.UDPAddr
 	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 		local = &net.UDPAddr{}
@@ -82,10 +110,42 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 	if err != nil {
 		return nil, err
 	}
-	return &TimeoutConnection{
-		Conn:    conn,
-		Timeout: flags.Timeout,
-	}, nil
+	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
+}
+
+// BuildGrabFromInputResponse constructs a Grab object for a target, given the
+// scan responses.
+func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
+	var ipstr string
+
+	if t.IP != nil {
+		ipstr = t.IP.String()
+	}
+	return &Grab{
+		IP:     ipstr,
+		Domain: t.Domain,
+		Data:   responses,
+	}
+}
+
+// EncodeGrab serializes a Grab to JSON, handling the debug fields if necessary.
+func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
+	var outputData interface{}
+	if includeDebug {
+		outputData = raw
+	} else {
+		// If the caller doesn't explicitly request debug data, strip it out.
+		// TODO: Migrate this to the ZMap fork of sheriff, once it's more
+		// stable.
+		processor := output.Processor{Verbose: false}
+		stripped, err := processor.Process(raw)
+		if err != nil {
+			log.Debugf("Error processing results: %v", err)
+			stripped = raw
+		}
+		outputData = stripped
+	}
+	return json.Marshal(outputData)
 }
 
 // grabTarget calls handler for each action
@@ -110,34 +170,13 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
 		}
-	}
-
-	var ipstr string
-	if input.IP == nil {
-		ipstr = ""
-	} else {
-		s := input.IP.String()
-		ipstr = s
-	}
-
-	raw := Grab{IP: ipstr, Domain: input.Domain, Data: moduleResult}
-
-	var outputData interface{} = raw
-
-	if !includeDebugOutput() {
-		// If the caller doesn't explicitly request debug data, strip it out.
-		// Take advantage of the fact that we can skip the (expensive) call to
-		// process if debug output is included (TODO: until Process does anything else)
-		processor := output.Processor{Verbose: false}
-		stripped, err := processor.Process(raw)
-		if err != nil {
-			log.Debugf("Error processing results: %v", err)
-			stripped = raw
+		if res.Status == SCAN_SUCCESS && config.Multiple.BreakOnSuccess {
+			break
 		}
-		outputData = stripped
 	}
 
-	result, err := json.Marshal(outputData)
+	raw := BuildGrabFromInputResponse(&input, moduleResult)
+	result, err := EncodeGrab(raw, includeDebugOutput())
 	if err != nil {
 		log.Fatalf("unable to marshal data: %s", err)
 	}

@@ -36,7 +36,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("telnet", "telnet", "Probe for telnet", 23, &module)
+	_, err := zgrab2.AddCommand("telnet", "telnet", module.Description(), 23, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -50,6 +50,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Fetch a telnet banner"
 }
 
 // Validate checks that the flags are valid.
@@ -89,11 +94,6 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "telnet"
-}
-
-// GetPort returns the port being scanned.
-func (scanner *Scanner) GetPort() uint {
-	return scanner.config.Port
 }
 
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.

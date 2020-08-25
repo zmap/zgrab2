@@ -48,6 +48,10 @@ type ScanModule interface {
 	// NewScanner is called by the framework for each time an individual scan is specified in the config or on
 	// the command-line. The framework will then call scanner.Init(name, flags).
 	NewScanner() Scanner
+
+	// Description returns a string suitable for use as an overview of this
+	// module within usage text.
+	Description() string
 }
 
 // ScanFlags is an interface which must be implemented by all types sent to
@@ -63,10 +67,11 @@ type ScanFlags interface {
 
 // BaseFlags contains the options that every flags type must embed
 type BaseFlags struct {
-	Port    uint          `short:"p" long:"port" description:"Specify port to grab on"`
-	Name    string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
-	Timeout time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
-	Trigger string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
+	Port           uint          `short:"p" long:"port" description:"Specify port to grab on"`
+	Name           string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
+	Timeout        time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
+	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
+	BytesReadLimit int           `short:"m" long:"maxbytes" description:"Maximum byte read limit per scan (0 = defaults)"`
 }
 
 // UDPFlags contains the common options used for all UDP scans

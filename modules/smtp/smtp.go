@@ -3,6 +3,7 @@ package smtp
 import (
 	"net"
 	"regexp"
+	"io"
 
 	"github.com/zmap/zgrab2"
 )
@@ -19,14 +20,14 @@ type Connection struct {
 }
 
 // ReadResponse reads from the connection until it matches the smtpEndRegex. Copied from the original zgrab.
-// TODO: Catch corner cases, parse out response code.
+// TODO: Catch corner cases
 func (conn *Connection) ReadResponse() (string, error) {
 	ret := make([]byte, readBufferSize)
 	n, err := zgrab2.ReadUntilRegex(conn.Conn, ret, smtpEndRegex)
-	if err != nil {
-		return "", nil
+	if err != nil && err != io.EOF && !zgrab2.IsTimeoutError(err) {
+		return "", err
 	}
-	return string(ret[0:n]), nil
+	return string(ret[:n]), nil
 }
 
 // SendCommand sends a command, followed by a CRLF, then wait for / read the server's response.
