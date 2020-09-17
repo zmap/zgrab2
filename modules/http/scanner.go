@@ -416,9 +416,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 
 	if len(scan.results.Response.BodyText) > 0 {
-		if scan.ComputeDecodedBodyHash {
+		if scan.scanner.config.ComputeDecodedBodyHash {
 			raw_hash := sha256.Sum256([]byte(scan.results.Response.BodyText))
-			scan.results.Response.BodyHash = fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash))
+			scan.results.Response.BodyHash = fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
 		} else {
 			m := sha256.New()
 			m.Write(buf.Bytes())
