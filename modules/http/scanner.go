@@ -9,6 +9,7 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -66,6 +67,9 @@ type Flags struct {
 	// ComputeDecodedBodyHash computes the hash later than the default, allowing a user
 	// of the response to recompute a matching hash
 	ComputeDecodedBodyHash bool `long:"compute-decoded-body-hash" description:"Compute the BodySHA256 on the decoded BodyText that is returned instead of on the raw bytes"`
+
+	// BodyHashAlgorithm
+	BodyHashAlgorithm string `long:"body-hash-algorithm" default:"sha256" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -86,6 +90,7 @@ type Module struct {
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
+	hashFn func([]byte) string
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -135,6 +140,21 @@ func (s *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+
+	if fl.BodyHashAlgorithm == "sha1" {
+		scanner.hashFn = func(body []byte) string {
+			raw_hash := sha1.Sum(body)
+			return fmt.Sprintf("sha1:%s", hex.EncodeToString(raw_hash[:]))
+		}
+	} else if fl.BodyHashAlgorithm == "sha256" {
+		scanner.hashFn = func(body []byte) string {
+			raw_hash := sha256.Sum256(body)
+			return fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
+		}
+	} else {
+		log.Panicf("Invalid BodhHashAlgorithm choice made it throug zflags: %s", scanner.config.BodyHashAlgorithm)
+	}
+
 	return nil
 }
 
@@ -417,8 +437,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	if len(scan.results.Response.BodyText) > 0 {
 		if scan.scanner.config.ComputeDecodedBodyHash {
-			raw_hash := sha256.Sum256([]byte(scan.results.Response.BodyText))
-			scan.results.Response.BodyHash = fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
+			scan.results.Response.BodyHash = scan.scanner.hashFn([]byte(scan.results.Response.BodyText))
 		} else {
 			m := sha256.New()
 			m.Write(buf.Bytes())
