@@ -415,7 +415,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if resp.ContentLength >= 0 && resp.ContentLength < maxReadLen {
 		readLen = resp.ContentLength
 	}
-	io.CopyN(buf, resp.Body, readLen)
+	// EOF ignored here because that's the way it was, CopyN goes up to readLen bytes
+	scan.results.Response.BodyTextLength, _ = io.CopyN(buf, resp.Body, readLen)
 	bufAsString := buf.String()
 
 	// do best effort attempt to determine the response's encoding
