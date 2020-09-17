@@ -306,9 +306,13 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		io.CopyN(b, res.Body, readLen)
 		res.BodyText = b.String()
 		if len(res.BodyText) > 0 {
-			m := sha256.New()
-			m.Write(b.Bytes())
-			res.BodySHA256 = m.Sum(nil)
+			if scan.scanner.decodedHashFn != nil {
+				res.BodyHash = scan.scanner.decodedHashFn([]byte(res.BodyText))
+			} else {
+				m := sha256.New()
+				m.Write(b.Bytes())
+				res.BodySHA256 = m.Sum(nil)
+			}
 		}
 
 		if len(via) > scan.scanner.config.MaxRedirects {
