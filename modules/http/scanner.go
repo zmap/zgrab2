@@ -10,7 +10,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -287,13 +289,9 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		io.CopyN(b, res.Body, readLen)
 		res.BodyText = b.String()
 		if len(res.BodyText) > 0 {
-			if scan.ComputeDecodedBodyHash {
-				res.BodySHA256 = sha256.Sum256([]byte(res.BodyText))
-			} else {
-				m := sha256.New()
-				m.Write(b.Bytes())
-				res.BodySHA256 = m.Sum(nil)
-			}
+			m := sha256.New()
+			m.Write(b.Bytes())
+			res.BodySHA256 = m.Sum(nil)
 		}
 
 		if len(via) > scan.scanner.config.MaxRedirects {
@@ -419,7 +417,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	if len(scan.results.Response.BodyText) > 0 {
 		if scan.ComputeDecodedBodyHash {
-			scan.results.Response.BodySHA256 = sha256.Sum256([]byte(scan.results.Response.BodyText))
+			raw_hash := sha256.Sum256([]byte(scan.results.Response.BodyText))
+			scan.results.Response.BodyHash = fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash))
 		} else {
 			m := sha256.New()
 			m.Write(buf.Bytes())
