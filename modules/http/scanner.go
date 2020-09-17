@@ -152,7 +152,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 			return fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
 		}
 	} else {
-		log.Panicf("Invalid BodhHashAlgorithm choice made it throug zflags: %s", scanner.config.BodyHashAlgorithm)
+		log.Panicf("Invalid BodhHashAlgorithm choice made it through zflags: %s", scanner.config.BodyHashAlgorithm)
 	}
 
 	return nil

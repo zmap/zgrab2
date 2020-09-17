@@ -157,6 +157,7 @@ func (cfg *readLimitTestConfig) getScanner(t *testing.T) *Scanner {
 	flags.Timeout = 1 * time.Second
 	flags.Port = uint(cfg.port)
 	flags.UseHTTPS = cfg.tls
+	flags.BodyHashAlgorithm = "sha1"
 	zgrab2.DefaultBytesReadLimit = cfg.maxReadSize
 	scanner := module.NewScanner()
 	scanner.Init(flags)
