@@ -60,6 +60,10 @@ type Flags struct {
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
+
+	// ComputeDecodedBodyHash computes the hash later than the default, allowing a user
+	// of the response to recompute a matching hash
+	ComputeDecodedBodyHash bool `long:"compute-decoded-body-hash" description:"Compute the BodySHA256 on the decoded BodyText that is returned instead of on the raw bytes"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -283,9 +287,13 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		io.CopyN(b, res.Body, readLen)
 		res.BodyText = b.String()
 		if len(res.BodyText) > 0 {
-			m := sha256.New()
-			m.Write(b.Bytes())
-			res.BodySHA256 = m.Sum(nil)
+			if scan.ComputeDecodedBodyHash {
+				res.BodySHA256 = sha256.Sum256([]byte(res.BodyText))
+			} else {
+				m := sha256.New()
+				m.Write(b.Bytes())
+				res.BodySHA256 = m.Sum(nil)
+			}
 		}
 
 		if len(via) > scan.scanner.config.MaxRedirects {
@@ -410,9 +418,13 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 
 	if len(scan.results.Response.BodyText) > 0 {
-		m := sha256.New()
-		m.Write(buf.Bytes())
-		scan.results.Response.BodySHA256 = m.Sum(nil)
+		if scan.ComputeDecodedBodyHash {
+			scan.results.Response.BodySHA256 = sha256.Sum256([]byte(scan.results.Response.BodyText))
+		} else {
+			m := sha256.New()
+			m.Write(buf.Bytes())
+			scan.results.Response.BodySHA256 = m.Sum(nil)
+		}
 	}
 
 	return nil
