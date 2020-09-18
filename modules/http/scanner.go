@@ -67,6 +67,9 @@ type Flags struct {
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
 	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
+
+	// WithBodyLength enables adding the body_size field to the Response
+	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -303,7 +306,10 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if res.ContentLength >= 0 && res.ContentLength < maxReadLen {
 			readLen = res.ContentLength
 		}
-		io.CopyN(b, res.Body, readLen)
+		bytesRead, _ := io.CopyN(b, res.Body, readLen)
+		if scan.scanner.config.WithBodyLength {
+			res.BodyTextLength = bytesRead
+		}
 		res.BodyText = b.String()
 		if len(res.BodyText) > 0 {
 			if scan.scanner.decodedHashFn != nil {
@@ -420,7 +426,10 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		readLen = resp.ContentLength
 	}
 	// EOF ignored here because that's the way it was, CopyN goes up to readLen bytes
-	scan.results.Response.BodyTextLength, _ = io.CopyN(buf, resp.Body, readLen)
+	bytesRead, _ := io.CopyN(buf, resp.Body, readLen)
+	if scan.scanner.config.WithBodyLength {
+		scan.results.Response.BodyTextLength = bytesRead
+	}
 	bufAsString := buf.String()
 
 	// do best effort attempt to determine the response's encoding
