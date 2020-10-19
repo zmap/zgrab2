@@ -68,7 +68,7 @@ type Scanner struct {
 type Connection struct {
 	// buffer is a temporary buffer for sending commands -- so, never interleave
 	// sendCommand calls on a given connection
-	buffer  [1024]byte
+	buffer  [10000]byte
 	config  *Flags
 	results ScanResults
 	conn    net.Conn
@@ -156,6 +156,7 @@ func (ftp *Connection) isOKResponse(retCode string) bool {
 // readResponse reads an FTP response chunk from the server.
 // It returns the full response, as well as the status code alone.
 func (ftp *Connection) readResponse() (string, string, error) {
+	log.Fatalf("buffer size: %d", len(ftp.buffer))
 	respLen, err := zgrab2.ReadUntilRegex(ftp.conn, ftp.buffer[:], ftpEndRegex)
 	if err != nil {
 		return "", "", err
