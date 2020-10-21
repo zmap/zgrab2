@@ -9,10 +9,9 @@ import (
 
 	"time"
 
-	"runtime/debug"
-
+	"github.com/zmap/zflags"
 	"github.com/sirupsen/logrus"
-	flags "github.com/zmap/zflags"
+	"runtime/debug"
 )
 
 var parser *flags.Parser
