@@ -162,7 +162,6 @@ var InsufficientBufferError = errors.New("not enough buffer space")
 func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, error) {
 	buf := res[0:]
 	length := 0
-	logrus.Errorf("res size: %d", len(res))
 	for finished := false; !finished; {
 		n, err := connection.Read(buf)
 		length += n

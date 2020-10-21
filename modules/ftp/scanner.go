@@ -156,7 +156,6 @@ func (ftp *Connection) isOKResponse(retCode string) bool {
 // readResponse reads an FTP response chunk from the server.
 // It returns the full response, as well as the status code alone.
 func (ftp *Connection) readResponse() (string, string, error) {
-	log.Errorf("buffer size: %d", len(ftp.buffer))
 	respLen, err := zgrab2.ReadUntilRegex(ftp.conn, ftp.buffer[:], ftpEndRegex)
 	if err != nil {
 		return "", "", err
