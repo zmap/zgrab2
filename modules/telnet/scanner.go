@@ -21,6 +21,7 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags
 	MaxReadSize int  `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
+	Banner      bool `long:"force-banner" description:"Always return banner if it has non-zero bytes"`
 	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
@@ -105,7 +106,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	defer conn.Close()
 	result := new(TelnetLog)
 	if err := GetTelnetBanner(result, conn, scanner.config.MaxReadSize); err != nil {
-		return zgrab2.TryGetScanStatus(err), result.getResult(), err
+		if scanner.config.Banner && len(result.Banner) > 0 {
+			return zgrab2.TryGetScanStatus(err), result, err
+		} else {
+			return zgrab2.TryGetScanStatus(err), result.getResult(), err
+		}
 	}
 	return zgrab2.SCAN_SUCCESS, result, nil
 }
