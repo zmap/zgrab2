@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"time"
 )
 
 // Flags give the command-line flags for the banner module.
@@ -126,7 +127,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			continue
 		}
 
-		ret, err = zgrab2.ReadAvailable(conn)
+		// ret, err = zgrab2.ReadAvailable(conn)
+		ret, err = zgrab2.ReadAvailableWithOptions(conn, 1484, 500*time.Millisecond, 0, 1484)
 		if err != io.EOF && err != nil {
 			rawhashes = append(rawhashes, "")
 			continue
