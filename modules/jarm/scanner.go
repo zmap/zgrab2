@@ -119,11 +119,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
-		defer conn.Close()
 
 		_, err = conn.Write([]byte(data))
 		if err != nil {
 			rawhashes = append(rawhashes, "")
+			conn.Close()
 			continue
 		}
 
@@ -131,16 +131,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		ret, err = zgrab2.ReadAvailableWithOptions(conn, 1484, 500*time.Millisecond, 0, 1484)
 		if err != io.EOF && err != nil {
 			rawhashes = append(rawhashes, "")
+			conn.Close()
 			continue
 		}
 
 		ans, err := jarm.ParseServerHello(ret, probe)
 		if err != nil {
 			rawhashes = append(rawhashes, "")
+			conn.Close()
 			continue
 		}
 
 		rawhashes = append(rawhashes, string(ans))
+		conn.Close()
 
 	}
 
