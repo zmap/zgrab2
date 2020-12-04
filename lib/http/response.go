@@ -60,6 +60,11 @@ type Response struct {
 	Body       io.ReadCloser   `json:"-"`
 	BodyText   string          `json:"body,omitempty"`
 	BodySHA256 PageFingerprint `json:"body_sha256,omitempty"`
+	// BodyHash is the hash digest hex of the decoded http body, formatted `<kind>:<hex>`
+	// e.g. `sha256:deadbeef100020003000400050006000700080009000a000b000c000d000e000`
+	BodyHash string `json:"body_hash,omitempty"`
+	// Number of bytes read from the server and encoded into BodyText
+	BodyTextLength int64 `json:"body_length,omitempty"`
 
 	// ContentLength records the length of the associated content. The
 	// value -1 indicates that the length is unknown. Unless Request.Method
