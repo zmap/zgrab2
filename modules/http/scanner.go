@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -62,6 +64,10 @@ type Flags struct {
 	// RedirectsSucceed causes the ErrTooManRedirects error to be suppressed
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
 
+	// Set arbitrary HTTP headers
+	CustomHeadersNames  string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
+	CustomHeadersValues string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
+
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
@@ -90,6 +96,7 @@ type Module struct {
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	config        *Flags
+	customHeaders map[string]string
 	decodedHashFn func([]byte) string
 }
 
@@ -140,6 +147,40 @@ func (s *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+
+	// parse out custom headers at initialization so that they can be easily
+	// iterated over when constructing individual scanners
+	if len(fl.CustomHeadersNames) > 0 || len(fl.CustomHeadersValues) > 0 {
+		if len(fl.CustomHeadersNames) == 0 {
+			return errors.New("custom-headers-names must be specified if custom-headers-values is provided")
+		}
+		if len(fl.CustomHeadersValues) == 0 {
+			return errors.New("custom-headers-values must be specified if custom-headers-names is provided")
+		}
+		namesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersNames))
+		if namesReader == nil {
+			return errors.New("unable to read custom-headers-names in CSV reader")
+		}
+		valuesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersValues))
+		if valuesReader == nil {
+			return errors.New("unable to read custom-headers-values in CSV reader")
+		}
+		headerNames, err := namesReader.Read()
+		if err != nil {
+			return err
+		}
+		headerValues, err := valuesReader.Read()
+		if err != nil {
+			return err
+		}
+		if len(headerNames) != len(headerNames) {
+			return errors.New("inconsistent number of HTTP header names and values")
+		}
+		scanner.customHeaders = make(map[string]string)
+		for i := 0; i < len(headerNames); i++ {
+			scanner.customHeaders[headerNames[i]] = headerValues[i]
+		}
+	}
 
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
 		scanner.decodedHashFn = func(body []byte) string {
@@ -393,8 +434,19 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
-	// TODO: Headers from input?
-	request.Header.Set("Accept", "*/*")
+
+	// If headers are specified, they are the ONLY headers that will be used
+	if scan.scanner.customHeaders != nil {
+		request.Header.Set("Accept", "*/*")
+		for k, v := range scan.scanner.customHeaders {
+			request.Header.Set(k, v)
+		}
+	} else {
+		// If user did not specify custom headers, legacy behavior has always been
+		// to set the Accept header
+		request.Header.Set("Accept", "*/*")
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
