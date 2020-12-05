@@ -139,7 +139,7 @@ func (flags *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "http"
 }
 
@@ -152,18 +152,18 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	// iterated over when constructing individual scanners
 	if len(fl.CustomHeadersNames) > 0 || len(fl.CustomHeadersValues) > 0 {
 		if len(fl.CustomHeadersNames) == 0 {
-			return errors.New("custom-headers-names must be specified if custom-headers-values is provided")
+			log.Panicf("custom-headers-names must be specified if custom-headers-values is provided")
 		}
 		if len(fl.CustomHeadersValues) == 0 {
-			return errors.New("custom-headers-values must be specified if custom-headers-names is provided")
+			log.Panicf("custom-headers-values must be specified if custom-headers-names is provided")
 		}
 		namesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersNames))
 		if namesReader == nil {
-			return errors.New("unable to read custom-headers-names in CSV reader")
+			log.Panicf("unable to read custom-headers-names in CSV reader")
 		}
 		valuesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersValues))
 		if valuesReader == nil {
-			return errors.New("unable to read custom-headers-values in CSV reader")
+			log.Panicf("unable to read custom-headers-values in CSV reader")
 		}
 		headerNames, err := namesReader.Read()
 		if err != nil {
@@ -173,24 +173,40 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		if err != nil {
 			return err
 		}
-		if len(headerNames) != len(headerNames) {
-			return errors.New("inconsistent number of HTTP header names and values")
+		if len(headerNames) != len(headerValues) {
+			log.Panicf("inconsistent number of HTTP header names and values")
 		}
 		scanner.customHeaders = make(map[string]string)
 		for i := 0; i < len(headerNames); i++ {
-			scanner.customHeaders[headerNames[i]] = headerValues[i]
+			// case fo header names is normalized to title case later by HTTP library
+			// explicitly ToLower() to catch duplicates more easily
+			hName := strings.ToLower(headerNames[i])
+			switch {
+			case hName == "host":
+				log.Panicf("Attempt to set immutable header 'Host', specify this in targets file")
+			case hName == "user-agent":
+				log.Panicf("Attempt to set special header 'User-Agent', use --user-agent instead")
+			case hName == "content-length":
+				log.Panicf("Attempt to set immutable header 'Content-Length'")
+			}
+			// Disallow duplicate headers
+			_, ok := scanner.customHeaders[hName]
+			if ok {
+				log.Panicf("Attempt to set same custom header twice")
+			}
+			scanner.customHeaders[hName] = headerValues[i]
 		}
 	}
 
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
 		scanner.decodedHashFn = func(body []byte) string {
-			raw_hash := sha1.Sum(body)
-			return fmt.Sprintf("sha1:%s", hex.EncodeToString(raw_hash[:]))
+			rawHash := sha1.Sum(body)
+			return fmt.Sprintf("sha1:%s", hex.EncodeToString(rawHash[:]))
 		}
 	} else if fl.ComputeDecodedBodyHashAlgorithm == "sha256" {
 		scanner.decodedHashFn = func(body []byte) string {
-			raw_hash := sha256.Sum256(body)
-			return fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
+			rawHash := sha256.Sum256(body)
+			return fmt.Sprintf("sha256:%s", hex.EncodeToString(rawHash[:]))
 		}
 	} else if fl.ComputeDecodedBodyHashAlgorithm != "" {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
@@ -435,7 +451,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
 
-	// If headers are specified, they are the ONLY headers that will be used
+	// By default, the following headers are *always* set:
+	// Host, User-Agent, Accept, Accept-Encoding
 	if scan.scanner.customHeaders != nil {
 		request.Header.Set("Accept", "*/*")
 		for k, v := range scan.scanner.customHeaders {
