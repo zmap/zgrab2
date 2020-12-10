@@ -133,7 +133,7 @@ type SMBLog struct {
 
 	// If present, represent the NativeOS, NTLM, and GroupName fields of SMBv1 Session Setup Negotiation
 	// An empty string for these values indicate the data was not available
-	OsName    string `json:"os_name"`
+	NativeOs  string `json:"native_os"`
 	NTLM      string `json:"ntlm"`
 	GroupName string `json:"group_name"`
 
@@ -323,7 +323,7 @@ func (ls *LoggedSession) LoggedSessionSetupV1() (err error) {
 	// These fields are technically all optional, but guaranteed to be in this order
 	fields := strings.Split(decoded, "\000")
 	if len(fields) > 0 {
-		ls.Log.OsName = fields[0]
+		ls.Log.NativeOs = fields[0]
 	}
 	if len(fields) > 1 {
 		ls.Log.NTLM = fields[1]
