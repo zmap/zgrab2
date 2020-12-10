@@ -215,9 +215,9 @@ func GetSMBLog(conn net.Conn, session bool, v1 bool, debug bool) (smbLog *SMBLog
 	}
 
 	if v1 {
-		result, err := s.LoggedNegotiateProtocolv1(session)
+		err := s.LoggedNegotiateProtocolv1(session)
 		if err == nil && session {
-			s.LoggedSessionSetupV1(result)
+			s.LoggedSessionSetupV1()
 		}
 	} else {
 		err = s.LoggedNegotiateProtocol(session)
@@ -239,7 +239,7 @@ func wstring(input []byte) string {
 // header with an invalid command; the response with be an error
 // code, but with a v1 ProtocolID
 // TODO: Parse the unmarshaled results.
-func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) (*NegotiateResV1, error) {
+func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
 	s := &ls.Session
 
 	negReq := s.NewNegotiateReqV1()
@@ -247,7 +247,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) (*NegotiateResV1,
 	buf, err := s.send(negReq)
 	if err != nil {
 		s.Debug("", err)
-		return nil, err
+		return err
 	}
 
 	logStruct := new(SMBLog)
@@ -263,7 +263,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) (*NegotiateResV1,
 			Revision:  0,
 			VerString: "SMB 1.0"}
 	} else {
-		return nil, fmt.Errorf("Invalid v1 Protocol ID\n")
+		return fmt.Errorf("Invalid v1 Protocol ID\n")
 	}
 
 	negRes := NegotiateResV1{}
@@ -272,15 +272,14 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) (*NegotiateResV1,
 		s.Debug("Raw:\n"+hex.Dump(buf), err)
 		// Not returning error here, because the NegotiationResV1 is
 		// only valid for the extended NT LM 0.12 dialect of SMB1.
-		return nil, nil
 	}
 
 	// TODO: Parse capabilities and return those results
 
-	return &negRes, nil
+	return nil
 }
 
-func (ls *LoggedSession) LoggedSessionSetupV1(negRes *NegotiateResV1) (err error) {
+func (ls *LoggedSession) LoggedSessionSetupV1() (err error) {
 	s := &ls.Session
 	var buf []byte
 
