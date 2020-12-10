@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 
 	"unicode/utf16"
 
@@ -130,6 +131,12 @@ type SMBLog struct {
 
 	Version *SMBVersions `json:"smb_version,omitempty"`
 
+	// If present, represent the NativeOS, NTLM, and GroupName fields of SMBv1 Session Setup Negotiation
+	// An empty string for these values indicate the data was not available
+	OsName    string `json:"os_name"`
+	NTLM      string `json:"ntlm"`
+	GroupName string `json:"group_name"`
+
 	// While the NegotiationLogs and SessionSetupLog each have their own
 	// Capabilties field, we are ignoring the SessionsSetupLog capability
 	// when decoding, and only representing the server capabilties based
@@ -208,7 +215,10 @@ func GetSMBLog(conn net.Conn, session bool, v1 bool, debug bool) (smbLog *SMBLog
 	}
 
 	if v1 {
-		err = s.LoggedNegotiateProtocolv1(session)
+		result, err := s.LoggedNegotiateProtocolv1(session)
+		if err == nil && session {
+			s.LoggedSessionSetupV1(result)
+		}
 	} else {
 		err = s.LoggedNegotiateProtocol(session)
 	}
@@ -229,7 +239,7 @@ func wstring(input []byte) string {
 // header with an invalid command; the response with be an error
 // code, but with a v1 ProtocolID
 // TODO: Parse the unmarshaled results.
-func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
+func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) (*NegotiateResV1, error) {
 	s := &ls.Session
 
 	negReq := s.NewNegotiateReqV1()
@@ -237,7 +247,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
 	buf, err := s.send(negReq)
 	if err != nil {
 		s.Debug("", err)
-		return err
+		return nil, err
 	}
 
 	logStruct := new(SMBLog)
@@ -253,7 +263,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
 			Revision:  0,
 			VerString: "SMB 1.0"}
 	} else {
-		return fmt.Errorf("Invalid v1 Protocol ID\n")
+		return nil, fmt.Errorf("Invalid v1 Protocol ID\n")
 	}
 
 	negRes := NegotiateResV1{}
@@ -262,9 +272,66 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
 		s.Debug("Raw:\n"+hex.Dump(buf), err)
 		// Not returning error here, because the NegotiationResV1 is
 		// only valid for the extended NT LM 0.12 dialect of SMB1.
+		return nil, nil
 	}
 
 	// TODO: Parse capabilities and return those results
+
+	return &negRes, nil
+}
+
+func (ls *LoggedSession) LoggedSessionSetupV1(negRes *NegotiateResV1) (err error) {
+	s := &ls.Session
+	var buf []byte
+
+	req := s.NewSessionSetupV1Req()
+	s.Debug("Sending LoggedSessionSetupV1 Request", nil)
+	buf, err = s.send(req)
+	if err != nil {
+		s.Debug("No response to SMBv1 cleartext SessionSetup", nil)
+		return nil
+	}
+
+	// Safely trim down everything except the payload
+	if len(buf) < SmbHeaderV1Length {
+		return nil
+	}
+	// When using unicode, a padding byte will exist after the header
+	paddingLength := int((buf[11] >> 7) & 1)
+	// Skip header
+	buf = buf[SmbHeaderV1Length:]
+	// The byte after the header holds the number of words in uint16s
+	if len(buf) < (int(buf[0])*2)+3+paddingLength {
+		return nil
+	}
+	// words + 3 bytes for wordlength & bytecount + potential unicode padding
+	buf = buf[(int(buf[0])*2)+3+paddingLength:]
+
+	var decoded string
+	if paddingLength == 1 {
+		// Unicode string
+		decoded, err = encoder.FromSmbString(buf)
+		if err != nil {
+			s.Debug("Error encountered while decoding SMB string", err)
+			return nil
+		}
+	} else {
+		// ASCII string
+		decoded = string(buf)
+	}
+
+	// We expect 3 null-terminated strings in this order;
+	// These fields are technically all optional, but guaranteed to be in this order
+	fields := strings.Split(decoded, "\000")
+	if len(fields) > 0 {
+		ls.Log.OsName = fields[0]
+	}
+	if len(fields) > 1 {
+		ls.Log.NTLM = fields[1]
+	}
+	if len(fields) > 2 {
+		ls.Log.GroupName = fields[2]
+	}
 
 	return nil
 }
