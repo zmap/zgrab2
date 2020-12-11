@@ -65,8 +65,9 @@ type Flags struct {
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
 
 	// Set arbitrary HTTP headers
-	CustomHeadersNames  string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
-	CustomHeadersValues string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
+	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
+	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
+	CustomHeadersDelimeter string `long:"custom-headers-delimeter" description:"Delimeter for customer header name/value CSVs"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -165,6 +166,14 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		if valuesReader == nil {
 			log.Panicf("unable to read custom-headers-values in CSV reader")
 		}
+
+		// By default, the CSV delimeter will remain a comma unless explicitly specified
+		if len(fl.CustomHeadersDelimeter) > 1 {
+			log.Panicf("Invalid delimeter custom-header delimeter, must be a single character")
+		} else if fl.CustomHeadersDelimeter != "" {
+			valuesReader.Comma = rune(fl.CustomHeadersDelimeter[0])
+		}
+
 		headerNames, err := namesReader.Read()
 		if err != nil {
 			return err
