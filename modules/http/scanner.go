@@ -172,6 +172,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 			log.Panicf("Invalid delimeter custom-header delimeter, must be a single character")
 		} else if fl.CustomHeadersDelimeter != "" {
 			valuesReader.Comma = rune(fl.CustomHeadersDelimeter[0])
+			namesReader.Comma = rune(fl.CustomHeadersDelimeter[0])
 		}
 
 		headerNames, err := namesReader.Read()
