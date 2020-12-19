@@ -143,6 +143,9 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), bodyLen, maxPacketSize)
 		sizeToRead = maxPacketSize
 	}
+	if sizeToRead < 4 {
+		sizeToRead = 4
+	}
 	body := make([]byte, sizeToRead - 4) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, body)
 	if err != nil && err != io.EOF {
