@@ -170,7 +170,6 @@ type NegotiateResV1 struct {
 	ServerTimezon   uint16
 	ChallengeLength uint8
 	ByteCount       uint16 `smb:"len:VarData"`
-	// variable data afterwards that we don't care about
 	VarData []byte
 }
 
