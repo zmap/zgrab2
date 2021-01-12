@@ -123,9 +123,9 @@ func init() {
 
 ### Output schema
 
-To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](schemas/__init__.py) to ensure that it is loaded.
+To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](zgrab2_schemas/__init__.py) to ensure that it is loaded.
 
-See [schemas/README.md](schemas/README.md) for details.
+See [schemas/README.md](zgrab2_schemas/README.md) for details.
 
 ### Integration tests
 To add integration tests for the new module, run `integration_tests/new.sh [your_new_protocol_name]`.
