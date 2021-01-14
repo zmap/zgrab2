@@ -6,6 +6,7 @@
 package fox
 
 import (
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -109,7 +110,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if !result.IsFox {
 		result = nil
 		err = &zgrab2.ScanError{
-			Err:    fmt.Errorf("host with ip %s, answer, but is not a fox service", target.IP),
+			Err:    errors.New("host responds, but is not a fox service"),
 			Status: zgrab2.SCAN_PROTOCOL_ERROR,
 		}
 	}
