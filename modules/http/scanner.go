@@ -425,25 +425,36 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if resp.ContentLength >= 0 && resp.ContentLength < maxReadLen {
 		readLen = resp.ContentLength
 	}
-	// EOF ignored here because that's the way it was, CopyN goes up to readLen bytes
-	bytesRead, _ := io.CopyN(buf, resp.Body, readLen)
-	if scan.scanner.config.WithBodyLength {
-		scan.results.Response.BodyTextLength = bytesRead
-	}
-	bufAsString := buf.String()
+	io.CopyN(buf, resp.Body, readLen)
+	encoder, encoding, certain := charset.DetermineEncoding(buf.Bytes(), resp.Header.Get("content-type"))
 
-	// do best effort attempt to determine the response's encoding
-	// ignore the certainty and just go with it
-	encoder, _, _ := charset.DetermineEncoding(buf.Bytes(), resp.Header.Get("content_type"))
+	bodyText := ""
+	decodedSuccessfully := false
 	decoder := encoder.NewDecoder()
+	
+	//"windows-1252" is the default value and will likely not decode correctly
+	if certain || encoding != "windows-1252" {
+		decoded, decErr := decoder.Bytes(buf.Bytes())
 
-	decoded, decErr := decoder.String(bufAsString)
+		if decErr == nil {
+			bodyText = string(decoded)
+			decodedSuccessfully = true
+		}
+	}
 
-	// if the decoder errors out just use the buffer as a string
-	if decErr == nil {
-		scan.results.Response.BodyText = decoded
+	if !decodedSuccessfully {
+		bodyText = buf.String()
+	}
+
+	// re-enforce readlen
+	if int64(len(bodyText)) > readLen {
+		scan.results.Response.BodyText = bodyText[:int(readLen)]
 	} else {
-		scan.results.Response.BodyText = bufAsString
+		scan.results.Response.BodyText = bodyText
+	}
+
+	if scan.scanner.config.WithBodyLength {
+		scan.results.Response.BodyTextLength = int64(len(scan.results.Response.BodyText))
 	}
 
 	if len(scan.results.Response.BodyText) > 0 {
