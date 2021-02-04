@@ -214,7 +214,7 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 	case err == nil && (code < 200 || code >= 300):
 		return zgrab2.SCAN_APPLICATION_ERROR, code
 	case err == nil,
-	     strings.Contains(banner, "STMP"),
+	     strings.Contains(banner, "SMTP"),
 	     strings.Contains(lowerBanner, "blacklist"),
 	     strings.Contains(lowerBanner, "abuse"),
 	     strings.Contains(lowerBanner, "rbl"),
