@@ -299,12 +299,13 @@ func (ls *LoggedSession) LoggedSessionSetupV1() (err error) {
 	paddingLength := int((buf[11] >> 7) & 1)
 	// Skip header
 	buf = buf[SmbHeaderV1Length:]
-	// The byte after the header holds the number of words in uint16s
-	if len(buf) < (int(buf[0])*2)+3+paddingLength {
+	// The byte after the header holds the number of words remaining in uint16s
+	// words + 3 bytes for wordlength & bytecount + potential unicode padding
+	claimedRemainingSize := int(buf[0])*2 + 3 + paddingLength
+	if len(buf) < claimedRemainingSize {
 		return nil
 	}
-	// words + 3 bytes for wordlength & bytecount + potential unicode padding
-	buf = buf[(int(buf[0])*2)+3+paddingLength:]
+	buf = buf[claimedRemainingSize:]
 
 	var decoded string
 	if paddingLength == 1 {
