@@ -91,6 +91,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 
 	// TODO: Find standard names
 	cipherMap := map[string][]uint16{
+		"portable":        tls.PortableCiphers,
 		"dhe-only":        tls.DHECiphers,
 		"ecdhe-only":      tls.ECDHECiphers,
 		"exports-dh-only": tls.DHEExportCiphers,
