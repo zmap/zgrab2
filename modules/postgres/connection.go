@@ -22,6 +22,8 @@ const maxOutputSize = 1024
 // Don't read an unlimited number of tag/value pairs from the server
 const maxReadAllPackets = 64
 
+const uint32Len = 4
+
 // Connection wraps the state of a given connection to a server.
 type Connection struct {
 	// Target is the requested scan target.
@@ -143,7 +145,10 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		log.Debugf("postgres server %s reported packet size of %d bytes; only reading %d bytes.", c.Target.String(), bodyLen, maxPacketSize)
 		sizeToRead = maxPacketSize
 	}
-	body := make([]byte, sizeToRead - 4) // Length includes the length of the Length uint32
+	if sizeToRead < uint32Len {
+		sizeToRead = uint32Len
+	}
+	body := make([]byte, sizeToRead - uint32Len) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
