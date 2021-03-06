@@ -9,8 +9,11 @@ package http
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -60,6 +63,13 @@ type Flags struct {
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
+
+	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
+	// using the specified algorithm, allowing a user of the response to recompute a matching hash
+	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
+
+	// WithBodyLength enables adding the body_size field to the Response
+	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -79,7 +89,8 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config        *Flags
+	decodedHashFn func([]byte) string
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -129,6 +140,21 @@ func (s *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+
+	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
+		scanner.decodedHashFn = func(body []byte) string {
+			raw_hash := sha1.Sum(body)
+			return fmt.Sprintf("sha1:%s", hex.EncodeToString(raw_hash[:]))
+		}
+	} else if fl.ComputeDecodedBodyHashAlgorithm == "sha256" {
+		scanner.decodedHashFn = func(body []byte) string {
+			raw_hash := sha256.Sum256(body)
+			return fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
+		}
+	} else if fl.ComputeDecodedBodyHashAlgorithm != "" {
+		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
+	}
+
 	return nil
 }
 
@@ -280,12 +306,19 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if res.ContentLength >= 0 && res.ContentLength < maxReadLen {
 			readLen = res.ContentLength
 		}
-		io.CopyN(b, res.Body, readLen)
+		bytesRead, _ := io.CopyN(b, res.Body, readLen)
+		if scan.scanner.config.WithBodyLength {
+			res.BodyTextLength = bytesRead
+		}
 		res.BodyText = b.String()
 		if len(res.BodyText) > 0 {
-			m := sha256.New()
-			m.Write(b.Bytes())
-			res.BodySHA256 = m.Sum(nil)
+			if scan.scanner.decodedHashFn != nil {
+				res.BodyHash = scan.scanner.decodedHashFn([]byte(res.BodyText))
+			} else {
+				m := sha256.New()
+				m.Write(b.Bytes())
+				res.BodySHA256 = m.Sum(nil)
+			}
 		}
 
 		if len(via) > scan.scanner.config.MaxRedirects {
@@ -392,7 +425,11 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if resp.ContentLength >= 0 && resp.ContentLength < maxReadLen {
 		readLen = resp.ContentLength
 	}
-	io.CopyN(buf, resp.Body, readLen)
+	// EOF ignored here because that's the way it was, CopyN goes up to readLen bytes
+	bytesRead, _ := io.CopyN(buf, resp.Body, readLen)
+	if scan.scanner.config.WithBodyLength {
+		scan.results.Response.BodyTextLength = bytesRead
+	}
 	bufAsString := buf.String()
 
 	// do best effort attempt to determine the response's encoding
@@ -410,9 +447,13 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 
 	if len(scan.results.Response.BodyText) > 0 {
-		m := sha256.New()
-		m.Write(buf.Bytes())
-		scan.results.Response.BodySHA256 = m.Sum(nil)
+		if scan.scanner.decodedHashFn != nil {
+			scan.results.Response.BodyHash = scan.scanner.decodedHashFn([]byte(scan.results.Response.BodyText))
+		} else {
+			m := sha256.New()
+			m.Write(buf.Bytes())
+			scan.results.Response.BodySHA256 = m.Sum(nil)
+		}
 	}
 
 	return nil

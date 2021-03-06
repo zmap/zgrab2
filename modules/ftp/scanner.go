@@ -68,7 +68,7 @@ type Scanner struct {
 type Connection struct {
 	// buffer is a temporary buffer for sending commands -- so, never interleave
 	// sendCommand calls on a given connection
-	buffer  [1024]byte
+	buffer  [10000]byte
 	config  *Flags
 	results ScanResults
 	conn    net.Conn
