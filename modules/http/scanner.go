@@ -188,7 +188,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		}
 		scanner.customHeaders = make(map[string]string)
 		for i := 0; i < len(headerNames); i++ {
-			// case fo header names is normalized to title case later by HTTP library
+			// The case of header names is normalized to title case later by HTTP library
 			// explicitly ToLower() to catch duplicates more easily
 			hName := strings.ToLower(headerNames[i])
 			switch {
