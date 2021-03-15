@@ -95,6 +95,10 @@ const (
 	ShareCapAsymmetric             uint32 = 0x00000080
 )
 
+const (
+	SmbHeaderV1Length = 32
+)
+
 type HeaderV1 struct {
 	ProtocolID       []byte `smb:"fixed:4"`
 	Command          uint8
@@ -133,6 +137,24 @@ type NegotiateReqV1 struct {
 	Dialects  []uint8 `smb:"fixed:12"`
 }
 
+type SessionSetupV1Req struct {
+	HeaderV1
+	WordCount             uint8
+	AndCommand            uint8
+	Reserved1             uint8
+	AndOffset             uint16
+	MaxBuffer             uint16
+	MaxMPXCount           uint16
+	VCNumber              uint16
+	SessionKey            uint32
+	OEMPasswordLength     uint16
+	UnicodePasswordLength uint16
+	Reserved2             uint32
+	Capabilities          uint32
+	ByteCount             uint16
+	VarData               []byte
+}
+
 type NegotiateResV1 struct {
 	HeaderV1
 	WordCount       uint8
@@ -147,8 +169,8 @@ type NegotiateResV1 struct {
 	SystemTime      uint64
 	ServerTimezon   uint16
 	ChallengeLength uint8
-	ByteCount       uint16
-	// variable data afterwords that we don't care about
+	ByteCount       uint16 `smb:"len:VarData"`
+	VarData []byte
 }
 
 type NegotiateReq struct {
@@ -260,6 +282,17 @@ type TreeDisconnectRes struct {
 func newHeaderV1() HeaderV1 {
 	return HeaderV1{
 		ProtocolID: []byte(ProtocolSmb),
+		Status:     0,
+		Flags:      0x18,
+		Flags2:     0xc843,
+		PIDHigh:    0,
+		// These bytes must be explicit here
+		SecurityFeatures: []byte{0, 0, 0, 0, 0, 0, 0, 0},
+		Reserved:         0,
+		TID:              0xffff,
+		PIDLow:           0xfeff,
+		UID:              0,
+		MID:              0,
 	}
 }
 
@@ -287,8 +320,21 @@ func (s *Session) NewNegotiateReqV1() NegotiateReqV1 {
 	return NegotiateReqV1{
 		HeaderV1:  header,
 		WordCount: 0,
-		ByteCount: 14,
+		ByteCount: 12,
 		Dialects:  []uint8(DialectSmb_1_0),
+	}
+}
+
+func (s *Session) NewSessionSetupV1Req() SessionSetupV1Req {
+	header := newHeaderV1()
+	header.Command = 0x73 // SMB1 Session Setup
+	return SessionSetupV1Req{
+		HeaderV1:    header,
+		WordCount:   0xd,
+		AndCommand:  0xff,
+		MaxBuffer:   0x1111,
+		MaxMPXCount: 0xa,
+		VarData:     []byte{},
 	}
 }
 

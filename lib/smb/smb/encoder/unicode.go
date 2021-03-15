@@ -27,3 +27,21 @@ func ToUnicode(s string) []byte {
 	binary.Write(&b, binary.LittleEndian, &uints)
 	return b.Bytes()
 }
+
+func ToSmbString(s string) []byte {
+	res := ToUnicode(s)
+	res = append(res, 0x0, 0x0)
+	return res
+}
+
+func FromSmbString(d []byte) (string, error) {
+	res, err := FromUnicode(d)
+	if err != nil {
+		return "", err
+	}
+	if len(res) == 0 {
+		return "", nil
+	}
+	// Trim null terminator
+	return res[:len(res)-1], nil
+}

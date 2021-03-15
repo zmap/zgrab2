@@ -52,6 +52,9 @@ smb_scan_response = SubRecord({
             "revision": Unsigned8BitInteger(doc="Protocol Revision"),
             "version_string": String(doc="Full SMB Version String"),
             }),
+        "native_os": String(doc="Operating system claimed by server"),
+        "ntlm": String(doc="Native LAN Manager"),
+        "group_name": String(doc="Group name"),
         "smb_capabilities": SubRecord({
             "smb_dfs_support": Boolean(doc="Server supports Distributed File System"),
             "smb_leasing_support": Boolean(doc="Server supports Leasing"),
@@ -62,7 +65,7 @@ smb_scan_response = SubRecord({
             "smb_encryption_support": Boolean(doc="Server supports encryption"),
             }, doc="Capabilities flags for the connection. See [MS-SMB2] Sect. 2.2.4."),
         'negotiation_log': negotiate_log,
-        'has_ntlm': Boolean(),
+        'has_ntlm': Boolean(doc="Server supports the NTLM authentication method"),
         'session_setup_log': session_setup_log,
     })
 }, extends=zgrab2.base_scan_response)
