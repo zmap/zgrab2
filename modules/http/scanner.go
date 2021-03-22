@@ -250,6 +250,10 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(net, addr string) (net
 		if err != nil {
 			return nil, err
 		}
+		// Set for SNI, required for SSL redirects (issue #300)
+		if !scan.scanner.config.NoSNI && addr != "" {
+			cfg.ServerName = addr
+		}
 
 		if scan.scanner.config.OverrideSH {
 			cfg.SignatureAndHashes = []tls.SigAndHash{
