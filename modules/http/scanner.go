@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,12 +45,13 @@ var (
 type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
-	Method       string `long:"method" default:"GET" description:"Set HTTP request method type"`
-	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
-	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	RetryHTTPS   bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
-	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+	Method          string `long:"method" default:"GET" description:"Set HTTP request method type"`
+	Endpoint        string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
+	FailHTTPToHTTPS bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
+	UserAgent       string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS      bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
+	MaxSize         int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
+	MaxRedirects    int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
@@ -431,7 +433,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	bodyText := ""
 	decodedSuccessfully := false
 	decoder := encoder.NewDecoder()
-	
+
 	//"windows-1252" is the default value and will likely not decode correctly
 	if certain || encoding != "windows-1252" {
 		decoded, decErr := decoder.Bytes(buf.Bytes())
@@ -444,6 +446,20 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	if !decodedSuccessfully {
 		bodyText = buf.String()
+	}
+
+	// If
+	if scan.scanner.config.FailHTTPToHTTPS && scan.results.Response.StatusCode == 400 && readLen < 512 && readLen > 24 {
+		// Apache: "You're speaking plain HTTP to an SSL-enabled server port"
+		// NGINX: "The plain HTTP request was sent to HTTPS port"
+		var sliceLen int64 = 96
+		if readLen < sliceLen {
+			sliceLen = readLen
+		}
+		sliceBuf := bodyText[0:sliceLen]
+		if strings.Contains(sliceBuf, "The plain HTTP request was sent to HTTPS port") || strings.Contains(sliceBuf, "You're speaking plain HTTP") {
+			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("NGINX or Apache HTTP over HTTPS failure"))
+		}
 	}
 
 	// re-enforce readlen
