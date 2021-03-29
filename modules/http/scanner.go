@@ -459,7 +459,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		sliceBuf := bodyText[0:sliceLen]
 		if strings.Contains(sliceBuf, "The plain HTTP request was sent to HTTPS port") ||
 			strings.Contains(sliceBuf, "You're speaking plain HTTP") ||
-			strings.Contains(sliceBuf, "combination of host and port requires TLS") {
+			strings.Contains(sliceBuf, "combination of host and port requires TLS") ||
+			strings.Contains(sliceBuf, "Client sent an HTTP request to an HTTPS server") {
 			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("NGINX or Apache HTTP over HTTPS failure"))
 		}
 	}
