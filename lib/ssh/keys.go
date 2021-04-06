@@ -7,7 +7,6 @@ package ssh
 import (
 	"bytes"
 	"crypto"
-	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/md5"
@@ -24,6 +23,8 @@ import (
 	"io"
 	"math/big"
 	"strings"
+
+	"github.com/zmap/zcrypto/dsa"
 
 	"golang.org/x/crypto/ed25519"
 
