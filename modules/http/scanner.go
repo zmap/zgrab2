@@ -456,7 +456,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		if readLen < sliceLen {
 			sliceLen = readLen
 		}
-		sliceBuf := bodyText[0:sliceLen]
+		sliceBuf := bodyText[:sliceLen]
 		if strings.Contains(sliceBuf, "The plain HTTP request was sent to HTTPS port") ||
 			strings.Contains(sliceBuf, "You're speaking plain HTTP") ||
 			strings.Contains(sliceBuf, "combination of host and port requires TLS") ||
