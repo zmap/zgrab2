@@ -262,7 +262,10 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(network, addr string) 
 			if err != nil {
 				log.Errorf("getTLSDialer(): Something went wrong splitting host/port '%s': %s", addr, err)
 			}
-			cfg.ServerName = host
+			// RFC4366: Literal IPv4 and IPv6 addresses are not permitted in "HostName"
+			if i := net.ParseIP(host); i == nil {
+				cfg.ServerName = host
+			}
 		}
 
 		if scan.scanner.config.OverrideSH {
