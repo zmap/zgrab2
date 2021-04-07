@@ -260,8 +260,7 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(network, addr string) 
 		if !scan.scanner.config.NoSNI && scan.scanner.config.ServerName == "" {
 			host, _, err := net.SplitHostPort(addr)
 			if err != nil {
-				log.Errorf("http/scanner.go getTLSDialer: unable to split host:port '%s'", addr)
-				log.Errorf("Something went wrong splitting host/port: %s", err)
+				log.Errorf("getTLSDialer(): Something went wrong splitting host/port '%s': %s", addr, err)
 			}
 			cfg.ServerName = host
 		}
