@@ -1,0 +1,36 @@
+name: ZGrab2 build action
+on: [push, pull_request]
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+
+      - name: Set up Docker for integration tests
+        uses: docker-practice/actions-setup-docker@master
+
+      - name: Check out source
+        uses: actions/checkout@v2
+
+      - name: Install goimports
+        run: sudo apt install golang-golang-x-tools
+
+      - name: Build
+        run: |
+          go get -t ./...
+          make
+
+      - name: Test
+        run: make clean zgrab2 test
+        continue-on-error: true
+
+      - name: Integration test
+        run: make integration-test
+        continue-on-error: true
+
+      - name: Integration cleanup
+        run: ./integration_tests/cleanup.sh
