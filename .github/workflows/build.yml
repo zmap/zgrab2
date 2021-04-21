@@ -16,21 +16,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v2
 
-      - name: Install goimports
-        run: sudo apt install golang-golang-x-tools
-
       - name: Build
         run: |
           go get -t ./...
           make
-
-      - name: Test
-        run: make clean zgrab2 test
-        continue-on-error: true
-
-      - name: Integration test
-        run: make integration-test
-        continue-on-error: true
-
-      - name: Integration cleanup
-        run: ./integration_tests/cleanup.sh
