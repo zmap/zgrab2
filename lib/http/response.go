@@ -43,7 +43,8 @@ type Response struct {
 	// omitted from Header.
 	//
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
-	Header Header `json:"headers,omitempty"`
+	Header     Header        `json:"headers,omitempty"`
+	HeaderList []HeaderField `json:"header_list,omitempty"`
 
 	// Body represents the response body.
 	//
@@ -194,8 +195,17 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 		return resp, &badStringError{"malformed HTTP version", resp.Protocol.Name}
 	}
 
-	// Parse the response headers.
-	mimeHeader, err := tp.ReadMIMEHeader()
+	// New: extract header values into a "HeaderList" type
+	// To revert: delete next block and uncomment original tp.ReadMIMEHeader call
+
+	var headerReaderTP *textproto.Reader
+	resp.HeaderList, headerReaderTP, err = extractHeaderList(tp);
+	if (err != nil){
+		return resp, err
+	}
+	mimeHeader, err := headerReaderTP.ReadMIMEHeader()
+	// mimeHeader, err := tp.ReadMIMEHeader()
+
 	if err != nil {
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
@@ -212,6 +222,101 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 	}
 
 	return resp, nil
+}
+
+func extractHeaderList(tp *textproto.Reader) ([]HeaderField, *textproto.Reader, error){
+	// Store each header name in a list in order
+
+	// Initialize headerList to add each header value-name pair (capacity is an estimate based of new lines)
+	// Initialize byte slice and empty textproto reader for re-reading headers for map creation
+	// These are to be returned as-is if error occurs
+
+	headerList := make([]HeaderField, 0, upcomingHeaderNewlines(tp))
+	allHeaderString := []byte{}
+	headerReader := bytes.NewReader(allHeaderString)
+	headerReaderBufIO := bufio.NewReader(headerReader)
+	headerReaderTP := textproto.NewReader(headerReaderBufIO)
+
+	// Initialize empty textproto reader to be returned as-is if error occurs
+
+	// Loop through each line of the textproto reader to extract each header name
+	for {
+
+		headerLine, err := tp.ReadContinuedLineBytes()
+
+		// If we have an empty line, we've reached the gap between header and body: exit loop
+		if len(headerLine) == 0 || err == io.EOF {
+			break
+		}
+
+		// If there was an error reading the next line, we throw an error
+		if err != nil {
+			return headerList, headerReaderTP,  err
+		}
+
+		// Find the colon
+		i := bytes.IndexByte(headerLine, ':')
+		if i < 0 {
+			return headerList, headerReaderTP, textproto.ProtocolError("malformed MIME header line: " + string(headerLine))
+		}
+
+		// Extract canonicalized key
+		key := textproto.CanonicalMIMEHeaderKey(string(headerLine[:i]))
+
+		// Skip colon
+		i++
+
+		// Delete leading spaces for value
+		for i < len(headerLine) && (headerLine[i] == ' ' || headerLine[i] == '\t') {
+			i++
+		}
+
+		// Extract value
+		value := headerLine[i:]
+
+		// If key is empty, we keep going
+		if key == "" {
+			continue
+		}
+
+		// Add the unique header to our list and the entire line to our header content to be read again
+		newHeader := HeaderField{key, value}
+		headerList = append(headerList, newHeader)
+		allHeaderString = append(allHeaderString, headerLine...)
+		allHeaderString = append(allHeaderString, []byte("\r\n")...)
+	}
+
+	// Create string reader from saved header content -> wrap into bufio reader -> wrap into tp reader
+
+	allHeaderString = append(allHeaderString, []byte("\r\n")...)
+	headerReader = bytes.NewReader(allHeaderString)
+	headerReaderBufIO = bufio.NewReader(headerReader)
+	headerReaderTP = textproto.NewReader(headerReaderBufIO)
+
+	// Return the list of headers, the textproto reader to re-read headers for map, and no errors
+	return headerList, headerReaderTP, nil
+}
+
+// Copied from textproto.Reader, required to estimate # of header lines when extracting as list
+func upcomingHeaderNewlines(r *textproto.Reader) (n int) {
+	// Try to determine the 'hint' size.
+	r.R.Peek(1) // force a buffer load if empty
+	s := r.R.Buffered()
+	if s == 0 {
+		return
+	}
+	peek, _ := r.R.Peek(s)
+	for len(peek) > 0 {
+		i := bytes.IndexByte(peek, '\n')
+		if i < 3 {
+			// Not present (-1) or found within the next few bytes,
+			// implying we're at the end ("\r\n\r\n" or "\n\n")
+			return
+		}
+		n++
+		peek = peek[i+1:]
+	}
+	return
 }
 
 // RFC 2616: Should treat
