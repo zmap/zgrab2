@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -62,6 +64,11 @@ type Flags struct {
 	// RedirectsSucceed causes the ErrTooManRedirects error to be suppressed
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
 
+	// Set arbitrary HTTP headers
+	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
+	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
+	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
+
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
@@ -90,6 +97,7 @@ type Module struct {
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	config        *Flags
+	customHeaders map[string]string
 	decodedHashFn func([]byte) string
 }
 
@@ -140,6 +148,65 @@ func (scanner *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+
+	// parse out custom headers at initialization so that they can be easily
+	// iterated over when constructing individual scanners
+	if len(fl.CustomHeadersNames) > 0 || len(fl.CustomHeadersValues) > 0 {
+		if len(fl.CustomHeadersNames) == 0 {
+			log.Panicf("custom-headers-names must be specified if custom-headers-values is provided")
+		}
+		if len(fl.CustomHeadersValues) == 0 {
+			log.Panicf("custom-headers-values must be specified if custom-headers-names is provided")
+		}
+		namesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersNames))
+		if namesReader == nil {
+			log.Panicf("unable to read custom-headers-names in CSV reader")
+		}
+		valuesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersValues))
+		if valuesReader == nil {
+			log.Panicf("unable to read custom-headers-values in CSV reader")
+		}
+
+		// By default, the CSV delimiter will remain a comma unless explicitly specified
+		if len(fl.CustomHeadersDelimiter) > 1 {
+			log.Panicf("Invalid delimiter custom-header delimiter, must be a single character")
+		} else if fl.CustomHeadersDelimiter != "" {
+			valuesReader.Comma = rune(fl.CustomHeadersDelimiter[0])
+			namesReader.Comma = rune(fl.CustomHeadersDelimiter[0])
+		}
+
+		headerNames, err := namesReader.Read()
+		if err != nil {
+			return err
+		}
+		headerValues, err := valuesReader.Read()
+		if err != nil {
+			return err
+		}
+		if len(headerNames) != len(headerValues) {
+			log.Panicf("inconsistent number of HTTP header names and values")
+		}
+		scanner.customHeaders = make(map[string]string)
+		for i := 0; i < len(headerNames); i++ {
+			// The case of header names is normalized to title case later by HTTP library
+			// explicitly ToLower() to catch duplicates more easily
+			hName := strings.ToLower(headerNames[i])
+			switch {
+			case hName == "host":
+				log.Panicf("Attempt to set immutable header 'Host', specify this in targets file")
+			case hName == "user-agent":
+				log.Panicf("Attempt to set special header 'User-Agent', use --user-agent instead")
+			case hName == "content-length":
+				log.Panicf("Attempt to set immutable header 'Content-Length'")
+			}
+			// Disallow duplicate headers
+			_, ok := scanner.customHeaders[hName]
+			if ok {
+				log.Panicf("Attempt to set same custom header twice")
+			}
+			scanner.customHeaders[hName] = headerValues[i]
+		}
+	}
 
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
 		scanner.decodedHashFn = func(body []byte) string {
@@ -409,8 +476,20 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
-	// TODO: Headers from input?
-	request.Header.Set("Accept", "*/*")
+
+	// By default, the following headers are *always* set:
+	// Host, User-Agent, Accept, Accept-Encoding
+	if scan.scanner.customHeaders != nil {
+		request.Header.Set("Accept", "*/*")
+		for k, v := range scan.scanner.customHeaders {
+			request.Header.Set(k, v)
+		}
+	} else {
+		// If user did not specify custom headers, legacy behavior has always been
+		// to set the Accept header
+		request.Header.Set("Accept", "*/*")
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
