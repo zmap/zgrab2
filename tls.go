@@ -91,6 +91,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 
 	// TODO: Find standard names
 	cipherMap := map[string][]uint16{
+		"portable":        tls.PortableCiphers,
 		"dhe-only":        tls.DHECiphers,
 		"ecdhe-only":      tls.ECDHECiphers,
 		"exports-dh-only": tls.DHEExportCiphers,
@@ -326,10 +327,14 @@ func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) 
 	if err != nil {
 		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
 	}
+	return t.GetWrappedConnection(conn, cfg), nil
+}
+
+func (t *TLSFlags) GetWrappedConnection(conn net.Conn, cfg *tls.Config) *TLSConnection {
 	tlsClient := tls.Client(conn, cfg)
 	wrappedClient := TLSConnection{
 		Conn:  *tlsClient,
 		flags: t,
 	}
-	return &wrappedClient, nil
+	return &wrappedClient
 }

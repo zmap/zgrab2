@@ -6,6 +6,7 @@
 package fox
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -30,7 +31,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("fox", "fox", "Probe for Tridium Fox", 1911, &module)
+	_, err := zgrab2.AddCommand("fox", "fox", module.Description(), 1911, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,6 +45,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for Tridium Fox"
 }
 
 // Validate checks that the flags are valid.
@@ -102,6 +108,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	err = GetFoxBanner(result, conn)
 	if !result.IsFox {
 		result = nil
+		err = &zgrab2.ScanError{
+			Err:    errors.New("host responds, but is not a fox service"),
+			Status: zgrab2.SCAN_PROTOCOL_ERROR,
+		}
 	}
 	return zgrab2.TryGetScanStatus(err), result, err
 }

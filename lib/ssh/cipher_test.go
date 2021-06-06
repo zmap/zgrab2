@@ -27,7 +27,7 @@ func TestPacketCiphers(t *testing.T) {
 
 	for cipher := range cipherModes {
 		kr := &kexResult{Hash: crypto.SHA1}
-		algs := directionAlgorithms{
+		algs := DirectionAlgorithms{
 			Cipher:      cipher,
 			MAC:         "hmac-sha1",
 			Compression: "none",
@@ -68,7 +68,7 @@ func TestCBCOracleCounterMeasure(t *testing.T) {
 	defer delete(cipherModes, aes128cbcID)
 
 	kr := &kexResult{Hash: crypto.SHA1}
-	algs := directionAlgorithms{
+	algs := DirectionAlgorithms{
 		Cipher:      aes128cbcID,
 		MAC:         "hmac-sha1",
 		Compression: "none",

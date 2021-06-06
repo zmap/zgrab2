@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"errors"
 )
 
 // MEIResponse is the parsed data field from the 0x2B/0x0E response.
@@ -342,6 +343,12 @@ func (c *Conn) GetModbusResponse() (*ModbusResponse, error) {
 	}
 	msglen := int(binary.BigEndian.Uint16(header[4:6]))
 	unitID := int(header[6])
+
+	// less than 1 because it's msglen - 1
+	if msglen < 1 {
+		return nil, errors.New("modbus: invalid message length")
+	}
+
 	body := make([]byte, msglen-1)
 	cnt := 0
 	// One of the bytes in length counts as part of the header
@@ -364,6 +371,11 @@ func (c *Conn) GetModbusResponse() (*ModbusResponse, error) {
 	raw := make([]byte, len(header)+len(body))
 	copy(raw[0:7], header)
 	copy(raw[7:], body)
+
+	if len(body) < 1 {
+		return nil, readError
+	}
+
 	//TODO this really should be done by a more elegant unmarshaling function
 	return &ModbusResponse{
 		Length:   msglen,

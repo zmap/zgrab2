@@ -36,7 +36,7 @@ import (
 )
 
 // ErrInvalidResponse is returned when the server returns an invalid or unexpected response.
-var ErrInvalidResponse = errors.New("invalid response")
+var ErrInvalidResponse = zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for SMTP"))
 
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
@@ -57,6 +57,10 @@ type ScanResults struct {
 
 	// QUIT is the server's response to the QUIT command, if it is sent.
 	QUIT string `json:"quit,omitempty"`
+
+	// ImplicitTLS is true if the connection was wrapped in TLS, as opposed
+	// to using StartTls
+	ImplicitTLS bool `json:"implicit_tls,omitempty"`
 
 	// TLSLog is the standard TLS log, if STARTTLS is sent.
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
@@ -108,7 +112,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("smtp", "smtp", "Probe for smtp", 25, &module)
+	_, err := zgrab2.AddCommand("smtp", "smtp", module.Description(), 25, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -122,6 +126,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Fetch an SMTP server banner, optionally over TLS"
 }
 
 // Validate checks that the flags are valid.
@@ -196,6 +205,27 @@ func getCommand(cmd string, arg string) string {
 	return cmd + " " + arg
 }
 
+// Verify that an SMTP code was returned, and that it is a successful one!
+// Return code on SCAN_APPLICATION_ERROR for better info
+func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
+	code, err := getSMTPCode(banner)
+	lowerBanner := strings.ToLower(banner)
+	switch {
+	case err == nil && (code < 200 || code >= 300):
+		return zgrab2.SCAN_APPLICATION_ERROR, code
+	case err == nil,
+	     strings.Contains(banner, "SMTP"),
+	     strings.Contains(lowerBanner, "blacklist"),
+	     strings.Contains(lowerBanner, "abuse"),
+	     strings.Contains(lowerBanner, "rbl"),
+	     strings.Contains(lowerBanner, "spamhaus"),
+	     strings.Contains(lowerBanner, "relay"):
+		return zgrab2.SCAN_SUCCESS, 0
+	default:
+		return zgrab2.SCAN_PROTOCOL_ERROR, 0
+	}
+}
+
 // Scan performs the SMTP scan.
 // 1. Open a TCP connection to the target port (default 25).
 // 2. If --smtps is set, perform a TLS handshake.
@@ -224,6 +254,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		c = tlsConn
+		result.ImplicitTLS = true
 	}
 	conn := Connection{Conn: c}
 	banner, err := conn.ReadResponse()
@@ -232,6 +263,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			result = nil
 		}
 		return zgrab2.TryGetScanStatus(err), result, err
+	}
+	// Quit early if we didn't get a valid response
+	// OR save response to return later
+	sr, bannerResponseCode := VerifySMTPContents(banner)
+	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
+		return sr, nil, errors.New("Invalid response for SMTP")
 	}
 	result.Banner = banner
 	if scanner.config.SendHELO {
@@ -287,5 +324,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 		result.QUIT = ret
 	}
-	return zgrab2.SCAN_SUCCESS, result, nil
+	if sr == zgrab2.SCAN_APPLICATION_ERROR {
+		return sr, result, fmt.Errorf("SMTP error code %d returned in banner grab", bannerResponseCode)
+	}
+	return sr, result, nil
 }

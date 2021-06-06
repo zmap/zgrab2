@@ -115,6 +115,10 @@ func GetTelnetBanner(logStruct *TelnetLog, conn net.Conn, maxReadSize int) (err 
 	if err != nil && err != io.EOF && !zgrab2.IsTimeoutError(err) {
 		return err
 	}
+	// Make sure it is a telnet banner
+	if !logStruct.isTelnet() {
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for Telnet"))
+	}
 	return nil
 }
 

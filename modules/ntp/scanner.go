@@ -815,7 +815,7 @@ type Scanner struct {
 // RegisterModule registers the module with zgrab2
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("ntp", "NTP", "Scan for NTP", 123, &module)
+	_, err := zgrab2.AddCommand("ntp", "NTP", module.Description(), 123, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -829,6 +829,11 @@ func (module *Module) NewFlags() interface{} {
 // NewScanner returns a new NTP scanner instance
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Scan for NTP"
 }
 
 // Validate checks that the flags are valid

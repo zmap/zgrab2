@@ -372,7 +372,7 @@ type cbcCipher struct {
 	oracleCamouflage uint32
 }
 
-func newCBCCipher(c cipher.Block, iv, key, macKey []byte, algs directionAlgorithms) (packetCipher, error) {
+func newCBCCipher(c cipher.Block, iv, key, macKey []byte, algs DirectionAlgorithms) (packetCipher, error) {
 	cbc := &cbcCipher{
 		mac:        macModes[algs.MAC].new(macKey),
 		decrypter:  cipher.NewCBCDecrypter(c, iv),
@@ -386,7 +386,7 @@ func newCBCCipher(c cipher.Block, iv, key, macKey []byte, algs directionAlgorith
 	return cbc, nil
 }
 
-func newAESCBCCipher(iv, key, macKey []byte, algs directionAlgorithms) (packetCipher, error) {
+func newAESCBCCipher(iv, key, macKey []byte, algs DirectionAlgorithms) (packetCipher, error) {
 	c, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -400,7 +400,7 @@ func newAESCBCCipher(iv, key, macKey []byte, algs directionAlgorithms) (packetCi
 	return cbc, nil
 }
 
-func newTripleDESCBCCipher(iv, key, macKey []byte, algs directionAlgorithms) (packetCipher, error) {
+func newTripleDESCBCCipher(iv, key, macKey []byte, algs DirectionAlgorithms) (packetCipher, error) {
 	c, err := des.NewTripleDESCipher(key)
 	if err != nil {
 		return nil, err

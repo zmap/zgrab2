@@ -20,6 +20,7 @@ type Config struct {
 	LocalAddress       string          `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
+	Flush              bool            `long:"flush" description:"Flush after each line of output."`
 	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	ReadLimitPerHost   int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
@@ -89,7 +90,8 @@ func validateFrameworkConfiguration() {
 			log.Fatal(err)
 		}
 	}
-	SetOutputFunc(OutputResultsFile)
+	outputFunc := OutputResultsWriterFunc(config.outputFile)
+	SetOutputFunc(outputFunc)
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr
@@ -102,7 +104,7 @@ func validateFrameworkConfiguration() {
 
 	// Validate Go Runtime config
 	if config.GOMAXPROCS < 0 {
-		log.Fatal("invalid GOMAXPROCS (must be positive, given %d)", config.GOMAXPROCS)
+		log.Fatalf("invalid GOMAXPROCS (must be positive, given %d)", config.GOMAXPROCS)
 	}
 	runtime.GOMAXPROCS(config.GOMAXPROCS)
 
