@@ -68,9 +68,9 @@ type Flags struct {
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
 	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
 
-	// ComputeEncodedBodyHashAlgorithm enables sha256 hashes of the page fingerprint.
+	// ComputeRawBodyHash enables sha256 hashes of the page fingerprint.
 	// Enabled by default. Disabled by default if ComputeDecodedBodyHashAlgorithm is set
-	ComputeEncodedBodyHash bool `long:"compute-encoded-body-hash" description:"Enable sha256 hash for page fingerprint"`
+	ComputeRawBodyHash bool `long:"compute-raw-body-hash" description:"Enable sha256 hash for page fingerprint"`
 
 	// WithBodyLength enables adding the body_size field to the Response
 	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
@@ -162,7 +162,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
   // If ComputeDecodedBodyHashAlgorithm is not set, enable sha256 encoded body hash by default
   // can also be explicitly enabled in conjunction with ComputeDecodedBodyHashAlgorithm
 	if fl.ComputeDecodedBodyHashAlgorithm == "" {
-		fl.ComputeEncodedBodyHash = true
+		fl.ComputeRawBodyHash = true
 	}
 	return nil
 }
@@ -340,7 +340,7 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 			if scan.scanner.decodedHashFn != nil {
 				res.BodyHash = scan.scanner.decodedHashFn([]byte(res.BodyText))
 			}
-			if scan.scanner.config.ComputeEncodedBodyHash {
+			if scan.scanner.config.ComputeRawBodyHash {
 				m := sha256.New()
 				m.Write(b.Bytes())
 				res.BodySHA256 = m.Sum(nil)
@@ -487,7 +487,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		if scan.scanner.decodedHashFn != nil {
 			scan.results.Response.BodyHash = scan.scanner.decodedHashFn([]byte(scan.results.Response.BodyText))
 		}
-		if scan.scanner.config.ComputeEncodedBodyHash {
+		if scan.scanner.config.ComputeRawBodyHash {
 			m := sha256.New()
 			m.Write(buf.Bytes())
 			scan.results.Response.BodySHA256 = m.Sum(nil)
