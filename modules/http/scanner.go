@@ -76,6 +76,10 @@ type Flags struct {
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
 	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
 
+	// ComputeRawBodyHash enables sha256 hashes of the page fingerprint.
+	// Enabled by default. Disabled by default if ComputeDecodedBodyHashAlgorithm is set
+	ComputeRawBodyHash bool `long:"compute-raw-body-hash" description:"Enable sha256 hash for page fingerprint"`
+
 	// WithBodyLength enables adding the body_size field to the Response
 	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
 }
@@ -223,6 +227,11 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
+  // If ComputeDecodedBodyHashAlgorithm is not set, enable sha256 encoded body hash by default
+  // can also be explicitly enabled in conjunction with ComputeDecodedBodyHashAlgorithm
+	if fl.ComputeDecodedBodyHashAlgorithm == "" {
+		fl.ComputeRawBodyHash = true
+	}
 	return nil
 }
 
@@ -398,7 +407,8 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if len(res.BodyText) > 0 {
 			if scan.scanner.decodedHashFn != nil {
 				res.BodyHash = scan.scanner.decodedHashFn([]byte(res.BodyText))
-			} else {
+			}
+			if scan.scanner.config.ComputeRawBodyHash {
 				m := sha256.New()
 				m.Write(b.Bytes())
 				res.BodySHA256 = m.Sum(nil)
@@ -573,7 +583,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if len(scan.results.Response.BodyText) > 0 {
 		if scan.scanner.decodedHashFn != nil {
 			scan.results.Response.BodyHash = scan.scanner.decodedHashFn([]byte(scan.results.Response.BodyText))
-		} else {
+		}
+		if scan.scanner.config.ComputeRawBodyHash {
 			m := sha256.New()
 			m.Write(buf.Bytes())
 			scan.results.Response.BodySHA256 = m.Sum(nil)
