@@ -69,8 +69,7 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 
 // Scan opens a TCP connection to the target (default port 443), then performs
 // a TLS handshake. If the handshake gets past the ServerHello stage, the
-// handshake log is returned (along with any other TLS-related logs, such as
-// heartbleed, if enabled).
+// handshake log is returned (along with any other TLS-related logs).
 func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	conn, err := t.OpenTLS(&s.config.BaseFlags, &s.config.TLSFlags)
 	if conn != nil {

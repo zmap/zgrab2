@@ -292,7 +292,7 @@ type Request struct {
 	// This field is ignored by the HTTP client.
 	TLS *tls.ConnectionState `json:"tls,omitempty"`
 
-	// Everywhere else, this is "tls". Conains the logs from the configured zgrab2 TLS scan (TLS handshake, heartbleed check, etc) 
+	// Everywhere else, this is "tls". Conains the logs from the configured zgrab2 TLS scan (TLS handshake, etc)
 	TLSLog *zgrab2.TLSLog `json:"tls_log,omitempty"`
 
 	// Cancel is an optional channel whose closure indicates that the client
