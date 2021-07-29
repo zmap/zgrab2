@@ -28,8 +28,6 @@ import (
 // Common flags for TLS configuration -- include this in your module's ScanFlags implementation to use the common TLS code
 // Adapted from modules/ssh.go
 type TLSFlags struct {
-	Heartbleed bool `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
-
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
 	ExtendedMasterSecret bool `long:"extended-master-secret" description:"Offer RFC 7627 Extended Master Secret extension" json:"extended"`
 	ExtendedRandom       bool `long:"extended-random" description:"Send TLS Extended Random Extension" json:"extran"`
@@ -205,7 +203,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		log.Fatalf("--signature-algorithms not implemented")
 	}
 
-	if t.HeartbeatEnabled || t.Heartbleed {
+	if t.HeartbeatEnabled {
 		ret.HeartbeatEnabled = true
 	} else {
 		ret.HeartbeatEnabled = false
@@ -267,8 +265,6 @@ type TLSConnection struct {
 type TLSLog struct {
 	// TODO include TLSFlags?
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
-	// This will be nil if heartbleed is not checked because of client configuration flags
-	HeartbleedLog *tls.Heartbleed `json:"heartbleed_log,omitempty"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
@@ -281,25 +277,10 @@ func (z *TLSConnection) GetLog() *TLSLog {
 
 func (z *TLSConnection) Handshake() error {
 	log := z.GetLog()
-	if z.flags.Heartbleed {
-		buf := make([]byte, 256)
-		defer func() {
-			log.HandshakeLog = z.Conn.GetHandshakeLog()
-			log.HeartbleedLog = z.Conn.GetHeartbleedLog()
-		}()
-		// TODO - CheckHeartbleed does not bubble errors from Handshake
-		_, err := z.CheckHeartbleed(buf)
-		if err == tls.HeartbleedError {
-			err = nil
-		}
-		return err
-	} else {
-		defer func() {
-			log.HandshakeLog = z.Conn.GetHandshakeLog()
-			log.HeartbleedLog = nil
-		}()
-		return z.Conn.Handshake()
-	}
+	err := z.Conn.Handshake()
+	log.HandshakeLog = z.Conn.GetHandshakeLog()
+
+	return err
 }
 
 // Close the underlying connection.

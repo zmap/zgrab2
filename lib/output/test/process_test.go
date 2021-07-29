@@ -3,24 +3,21 @@ package test
 // FIXME: This is in its own package to work around import loops.
 
 import (
-	"encoding/json"
-	"fmt"
-	"testing"
-
 	"crypto/rsa"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"math/big"
+	"os/exec"
+	"strings"
 	"sync"
+	"testing"
 	"time"
 
-	"strings"
-
-	"io/ioutil"
-	"os/exec"
-
 	"github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/encoding/asn1"
 	jsonKeys "github.com/zmap/zcrypto/json"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
@@ -995,9 +992,9 @@ func TestMySQL(t *testing.T) {
 			VerifyData: []byte("not real data"),
 		},
 		ClientHello: &tls.ClientHello{
-			CipherSuites: []tls.CipherSuite{
-				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			CipherSuites: []tls.CipherSuiteID{
+				tls.CipherSuiteID(tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA),
+				tls.CipherSuiteID(tls.TLS_RSA_WITH_AES_256_CBC_SHA),
 			},
 			CompressionMethods:  []tls.CompressionMethod{0x00},
 			OcspStapling:        true,
@@ -1080,14 +1077,14 @@ func TestMySQL(t *testing.T) {
 			VerifyData: []byte("fake"),
 		},
 		ServerHello: &tls.ServerHello{
-			CipherSuite:       tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			CipherSuite:       tls.CipherSuiteID(tls.TLS_RSA_WITH_AES_256_CBC_SHA),
 			CompressionMethod: 0,
 			Random:            []byte("some other random data"),
 			SessionID:         []byte("some session ID"),
 			Version:           0x302,
 		},
 	}
-	results.TLSLog.HeartbleedLog = &tls.Heartbleed{}
+
 	mapVal := toMap(results)
 	mapVal["auth_plugin_data"] = nil
 	mapVal["connection_id"] = 0
