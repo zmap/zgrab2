@@ -57,14 +57,14 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	// Make Module Identification request
 	moduleIdentificationResponse, err := readRequest(connection, S7_SZL_MODULE_IDENTIFICATION)
 	if err != nil {
-		return nil // mask errors after detecting IsS7
+		return err
 	}
 	parseModuleIdentificatioNRequest(logStruct, &moduleIdentificationResponse)
 
 	// Make Component Identification request
 	componentIdentificationResponse, err := readRequest(connection, S7_SZL_COMPONENT_IDENTIFICATION)
 	if err != nil {
-		return nil // mask errors after detecting IsS7
+		return err
 	}
 	parseComponentIdentificationResponse(logStruct, &componentIdentificationResponse)
 
