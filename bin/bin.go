@@ -12,9 +12,16 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/encoding/asn1"
+	"github.com/zmap/zcrypto/x509/pkix"
 	flags "github.com/zmap/zflags"
 	"github.com/zmap/zgrab2"
 )
+
+func init() {
+	asn1.AllowPermissiveParsing = true
+	pkix.LegacyNameString = true
+}
 
 // Get the value of the ZGRAB2_MEMPROFILE variable (or the empty string).
 // This may include {TIMESTAMP} or {NANOS}, which should be replaced using
