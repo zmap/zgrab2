@@ -12,6 +12,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"encoding/hex"
 
 	"github.com/zmap/zgrab2"
 )
@@ -24,6 +25,7 @@ type Flags struct {
 	Pattern   string `long:"pattern" description:"Pattern to match, must be valid regexp."`
 	UseTLS    bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options. "`
 	MaxTries  int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
+	Hex       bool   `long:"hex" description:"Store banner value in hex. "`
 	zgrab2.TLSFlags
 }
 
@@ -179,7 +181,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if readerr != io.EOF && readerr != nil {
 		return zgrab2.TryGetScanStatus(readerr), nil, readerr
 	}
-	results := Results{Banner: string(ret), Length: len(ret)}
+	var results Results
+	if scanner.config.Hex {
+		results = Results{Banner: hex.EncodeToString(ret), Length: len(ret)}
+	} else {
+		results = Results{Banner: string(ret), Length: len(ret)}
+	}
 	if scanner.regex.Match(ret) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
