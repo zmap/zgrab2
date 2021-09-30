@@ -6,7 +6,6 @@ import (
 	_ "fmt"
 	jarm "github.com/RumbleDiscovery/jarm-go"
 	"github.com/zmap/zgrab2"
-	"io"
 	"log"
 	"net"
 	"strings"
@@ -103,13 +102,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// Stores raw hashes returned from parsing each protocols Hello message
 	rawhashes := []string{}
 
-	// Stores final module results
-	r := Results{}
-
 	// Loop through each Probe type
 	for _, probe := range jarm.GetProbes(target.Host(), int(scanner.GetPort())) {
-		data := jarm.BuildProbe(probe)
-
 		var (
 			conn net.Conn
 			err  error
@@ -120,20 +114,14 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
 
-		_, err = conn.Write([]byte(data))
+		_, err = conn.Write(jarm.BuildProbe(probe))
 		if err != nil {
 			rawhashes = append(rawhashes, "")
 			conn.Close()
 			continue
 		}
 
-		// ret, err = zgrab2.ReadAvailable(conn)
-		ret, err = zgrab2.ReadAvailableWithOptions(conn, 1484, 500*time.Millisecond, 0, 1484)
-		if err != io.EOF && err != nil {
-			rawhashes = append(rawhashes, "")
-			conn.Close()
-			continue
-		}
+		ret, _ = zgrab2.ReadAvailableWithOptions(conn, 1484, 500*time.Millisecond, 0, 1484)
 
 		ans, err := jarm.ParseServerHello(ret, probe)
 		if err != nil {
@@ -142,12 +130,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			continue
 		}
 
-		rawhashes = append(rawhashes, string(ans))
+		rawhashes = append(rawhashes, ans)
 		conn.Close()
-
 	}
 
-	fprint := jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ","))
-	r.Fingerprint = string(fprint)
-	return zgrab2.SCAN_SUCCESS, &r, nil
+	return zgrab2.SCAN_SUCCESS, &Results{
+		Fingerprint: jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ",")),
+	}, nil
 }
