@@ -275,12 +275,12 @@ github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81P
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/urfave/cli v1.20.0/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
 github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
-github.com/weppos/publicsuffix-go v0.15.1-0.20210627075608-6c05b413dffb h1:oPaLW393z/0fKmyrC1rTmXbyst2hTF3uXFXgnT8CcdE=
-github.com/weppos/publicsuffix-go v0.15.1-0.20210627075608-6c05b413dffb/go.mod h1:HYux0V0Zi04bHNwOHy4cXJVz/TQjYonnF6aoYhj+3QE=
+github.com/weppos/publicsuffix-go v0.15.1-0.20210807195340-dc689ff0bb59 h1:AVtJaLXRE+TF52GI9c+vTzW677NEIwfHidI6hs61D/I=
+github.com/weppos/publicsuffix-go v0.15.1-0.20210807195340-dc689ff0bb59/go.mod h1:HYux0V0Zi04bHNwOHy4cXJVz/TQjYonnF6aoYhj+3QE=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/zmap/zcertificate v0.0.0-20180516150559-0e3d58b1bac4/go.mod h1:5iU54tB79AMBcySS0R2XIyZBAVmeHranShAFELYx7is=
-github.com/zmap/zcrypto v0.0.0-20210809144358-54fce8d03384 h1:Rc8IlS4lMSqW/aI6kbjwm/VI13EvTkfG3WzMk2IHWhI=
-github.com/zmap/zcrypto v0.0.0-20210809144358-54fce8d03384/go.mod h1:MBLTiUl5eAAdkMdUyuB2RcFa7PMrLQqbKmRVdjpe4y4=
+github.com/zmap/zcrypto v0.0.0-20210920131930-11cb43ac62dd h1:hl3GmSA4k1N8E2kPvUY2eqdQWvxCL0OP/kVXL7X+M/M=
+github.com/zmap/zcrypto v0.0.0-20210920131930-11cb43ac62dd/go.mod h1:64KeCzxyjA/pxA8ek5WQdJTLV/aF7hZScXz+blZ5QQE=
 github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6 h1:XYA+NN2AS4mRmIDVu2nCtrjU17zKlRihO3MnlcmueUw=
 github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6/go.mod h1:HXDUD+uue8yeLHr0eXx1lvY6CvMiHbTKw5nGmA9OUoo=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
