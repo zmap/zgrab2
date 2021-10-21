@@ -65,7 +65,7 @@ func getBuildInfoQuery() []byte {
 	return query_msg
 }
 
-// getBuildInfoCommandMsg returns a mongodb message containing a command to retrieve MongoDB build info.
+// getListDatabasesMsg returns a mongodb message containing a command to retrieve MongoDB database info.
 func getListDatabasesMsg() []byte {
 	query, err := bson.Marshal(bson.M{"listDatabases": 1})
 	if err != nil {
@@ -74,20 +74,6 @@ func getListDatabasesMsg() []byte {
 	}
 	query_msg := getOpQuery("admin.$cmd", query)
 	return query_msg
-}
-
-// getListDatabasesOpMsg returns a mongodb "OP" message containing query to retrieve MongoDB db info
-func getListDatabasesOpMsg() []byte {
-	// gleaned from tshark
-	section_payload, err := bson.Marshal(bson.M{"listDatabases": 1, "$db": "admin"})
-	if err != nil {
-		// programmer error
-		log.Fatalf("Invalid BSON: %v", err)
-	}
-	section := make([]byte, len(section_payload)+1)
-	copy(section[1:], section_payload)
-	op_msg := getOpMsg(section)
-	return op_msg
 }
 
 // getOpQuery returns a mongodb OP_QUERY message containing the specified BSON-encoded query.
@@ -209,7 +195,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.isMasterMsg = getIsMasterMsg()
 	scanner.buildInfoCommandMsg = getBuildInfoQuery()
 	scanner.buildInfoOpMsg = getBuildInfoOpMsg()
-	scanner.listDatabasesMsg = getListDatabasesOpMsg()
+	scanner.listDatabasesMsg = getListDatabasesMsg()
 	return nil
 }
 
@@ -314,7 +300,7 @@ func getIsMaster(conn *Connection) (*IsMaster_t, error) {
 
 func listDatabases(conn *Connection) (*ListDatabases_t, error) {
 	document := ListDatabases_t{}
-	conn.Write(getListDatabasesMsg())
+	conn.Write(conn.scanner.listDatabasesMsg)
 
 	msg, err := conn.ReadMsg()
 	if err != nil {
