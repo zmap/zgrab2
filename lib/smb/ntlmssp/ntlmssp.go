@@ -172,16 +172,21 @@ func (s *AvPairSlice) UnmarshalBinary(buf []byte, meta *encoder.Metadata) error 
 	if !ok {
 		return errors.New(fmt.Sprintf("Cannot unmarshal field '%s'. Missing offset\n", meta.CurrField))
 	}
-	for i := l; i > 0; {
+	offset := int64(o)
+	length := int64(l)
+	if offset+length > int64(len(meta.ParentBuf)) {
+		return fmt.Errorf("AvPairSlice.UnmarshalBinary: ParentBuf overrun")
+	}
+	for i := length; i > 0; {
 		var avPair AvPair
-		err := encoder.Unmarshal(meta.ParentBuf[o:o+i], &avPair)
+		err := encoder.Unmarshal(meta.ParentBuf[offset:offset+i], &avPair)
 		if err != nil {
 			return err
 		}
 		slice = append(slice, avPair)
 		size := avPair.Size()
-		o += size
-		i -= size
+		offset += int64(size)
+		i -= int64(size)
 	}
 	*s = slice
 	return nil
