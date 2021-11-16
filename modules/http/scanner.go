@@ -295,9 +295,12 @@ func (scan *scan) dialContext(ctx context.Context, network string, addr string) 
 		}
 	}
 
-	timeoutContext, _ := context.WithTimeout(context.Background(), scan.scanner.config.Timeout)
-
-	conn, err := dialer.DialContext(scan.withDeadlineContext(timeoutContext), network, addr)
+	tlsctx := context.Background()
+	if scan.scanner.config.Timeout > 0 {
+		timeoutContext, _ := context.WithTimeout(context.Background(), scan.scanner.config.Timeout)
+		tlsctx = scan.withDeadlineContext(timeoutContext)
+	}
+	conn, err := dialer.DialContext(tlsctx, network, addr)
 	if err != nil {
 		return nil, err
 	}

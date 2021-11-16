@@ -387,7 +387,7 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 			switch conn := pconn.conn.(type) {
 			case *tls.Conn:
 				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
-				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog(), HeartbleedLog: conn.GetHeartbleedLog()}
+				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
 			case *zgrab2.TLSConnection:
 				req.TLSLog = conn.GetLog()
 			}

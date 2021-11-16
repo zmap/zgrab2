@@ -6,6 +6,7 @@
 cmd/zgrab2/zgrab2
 cmd/zgrab2/zgrab2.exe
 zgrab-output/
+input.txt
 
 # CI dependencies
 jp
