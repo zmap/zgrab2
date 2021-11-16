@@ -28,6 +28,7 @@ import (
 // Common flags for TLS configuration -- include this in your module's ScanFlags implementation to use the common TLS code
 // Adapted from modules/ssh.go
 type TLSFlags struct {
+	RenegotiateFreely    bool `long:"renegotiate-freely" description:"Allow renegotiations when requested by server"`
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
 	ExtendedMasterSecret bool `long:"extended-master-secret" description:"Offer RFC 7627 Extended Master Secret extension" json:"extended"`
 	ExtendedRandom       bool `long:"extended-random" description:"Send TLS Extended Random Extension" json:"extran"`
@@ -124,6 +125,12 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 	if t.CertificateMap != "" {
 		// TODO FIXME: Implement
 		log.Fatalf("--certificate-map not implemented")
+	}
+	if t.RenegotiateFreely {
+		// Allow the server to request renegotiate, required by some servers
+		// The following erroring in output means you need this option:
+		// "error":"local error: no renegotiation"
+		ret.Renegotiation = tls.RenegotiateFreelyAsClient
 	}
 	if t.RootCAs != "" {
 		var fd *os.File
