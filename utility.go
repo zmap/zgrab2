@@ -145,9 +145,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 			}
 			return ret, err
 		}
-		if err != nil {
-			return ret, err
-		}
+
 		if n >= maxReadSize {
 			return ret, err
 		}

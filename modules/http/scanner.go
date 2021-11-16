@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,12 +46,13 @@ var (
 type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
-	Method       string `long:"method" default:"GET" description:"Set HTTP request method type"`
-	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
-	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	RetryHTTPS   bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
-	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+	Method          string `long:"method" default:"GET" description:"Set HTTP request method type"`
+	Endpoint        string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
+	FailHTTPToHTTPS bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
+	UserAgent       string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS      bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
+	MaxSize         int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
+	MaxRedirects    int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
@@ -61,6 +64,11 @@ type Flags struct {
 
 	// RedirectsSucceed causes the ErrTooManRedirects error to be suppressed
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
+
+	// Set arbitrary HTTP headers
+	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
+	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
+	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -90,6 +98,7 @@ type Module struct {
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	config        *Flags
+	customHeaders map[string]string
 	decodedHashFn func([]byte) string
 }
 
@@ -132,7 +141,7 @@ func (flags *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "http"
 }
 
@@ -141,15 +150,74 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
 
+	// parse out custom headers at initialization so that they can be easily
+	// iterated over when constructing individual scanners
+	if len(fl.CustomHeadersNames) > 0 || len(fl.CustomHeadersValues) > 0 {
+		if len(fl.CustomHeadersNames) == 0 {
+			log.Panicf("custom-headers-names must be specified if custom-headers-values is provided")
+		}
+		if len(fl.CustomHeadersValues) == 0 {
+			log.Panicf("custom-headers-values must be specified if custom-headers-names is provided")
+		}
+		namesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersNames))
+		if namesReader == nil {
+			log.Panicf("unable to read custom-headers-names in CSV reader")
+		}
+		valuesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersValues))
+		if valuesReader == nil {
+			log.Panicf("unable to read custom-headers-values in CSV reader")
+		}
+
+		// By default, the CSV delimiter will remain a comma unless explicitly specified
+		if len(fl.CustomHeadersDelimiter) > 1 {
+			log.Panicf("Invalid delimiter custom-header delimiter, must be a single character")
+		} else if fl.CustomHeadersDelimiter != "" {
+			valuesReader.Comma = rune(fl.CustomHeadersDelimiter[0])
+			namesReader.Comma = rune(fl.CustomHeadersDelimiter[0])
+		}
+
+		headerNames, err := namesReader.Read()
+		if err != nil {
+			return err
+		}
+		headerValues, err := valuesReader.Read()
+		if err != nil {
+			return err
+		}
+		if len(headerNames) != len(headerValues) {
+			log.Panicf("inconsistent number of HTTP header names and values")
+		}
+		scanner.customHeaders = make(map[string]string)
+		for i := 0; i < len(headerNames); i++ {
+			// The case of header names is normalized to title case later by HTTP library
+			// explicitly ToLower() to catch duplicates more easily
+			hName := strings.ToLower(headerNames[i])
+			switch {
+			case hName == "host":
+				log.Panicf("Attempt to set immutable header 'Host', specify this in targets file")
+			case hName == "user-agent":
+				log.Panicf("Attempt to set special header 'User-Agent', use --user-agent instead")
+			case hName == "content-length":
+				log.Panicf("Attempt to set immutable header 'Content-Length'")
+			}
+			// Disallow duplicate headers
+			_, ok := scanner.customHeaders[hName]
+			if ok {
+				log.Panicf("Attempt to set same custom header twice")
+			}
+			scanner.customHeaders[hName] = headerValues[i]
+		}
+	}
+
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
 		scanner.decodedHashFn = func(body []byte) string {
-			raw_hash := sha1.Sum(body)
-			return fmt.Sprintf("sha1:%s", hex.EncodeToString(raw_hash[:]))
+			rawHash := sha1.Sum(body)
+			return fmt.Sprintf("sha1:%s", hex.EncodeToString(rawHash[:]))
 		}
 	} else if fl.ComputeDecodedBodyHashAlgorithm == "sha256" {
 		scanner.decodedHashFn = func(body []byte) string {
-			raw_hash := sha256.Sum256(body)
-			return fmt.Sprintf("sha256:%s", hex.EncodeToString(raw_hash[:]))
+			rawHash := sha256.Sum256(body)
+			return fmt.Sprintf("sha256:%s", hex.EncodeToString(rawHash[:]))
 		}
 	} else if fl.ComputeDecodedBodyHashAlgorithm != "" {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
@@ -239,16 +307,33 @@ func (scan *scan) dialContext(ctx context.Context, network string, addr string) 
 
 // getTLSDialer returns a Dial function that connects using the
 // zgrab2.GetTLSConnection()
-func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(net, addr string) (net.Conn, error) {
-	return func(net, addr string) (net.Conn, error) {
-		outer, err := scan.dialContext(context.Background(), net, addr)
+func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(network, addr string) (net.Conn, error) {
+	return func(network, addr string) (net.Conn, error) {
+		outer, err := scan.dialContext(context.Background(), network, addr)
+		if err != nil {
+			return nil, err
+		}
+		cfg, err := scan.scanner.config.TLSFlags.GetTLSConfigForTarget(t)
 		if err != nil {
 			return nil, err
 		}
 
-		cfg, err := scan.scanner.config.TLSFlags.GetTLSConfigForTarget(t)
-		if err != nil {
-			return nil, err
+		// Set SNI server name on redirects unless --server-name was used (issue #300)
+		//  - t.Domain is always set to the *original* Host so it's not useful for setting SNI
+		//  - host is the current target of the request in this context; this is true for the
+		//    initial request as well as subsequent requests caused by redirects
+		//  - scan.scanner.config.ServerName is the value from --server-name if one was specified
+
+		// If SNI is enabled and --server-name is not set, use the target host for the SNI server name
+		if !scan.scanner.config.NoSNI && scan.scanner.config.ServerName == "" {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				log.Errorf("getTLSDialer(): Something went wrong splitting host/port '%s': %s", addr, err)
+			}
+			// RFC4366: Literal IPv4 and IPv6 addresses are not permitted in "HostName"
+			if i := net.ParseIP(host); i == nil {
+				cfg.ServerName = host
+			}
 		}
 
 		if scan.scanner.config.OverrideSH {
@@ -262,7 +347,6 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(net, addr string) (net
 				{0x01, 0x06}, // rsa, sha512
 			}
 		}
-
 		tlsConn := scan.scanner.config.TLSFlags.GetWrappedConnection(outer, cfg)
 
 		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
@@ -393,8 +477,20 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
-	// TODO: Headers from input?
-	request.Header.Set("Accept", "*/*")
+
+	// By default, the following headers are *always* set:
+	// Host, User-Agent, Accept, Accept-Encoding
+	if scan.scanner.customHeaders != nil {
+		request.Header.Set("Accept", "*/*")
+		for k, v := range scan.scanner.customHeaders {
+			request.Header.Set(k, v)
+		}
+	} else {
+		// If user did not specify custom headers, legacy behavior has always been
+		// to set the Accept header
+		request.Header.Set("Accept", "*/*")
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
@@ -431,7 +527,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	bodyText := ""
 	decodedSuccessfully := false
 	decoder := encoder.NewDecoder()
-	
+
 	//"windows-1252" is the default value and will likely not decode correctly
 	if certain || encoding != "windows-1252" {
 		decoded, decErr := decoder.Bytes(buf.Bytes())
@@ -444,6 +540,29 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	if !decodedSuccessfully {
 		bodyText = buf.String()
+	}
+
+	// Application-specific logic for retrying HTTP as HTTPS; if condition matches, return protocol error
+	if scan.scanner.config.FailHTTPToHTTPS && scan.results.Response.StatusCode == 400 && readLen < 1024 && readLen > 24 {
+		// Apache: "You're speaking plain HTTP to an SSL-enabled server port"
+		// NGINX: "The plain HTTP request was sent to HTTPS port"
+		var sliceLen int64 = 128
+		if readLen < sliceLen {
+			sliceLen = readLen
+		}
+
+		bodyTextLen := int64(len(bodyText))
+		if bodyTextLen < sliceLen {
+			sliceLen = bodyTextLen
+		}
+
+		sliceBuf := bodyText[:sliceLen]
+		if strings.Contains(sliceBuf, "The plain HTTP request was sent to HTTPS port") ||
+			strings.Contains(sliceBuf, "You're speaking plain HTTP") ||
+			strings.Contains(sliceBuf, "combination of host and port requires TLS") ||
+			strings.Contains(sliceBuf, "Client sent an HTTP request to an HTTPS server") {
+			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("NGINX or Apache HTTP over HTTPS failure"))
+		}
 	}
 
 	// re-enforce readlen
