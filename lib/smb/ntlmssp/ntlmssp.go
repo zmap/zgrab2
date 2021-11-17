@@ -174,6 +174,10 @@ func (s *AvPairSlice) UnmarshalBinary(buf []byte, meta *encoder.Metadata) error 
 	}
 	offset := int64(o)
 	length := int64(l)
+	if offset < 0 || length < 0 {
+		return fmt.Errorf("AvPairSlice.UnmarshalBinary: offset (%d) and length (%d) should be positive",
+			offset, length)
+	}
 	if offset+length > int64(len(meta.ParentBuf)) {
 		return fmt.Errorf("AvPairSlice.UnmarshalBinary: ParentBuf overrun")
 	}
@@ -184,9 +188,12 @@ func (s *AvPairSlice) UnmarshalBinary(buf []byte, meta *encoder.Metadata) error 
 			return err
 		}
 		slice = append(slice, avPair)
-		size := avPair.Size()
-		offset += int64(size)
-		i -= int64(size)
+		size := int64(avPair.Size())
+		if size < 0 {
+			return fmt.Errorf("AvPairSlice.UnmarshalBinary: Invalid avPair.Size() %d", size)
+		}
+		offset += size
+		i -= size
 	}
 	*s = slice
 	return nil
