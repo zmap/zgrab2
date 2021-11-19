@@ -73,7 +73,6 @@ func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
         if len(s.config.HostKeyAlgorithms) == 0 {
                 s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
         }
-	f, _ := flags.(*SSHFlags)
 	return nil
 }
 
