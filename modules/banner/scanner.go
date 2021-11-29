@@ -44,6 +44,8 @@ type Scanner struct {
 type Results struct {
 	Banner string `json:"banner,omitempty"`
 	Length int    `json:"length,omitempty"`
+
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -134,6 +136,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	var (
 		conn    net.Conn
 		tlsConn *zgrab2.TLSConnection
+		results Results
 		err     error
 		readerr error
 	)
@@ -151,6 +154,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			if err = tlsConn.Handshake(); err != nil {
 				continue
 			}
+			results.TLSLog = tlsConn.GetLog()
 			conn = tlsConn
 		}
 
@@ -176,16 +180,17 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		break
 	}
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), &results, err
 	}
 	if readerr != io.EOF && readerr != nil {
-		return zgrab2.TryGetScanStatus(readerr), nil, readerr
+		return zgrab2.TryGetScanStatus(readerr), &results, readerr
 	}
-	var results Results
+
+	results.Length = len(ret)
 	if scanner.config.Hex {
-		results = Results{Banner: hex.EncodeToString(ret), Length: len(ret)}
+		results.Banner = hex.EncodeToString(ret)
 	} else {
-		results = Results{Banner: string(ret), Length: len(ret)}
+		results.Banner = string(ret)
 	}
 	if scanner.regex.Match(ret) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
