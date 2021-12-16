@@ -8,7 +8,7 @@ require (
 	github.com/prometheus/client_golang v1.10.0
 	github.com/prometheus/common v0.20.0 // indirect
 	github.com/sirupsen/logrus v1.8.1
-	github.com/zmap/zcrypto v0.0.0-20211215002636-794a43ce1b16
+	github.com/zmap/zcrypto v0.0.0-20211216175909-d2652309b7af
 	github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4

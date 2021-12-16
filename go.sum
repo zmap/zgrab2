@@ -283,6 +283,8 @@ github.com/zmap/zcrypto v0.0.0-20210920131930-11cb43ac62dd h1:hl3GmSA4k1N8E2kPvU
 github.com/zmap/zcrypto v0.0.0-20210920131930-11cb43ac62dd/go.mod h1:64KeCzxyjA/pxA8ek5WQdJTLV/aF7hZScXz+blZ5QQE=
 github.com/zmap/zcrypto v0.0.0-20211215002636-794a43ce1b16 h1:MaApWRJ2cb+y39In6PqS7C1nCrDkej/wvWnvZxnz2T4=
 github.com/zmap/zcrypto v0.0.0-20211215002636-794a43ce1b16/go.mod h1:64KeCzxyjA/pxA8ek5WQdJTLV/aF7hZScXz+blZ5QQE=
+github.com/zmap/zcrypto v0.0.0-20211216175909-d2652309b7af h1:uN1OzUJBnkWortooRxsOgSNjXTmRDBpsRlY9BToK1dk=
+github.com/zmap/zcrypto v0.0.0-20211216175909-d2652309b7af/go.mod h1:64KeCzxyjA/pxA8ek5WQdJTLV/aF7hZScXz+blZ5QQE=
 github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6 h1:XYA+NN2AS4mRmIDVu2nCtrjU17zKlRihO3MnlcmueUw=
 github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6/go.mod h1:HXDUD+uue8yeLHr0eXx1lvY6CvMiHbTKw5nGmA9OUoo=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
