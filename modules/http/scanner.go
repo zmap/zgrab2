@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"errors"
@@ -54,6 +55,11 @@ type Flags struct {
 	MaxSize         int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
 	MaxRedirects    int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
+	Body            string `long:"body" default:"" description:"Set a body for use with POST (base64 encoded)"`
+	Chunked         bool   `long:"chunked" description:"Use chunked encoding if a POST body is set"`
+	ContentType     string `long:"content-type" default:"" description:"Set the Content-Type header explicitly; defaults to application/x-www-form-urlencoded for POST"`
+	DisableCompression bool  `long:"disable-compression" description:"Do not set Accept-Encoding to gzip"`
+	NoAcceptHeader  bool   `long:"no-accept-header" description:"Do not include an HTTP Accept header"`
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
 	FollowLocalhostRedirects bool `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
@@ -100,6 +106,8 @@ type Scanner struct {
 	config        *Flags
 	customHeaders map[string]string
 	decodedHashFn func([]byte) string
+	body string
+	bodyReader io.Reader
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -207,6 +215,23 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 			}
 			scanner.customHeaders[hName] = headerValues[i]
 		}
+	}
+
+   // Set the POST body once here; this whole implementation is a bit crufty
+   // I'm not a golang programmer
+   scanner.body = fl.Body
+   if fl.Body != "" {
+		if fl.Method != "POST" && fl.Method != "PUT" {
+			log.Fatal("Specified a body but method is not POST or PUT; not supported!")
+		}
+      bodyBytes, err := base64.StdEncoding.DecodeString(fl.Body)
+      scanner.body = string(bodyBytes)
+      scanner.bodyReader = strings.NewReader(scanner.body)
+      if err != nil {
+         log.Fatal("Unable to base64 decode body")
+      } 
+   } else {
+      scanner.bodyReader = nil
 	}
 
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
@@ -444,7 +469,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 		transport: &http.Transport{
 			Proxy:               nil, // TODO: implement proxying
 			DisableKeepAlives:   false,
-			DisableCompression:  false,
+			DisableCompression:	scanner.config.DisableCompression,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 		},
 		client:         http.MakeNewClient(),
@@ -475,14 +500,14 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
 func (scan *scan) Grab() *zgrab2.ScanError {
-	// TODO: Allow body?
-	request, err := http.NewRequest(scan.scanner.config.Method, scan.url, nil)
+	// bodyReader is set to non-nil if method is POST and --body is set to a base64 encoded string
+	request, err := http.NewRequest(scan.scanner.config.Method, scan.url, scan.scanner.bodyReader)
+
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
 
-	// By default, the following headers are *always* set:
-	// Host, User-Agent, Accept, Accept-Encoding
+	// By default, Host, User-Agent, Accept, Accept-Encoding are all set to a sane value
 	if scan.scanner.customHeaders != nil {
 		request.Header.Set("Accept", "*/*")
 		for k, v := range scan.scanner.customHeaders {
@@ -492,6 +517,30 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		// If user did not specify custom headers, legacy behavior has always been
 		// to set the Accept header
 		request.Header.Set("Accept", "*/*")
+	}
+
+	if scan.scanner.config.NoAcceptHeader {
+		request.Header.Del("Accept")
+	}
+
+
+	if scan.scanner.config.ContentType != "" {
+		request.Header.Set("Content-Type", scan.scanner.config.ContentType)
+	} 
+
+
+	if scan.scanner.body != "" {
+		if scan.scanner.config.Chunked {
+			request.TransferEncoding = []string{"chunked"}
+		} else {
+			request.TransferEncoding = []string{"identity"}
+		}
+		// By default, use standard HTTP form POST content-type; could add multipart later
+		// For now, if you want multipart, set it yourself (and the payload too, with --body)
+		if scan.scanner.config.ContentType == "" {
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
+		request.ContentLength = int64(len(scan.scanner.body))
 	}
 
 	resp, err := scan.client.Do(request)
