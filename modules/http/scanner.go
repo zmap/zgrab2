@@ -471,6 +471,11 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 	} else {
 		port = uint16(scanner.config.BaseFlags.Port)
 	}
+
+	if useHTTPS && scanner.config.BaseFlags.Port == 80 {
+		port = uint16(protoToPort["https"])
+	}
+
 	ret.url = getHTTPURL(useHTTPS, host, port, scanner.config.Endpoint)
 
 	return &ret
