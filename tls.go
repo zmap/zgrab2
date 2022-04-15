@@ -30,7 +30,9 @@ import (
 type TLSFlags struct {
 	Config *tls.Config // Config is ready to use TLS configuration
 
-  RenegotiateFreely    bool `long:"renegotiate-freely" description:"Allow renegotiations when requested by server"`
+	Heartbleed bool `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
+
+ 	RenegotiateFreely    bool `long:"renegotiate-freely" description:"Allow renegotiations when requested by server"`
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
 	ExtendedMasterSecret bool `long:"extended-master-secret" description:"Offer RFC 7627 Extended Master Secret extension" json:"extended"`
 	ExtendedRandom       bool `long:"extended-random" description:"Send TLS Extended Random Extension" json:"extran"`
