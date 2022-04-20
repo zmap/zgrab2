@@ -1,7 +1,9 @@
 ZGrab 2.0
 =========
 
-This repo contains the new ZGrab framework, and will eventually replace https://github.com/zmap/zgrab.
+ZGrab is a fast, modular application-layer network scanner designed for completing large Internet-wide surveys. ZGrab is built to work with ZMap (ZMap identifies L4 responsive hosts, ZGrab performs in-depth, follow-up L7 handshakes). Unlike many other network scanners, ZGrab outputs detailed transcripts of network handshakes (e.g., all messages exchanged in a TLS handshake) for offline analysis.  
+
+ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
 ## Building
 
@@ -125,7 +127,7 @@ func init() {
 
 To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](schemas/__init__.py) to ensure that it is loaded.
 
-See [schemas/README.md](schemas/README.md) for details.
+See [zgrab2_schemas/README.md](zgrab2_schemas/README.md) for details.
 
 ### Integration tests
 To add integration tests for the new module, run `integration_tests/new.sh [your_new_protocol_name]`.

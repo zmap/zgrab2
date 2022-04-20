@@ -85,7 +85,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 		// we had to shrink the output buffer AND we used up the whole shrunk size, AND we're not at EOF
 		switch c.ReadLimitExceededAction {
 		case ReadLimitExceededActionTruncate:
-			logrus.Debug("Truncated read from %d bytes to %d bytes (hit limit of %d bytes)", origSize, n, c.BytesReadLimit)
+			logrus.Debugf("Truncated read from %d bytes to %d bytes (hit limit of %d bytes)", origSize, n, c.BytesReadLimit)
 			err = io.EOF
 		case ReadLimitExceededActionError:
 			return n, ErrReadLimitExceeded

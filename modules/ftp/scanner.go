@@ -265,7 +265,10 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		}
 		results.ImplicitTLS = true
 		results.TLSLog = tlsConn.GetLog()
-		tlsConn.Handshake()
+		err = tlsConn.Handshake()
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
 		cn = tlsConn
 	}
 

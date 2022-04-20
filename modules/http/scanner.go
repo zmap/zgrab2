@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,12 +46,13 @@ var (
 type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
-	Method       string `long:"method" default:"GET" description:"Set HTTP request method type"`
-	Endpoint     string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
-	UserAgent    string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	RetryHTTPS   bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
-	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+	Method          string `long:"method" default:"GET" description:"Set HTTP request method type"`
+	Endpoint        string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
+	FailHTTPToHTTPS bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
+	UserAgent       string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS      bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
+	MaxSize         int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
+	MaxRedirects    int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
@@ -61,6 +64,11 @@ type Flags struct {
 
 	// RedirectsSucceed causes the ErrTooManRedirects error to be suppressed
 	RedirectsSucceed bool `long:"redirects-succeed" description:"Redirects are always a success, even if max-redirects is exceeded"`
+
+	// Set arbitrary HTTP headers
+	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
+	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
+	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -90,6 +98,7 @@ type Module struct {
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	config        *Flags
+	customHeaders map[string]string
 	decodedHashFn func([]byte) string
 }
 
@@ -140,6 +149,65 @@ func (scanner *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+
+	// parse out custom headers at initialization so that they can be easily
+	// iterated over when constructing individual scanners
+	if len(fl.CustomHeadersNames) > 0 || len(fl.CustomHeadersValues) > 0 {
+		if len(fl.CustomHeadersNames) == 0 {
+			log.Panicf("custom-headers-names must be specified if custom-headers-values is provided")
+		}
+		if len(fl.CustomHeadersValues) == 0 {
+			log.Panicf("custom-headers-values must be specified if custom-headers-names is provided")
+		}
+		namesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersNames))
+		if namesReader == nil {
+			log.Panicf("unable to read custom-headers-names in CSV reader")
+		}
+		valuesReader := csv.NewReader(strings.NewReader(fl.CustomHeadersValues))
+		if valuesReader == nil {
+			log.Panicf("unable to read custom-headers-values in CSV reader")
+		}
+
+		// By default, the CSV delimiter will remain a comma unless explicitly specified
+		if len(fl.CustomHeadersDelimiter) > 1 {
+			log.Panicf("Invalid delimiter custom-header delimiter, must be a single character")
+		} else if fl.CustomHeadersDelimiter != "" {
+			valuesReader.Comma = rune(fl.CustomHeadersDelimiter[0])
+			namesReader.Comma = rune(fl.CustomHeadersDelimiter[0])
+		}
+
+		headerNames, err := namesReader.Read()
+		if err != nil {
+			return err
+		}
+		headerValues, err := valuesReader.Read()
+		if err != nil {
+			return err
+		}
+		if len(headerNames) != len(headerValues) {
+			log.Panicf("inconsistent number of HTTP header names and values")
+		}
+		scanner.customHeaders = make(map[string]string)
+		for i := 0; i < len(headerNames); i++ {
+			// The case of header names is normalized to title case later by HTTP library
+			// explicitly ToLower() to catch duplicates more easily
+			hName := strings.ToLower(headerNames[i])
+			switch {
+			case hName == "host":
+				log.Panicf("Attempt to set immutable header 'Host', specify this in targets file")
+			case hName == "user-agent":
+				log.Panicf("Attempt to set special header 'User-Agent', use --user-agent instead")
+			case hName == "content-length":
+				log.Panicf("Attempt to set immutable header 'Content-Length'")
+			}
+			// Disallow duplicate headers
+			_, ok := scanner.customHeaders[hName]
+			if ok {
+				log.Panicf("Attempt to set same custom header twice")
+			}
+			scanner.customHeaders[hName] = headerValues[i]
+		}
+	}
 
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
 		scanner.decodedHashFn = func(body []byte) string {
@@ -359,9 +427,15 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	} else {
 		proto = "http"
 	}
-	if protoToPort[proto] == port {
+	if protoToPort[proto] == port && strings.Contains(host, ":") {
+		//If the host has a ":" in it, assume literal IPv6 address
+		return proto + "://[" + host + "]" + endpoint
+	} else if protoToPort[proto] == port {
+		//Otherwise, just concatenate host and endpoint
 		return proto + "://" + host + endpoint
 	}
+
+	//For non-default ports, net.JoinHostPort will handle brackets for IPv6 literals
 	return proto + "://" + net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10)) + endpoint
 }
 
@@ -409,8 +483,20 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
-	// TODO: Headers from input?
-	request.Header.Set("Accept", "*/*")
+
+	// By default, the following headers are *always* set:
+	// Host, User-Agent, Accept, Accept-Encoding
+	if scan.scanner.customHeaders != nil {
+		request.Header.Set("Accept", "*/*")
+		for k, v := range scan.scanner.customHeaders {
+			request.Header.Set(k, v)
+		}
+	} else {
+		// If user did not specify custom headers, legacy behavior has always been
+		// to set the Accept header
+		request.Header.Set("Accept", "*/*")
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
@@ -460,6 +546,29 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	if !decodedSuccessfully {
 		bodyText = buf.String()
+	}
+
+	// Application-specific logic for retrying HTTP as HTTPS; if condition matches, return protocol error
+	if scan.scanner.config.FailHTTPToHTTPS && scan.results.Response.StatusCode == 400 && readLen < 1024 && readLen > 24 {
+		// Apache: "You're speaking plain HTTP to an SSL-enabled server port"
+		// NGINX: "The plain HTTP request was sent to HTTPS port"
+		var sliceLen int64 = 128
+		if readLen < sliceLen {
+			sliceLen = readLen
+		}
+
+		bodyTextLen := int64(len(bodyText))
+		if bodyTextLen < sliceLen {
+			sliceLen = bodyTextLen
+		}
+
+		sliceBuf := bodyText[:sliceLen]
+		if strings.Contains(sliceBuf, "The plain HTTP request was sent to HTTPS port") ||
+			strings.Contains(sliceBuf, "You're speaking plain HTTP") ||
+			strings.Contains(sliceBuf, "combination of host and port requires TLS") ||
+			strings.Contains(sliceBuf, "Client sent an HTTP request to an HTTPS server") {
+			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("NGINX or Apache HTTP over HTTPS failure"))
+		}
 	}
 
 	// re-enforce readlen

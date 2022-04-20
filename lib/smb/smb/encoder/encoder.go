@@ -441,7 +441,7 @@ func unmarshal(buf []byte, v interface{}, meta *Metadata) (interface{}, error) {
 					o = int(meta.CurrOffset)
 				}
 				// Prevent searching past the end of the buffer for variable data
-				if o+l >= len(meta.ParentBuf) {
+				if o+l > len(meta.ParentBuf) {
 					return nil, errors.New(fmt.Sprintf("field '%s' wants %d bytes but only %d bytes remain.", meta.CurrField, l, len(meta.ParentBuf)-o))
 				}
 				// Variable length data is relative to parent/outer struct. Reset reader to point to beginning of data

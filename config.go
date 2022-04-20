@@ -104,7 +104,7 @@ func validateFrameworkConfiguration() {
 
 	// Validate Go Runtime config
 	if config.GOMAXPROCS < 0 {
-		log.Fatal("invalid GOMAXPROCS (must be positive, given %d)", config.GOMAXPROCS)
+		log.Fatalf("invalid GOMAXPROCS (must be positive, given %d)", config.GOMAXPROCS)
 	}
 	runtime.GOMAXPROCS(config.GOMAXPROCS)
 
