@@ -178,7 +178,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	raw := BuildGrabFromInputResponse(&input, moduleResult)
 	result, err := EncodeGrab(raw, includeDebugOutput())
 	if err != nil {
-		log.Fatalf("unable to marshal data: %s", err)
+		log.Errorf("unable to marshal data: %s", err)
 	}
 
 	return result
