@@ -609,7 +609,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 			defer retry.Cleanup()
 			retryError := retry.Grab()
 			if retryError != nil {
-				return retryError.Unpack(&retry.results)
+				return err.Unpack(&scan.results)
 			}
 			return zgrab2.SCAN_SUCCESS, &retry.results, nil
 		}
