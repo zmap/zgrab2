@@ -41,8 +41,18 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	Versions          = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
-	AttributesCharset = []byte{0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74}
+	Versions = []version{
+		{Major: 2, Minor: 1},
+		{Major: 2, Minor: 0},
+		{Major: 1, Minor: 1},
+		{Major: 1, Minor: 0},
+	}
+
+	AttributesCharset = []byte{
+		0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69,
+		0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68,
+		0x61, 0x72, 0x73, 0x65, 0x74,
+	}
 )
 
 type scan struct {
@@ -297,9 +307,10 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 			continue
 		}
 		// TODO: Implement parsing attribute collections, since they're special
-		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
-		// or provides an additonal value for the previous attribute
-		var nameLength int16
+		// Read in length of attribute's name, which will be used to determine
+		// whether this attribute stands alone or provides an additonal value
+		// for the previous attribute
+		var nameLength uint16
 		if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 			return attrs, detectReadBodyError(err)
 		}
