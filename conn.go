@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"time"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 )
@@ -340,6 +342,53 @@ func (d *Dialer) SetDefaults() *Dialer {
 			Timeout:   d.Timeout,
 			KeepAlive: d.Timeout,
 			DualStack: true,
+		}
+	}
+
+	// There are caveats here and it's designed for a very specific use-case
+	// Use-case is for machines with multiple default routes. Consider a system
+	// with mgmt0 and wan0
+	//   - Both are technically WAN links with public IP addresses
+	//   - Both have an entry in the routing table for 0/0
+	//   - Only one (wan0) is intended for network probes
+	//   - It is not an option to simply reorder the routes system-wide, for
+	//     whatever reason
+	//
+	// Assuming the above all hold, you can use $ZIFACE to override the
+	// interface that the TCP/IP stack would choose by default (which is based
+    // entirely on the priority of the routing table)
+	// 
+	// This is a fix ("hack", really) for the issue described in:
+	//   https://github.com/zmap/zgrab2/issues/351
+	//
+	// @dadrien suggested a much less invasive and more flexible solution, which
+	// is spinning up a network namespace with only the desired interface and
+	// using that for the scan. That solves this problem without any code changes.
+	//
+	// That works very well and is by far the best solution *except* where it is not
+	// available, in cases where the system is hardened via:
+	//
+	//   kernel.unprivileged_userns_clone = 0
+	//
+	// In this case, you can fall back on this hacky mechanism, by setting the
+	// $ZIFACE environment variable to the interface you want to prefer over the
+	// others
+	if iface := os.Getenv("ZIFACE"); iface != "" {
+	    ief, err := net.InterfaceByName(iface)
+	    if err != nil {
+			panic("InterfaceByName(): interface specified does not exist")
+	    }
+		addrs, err := ief.Addrs()
+		if err != nil || len(addrs) == 0 {
+			panic("Addrs(): specified interface does not exist or has addresses assigned")
+		}
+		d.Dialer.LocalAddr = addrs[0]
+		d.Dialer.Control = func(network, address string, c syscall.RawConn) error {
+			return c.Control(func (fd uintptr)  {
+				if err := syscall.BindToDevice(int(fd), iface); err != nil {
+					panic("BindToDevice(): bind to interface failed")
+				}
+			})
 		}
 	}
 	return d
