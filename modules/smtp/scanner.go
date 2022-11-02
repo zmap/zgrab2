@@ -72,10 +72,10 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	// SendHELO indicates that the EHLO command should be set.
+	// SendEHLO indicates that the EHLO command should be set.
 	SendEHLO bool `long:"send-ehlo" description:"Send the EHLO command; use --ehlo-domain to set a domain."`
 
-	// SendEHLO indicates that the EHLO command should be set.
+	// SendHELO indicates that the HELO command should be set.
 	SendHELO bool `long:"send-helo" description:"Send the EHLO command; use --helo-domain to set a domain."`
 
 	// SendHELP indicates that the client should send the HELP command (after HELO/EHLO).
