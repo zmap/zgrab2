@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zmap/zgrab2/lib/http"
+	"github.com/packetloop/zgrab2/lib/http"
 )
 
 // drainBody reads all of b to memory and then returns two equivalent

@@ -1,6 +1,6 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/tcp"
+import "github.com/packetloop/zgrab2/modules/tcp"
 
 func init() {
 	tcp.RegisterModule()

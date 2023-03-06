@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
-	"github.com/zmap/zgrab2/lib/ssh"
+	"github.com/packetloop/zgrab2"
+	"github.com/packetloop/zgrab2/lib/ssh"
 )
 
 type SSHFlags struct {

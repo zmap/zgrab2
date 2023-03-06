@@ -7,7 +7,7 @@ package dnp3
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
+	"github.com/packetloop/zgrab2"
 )
 
 // Flags holds the command-line configuration for the dnp3 scan module.

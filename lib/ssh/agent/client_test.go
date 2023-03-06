@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zmap/zgrab2/lib/ssh"
+	"github.com/packetloop/zgrab2/lib/ssh"
 )
 
 // startAgent executes ssh-agent, and returns a Agent interface to it.

@@ -28,7 +28,7 @@ import (
 	"golang.org/x/crypto/ed25519"
 
 	ztoolsX509 "github.com/zmap/zcrypto/x509"
-	ztoolsKeys "github.com/zmap/zgrab2/tools/keys"
+	ztoolsKeys "github.com/packetloop/zgrab2/tools/keys"
 )
 
 // These constants represent the algorithm names for key types supported by this
@@ -347,7 +347,7 @@ func parseRSA(in []byte) (out PublicKey, rest []byte, err error) {
 func (r *rsaPublicKey) Marshal() []byte {
 	e := new(big.Int).SetInt64(int64(r.E))
 	// RSA publickey struct layout should match the struct used by
-	// parseRSACert in the github.com/zmap/zgrab2/lib/agent package.
+	// parseRSACert in the github.com/packetloop/zgrab2/lib/agent package.
 	wirekey := struct {
 		Name string
 		E    *big.Int
@@ -408,7 +408,7 @@ func parseDSA(in []byte) (out PublicKey, rest []byte, err error) {
 
 func (k *dsaPublicKey) Marshal() []byte {
 	// DSA publickey struct layout should match the struct used by
-	// parseDSACert in the x/github.com/zmap/zgrab2/lib/agent package.
+	// parseDSACert in the x/github.com/packetloop/zgrab2/lib/agent package.
 	w := struct {
 		Name       string
 		P, Q, G, Y *big.Int
@@ -613,7 +613,7 @@ func (key *ecdsaPublicKey) Marshal() []byte {
 	// See RFC 5656, section 3.1.
 	keyBytes := elliptic.Marshal(key.Curve, key.X, key.Y)
 	// ECDSA publickey struct layout should match the struct used by
-	// parseECDSACert in the github.com/zmap/zgrab2/lib/agent package.
+	// parseECDSACert in the github.com/packetloop/zgrab2/lib/agent package.
 	w := struct {
 		Name string
 		ID   string

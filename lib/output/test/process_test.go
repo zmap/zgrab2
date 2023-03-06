@@ -25,8 +25,8 @@ import (
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
 	"github.com/zmap/zcrypto/x509/pkix"
-	"github.com/zmap/zgrab2"
-	"github.com/zmap/zgrab2/lib/output"
+	"github.com/packetloop/zgrab2"
+	"github.com/packetloop/zgrab2/lib/output"
 )
 
 const doFailDiffs = false

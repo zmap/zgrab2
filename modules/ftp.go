@@ -1,6 +1,6 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/ftp"
+import "github.com/packetloop/zgrab2/modules/ftp"
 
 func init() {
 	ftp.RegisterModule()

@@ -8,8 +8,8 @@ import (
 	"reflect"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
-	"github.com/zmap/zgrab2/lib/mysql"
+	"github.com/packetloop/zgrab2"
+	"github.com/packetloop/zgrab2/lib/mysql"
 )
 
 // ScanResults contains detailed information about the scan.

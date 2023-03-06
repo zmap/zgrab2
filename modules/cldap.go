@@ -1,6 +1,6 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/cldap"
+import "github.com/packetloop/zgrab2/modules/cldap"
 
 func init() {
 	cldap.RegisterModule()

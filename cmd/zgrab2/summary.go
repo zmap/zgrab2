@@ -1,6 +1,6 @@
 package main
 
-import "github.com/zmap/zgrab2"
+import "github.com/packetloop/zgrab2"
 
 type Summary struct {
 	StatusesPerModule map[string]*zgrab2.State `json:"statuses"`

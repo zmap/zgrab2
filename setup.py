@@ -13,7 +13,7 @@ setup(
   ],
   author="ZMap Team",
   author_email="team@zmap.io",
-  url="https://github.com/zmap/zgrab2",
+  url="https://github.com/packetloop/zgrab2",
   keywords="zmap censys zgrab2 internet-wide scanning",
   packages=find_packages(),
   include_package_data=True,

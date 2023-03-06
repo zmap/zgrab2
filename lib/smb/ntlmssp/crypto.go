@@ -5,7 +5,7 @@ import (
 	"crypto/md5"
 	"strings"
 
-	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
+	"github.com/packetloop/zgrab2/lib/smb/smb/encoder"
 	"golang.org/x/crypto/md4"
 )
 

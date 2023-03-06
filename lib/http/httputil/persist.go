@@ -12,7 +12,7 @@ import (
 	"net/textproto"
 	"sync"
 
-	"github.com/zmap/zgrab2/lib/http"
+	"github.com/packetloop/zgrab2/lib/http"
 )
 
 var (
