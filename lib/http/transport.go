@@ -1503,7 +1503,7 @@ func (pc *persistConn) readLoop() {
 			closeErr = err
 		}
 
-		if err != nil {
+		if err != nil && (!pc.sawEOF || resp == nil) {
 			if pc.readLimit <= 0 {
 				err = fmt.Errorf("net/http: server response headers exceeded %d bytes; aborted", pc.maxHeaderResponseSize())
 			}
@@ -1657,6 +1657,9 @@ func (pc *persistConn) readResponse(rc requestAndChan, trace *httptrace.ClientTr
 	}
 	resp, err = ReadResponse(pc.br, rc.req)
 	if err != nil {
+		if err == io.ErrUnexpectedEOF {
+			pc.sawEOF = true
+		}
 		return
 	}
 	if rc.continueCh != nil {
