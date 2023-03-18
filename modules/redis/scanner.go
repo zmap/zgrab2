@@ -157,6 +157,9 @@ type Result struct {
 	// simple string "OK" even when authentication is required, unless the
 	// QUIT command was renamed.
 	QuitResponse string `json:"quit_response,omitempty"`
+
+	// TLSLog is the standard TLS log for the connection if used
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module
@@ -321,6 +324,7 @@ func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 		err     error
 	)
 
+	isSSL := false
 	conn, err = target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return nil, err
@@ -335,6 +339,7 @@ func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 			return nil, err
 		}
 		conn = tlsConn
+		isSSL = true
 	} else {
 		conn, err = target.Open(&scanner.config.BaseFlags)
 	}
@@ -349,6 +354,7 @@ func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 		result:  &Result{},
 		conn: &Connection{
 			scanner: scanner,
+			isSSL:   isSSL,
 			conn:    conn,
 		},
 		close: func() { conn.Close() },
@@ -502,5 +508,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		quitResponse = NullValue
 	}
 	result.QuitResponse = forceToString(quitResponse)
+	result.TLSLog = scan.conn.GetTLSLog()
 	return zgrab2.SCAN_SUCCESS, &result, nil
 }

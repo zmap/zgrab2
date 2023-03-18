@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
+	"net"
 	"strconv"
 	"strings"
 
@@ -329,11 +329,9 @@ var readers map[byte]redisDataReader
 // Connection holds the state for a single connection within a scan
 type Connection struct {
 	scanner *Scanner
-	conn    interface {
-		io.Reader
-		io.Writer
-	}
-	buffer []byte
+	conn    net.Conn
+	buffer  []byte
+	isSSL   bool
 }
 
 // write writes data to the connection, and returns an error if the write fails
@@ -423,6 +421,13 @@ func (conn *Connection) ReadRedisValue() (RedisValue, error) {
 		return nil, ErrInvalidData
 	}
 	return reader(conn)
+}
+
+func (conn *Connection) GetTLSLog() *zgrab2.TLSLog {
+	if !conn.isSSL {
+		return nil
+	}
+	return conn.conn.(*zgrab2.TLSConnection).GetLog()
 }
 
 type CustomResponse struct {
