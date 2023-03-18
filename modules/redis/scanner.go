@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,6 +38,8 @@ type Flags struct {
 	Password         string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
 	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
 	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	UseTLS           bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	zgrab2.TLSFlags
 }
 
 // Module implements the zgrab2.Module interface
@@ -312,10 +315,34 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 
 // StartScan opens a connection to the target and sets up a scan instance for it
 func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+	var (
+		conn    net.Conn
+		tlsConn *zgrab2.TLSConnection
+		err     error
+	)
+
+	conn, err = target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return nil, err
 	}
+
+	if scanner.config.UseTLS {
+		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
+		if err != nil {
+			return nil, err
+		}
+		if err := tlsConn.Handshake(); err != nil {
+			return nil, err
+		}
+		conn = tlsConn
+	} else {
+		conn, err = target.Open(&scanner.config.BaseFlags)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &scan{
 		target:  target,
 		scanner: scanner,
