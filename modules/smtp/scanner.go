@@ -76,7 +76,7 @@ type Flags struct {
 	SendEHLO bool `long:"send-ehlo" description:"Send the EHLO command; use --ehlo-domain to set a domain."`
 
 	// SendHELO indicates that the HELO command should be set.
-	SendHELO bool `long:"send-helo" description:"Send the EHLO command; use --helo-domain to set a domain."`
+	SendHELO bool `long:"send-helo" description:"Send the HELO command; use --helo-domain to set a domain."`
 
 	// SendHELP indicates that the client should send the HELP command (after HELO/EHLO).
 	SendHELP bool `long:"send-help" description:"Send the HELP command"`
@@ -87,7 +87,7 @@ type Flags struct {
 	// HELODomain is the domain the client should send in the HELO command.
 	HELODomain string `long:"helo-domain" description:"Set the domain to use with the HELO command. Implies --send-helo."`
 
-	// EHLODomain is the domain the client should send in the HELO command.
+	// EHLODomain is the domain the client should send in the EHLO command.
 	EHLODomain string `long:"ehlo-domain" description:"Set the domain to use with the EHLO command. Implies --send-ehlo."`
 
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
