@@ -69,6 +69,8 @@ type Flags struct {
 	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
 	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
 	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
+	// Set HTTP Request body
+	RequestBody string `long:"request-body" description:"HTTP request body to send to server"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -99,6 +101,7 @@ type Module struct {
 type Scanner struct {
 	config        *Flags
 	customHeaders map[string]string
+	requestBody   string
 	decodedHashFn func([]byte) string
 }
 
@@ -149,6 +152,7 @@ func (scanner *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+	scanner.config.RequestBody = fl.RequestBody
 
 	// parse out custom headers at initialization so that they can be easily
 	// iterated over when constructing individual scanners
@@ -479,7 +483,15 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
-	request, err := http.NewRequest(scan.scanner.config.Method, scan.url, nil)
+	var (
+		request *http.Request
+		err     error
+	)
+	if len(scan.scanner.config.RequestBody) > 0 {
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, strings.NewReader(scan.scanner.config.RequestBody))
+	} else {
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, nil)
+	}
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
