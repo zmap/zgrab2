@@ -11,13 +11,13 @@ You will need to have a valid `$GOPATH` set up, for more information about `$GOP
 
 Once you have a working `$GOPATH`, run:
 
-```
+```shell
 go get github.com/zmap/zgrab2
 ```
 
 This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
 
-```
+```shell
 cd $GOPATH/src/github.com/zmap/zgrab2
 make
 ```
@@ -26,7 +26,7 @@ make
 
 ZGrab2 supports modules. For example, to run the ssh module use
 
-```
+```shell
 ./zgrab2 ssh
 ```
 
@@ -36,7 +36,7 @@ Module specific options must be included after the module. Application specific 
 
 Targets are specified with input files or from `stdin`, in CSV format.  Each input line has three fields:
 
-```
+```text
 IP, DOMAIN, TAG
 ```
 
@@ -50,7 +50,7 @@ Unused fields can be blank, and trailing unused fields can be omitted entirely. 
 
 These are examples of valid input lines:
 
-```
+```text
 10.0.0.1
 domain.com
 10.0.0.1, domain.com
@@ -66,7 +66,7 @@ domain.com
 To run a scan with multiple modules, a `.ini` file must be used with the `multiple` module. Below is an example `.ini` file with the corresponding zgrab2 command. 
 
 ***multiple.ini***
-```
+```ini
 [Application Options]
 output-file="output.txt"
 input-file="input.txt"
@@ -81,21 +81,21 @@ endpoint="/"
 [ssh]
 port=22
 ```
-```
+```shell
 ./zgrab2 multiple -c multiple.ini
 ```
 `Application Options` must be the initial section name. Other section names should correspond exactly to the relevant zgrab2 module name. The default name for each module is the command name. If the same module is to be used multiple times then `name` must be specified and unique. 
 
 Multiple module support is particularly powerful when combined with input tags and the `--trigger` scanner argument. For example, this input contains targets with two different tags:
 
-```
+```text
 141.212.113.199, , tagA
 216.239.38.21, censys.io, tagB
 ```
 
 Invoking zgrab2 with the following `multiple` configuration will perform an SSH grab on the first target above and an HTTP grab on the second target:
 
-```
+```ini
 [ssh]
 trigger="tagA"
 name="ssh22"
@@ -113,7 +113,7 @@ Add module to modules/ that satisfies the following interfaces: `Scanner`, `Scan
 
 The flags struct must embed zgrab2.BaseFlags. In the modules `init()` function the following must be included. 
 
-```
+```go
 func init() {
     var newModule NewModule
     _, err := zgrab2.AddCommand("module", "short description", "long description of module", portNumber, &newModule)
@@ -139,7 +139,7 @@ The only hard requirement is that the `test.sh` script drops its output in `$ZGR
 
 To run integration tests, you must have [Docker](https://www.docker.com/) installed. Then, you can follow the following steps to run integration tests:
 
-```
+```shell
 go get github.com/jmespath/jp && go build github.com/jmespath/jp
 pip install --user zschema
 make integration-test
@@ -147,7 +147,7 @@ make integration-test
 
 Running the integration tests will generate quite a bit of debug output. To ensure that tests completed successfully, you can check for a successful exit code after the tests complete:
 
-```
+```shell
 echo $?
 0
 ```
