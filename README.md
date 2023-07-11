@@ -12,14 +12,14 @@ You will need to have a valid `$GOPATH` set up, for more information about `$GOP
 Once you have a working `$GOPATH`, run:
 
 ```
-$ go get github.com/zmap/zgrab2
+go get github.com/zmap/zgrab2
 ```
 
 This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
 
 ```
-$ cd $GOPATH/src/github.com/zmap/zgrab2
-$ make
+cd $GOPATH/src/github.com/zmap/zgrab2
+make
 ```
 
 ## Single Module Usage 
@@ -140,15 +140,15 @@ The only hard requirement is that the `test.sh` script drops its output in `$ZGR
 To run integration tests, you must have [Docker](https://www.docker.com/) installed. Then, you can follow the following steps to run integration tests:
 
 ```
-$ go get github.com/jmespath/jp && go build github.com/jmespath/jp
-$ pip install --user zschema
-$ make integration-test
+go get github.com/jmespath/jp && go build github.com/jmespath/jp
+pip install --user zschema
+make integration-test
 ```
 
 Running the integration tests will generate quite a bit of debug output. To ensure that tests completed successfully, you can check for a successful exit code after the tests complete:
 
 ```
-$ echo $?
+echo $?
 0
 ```
 
