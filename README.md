@@ -9,16 +9,16 @@ ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https:
 
 You will need to have a valid `$GOPATH` set up, for more information about `$GOPATH`, see https://golang.org/doc/code.html.
 
-Once you have a working `$GOPATH`, run:
+Once you have a working `$GOPATH`, clone the repo:
 
 ```shell
-go get github.com/zmap/zgrab2
+git clone github.com/zmap/zgrab2
 ```
 
-This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
+This will install zgrab under current working directory:
 
 ```shell
-cd $GOPATH/src/github.com/zmap/zgrab2
+cd zgrab2
 make
 ```
 
