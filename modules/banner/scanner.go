@@ -4,6 +4,7 @@
 package banner
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +13,6 @@ import (
 	"net"
 	"regexp"
 	"strconv"
-	"encoding/hex"
 
 	"github.com/zmap/zgrab2"
 )
@@ -20,12 +20,12 @@ import (
 // Flags give the command-line flags for the banner module.
 type Flags struct {
 	zgrab2.BaseFlags
-	Probe     string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file" `
-	ProbeFile string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe"`
+	Probe     string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file".`
+	ProbeFile string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe".`
 	Pattern   string `long:"pattern" description:"Pattern to match, must be valid regexp."`
-	UseTLS    bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options. "`
+	UseTLS    bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options."`
 	MaxTries  int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
-	Hex       bool   `long:"hex" description:"Store banner value in hex. "`
+	Hex       bool   `long:"hex" description:"Store banner value in hex."`
 	zgrab2.TLSFlags
 }
 
@@ -130,15 +130,14 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 var NoMatchError = errors.New("pattern did not match")
 
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	try := 0
 	var (
 		conn    net.Conn
 		tlsConn *zgrab2.TLSConnection
 		err     error
-		readerr error
+		readErr error
 	)
-	for try < scanner.config.MaxTries {
-		try++
+
+	for try := 0; try < scanner.config.MaxTries; try++ {
 		conn, err = target.Open(&scanner.config.BaseFlags)
 		if err != nil {
 			continue
@@ -153,7 +152,6 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			}
 			conn = tlsConn
 		}
-
 		break
 	}
 	if err != nil {
@@ -161,16 +159,15 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	defer conn.Close()
 
-	var ret []byte
-	try = 0
-	for try < scanner.config.MaxTries {
-		try++
+	var data []byte
+
+	for try := 0; try < scanner.config.MaxTries; try++ {
 		_, err = conn.Write(scanner.probe)
-		ret, readerr = zgrab2.ReadAvailable(conn)
+		data, readErr = zgrab2.ReadAvailable(conn)
 		if err != nil {
 			continue
 		}
-		if readerr != io.EOF && readerr != nil {
+		if readErr != io.EOF && readErr != nil {
 			continue
 		}
 		break
@@ -178,16 +175,21 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	if readerr != io.EOF && readerr != nil {
-		return zgrab2.TryGetScanStatus(readerr), nil, readerr
+	if readErr != io.EOF && readErr != nil {
+		return zgrab2.TryGetScanStatus(readErr), nil, readErr
 	}
+
 	var results Results
+
 	if scanner.config.Hex {
-		results = Results{Banner: hex.EncodeToString(ret), Length: len(ret)}
+		results.Banner = hex.EncodeToString(data)
+		results.Length = len(data)
 	} else {
-		results = Results{Banner: string(ret), Length: len(ret)}
+		results.Banner = string(data)
+		results.Length = len(data)
 	}
-	if scanner.regex.Match(ret) {
+
+	if scanner.regex.Match(data) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 
