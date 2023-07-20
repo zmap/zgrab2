@@ -4,6 +4,7 @@
 package banner
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -25,7 +26,8 @@ type Flags struct {
 	Pattern   string `long:"pattern" description:"Pattern to match, must be valid regexp."`
 	UseTLS    bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options."`
 	MaxTries  int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
-	Hex       bool   `long:"hex" description:"Store banner value in hex."`
+	Hex       bool   `long:"hex" description:"Store banner value in hex. Mutually exclusive with --base64."`
+	Base64    bool   `long:"base64" description:"Store banner value in base64. Mutually exclusive with --hex."`
 	zgrab2.TLSFlags
 }
 
@@ -183,11 +185,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	if scanner.config.Hex {
 		results.Banner = hex.EncodeToString(data)
-		results.Length = len(data)
+	} else if scanner.config.Base64 {
+		results.Banner = base64.StdEncoding.EncodeToString(data)
 	} else {
 		results.Banner = string(data)
-		results.Length = len(data)
 	}
+	results.Length = len(data)
 
 	if scanner.regex.Match(data) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
