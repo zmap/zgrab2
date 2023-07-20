@@ -201,17 +201,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	results.Length = len(data)
 
-	if scanner.config.MD5 {
-		digest := md5.Sum(data)
-		results.MD5 = hex.EncodeToString(digest[:])
-	}
-	if scanner.config.SHA1 {
-		digest := sha1.Sum(data)
-		results.SHA1 = hex.EncodeToString(digest[:])
-	}
-	if scanner.config.SHA256 {
-		digest := sha256.Sum256(data)
-		results.SHA256 = hex.EncodeToString(digest[:])
+	if len(data) > 0 {
+		if scanner.config.MD5 {
+			digest := md5.Sum(data)
+			results.MD5 = hex.EncodeToString(digest[:])
+		}
+		if scanner.config.SHA1 {
+			digest := sha1.Sum(data)
+			results.SHA1 = hex.EncodeToString(digest[:])
+		}
+		if scanner.config.SHA256 {
+			digest := sha256.Sum256(data)
+			results.SHA256 = hex.EncodeToString(digest[:])
+		}
 	}
 
 	if scanner.regex.Match(data) {
