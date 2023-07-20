@@ -4,6 +4,9 @@
 package banner
 
 import (
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -28,6 +31,9 @@ type Flags struct {
 	MaxTries  int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
 	Hex       bool   `long:"hex" description:"Store banner value in hex. Mutually exclusive with --base64."`
 	Base64    bool   `long:"base64" description:"Store banner value in base64. Mutually exclusive with --hex."`
+	MD5       bool   `long:"md5" description:"Calculate MD5 hash of banner value."`
+	SHA1      bool   `long:"sha1" description:"Calculate SHA1 hash of banner value."`
+	SHA256    bool   `long:"sha256" description:"Calculate SHA256 hash of banner value."`
 	zgrab2.TLSFlags
 }
 
@@ -46,6 +52,9 @@ type Scanner struct {
 type Results struct {
 	Banner string `json:"banner,omitempty"`
 	Length int    `json:"length,omitempty"`
+	MD5    string `json:"md5,omitempty"`
+	SHA1   string `json:"sha1,omitempty"`
+	SHA256 string `json:"sha25,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -191,6 +200,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		results.Banner = string(data)
 	}
 	results.Length = len(data)
+
+	if scanner.config.MD5 {
+		digest := md5.Sum(data)
+		results.MD5 = hex.EncodeToString(digest[:])
+	}
+	if scanner.config.SHA1 {
+		digest := sha1.Sum(data)
+		results.SHA1 = hex.EncodeToString(digest[:])
+	}
+	if scanner.config.SHA256 {
+		digest := sha256.Sum256(data)
+		results.SHA256 = hex.EncodeToString(digest[:])
+	}
 
 	if scanner.regex.Match(data) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
