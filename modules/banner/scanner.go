@@ -57,10 +57,12 @@ type Results struct {
 	SHA256 string `json:"sha25,omitempty"`
 }
 
+var NoMatchError = errors.New("pattern did not match")
+
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("banner", "Banner", module.Description(), 80, &module)
+	var m Module
+	_, err := zgrab2.AddCommand("banner", "Banner", m.Description(), 80, &m)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,22 +74,22 @@ func (m *Module) NewFlags() interface{} {
 }
 
 // GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
+func (s *Scanner) GetName() string {
+	return s.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
+func (s *Scanner) GetTrigger() string {
+	return s.config.Trigger
 }
 
 // Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
+func (s *Scanner) Protocol() string {
 	return "banner"
 }
 
 // InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
+func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
@@ -106,7 +108,7 @@ func (f *Flags) Validate(args []string) error {
 }
 
 // Description returns an overview of this module.
-func (module *Module) Description() string {
+func (m *Module) Description() string {
 	return "Fetch a raw banner by sending a static probe and checking the result against a regular expression"
 }
 
@@ -116,32 +118,30 @@ func (f *Flags) Help() string {
 }
 
 // Init initializes the Scanner with the command-line flags.
-func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	var err error
 	f, _ := flags.(*Flags)
-	scanner.config = f
-	if scanner.config.Pattern != "" {
-		scanner.regex = regexp.MustCompile(scanner.config.Pattern)
+	s.config = f
+	if s.config.Pattern != "" {
+		s.regex = regexp.MustCompile(s.config.Pattern)
 	}
 	if len(f.ProbeFile) != 0 {
-		scanner.probe, err = ioutil.ReadFile(f.ProbeFile)
+		s.probe, err = ioutil.ReadFile(f.ProbeFile)
 		if err != nil {
 			log.Fatal("Failed to open probe file")
 			return zgrab2.ErrInvalidArguments
 		}
 	} else {
-		strProbe, err := strconv.Unquote(fmt.Sprintf(`"%s"`, scanner.config.Probe))
+		strProbe, err := strconv.Unquote(fmt.Sprintf(`"%s"`, s.config.Probe))
 		if err != nil {
 			panic("Probe error")
 		}
-		scanner.probe = []byte(strProbe)
+		s.probe = []byte(strProbe)
 	}
 	return nil
 }
 
-var NoMatchError = errors.New("pattern did not match")
-
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	var (
 		conn    net.Conn
 		tlsConn *zgrab2.TLSConnection
@@ -149,13 +149,13 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		readErr error
 	)
 
-	for try := 0; try < scanner.config.MaxTries; try++ {
-		conn, err = target.Open(&scanner.config.BaseFlags)
+	for try := 0; try < s.config.MaxTries; try++ {
+		conn, err = target.Open(&s.config.BaseFlags)
 		if err != nil {
 			continue
 		}
-		if scanner.config.UseTLS {
-			tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
+		if s.config.UseTLS {
+			tlsConn, err = s.config.TLSFlags.GetTLSConnection(conn)
 			if err != nil {
 				continue
 			}
@@ -173,8 +173,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	var data []byte
 
-	for try := 0; try < scanner.config.MaxTries; try++ {
-		_, err = conn.Write(scanner.probe)
+	for try := 0; try < s.config.MaxTries; try++ {
+		_, err = conn.Write(s.probe)
 		data, readErr = zgrab2.ReadAvailable(conn)
 		if err != nil {
 			continue
@@ -193,9 +193,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	var results Results
 
-	if scanner.config.Hex {
+	if s.config.Hex {
 		results.Banner = hex.EncodeToString(data)
-	} else if scanner.config.Base64 {
+	} else if s.config.Base64 {
 		results.Banner = base64.StdEncoding.EncodeToString(data)
 	} else {
 		results.Banner = string(data)
@@ -203,28 +203,27 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	results.Length = len(data)
 
 	if len(data) > 0 {
-		if scanner.config.MD5 {
+		if s.config.MD5 {
 			digest := md5.Sum(data)
 			results.MD5 = hex.EncodeToString(digest[:])
 		}
-		if scanner.config.SHA1 {
+		if s.config.SHA1 {
 			digest := sha1.Sum(data)
 			results.SHA1 = hex.EncodeToString(digest[:])
 		}
-		if scanner.config.SHA256 {
+		if s.config.SHA256 {
 			digest := sha256.Sum256(data)
 			results.SHA256 = hex.EncodeToString(digest[:])
 		}
 	}
 
-	if scanner.regex == nil {
+	if s.regex == nil {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 
-	if scanner.regex.Match(data) {
+	if s.regex.Match(data) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 
 	return zgrab2.SCAN_PROTOCOL_ERROR, &results, NoMatchError
-
 }
