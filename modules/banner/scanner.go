@@ -120,7 +120,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	var err error
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.regex = regexp.MustCompile(scanner.config.Pattern)
+	if scanner.config.Pattern != "" {
+		scanner.regex = regexp.MustCompile(scanner.config.Pattern)
+	}
 	if len(f.ProbeFile) != 0 {
 		scanner.probe, err = ioutil.ReadFile(f.ProbeFile)
 		if err != nil {
@@ -134,7 +136,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		}
 		scanner.probe = []byte(strProbe)
 	}
-
 	return nil
 }
 
@@ -214,6 +215,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			digest := sha256.Sum256(data)
 			results.SHA256 = hex.EncodeToString(digest[:])
 		}
+	}
+
+	if scanner.regex == nil {
+		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 
 	if scanner.regex.Match(data) {
