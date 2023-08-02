@@ -1,5 +1,7 @@
 # macOS
 .DS_Store
+.idea/
+.git/
 
 # zgrab
 /zgrab2
@@ -25,3 +27,9 @@ build/*
 dist/*
 
 .vscode/*
+test/
+
+zgrab2-darwin-arm64
+zgrab2-linux-amd64
+
+dist/
