@@ -74,6 +74,8 @@ type handshakeTransport struct {
 
 	// The session ID or nil if first kex did not complete yet.
 	sessionID []byte
+
+	rawPacket []byte
 }
 
 func newHandshakeTransport(conn keyingTransport, config *Config, clientVersion, serverVersion []byte) *handshakeTransport {
@@ -163,6 +165,8 @@ func (t *handshakeTransport) readOnePacket() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	t.rawPacket = append(t.rawPacket, p...)
 
 	t.readSinceKex += uint64(len(p))
 	if debugHandshake {

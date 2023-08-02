@@ -267,6 +267,13 @@ func generateKeyMaterial(out, tag []byte, r *kexResult) {
 
 const packageVersion = "SSH-2.0-Go"
 
+func removeLastSymbol(in []byte, symbol byte) []byte {
+	if len(in) > 0 && in[len(in)-1] == symbol {
+		return in[:len(in)-1]
+	}
+	return in
+}
+
 // Sends and receives a version line.  The versionLine string should
 // be US ASCII, start with "SSH-2.0-", and should not include a
 // newline. exchangeVersions returns the other side's version line.
@@ -307,10 +314,10 @@ func readVersion(r io.Reader) ([]byte, error) {
 		}
 		// The RFC says that the version should be terminated with \r\n
 		// but several SSH servers actually only send a \n.
-		if buf[0] == '\n' {
-			ok = true
-			break
-		}
+		//if buf[0] == '\n' {
+		//	ok = true
+		//	break
+		//}
 
 		// non ASCII chars are disallowed, but we are lenient,
 		// since Go doesn't use null-terminated strings.
@@ -319,6 +326,11 @@ func readVersion(r io.Reader) ([]byte, error) {
 		// all of it (version and comments) goes into the
 		// session hash.
 		versionString = append(versionString, buf[0])
+
+		if buf[0] == '\n' {
+			ok = true
+			break
+		}
 	}
 
 	if !ok {
@@ -326,8 +338,11 @@ func readVersion(r io.Reader) ([]byte, error) {
 	}
 
 	// There might be a '\r' on the end which we should remove.
-	if len(versionString) > 0 && versionString[len(versionString)-1] == '\r' {
-		versionString = versionString[:len(versionString)-1]
-	}
+	//changed start
+	//if len(versionString) > 0 && versionString[len(versionString)-1] == '\r' {
+	//	versionString = versionString[:len(versionString)-1]
+	//}
+	//log.Println(string(versionString))
+	//changed end
 	return versionString, nil
 }

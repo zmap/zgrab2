@@ -259,10 +259,12 @@ func (s *connection) serverHandshake(config *ServerConfig) (*Permissions, error)
 		s.serverVersion = []byte(packageVersion)
 	}
 	var err error
-	s.clientVersion, err = exchangeVersions(s.sshConn.conn, s.serverVersion)
+	clientVersion, err := exchangeVersions(s.sshConn.conn, s.serverVersion)
 	if err != nil {
 		return nil, err
 	}
+
+	s.clientVersion = removeLastSymbol(removeLastSymbol(clientVersion, '\n'), '\r')
 
 	tr := newTransport(s.sshConn.conn, config.Rand, false /* not client */)
 	s.transport = newServerTransport(tr, s.clientVersion, s.serverVersion, config)

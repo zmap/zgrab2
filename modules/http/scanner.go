@@ -24,9 +24,11 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/html/charset"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/net/html/charset"
+	"github.com/zmap/zgrab2/lib/http/httputil"
 )
 
 var (
@@ -85,6 +87,9 @@ type Flags struct {
 type Results struct {
 	// Result is the final HTTP response in the RedirectResponseChain
 	Response *http.Response `json:"response,omitempty"`
+	//changed start
+	Banner string `json:"banner"`
+	//changed end
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
@@ -501,7 +506,11 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
+
 	scan.results.Response = resp
+	//changed start
+	resp_str := ""
+	//changed end
 	if err != nil {
 		if urlError, ok := err.(*url.Error); ok {
 			err = urlError.Err
@@ -513,6 +522,15 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			break
 		case ErrTooManyRedirects:
 			if scan.scanner.config.RedirectsSucceed {
+				//changed start
+				if resp != nil {
+					resp_hex, err_dump := httputil.DumpResponse(resp, false)
+					if err_dump == nil {
+						resp_str = string(resp_hex)
+					}
+				}
+				scan.results.Banner = resp_str
+				//changed end
 				return nil
 			}
 			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
@@ -520,7 +538,19 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			return zgrab2.DetectScanError(err)
 		}
 	}
-
+	//changed start
+	if resp != nil {
+		resp_hex, err := httputil.DumpResponse(resp, true)
+		if err != nil {
+			if err.Error() == "unexpected EOF" {
+				return zgrab2.NewScanError(zgrab2.SCAN_ENEXPECTED_EOF_ERROR, err)
+			}
+			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
+		}
+		resp_str = string(resp_hex)
+	}
+	scan.results.Banner = resp_str
+	//changed end
 	buf := new(bytes.Buffer)
 	maxReadLen := int64(scan.scanner.config.MaxSize) * 1024
 	readLen := maxReadLen

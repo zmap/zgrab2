@@ -90,10 +90,12 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 		c.clientVersion = []byte(packageVersion)
 	}
 	var err error
-	c.serverVersion, err = exchangeVersions(c.sshConn.conn, c.clientVersion)
+	serverVersion, err := exchangeVersions(c.sshConn.conn, c.clientVersion)
 	if err != nil {
 		return err
 	}
+
+	c.serverVersion = removeLastSymbol(removeLastSymbol(serverVersion, '\n'), '\r')
 
 	if config.ConnLog != nil {
 		config.ConnLog.ServerID = new(EndpointId)
@@ -159,7 +161,11 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 	// We just did the key change, so the session ID is established.
 	c.sessionID = c.transport.getSessionID()
 
-	return c.clientAuthenticate(config)
+	authErr := c.clientAuthenticate(config)
+
+	config.ConnLog.RawBanner = string(append(serverVersion, c.transport.rawPacket...))
+
+	return authErr
 }
 
 // verifyHostKeySignature verifies the host key obtained in the key

@@ -26,6 +26,7 @@ type HandshakeLog struct {
 	DHKeyExchange      kexAlgorithm `json:"key_exchange,omitempty"`
 	UserAuth           []string     `json:"userauth,omitempty"`
 	Crypto             *kexResult   `json:"crypto,omitempty"`
+	RawBanner          string       `json:"banner_raw,omitempty"`
 }
 
 type EndpointId struct {
