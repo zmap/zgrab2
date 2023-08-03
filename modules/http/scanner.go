@@ -621,12 +621,11 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 }
 
 func (scan *scan) getBanner(resp *http.Response, body string) string {
-	oldBody := resp.Body
-	defer func() { resp.Body = oldBody }()
+	respCopy := *resp
+	respCopy.Body = io.NopCloser(strings.NewReader(body))
 
 	var banner bytes.Buffer
-	resp.Body = io.NopCloser(strings.NewReader(body))
-	_ = resp.Write(&banner) // It never errors because of writing into memory.
+	_ = respCopy.Write(&banner) // It never errors because of writing into memory.
 	return banner.String()
 }
 
