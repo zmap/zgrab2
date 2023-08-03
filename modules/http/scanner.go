@@ -85,16 +85,16 @@ type Flags struct {
 // implementation.
 type Results struct {
 	// Result is the final HTTP response in the RedirectResponseChain
-	Response    *http.Response `json:"response,omitempty"`
-	Banner      string         `json:"banner"`
-	VersionInfo versionInfo    `json:"versioninfo"`
+	Response *http.Response `json:"response,omitempty"`
+	Banner   string         `json:"banner"`
+	Product  product        `json:"product"`
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
 	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
 }
 
-type versionInfo struct {
+type product struct {
 	VendorProductName string   `json:"vendorproductname,omitempty"`
 	Version           string   `json:"version,omitempty"`
 	Info              string   `json:"info,omitempty"`
@@ -110,10 +110,10 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config        *Flags
-	customHeaders map[string]string
-	decodedHashFn func([]byte) string
-	nmapMatchers  nmap.Matchers
+	config          *Flags
+	customHeaders   map[string]string
+	decodedHashFn   func([]byte) string
+	productMatchers nmap.Matchers
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -237,7 +237,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
-	scanner.nmapMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
+	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
 		return m.Service == "http"
 	})
 	return nil
@@ -532,7 +532,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		case ErrTooManyRedirects:
 			if resp != nil {
 				scan.results.Banner = scan.getBanner(resp, resp.BodyText)
-				scan.results.VersionInfo, _ = scan.getVersionInfo(scan.results.Banner)
+				scan.results.Product, _ = scan.getProduct(scan.results.Banner)
 			}
 			if scan.scanner.config.RedirectsSucceed {
 				return nil
@@ -552,7 +552,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	io.CopyN(buf, resp.Body, readLen)
 
 	scan.results.Banner = scan.getBanner(resp, buf.String())
-	scan.results.VersionInfo, _ = scan.getVersionInfo(scan.results.Banner)
+	scan.results.Product, _ = scan.getProduct(scan.results.Banner)
 
 	bodyText := ""
 	decodedSuccessfully := false
@@ -629,9 +629,9 @@ func (scan *scan) getBanner(resp *http.Response, body string) string {
 	return banner.String()
 }
 
-func (scan *scan) getVersionInfo(banner string) (versionInfo, error) {
-	_, vinfo, err := scan.scanner.nmapMatchers.MatchRunes([]rune(banner))
-	return versionInfo(vinfo), err
+func (scan *scan) getProduct(banner string) (product, error) {
+	_, vinfo, err := scan.scanner.productMatchers.MatchRunes([]rune(banner))
+	return product(vinfo), err
 }
 
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
