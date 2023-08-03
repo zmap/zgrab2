@@ -17,6 +17,7 @@ type Config struct {
 	InputFileName      string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName       string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
+	NmapServiceProbes  string          `long:"nmap-service-probes" description:"Path to nmap-service-probes file. If empty, version scanning won't be used."`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
 	Flush              bool            `long:"flush" description:"Flush after each line of output."`
@@ -137,4 +138,8 @@ func GetMetaFile() *os.File {
 
 func includeDebugOutput() bool {
 	return config.Debug
+}
+
+func NmapServiceProbes() string {
+	return config.NmapServiceProbes
 }
