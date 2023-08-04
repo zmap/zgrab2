@@ -39,8 +39,7 @@ func (ms Matchers) Filter(fn func(*Matcher) bool) Matchers {
 }
 
 func (ms Matchers) MatchBytes(input []byte) (bool, VersionInfo, error) {
-	runes := []rune(string(input))
-	return ms.MatchRunes(runes)
+	return ms.MatchRunes(intoRunes(input))
 }
 
 func (ms Matchers) MatchRunes(input []rune) (bool, VersionInfo, error) {

@@ -2,6 +2,7 @@ package nmap
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/dlclark/regexp2"
 )
@@ -37,9 +38,27 @@ func MakeMatcher(probe ServiceProbe, match Match) (*Matcher, error) {
 	}, err
 }
 
+func (m *Matcher) MatchBytes(input []byte) MatchResult {
+	return m.MatchRunes(intoRunes(input))
+}
+
 func (m *Matcher) MatchRunes(input []rune) MatchResult {
 	match, err := m.re.FindRunesMatch(input)
 	return MatchResult{match, err}
+}
+
+func intoRunes(input []byte) []rune {
+	runes := make([]rune, 0, len(input))
+	for len(input) > 0 {
+		if r, size := utf8.DecodeRune(input); r != utf8.RuneError {
+			runes = append(runes, r)
+			input = input[size:]
+		} else {
+			runes = append(runes, rune(input[0]))
+			input = input[1:]
+		}
+	}
+	return runes
 }
 
 type MatchResult struct {

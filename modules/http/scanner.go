@@ -531,8 +531,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			break
 		case ErrTooManyRedirects:
 			if resp != nil {
-				scan.results.Banner = scan.getBanner(resp, resp.BodyText)
-				scan.results.Product, _ = scan.getProduct(scan.results.Banner)
+				banner := scan.getBanner(resp, []byte(resp.BodyText))
+				scan.results.Banner = string(banner)
+				scan.results.Product, _ = scan.getProduct(banner)
 			}
 			if scan.scanner.config.RedirectsSucceed {
 				return nil
@@ -551,8 +552,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 	io.CopyN(buf, resp.Body, readLen)
 
-	scan.results.Banner = scan.getBanner(resp, buf.String())
-	scan.results.Product, _ = scan.getProduct(scan.results.Banner)
+	banner := scan.getBanner(resp, buf.Bytes())
+	scan.results.Banner = string(banner)
+	scan.results.Product, _ = scan.getProduct(banner)
 
 	bodyText := ""
 	decodedSuccessfully := false
@@ -620,17 +622,17 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	return nil
 }
 
-func (scan *scan) getBanner(resp *http.Response, body string) string {
+func (scan *scan) getBanner(resp *http.Response, body []byte) []byte {
 	respCopy := *resp
-	respCopy.Body = io.NopCloser(strings.NewReader(body))
+	respCopy.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	var banner bytes.Buffer
 	_ = respCopy.Write(&banner) // It never errors because of writing into memory.
-	return banner.String()
+	return banner.Bytes()
 }
 
-func (scan *scan) getProduct(banner string) (product, error) {
-	_, vinfo, err := scan.scanner.productMatchers.MatchRunes([]rune(banner))
+func (scan *scan) getProduct(banner []byte) (product, error) {
+	_, vinfo, err := scan.scanner.productMatchers.MatchBytes(banner)
 	return product(vinfo), err
 }
 
