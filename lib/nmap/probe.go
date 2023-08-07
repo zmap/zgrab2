@@ -1,5 +1,7 @@
 package nmap
 
+import "github.com/zmap/zgrab2/lib/nmap/template"
+
 type ServiceProbe struct {
 	Name        string
 	Protocol    Protocol
@@ -16,10 +18,12 @@ const (
 	UDP             = Protocol("UDP")
 )
 
+type Template = template.Template
+
 type Match struct {
 	Service string
 	MatchPattern
-	VersionInfo
+	Info[Template]
 	Soft bool
 }
 
@@ -28,12 +32,12 @@ type MatchPattern struct {
 	Flags string
 }
 
-type VersionInfo struct {
-	VendorProductName string
-	Version           string
-	Info              string
-	Hostname          string
-	OS                string
-	DeviceType        string
-	CPE               []string
+type Info[T any] struct {
+	VendorProductName T
+	Version           T
+	Info              T
+	Hostname          T
+	OS                T
+	DeviceType        T
+	CPE               []T
 }

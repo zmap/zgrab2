@@ -63,15 +63,15 @@ func TestCutMatchPattern(t *testing.T) {
 	test("REGEX", "is", " ", "m/REGEX/is ")
 }
 
-func TestCutVersionInfoCPE(t *testing.T) {
+func TestCutCPE(t *testing.T) {
 	test := func(value, tail string, found bool, s string) {
 		t.Helper()
-		v, ss, f := cutVersionInfoCPE([]byte(s))
+		v, ss, f := cutCPE([]byte(s))
 		require.Equal(t, value, string(v), "in value")
 		require.Equal(t, tail, string(ss), "in tail")
 		require.Equal(t, found, f)
 	}
 	test("", "", false, "")
-	test("VALUE", "...", true, "cpe:/VALUE/...")
-	test("VALUE", "...", true, "cpe:/VALUE/a...")
+	test("cpe:/VALUE", "...", true, "cpe:/VALUE/...")
+	test("cpe:/VALUE", "...", true, "cpe:/VALUE/a...")
 }

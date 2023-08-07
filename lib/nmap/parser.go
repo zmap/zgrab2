@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+
+	"github.com/zmap/zgrab2/lib/nmap/template"
 )
 
 func ParseServiceProbes(in io.Reader) ([]ServiceProbe, error) {
@@ -75,14 +77,14 @@ func (p *parser) tryComment(s []byte) (bool, error) {
 }
 
 func (p *parser) tryProbe(s []byte) (bool, error) {
-	var ok bool
-	if s, ok = bytes.CutPrefix(s, b("Probe")); !ok {
+	var found bool
+	if s, found = bytes.CutPrefix(s, b("Probe")); !found {
 		return false, nil
 	}
 	s = skipSpace(s)
 
 	var protocol Protocol
-	if protocol, s = cutProtocol(s); !(protocol == TCP || protocol == UDP) {
+	if protocol, s = cutProtocol(s); protocol == UnknownProtocol {
 		return false, fmt.Errorf("unsupported probe protocol")
 	}
 	s = skipSpace(s)
@@ -94,7 +96,7 @@ func (p *parser) tryProbe(s []byte) (bool, error) {
 	s = skipSpace(s)
 
 	var probestring []byte
-	if probestring, s, ok = cutQuotedWithPrefix(s, b("q")); !ok {
+	if probestring, s, found = cutQuotedWithPrefix(s, b("q")); !found {
 		return false, fmt.Errorf("probe string expected")
 	}
 	s = skipSpace(s)
@@ -111,47 +113,41 @@ func (p *parser) tryProbe(s []byte) (bool, error) {
 }
 
 func (p *parser) tryMatch(s []byte) (bool, error) {
-	var ok bool
-	if s, ok = bytes.CutPrefix(s, b("match")); !ok {
-		return false, nil
+	if s, found := bytes.CutPrefix(s, b("match")); found {
+		s = skipSpace(s)
+		service, pattern, info, err := parseMatch(s)
+		if err != nil {
+			return true, err
+		}
+		p.addMatch(Match{
+			Service:      string(service),
+			MatchPattern: pattern,
+			Info:         info,
+		})
+		return true, nil
 	}
-	s = skipSpace(s)
-
-	service, pattern, info, err := parseMatch(s)
-	if err != nil {
-		return false, err
-	}
-
-	p.addMatch(Match{
-		Service:      string(service),
-		MatchPattern: pattern,
-		VersionInfo:  info,
-	})
-	return true, nil
+	return false, nil
 }
 
 func (p *parser) trySoftmatch(s []byte) (bool, error) {
-	var ok bool
-	if s, ok = bytes.CutPrefix(s, b("softmatch")); !ok {
-		return false, nil
+	if s, found := bytes.CutPrefix(s, b("softmatch")); found {
+		s = skipSpace(s)
+		service, pattern, info, err := parseMatch(s)
+		if err != nil {
+			return true, err
+		}
+		p.addMatch(Match{
+			Service:      string(service),
+			MatchPattern: pattern,
+			Info:         info,
+			Soft:         true,
+		})
+		return true, nil
 	}
-	s = skipSpace(s)
-
-	service, pattern, info, err := parseMatch(s)
-	if err != nil {
-		return false, err
-	}
-
-	p.addMatch(Match{
-		Service:      string(service),
-		MatchPattern: pattern,
-		VersionInfo:  info,
-		Soft:         true,
-	})
-	return true, nil
+	return false, nil
 }
 
-func parseMatch(s []byte) (service []byte, pattern MatchPattern, info VersionInfo, err error) {
+func parseMatch(s []byte) (service []byte, pattern MatchPattern, info Info[Template], err error) {
 	if service, s = cutUntilSpace(s); len(service) == 0 {
 		return service, pattern, info, fmt.Errorf("service name expected")
 	}
@@ -162,7 +158,7 @@ func parseMatch(s []byte) (service []byte, pattern MatchPattern, info VersionInf
 	}
 	s = skipSpace(s)
 
-	if info, err = parseVersionInfo(s); err != nil {
+	if info, err = parseInfo(s); err != nil {
 		return service, pattern, info, fmt.Errorf("version info expected: %v", err)
 	}
 	return service, pattern, info, nil
@@ -204,70 +200,66 @@ func (p *parser) tryTotalWaitMs(s []byte) (bool, error) {
 }
 
 func cutProtocol(s []byte) (Protocol, []byte) {
-	var ok bool
-	if s, ok = bytes.CutPrefix(s, b("TCP")); ok {
-		return TCP, s
+	if tail, found := bytes.CutPrefix(s, b("TCP")); found {
+		return TCP, tail
 	}
-	if s, ok = bytes.CutPrefix(s, b("UDP")); ok {
-		return UDP, s
+	if tail, found := bytes.CutPrefix(s, b("UDP")); found {
+		return UDP, tail
 	}
 	return UnknownProtocol, s
 }
 
 func cutQuoted(s []byte) (value, tail []byte, found bool) {
-	for i := 1; ; i++ {
-		if i >= len(s) {
-			return nil, s, false
-		}
+	for i := 1; i < len(s); i++ {
 		if s[0] == s[i] {
 			return s[1:i], s[i+1:], true
 		}
 	}
+	return nil, s, false
 }
 
 func cutQuotedWithPrefix(s, prefix []byte) (value, tail []byte, found bool) {
-	if s, found = bytes.CutPrefix(s, prefix); !found {
-		return nil, s, false
+	if tail, found := bytes.CutPrefix(s, prefix); found {
+		return cutQuoted(tail)
 	}
-	return cutQuoted(s)
+	return nil, s, false
 }
 
 func cutMatchPattern(s []byte) (p MatchPattern, tail []byte, err error) {
-	regex, s, found := cutQuotedWithPrefix(s, b("m"))
-	if !found {
-		return p, s, fmt.Errorf("not match m/[regex]/ syntax")
+	if regex, tail, found := cutQuotedWithPrefix(s, b("m")); found {
+		var flags []byte
+		for len(tail) > 0 && (tail[0] == 'i' || tail[0] == 's') {
+			flags = append(flags, tail[0])
+			tail = tail[1:]
+		}
+		return MatchPattern{
+			Regex: string(regex),
+			Flags: string(flags),
+		}, tail, nil
 	}
-	var flags []byte
-	for len(s) > 0 && (s[0] == 'i' || s[0] == 's') {
-		flags = append(flags, s[0])
-		s = s[1:]
-	}
-	return MatchPattern{
-		Regex: string(regex),
-		Flags: string(flags),
-	}, s, nil
+	return MatchPattern{}, s, fmt.Errorf("not match m/[regex]/ syntax")
 }
 
-func parseVersionInfo(s []byte) (info VersionInfo, err error) {
+func parseInfo(s []byte) (info Info[Template], err error) {
 	var value []byte
 	var found bool
 	for {
 		if len(s) == 0 {
 			return info, nil
 		} else if value, s, found = cutQuotedWithPrefix(s, b("p")); found {
-			info.VendorProductName = string(value)
+			info.VendorProductName = template.Parse(value)
 		} else if value, s, found = cutQuotedWithPrefix(s, b("v")); found {
-			info.Version = string(value)
+			info.Version = template.Parse(value)
 		} else if value, s, found = cutQuotedWithPrefix(s, b("i")); found {
-			info.Info = string(value)
+			info.Info = template.Parse(value)
 		} else if value, s, found = cutQuotedWithPrefix(s, b("h")); found {
-			info.Hostname = string(value)
+			info.Hostname = template.Parse(value)
 		} else if value, s, found = cutQuotedWithPrefix(s, b("o")); found {
-			info.OS = string(value)
+			info.OS = template.Parse(value)
 		} else if value, s, found = cutQuotedWithPrefix(s, b("d")); found {
-			info.DeviceType = string(value)
-		} else if value, s, found = cutVersionInfoCPE(s); found {
-			info.CPE = append(info.CPE, "cpe:/"+string(value))
+			info.DeviceType = template.Parse(value)
+		} else if value, s, found = cutCPE(s); found {
+			info.CPE = append(info.CPE, template.Parse(value))
 		} else {
 			return info, fmt.Errorf("unknown signature: %q", s)
 		}
@@ -275,12 +267,13 @@ func parseVersionInfo(s []byte) (info VersionInfo, err error) {
 	}
 }
 
-func cutVersionInfoCPE(s []byte) (value, tail []byte, found bool) {
-	if value, s, found = cutQuotedWithPrefix(s, b("cpe:")); !found {
-		return nil, s, false
+func cutCPE(s []byte) (value, tail []byte, found bool) {
+	if value, tail, found = cutQuotedWithPrefix(s, b("cpe:")); found {
+		value = append(b("cpe:/"), value...)
+		tail, _ = bytes.CutPrefix(tail, b("a"))
+		return value, tail, true
 	}
-	s, _ = bytes.CutPrefix(s, b("a"))
-	return value, s, true
+	return nil, s, false
 }
 
 var asciiSpace = [256]uint8{'\t': 1, '\n': 1, '\v': 1, '\f': 1, '\r': 1, ' ': 1}

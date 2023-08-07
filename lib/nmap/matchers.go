@@ -38,25 +38,47 @@ func (ms Matchers) Filter(fn func(*Matcher) bool) Matchers {
 	return filtered
 }
 
-func (ms Matchers) MatchBytes(input []byte) (bool, VersionInfo, error) {
+func (ms Matchers) MatchBytes(input []byte) (bool, Info[string], error) {
 	return ms.MatchRunes(intoRunes(input))
 }
 
-func (ms Matchers) MatchRunes(input []rune) (bool, VersionInfo, error) {
-	var info VersionInfo
+func (ms Matchers) MatchRunes(input []rune) (bool, Info[string], error) {
+	var info Info[string]
 	for _, m := range ms {
 		r := m.MatchRunes(input)
 		if err := r.Err(); err != nil {
 			return false, info, err
 		}
 		if r.Found() {
-			info.merge(r.Render(m.VersionInfo))
+			info = mergeInfo(info, r.Render(m.Info))
 			if !m.Soft {
 				return true, info, nil
 			}
 		}
 	}
 	return false, info, nil
+}
+
+func mergeInfo[T comparable](a, b Info[T]) Info[T] {
+	return Info[T]{
+		VendorProductName: or(a.VendorProductName, b.VendorProductName),
+		Version:           or(a.Version, b.Version),
+		Info:              or(a.Info, b.Info),
+		Hostname:          or(a.Hostname, b.Hostname),
+		OS:                or(a.OS, b.OS),
+		DeviceType:        or(a.DeviceType, b.DeviceType),
+		CPE:               append(a.CPE, b.CPE...),
+	}
+}
+
+func or[T comparable](value ...T) T {
+	var zero T
+	for _, value := range value {
+		if value != zero {
+			return value
+		}
+	}
+	return zero
 }
 
 var globalMatchers Matchers
