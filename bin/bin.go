@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/nmap"
 )
 
 // Get the value of the ZGRAB2_MEMPROFILE variable (or the empty string).
@@ -91,7 +92,7 @@ func ZGrab2Main() {
 	startCPUProfile()
 	defer stopCPUProfile()
 	defer dumpHeapProfile()
-	_, moduleType, flag, err := zgrab2.ParseCommandLine(os.Args[1:])
+	_, modType, flag, err := zgrab2.ParseCommandLine(os.Args[1:])
 
 	// Blanked arg is positional arguments
 	if err != nil {
@@ -105,34 +106,39 @@ func ZGrab2Main() {
 		log.Fatalf("could not parse flags: %s", err)
 	}
 
+	modTypes := []string{modType}
+	modFlags := []any{flag}
+
 	if m, ok := flag.(*zgrab2.MultipleCommand); ok {
 		iniParser := zgrab2.NewIniParser()
-		var modTypes []string
-		var flagsReturned []interface{}
 		if m.ConfigFileName == "-" {
-			modTypes, flagsReturned, err = iniParser.Parse(os.Stdin)
+			modTypes, modFlags, err = iniParser.Parse(os.Stdin)
 		} else {
-			modTypes, flagsReturned, err = iniParser.ParseFile(m.ConfigFileName)
+			modTypes, modFlags, err = iniParser.ParseFile(m.ConfigFileName)
 		}
 		if err != nil {
 			log.Fatalf("could not parse multiple: %s", err)
 		}
-		if len(modTypes) != len(flagsReturned) {
+		if len(modTypes) != len(modFlags) {
 			log.Fatalf("error parsing flags")
 		}
-		for i, fl := range flagsReturned {
-			f, _ := fl.(zgrab2.ScanFlags)
-			mod := zgrab2.GetModule(modTypes[i])
-			s := mod.NewScanner()
-			s.Init(f)
-			zgrab2.RegisterScan(s.GetName(), s)
-		}
-	} else {
-		mod := zgrab2.GetModule(moduleType)
-		s := mod.NewScanner()
-		s.Init(flag)
-		zgrab2.RegisterScan(moduleType, s)
 	}
+
+	// Load nmap service probes from a file.
+	if filename := zgrab2.NmapServiceProbes(); filename != "" {
+		if err := nmap.LoadServiceProbes(filename); err != nil {
+			log.Fatalf("load nmap service probes: %v", err)
+		}
+	}
+
+	for i, modType := range modTypes {
+		mod := zgrab2.GetModule(modType)
+		f, _ := modFlags[i].(zgrab2.ScanFlags)
+		s := mod.NewScanner()
+		s.Init(f)
+		zgrab2.RegisterScan(s.GetName(), s)
+	}
+
 	wg := sync.WaitGroup{}
 	monitor := zgrab2.MakeMonitor(1, &wg)
 	monitor.Callback = func(_ string) {

@@ -24,11 +24,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
-	"golang.org/x/net/html/charset"
-
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httputil"
+	"github.com/zmap/zgrab2/lib/nmap"
+	"golang.org/x/net/html/charset"
 )
 
 var (
@@ -87,13 +86,22 @@ type Flags struct {
 type Results struct {
 	// Result is the final HTTP response in the RedirectResponseChain
 	Response *http.Response `json:"response,omitempty"`
-	//changed start
-	Banner string `json:"banner"`
-	//changed end
+	Banner   string         `json:"banner"`
+	Product  product        `json:"product"`
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
 	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
+}
+
+type product struct {
+	VendorProductName string   `json:"vendorproductname,omitempty"`
+	Version           string   `json:"version,omitempty"`
+	Info              string   `json:"info,omitempty"`
+	Hostname          string   `json:"hostname,omitempty"`
+	OS                string   `json:"os,omitempty"`
+	DeviceType        string   `json:"devicetype,omitempty"`
+	CPE               []string `json:"cpe,omitempty"`
 }
 
 // Module is an implementation of the zgrab2.Module interface.
@@ -102,9 +110,10 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config        *Flags
-	customHeaders map[string]string
-	decodedHashFn func([]byte) string
+	config          *Flags
+	customHeaders   map[string]string
+	decodedHashFn   func([]byte) string
+	productMatchers nmap.Matchers
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -228,6 +237,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
+	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
+		return m.Service == "http"
+	})
 	return nil
 }
 
@@ -506,11 +518,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
-
 	scan.results.Response = resp
-	//changed start
-	resp_str := ""
-	//changed end
+
 	if err != nil {
 		if urlError, ok := err.(*url.Error); ok {
 			err = urlError.Err
@@ -521,16 +530,12 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		case ErrRedirLocalhost:
 			break
 		case ErrTooManyRedirects:
+			if resp != nil {
+				banner := scan.getBanner(resp, []byte(resp.BodyText))
+				scan.results.Banner = string(banner)
+				scan.results.Product, _ = scan.getProduct(banner)
+			}
 			if scan.scanner.config.RedirectsSucceed {
-				//changed start
-				if resp != nil {
-					resp_hex, err_dump := httputil.DumpResponse(resp, false)
-					if err_dump == nil {
-						resp_str = string(resp_hex)
-					}
-				}
-				scan.results.Banner = resp_str
-				//changed end
 				return nil
 			}
 			return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
@@ -538,19 +543,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			return zgrab2.DetectScanError(err)
 		}
 	}
-	//changed start
-	if resp != nil {
-		resp_hex, err := httputil.DumpResponse(resp, true)
-		if err != nil {
-			if err.Error() == "unexpected EOF" {
-				return zgrab2.NewScanError(zgrab2.SCAN_ENEXPECTED_EOF_ERROR, err)
-			}
-			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
-		}
-		resp_str = string(resp_hex)
-	}
-	scan.results.Banner = resp_str
-	//changed end
+
 	buf := new(bytes.Buffer)
 	maxReadLen := int64(scan.scanner.config.MaxSize) * 1024
 	readLen := maxReadLen
@@ -558,10 +551,14 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		readLen = resp.ContentLength
 	}
 	io.CopyN(buf, resp.Body, readLen)
-	encoder, encoding, certain := charset.DetermineEncoding(buf.Bytes(), resp.Header.Get("content-type"))
+
+	banner := scan.getBanner(resp, buf.Bytes())
+	scan.results.Banner = string(banner)
+	scan.results.Product, _ = scan.getProduct(banner)
 
 	bodyText := ""
 	decodedSuccessfully := false
+	encoder, encoding, certain := charset.DetermineEncoding(buf.Bytes(), resp.Header.Get("content-type"))
 	decoder := encoder.NewDecoder()
 
 	//"windows-1252" is the default value and will likely not decode correctly
@@ -623,6 +620,20 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 
 	return nil
+}
+
+func (scan *scan) getBanner(resp *http.Response, body []byte) []byte {
+	respCopy := *resp
+	respCopy.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	var banner bytes.Buffer
+	_ = respCopy.Write(&banner) // It never errors because of writing into memory.
+	return banner.Bytes()
+}
+
+func (scan *scan) getProduct(banner []byte) (product, error) {
+	_, vinfo, err := scan.scanner.productMatchers.MatchBytes(banner)
+	return product(vinfo), err
 }
 
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
