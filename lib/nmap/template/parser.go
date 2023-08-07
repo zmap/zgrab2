@@ -1,17 +1,15 @@
 package template
 
-import (
-	"bytes"
-)
-
-type parser struct {
-	tokens []Token
-}
+import "bytes"
 
 func Parse(s []byte) Template {
 	var p parser
 	p.parse(s)
 	return Template(p.tokens)
+}
+
+type parser struct {
+	tokens []Token
 }
 
 func (p *parser) parse(s []byte) {

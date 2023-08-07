@@ -112,56 +112,52 @@ func (p *parser) tryProbe(s []byte) (bool, error) {
 	return true, nil
 }
 
-func (p *parser) tryMatch(s []byte) (bool, error) {
-	if s, found := bytes.CutPrefix(s, b("match")); found {
+func (p *parser) tryMatch(s []byte) (found bool, err error) {
+	if s, found = bytes.CutPrefix(s, b("match")); found {
 		s = skipSpace(s)
-		service, pattern, info, err := parseMatch(s)
-		if err != nil {
-			return true, err
+		var match Match
+		if match, err = parseMatch(s); err == nil {
+			p.addMatch(match)
 		}
-		p.addMatch(Match{
-			Service:      string(service),
-			MatchPattern: pattern,
-			Info:         info,
-		})
-		return true, nil
 	}
-	return false, nil
+	return found, err
 }
 
-func (p *parser) trySoftmatch(s []byte) (bool, error) {
-	if s, found := bytes.CutPrefix(s, b("softmatch")); found {
+func (p *parser) trySoftmatch(s []byte) (found bool, err error) {
+	if s, found = bytes.CutPrefix(s, b("softmatch")); found {
 		s = skipSpace(s)
-		service, pattern, info, err := parseMatch(s)
-		if err != nil {
-			return true, err
+		var match Match
+		if match, err = parseMatch(s); err == nil {
+			match.Soft = true
+			p.addMatch(match)
 		}
-		p.addMatch(Match{
-			Service:      string(service),
-			MatchPattern: pattern,
-			Info:         info,
-			Soft:         true,
-		})
-		return true, nil
 	}
-	return false, nil
+	return found, err
 }
 
-func parseMatch(s []byte) (service []byte, pattern MatchPattern, info Info[Template], err error) {
-	if service, s = cutUntilSpace(s); len(service) == 0 {
-		return service, pattern, info, fmt.Errorf("service name expected")
+func parseMatch(s []byte) (Match, error) {
+	service, s := cutUntilSpace(s)
+	if len(service) == 0 {
+		return Match{}, fmt.Errorf("service name expected")
 	}
 	s = skipSpace(s)
 
-	if pattern, s, err = cutMatchPattern(s); err != nil {
-		return service, pattern, info, fmt.Errorf("match pattern expected: %v", err)
+	pattern, s, err := cutMatchPattern(s)
+	if err != nil {
+		return Match{}, fmt.Errorf("match pattern expected: %v", err)
 	}
 	s = skipSpace(s)
 
-	if info, err = parseInfo(s); err != nil {
-		return service, pattern, info, fmt.Errorf("version info expected: %v", err)
+	info, err := parseInfo(s)
+	if err != nil {
+		return Match{}, fmt.Errorf("version info expected: %v", err)
 	}
-	return service, pattern, info, nil
+
+	return Match{
+		Service:      string(service),
+		MatchPattern: pattern,
+		Info:         info,
+	}, nil
 }
 
 func (p *parser) tryExclude(s []byte) (bool, error) {
