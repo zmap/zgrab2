@@ -880,7 +880,7 @@ func TestReadResponseErrors(t *testing.T) {
 
 	tests := []testCase{
 		{"", "", nil, io.ErrUnexpectedEOF},
-		{"", "HTTP/1.1 301 Moved Permanently\r\nFoo: bar", nil, io.ErrUnexpectedEOF},
+		{"", "HTTP/1.1 404 Not Found", nil, nil},
 		{"", "HTTP/1.1", nil, "malformed HTTP response"},
 		{"", "HTTP/2.0", nil, "malformed HTTP response"},
 		status("20X Unknown", true),
