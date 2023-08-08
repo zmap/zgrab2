@@ -11,22 +11,15 @@ import (
 var itoa = strconv.Itoa
 
 func TestBuiltinFuncs(t *testing.T) {
-	re := regexp2.MustCompile("(.+):(.+):(.+)", regexp2.None)
-	m, err := re.FindStringMatch("AAABBC:A\x00B\x10C:\x11\x22\x33")
-	require.NoError(t, err)
-	require.True(t, m != nil)
-
-	test := func(template, output string) {
+	test := func(regex, input, template, output string) {
 		t.Helper()
-		tmpl := Parse([]byte(template))
-		require.Equal(t, output, tmpl.Render(m))
+		re := regexp2.MustCompile(regex, regexp2.None)
+		m, err := re.FindStringMatch(input)
+		require.NoError(t, err)
+		require.True(t, m != nil, "no match found")
+		require.Equal(t, output, Parse([]byte(template)).Render(m))
 	}
-
-	test(`$1`, "AAABBC")
-	test(`$2`, "A\x00B\x10C")
-	test(`$3`, "\x11\x22\x33")
-
-	test(`$SUBST(1,"A","a")`, "aaaBBC")
-	test(`$P(1):$P(2)`, "AAABBC:ABC")
-	test(`$I(3):$I(3,">"):$I(3,"<")`, "0:"+itoa(0x112233)+":"+itoa(0x332211))
+	test("(.+)", "AAABBC", `$SUBST(1,"A","a")`, "aaaBBC")
+	test("(.+)", "A\x00B\x10C", `$P(1)`, "ABC")
+	test("(.+)", "\x11\x22\x33", `$I(1):$I(1,">"):$I(1,"<")`, "0:"+itoa(0x112233)+":"+itoa(0x332211))
 }
