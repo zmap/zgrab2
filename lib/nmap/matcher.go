@@ -11,7 +11,7 @@ type Matcher struct {
 	Protocol Protocol
 	Probe    string
 	Service  string
-	VersionInfo
+	Info[Template]
 	Soft bool
 	re   *regexp2.Regexp
 }
@@ -29,12 +29,12 @@ func MakeMatcher(probe ServiceProbe, match Match) (*Matcher, error) {
 		return nil, err
 	}
 	return &Matcher{
-		Protocol:    probe.Protocol,
-		Probe:       probe.Name,
-		Service:     match.Service,
-		VersionInfo: match.VersionInfo,
-		Soft:        match.Soft,
-		re:          re,
+		Protocol: probe.Protocol,
+		Probe:    probe.Name,
+		Service:  match.Service,
+		Info:     match.Info,
+		Soft:     match.Soft,
+		re:       re,
 	}, err
 }
 
@@ -69,54 +69,21 @@ type MatchResult struct {
 func (r MatchResult) Found() bool { return r.match != nil && r.err == nil }
 func (r MatchResult) Err() error  { return r.err }
 
-func (r MatchResult) Render(v VersionInfo) VersionInfo {
+func (r MatchResult) Render(tmpl Info[Template]) Info[string] {
 	if r.Found() {
-		replacer := r.newReplacer()
 		var cpe []string
-		for _, value := range v.CPE {
-			cpe = append(cpe, replacer.Replace(value))
+		for _, tmpl := range tmpl.CPE {
+			cpe = append(cpe, tmpl.Render(r.match))
 		}
-		return VersionInfo{
-			VendorProductName: replacer.Replace(v.VendorProductName),
-			Version:           replacer.Replace(v.Version),
-			Info:              replacer.Replace(v.Info),
-			Hostname:          replacer.Replace(v.Hostname),
-			OS:                replacer.Replace(v.OS),
-			DeviceType:        replacer.Replace(v.DeviceType),
+		return Info[string]{
+			VendorProductName: tmpl.VendorProductName.Render(r.match),
+			Version:           tmpl.Version.Render(r.match),
+			Info:              tmpl.Info.Render(r.match),
+			Hostname:          tmpl.Hostname.Render(r.match),
+			OS:                tmpl.OS.Render(r.match),
+			DeviceType:        tmpl.DeviceType.Render(r.match),
 			CPE:               cpe,
 		}
 	}
-	return v
-}
-
-func (r MatchResult) newReplacer() strings.Replacer {
-	groups := r.match.Groups()
-	oldnew := make([]string, 0, 2*len(groups))
-	for i := 1; i < len(groups); i++ {
-		group := groups[i]
-
-		name := "$" + group.Name
-		oldnew = append(oldnew, name, group.String())
-	}
-	return *strings.NewReplacer(oldnew...)
-}
-
-func (v *VersionInfo) merge(with VersionInfo) {
-	v.VendorProductName = or(v.VendorProductName, with.VendorProductName)
-	v.Version = or(v.Version, with.Version)
-	v.Info = or(v.Info, with.Info)
-	v.Hostname = or(v.Hostname, with.Hostname)
-	v.OS = or(v.OS, with.OS)
-	v.DeviceType = or(v.DeviceType, with.DeviceType)
-	v.CPE = append(v.CPE, with.CPE...)
-}
-
-func or[T comparable](value ...T) T {
-	var zero T
-	for _, value := range value {
-		if value != zero {
-			return value
-		}
-	}
-	return zero
+	return Info[string]{}
 }

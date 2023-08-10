@@ -5,6 +5,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/stretchr/testify/require"
+	"github.com/zmap/zgrab2/lib/nmap/template"
 )
 
 func TestMatcher(t *testing.T) {
@@ -13,14 +14,17 @@ func TestMatcher(t *testing.T) {
 			Regex: `(A+(B+)?)(C+)\xFF!`,
 			Flags: `s`,
 		},
-		VersionInfo: VersionInfo{
-			VendorProductName: `p:$1`,
-			Version:           `v:$2`,
-			Info:              `i:$1-$2`,
-			Hostname:          `h:$3`,
-			OS:                `o:$2/$3`,
-			DeviceType:        `d:$3...$3`,
-			CPE:               []string{"cpe:/a:$1", "cpe:/b:$2"},
+		Info: Info[Template]{
+			VendorProductName: template.Parse(b(`p:$1`)),
+			Version:           template.Parse(b(`v:$2`)),
+			Info:              template.Parse(b(`i:$1-$2`)),
+			Hostname:          template.Parse(b(`h:$3`)),
+			OS:                template.Parse(b(`o:$2/$3`)),
+			DeviceType:        template.Parse(b(`d:$3...$3`)),
+			CPE: []Template{
+				template.Parse(b(`cpe:/a:$1`)),
+				template.Parse(b(`cpe:/b:$2`)),
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -29,7 +33,7 @@ func TestMatcher(t *testing.T) {
 	require.NoError(t, r.Err())
 	require.True(t, r.Found())
 
-	v := r.Render(m.VersionInfo)
+	v := r.Render(m.Info)
 	require.Equal(t, "p:AAABB", v.VendorProductName)
 	require.Equal(t, "v:BB", v.Version)
 	require.Equal(t, "i:AAABB-BB", v.Info)
