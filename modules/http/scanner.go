@@ -228,7 +228,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return m.Service == "http"
+		return strings.HasPrefix(m.Service, "http")
 	})
 	return nil
 }
