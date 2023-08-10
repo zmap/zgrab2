@@ -128,19 +128,13 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
 
-	data.Product, _ = s.getProduct([]byte(data.RawBanner))
+	if found, product, _ := s.productMatchers.MatchBytes([]byte(data.RawBanner)); found {
+		data.Product = &product
+	}
 	return status, data, err
 }
 
 // Protocol returns the protocol identifer for the scanner.
 func (s *SSHScanner) Protocol() string {
 	return "ssh"
-}
-
-func (s *SSHScanner) getProduct(banner []byte) (*nmap.Info[string], error) {
-	found, product, err := s.productMatchers.MatchBytes(banner)
-	if found && err == nil {
-		return &product, nil
-	}
-	return nil, err
 }
