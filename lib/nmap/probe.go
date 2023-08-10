@@ -33,11 +33,11 @@ type MatchPattern struct {
 }
 
 type Info[T any] struct {
-	VendorProductName T
-	Version           T
-	Info              T
-	Hostname          T
-	OS                T
-	DeviceType        T
-	CPE               []T
+	VendorProductName T   `json:"vendorproductname,omitempty"`
+	Version           T   `json:"version,omitempty"`
+	Info              T   `json:"info,omitempty"`
+	Hostname          T   `json:"hostname,omitempty"`
+	OS                T   `json:"os,omitempty"`
+	DeviceType        T   `json:"devicetype,omitempty"`
+	CPE               []T `json:"cpe,omitempty"`
 }

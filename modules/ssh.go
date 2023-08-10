@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/nmap"
 	"github.com/zmap/zgrab2/lib/ssh"
 )
 
@@ -28,7 +29,8 @@ type SSHModule struct {
 }
 
 type SSHScanner struct {
-	config *SSHFlags
+	config          *SSHFlags
+	productMatchers nmap.Matchers
 }
 
 func init() {
@@ -67,6 +69,10 @@ func (f *SSHFlags) Help() string {
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*SSHFlags)
 	s.config = f
+
+	s.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
+		return m.Service == "ssh"
+	})
 	return nil
 }
 
@@ -121,10 +127,20 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	_, err := ssh.Dial("tcp", rhost, sshConfig)
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
+
+	data.Product, _ = s.getProduct([]byte(data.RawBanner))
 	return status, data, err
 }
 
 // Protocol returns the protocol identifer for the scanner.
 func (s *SSHScanner) Protocol() string {
 	return "ssh"
+}
+
+func (s *SSHScanner) getProduct(banner []byte) (*nmap.Info[string], error) {
+	found, product, err := s.productMatchers.MatchBytes(banner)
+	if found && err == nil {
+		return &product, nil
+	}
+	return nil, err
 }

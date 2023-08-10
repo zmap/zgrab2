@@ -85,23 +85,13 @@ type Flags struct {
 // implementation.
 type Results struct {
 	// Result is the final HTTP response in the RedirectResponseChain
-	Response *http.Response `json:"response,omitempty"`
-	Banner   string         `json:"banner"`
-	Product  product        `json:"product"`
+	Response *http.Response     `json:"response,omitempty"`
+	Banner   string             `json:"banner"`
+	Product  *nmap.Info[string] `json:"product,omitempty"`
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
 	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
-}
-
-type product struct {
-	VendorProductName string   `json:"vendorproductname,omitempty"`
-	Version           string   `json:"version,omitempty"`
-	Info              string   `json:"info,omitempty"`
-	Hostname          string   `json:"hostname,omitempty"`
-	OS                string   `json:"os,omitempty"`
-	DeviceType        string   `json:"devicetype,omitempty"`
-	CPE               []string `json:"cpe,omitempty"`
 }
 
 // Module is an implementation of the zgrab2.Module interface.
@@ -631,9 +621,12 @@ func (scan *scan) getBanner(resp *http.Response, body []byte) []byte {
 	return banner.Bytes()
 }
 
-func (scan *scan) getProduct(banner []byte) (product, error) {
-	_, vinfo, err := scan.scanner.productMatchers.MatchBytes(banner)
-	return product(vinfo), err
+func (scan *scan) getProduct(banner []byte) (*nmap.Info[string], error) {
+	found, product, err := scan.scanner.productMatchers.MatchBytes(banner)
+	if found && err == nil {
+		return &product, nil
+	}
+	return nil, err
 }
 
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
