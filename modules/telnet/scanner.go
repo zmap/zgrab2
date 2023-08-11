@@ -12,8 +12,11 @@
 package telnet
 
 import (
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/nmap"
 )
 
 // Flags holds the command-line configuration for the Telnet scan module.
@@ -26,12 +29,12 @@ type Flags struct {
 }
 
 // Module implements the zgrab2.Module interface.
-type Module struct {
-}
+type Module struct{}
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config          *Flags
+	productMatchers nmap.Matchers
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -74,6 +77,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+
+	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
+		return strings.HasPrefix(m.Service, "telnet")
+	})
 	return nil
 }
 
@@ -111,6 +118,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		} else {
 			return zgrab2.TryGetScanStatus(err), result.getResult(), err
 		}
+	}
+
+	if found, product, _ := scanner.productMatchers.MatchBytes([]byte(result.Banner)); found {
+		result.Product = &product
 	}
 	return zgrab2.SCAN_SUCCESS, result, nil
 }
