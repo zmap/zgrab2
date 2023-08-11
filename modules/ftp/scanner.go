@@ -18,6 +18,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/nmap"
 )
 
 // ScanResults is the output of the scan.
@@ -25,6 +26,8 @@ import (
 type ScanResults struct {
 	// Banner is the initial data banner sent by the server.
 	Banner string `json:"banner,omitempty"`
+
+	Product *nmap.Info[string] `json:"product,omitempty"`
 
 	// AuthTLSResp is the response to the AUTH TLS command.
 	// Only present if the FTPAuthTLS flag is set.
@@ -55,13 +58,13 @@ type Flags struct {
 }
 
 // Module implements the zgrab2.Module interface.
-type Module struct {
-}
+type Module struct{}
 
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config *Flags
+	config          *Flags
+	productMatchers nmap.Matchers
 }
 
 // Connection holds the state for a single connection to the FTP server.
@@ -122,6 +125,10 @@ func (s *Scanner) Protocol() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
+
+	s.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
+		return strings.HasPrefix(m.Service, "ftp")
+	})
 	return nil
 }
 
@@ -214,7 +221,6 @@ func (ftp *Connection) SetupFTPS() (bool, error) {
 // Taken over from the original zgrab.
 func (ftp *Connection) GetFTPSCertificates() error {
 	ftpsReady, err := ftp.SetupFTPS()
-
 	if err != nil {
 		return err
 	}
@@ -239,13 +245,13 @@ func (ftp *Connection) GetFTPSCertificates() error {
 }
 
 // Scan performs the configured scan on the FTP server, as follows:
-// * Read the banner into results.Banner (if it is not a 2XX response, bail)
-// * If the FTPAuthTLS flag is not set, finish.
-// * Send the AUTH TLS command to the server. If the response is not 2XX, then
-//   send the AUTH SSL command. If the response is not 2XX, then finish.
-// * Perform ths TLS handshake / any configured TLS scans, populating
-//   results.TLSLog.
-// * Return SCAN_SUCCESS, &results, nil
+//   - Read the banner into results.Banner (if it is not a 2XX response, bail)
+//   - If the FTPAuthTLS flag is not set, finish.
+//   - Send the AUTH TLS command to the server. If the response is not 2XX, then
+//     send the AUTH SSL command. If the response is not 2XX, then finish.
+//   - Perform ths TLS handshake / any configured TLS scans, populating
+//     results.TLSLog.
+//   - Return SCAN_SUCCESS, &results, nil
 func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 	var err error
 	conn, err := t.Open(&s.config.BaseFlags)
@@ -277,6 +283,11 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), &ftp.results, err
 	}
+
+	if found, product, _ := s.productMatchers.MatchBytes([]byte(ftp.results.Banner)); found {
+		ftp.results.Product = &product
+	}
+
 	if s.config.FTPAuthTLS && is200Banner {
 		if err := ftp.GetFTPSCertificates(); err != nil {
 			return zgrab2.SCAN_APPLICATION_ERROR, &ftp.results, err
