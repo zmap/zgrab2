@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"crypto/rsa"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"math/big"
@@ -21,6 +20,7 @@ import (
 	"os/exec"
 
 	"github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/encoding/asn1"
 	jsonKeys "github.com/zmap/zcrypto/json"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
