@@ -215,8 +215,10 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 	// Parse the response headers.
 	mimeHeader, err := tp.ReadMIMEHeader()
 	if err != nil {
+		// Ignore EOF, so long as we got a valid status line
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
+			return resp, nil
 		}
 		return resp, err
 	}
