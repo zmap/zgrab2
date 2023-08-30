@@ -70,7 +70,8 @@ type Flags struct {
 	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
 	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
 	// Set HTTP Request body
-	RequestBody string `long:"request-body" description:"HTTP request body to send to server"`
+	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
+	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -489,6 +490,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	)
 	if len(scan.scanner.config.RequestBody) > 0 {
 		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, strings.NewReader(scan.scanner.config.RequestBody))
+	} else if len(scan.scanner.config.RequestBodyHex) > 0 {
+		reqbody, _ := hex.DecodeString(scan.scanner.config.RequestBodyHex)
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, bytes.NewReader(reqbody))
 	} else {
 		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, nil)
 	}
