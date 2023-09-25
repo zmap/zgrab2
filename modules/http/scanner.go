@@ -85,9 +85,9 @@ type Flags struct {
 // implementation.
 type Results struct {
 	// Result is the final HTTP response in the RedirectResponseChain
-	Response *http.Response     `json:"response,omitempty"`
-	Banner   string             `json:"banner"`
-	Product  *nmap.Info[string] `json:"product,omitempty"`
+	Response *http.Response       `json:"response,omitempty"`
+	Banner   string               `json:"banner"`
+	Products []nmap.ExtractResult `json:"products,omitempty"`
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
@@ -523,7 +523,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			if resp != nil {
 				banner := scan.getBanner(resp, []byte(resp.BodyText))
 				scan.results.Banner = string(banner)
-				scan.results.Product, _ = scan.getProduct(banner)
+				scan.results.Products, _ = scan.scanner.productMatchers.ExtractInfoFromBytes(banner)
 			}
 			if scan.scanner.config.RedirectsSucceed {
 				return nil
@@ -544,7 +544,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	banner := scan.getBanner(resp, buf.Bytes())
 	scan.results.Banner = string(banner)
-	scan.results.Product, _ = scan.getProduct(banner)
+	scan.results.Products, _ = scan.scanner.productMatchers.ExtractInfoFromBytes(banner)
 
 	bodyText := ""
 	decodedSuccessfully := false
@@ -619,14 +619,6 @@ func (scan *scan) getBanner(resp *http.Response, body []byte) []byte {
 	var banner bytes.Buffer
 	_ = respCopy.Write(&banner) // It never errors because of writing into memory.
 	return banner.Bytes()
-}
-
-func (scan *scan) getProduct(banner []byte) (*nmap.Info[string], error) {
-	found, product, err := scan.scanner.productMatchers.MatchBytes(banner)
-	if found && err == nil {
-		return &product, nil
-	}
-	return nil, err
 }
 
 // Scan implements the zgrab2.Scanner interface and performs the full scan of

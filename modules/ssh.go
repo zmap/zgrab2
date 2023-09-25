@@ -128,9 +128,8 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
 
-	if found, product, _ := s.productMatchers.MatchBytes([]byte(data.RawBanner)); found {
-		data.Product = &product
-	}
+	data.Products, _ = s.productMatchers.ExtractInfoFromBytes([]byte(data.RawBanner))
+
 	return status, data, err
 }
 

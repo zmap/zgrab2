@@ -44,7 +44,7 @@ type ScanResults struct {
 	// Banner is the string sent by the server immediately after connecting.
 	Banner string `json:"banner,omitempty"`
 
-	Product *nmap.Info[string] `json:"product,omitempty"`
+	Products []nmap.ExtractResult `json:"products,omitempty"`
 
 	// HELO is the server's response to the HELO command, if one is sent.
 	HELO string `json:"helo,omitempty"`
@@ -280,9 +280,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	result.Banner = banner
 
-	if found, product, _ := scanner.productMatchers.MatchBytes([]byte(banner)); found {
-		result.Product = &product
-	}
+	result.Products, _ = scanner.productMatchers.ExtractInfoFromBytes([]byte(banner))
 
 	if scanner.config.SendHELO {
 		ret, err := conn.SendCommand(getCommand("HELO", scanner.config.HELODomain))

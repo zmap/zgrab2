@@ -39,6 +39,8 @@ func (ms Matchers) Filter(fn func(*Matcher) bool) Matchers {
 	return filtered
 }
 
+// Filter matchers using GLOB-pattern.
+// Matchers are identified with `<probe>/<service>` name.
 func (ms Matchers) FilterGlob(patterns ...string) Matchers {
 	if len(patterns) == 0 {
 		return nil
@@ -54,47 +56,27 @@ func (ms Matchers) FilterGlob(patterns ...string) Matchers {
 	})
 }
 
-func (ms Matchers) MatchBytes(input []byte) (bool, Info[string], error) {
-	return ms.MatchRunes(intoRunes(input))
+type ExtractResult struct {
+	Info  Info[string] `json:"info"`
+	Regex string       `json:"regex"`
 }
 
-func (ms Matchers) MatchRunes(input []rune) (bool, Info[string], error) {
-	var info Info[string]
+func (ms Matchers) ExtractInfoFromBytes(input []byte) ([]ExtractResult, error) {
+	return ms.ExtractInfoFromRunes(intoRunes(input))
+}
+
+func (ms Matchers) ExtractInfoFromRunes(input []rune) (result []ExtractResult, err error) {
 	for _, m := range ms {
 		r := m.MatchRunes(input)
 		if err := r.Err(); err != nil {
-			return false, info, err
+			return nil, err
 		}
 		if r.Found() {
-			info = mergeInfo(info, r.Render(m.Info))
-			if !m.Soft {
-				return true, info, nil
-			}
+			result = append(result, ExtractResult{
+				Info: r.Render(m.Info), Regex: m.re.String()})
 		}
 	}
-	return false, info, nil
-}
-
-func mergeInfo[T comparable](a, b Info[T]) Info[T] {
-	return Info[T]{
-		VendorProductName: or(a.VendorProductName, b.VendorProductName),
-		Version:           or(a.Version, b.Version),
-		Info:              or(a.Info, b.Info),
-		Hostname:          or(a.Hostname, b.Hostname),
-		OS:                or(a.OS, b.OS),
-		DeviceType:        or(a.DeviceType, b.DeviceType),
-		CPE:               append(a.CPE, b.CPE...),
-	}
-}
-
-func or[T comparable](value ...T) T {
-	var zero T
-	for _, value := range value {
-		if value != zero {
-			return value
-		}
-	}
-	return zero
+	return result, nil
 }
 
 var globalMatchers Matchers

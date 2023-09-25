@@ -120,8 +120,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 	}
 
-	if found, product, _ := scanner.productMatchers.MatchBytes([]byte(result.Banner)); found {
-		result.Product = &product
-	}
+	result.Products, _ = scanner.productMatchers.ExtractInfoFromBytes([]byte(result.Banner))
+
 	return zgrab2.SCAN_SUCCESS, result, nil
 }

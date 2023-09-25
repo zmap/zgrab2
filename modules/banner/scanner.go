@@ -45,9 +45,9 @@ type Scanner struct {
 
 // ScanResults instances are returned by the module's Scan function.
 type Results struct {
-	Banner  string             `json:"banner,omitempty"`
-	Length  int                `json:"length,omitempty"`
-	Product *nmap.Info[string] `json:"product,omitempty"`
+	Banner   string               `json:"banner,omitempty"`
+	Length   int                  `json:"length,omitempty"`
+	Products []nmap.ExtractResult `json:"products,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -195,9 +195,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		results.Banner = hex.EncodeToString(ret)
 	}
 
-	if found, product, _ := scanner.productMatchers.MatchBytes(ret); found {
-		results.Product = &product
-	}
+	results.Products, _ = scanner.productMatchers.ExtractInfoFromBytes(ret)
 
 	if scanner.regex.Match(ret) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
