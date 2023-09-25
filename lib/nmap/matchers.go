@@ -3,6 +3,7 @@ package nmap
 import (
 	"io"
 	"os"
+	"path/filepath"
 )
 
 type Matchers []*Matcher
@@ -36,6 +37,21 @@ func (ms Matchers) Filter(fn func(*Matcher) bool) Matchers {
 		}
 	}
 	return filtered
+}
+
+func (ms Matchers) FilterGlob(patterns ...string) Matchers {
+	if len(patterns) == 0 {
+		return nil
+	}
+	return ms.Filter(func(m *Matcher) bool {
+		name := m.Probe + "/" + m.Service
+		for _, pattern := range patterns {
+			if ok, err := filepath.Match(pattern, name); ok && err == nil {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 func (ms Matchers) MatchBytes(input []byte) (bool, Info[string], error) {
@@ -95,4 +111,8 @@ func LoadServiceProbes(filename string) error {
 
 func SelectMatchers(filter func(*Matcher) bool) Matchers {
 	return globalMatchers.Filter(filter)
+}
+
+func SelectMatchersGlob(patterns ...string) Matchers {
+	return globalMatchers.FilterGlob(patterns...)
 }
