@@ -57,8 +57,11 @@ func (ms Matchers) FilterGlob(patterns ...string) Matchers {
 }
 
 type ExtractResult struct {
-	Info  Info[string] `json:"info"`
-	Regex string       `json:"regex"`
+	Probe     string `json:"probe"`
+	Service   string `json:"service"`
+	Regex     string `json:"regex"`
+	SoftMatch bool   `json:"softmatch"`
+	Info[string]
 }
 
 func (ms Matchers) ExtractInfoFromBytes(input []byte) ([]ExtractResult, error) {
@@ -73,7 +76,12 @@ func (ms Matchers) ExtractInfoFromRunes(input []rune) (result []ExtractResult, e
 		}
 		if r.Found() {
 			result = append(result, ExtractResult{
-				Info: r.Render(m.Info), Regex: m.re.String()})
+				Probe:     m.Probe,
+				Service:   m.Service,
+				Regex:     m.re.String(),
+				SoftMatch: m.Soft,
+				Info:      r.Render(m.Info),
+			})
 		}
 	}
 	return result, nil
