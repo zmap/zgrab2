@@ -13,6 +13,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/nmap"
@@ -21,13 +22,13 @@ import (
 // Flags give the command-line flags for the banner module.
 type Flags struct {
 	zgrab2.BaseFlags
-	Probe           string   `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file" `
-	ProbeFile       string   `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe"`
-	Pattern         string   `long:"pattern" description:"Pattern to match, must be valid regexp."`
-	UseTLS          bool     `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options. "`
-	MaxTries        int      `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
-	Hex             bool     `long:"hex" description:"Store banner value in hex. "`
-	ProductMatchers []string `long:"product-matchers" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service> (wildcards supported)."`
+	Probe           string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file" `
+	ProbeFile       string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe"`
+	Pattern         string `long:"pattern" description:"Pattern to match, must be valid regexp."`
+	UseTLS          bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options. "`
+	MaxTries        int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
+	Hex             bool   `long:"hex" description:"Store banner value in hex. "`
+	ProductMatchers string `long:"product-matchers" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 	zgrab2.TLSFlags
 }
 
@@ -128,7 +129,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		scanner.probe = []byte(strProbe)
 	}
 
-	scanner.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers...)
+	patterns := strings.Split(f.ProductMatchers, `,`)
+	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
+
 	return nil
 }
 

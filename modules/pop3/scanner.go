@@ -81,6 +81,8 @@ type Flags struct {
 
 	// Verbose indicates that there should be more verbose logging.
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+
+	ProductMatchers string `long:"product-matchers" default:"*/pop3" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -137,9 +139,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 
-	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return strings.HasPrefix(m.Service, "pop3")
-	})
+	patterns := strings.Split(f.ProductMatchers, `,`)
+	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
+
 	return nil
 }
 

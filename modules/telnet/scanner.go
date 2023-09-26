@@ -23,9 +23,10 @@ import (
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
-	MaxReadSize int  `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
-	Banner      bool `long:"force-banner" description:"Always return banner if it has non-zero bytes"`
-	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	MaxReadSize     int    `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
+	Banner          bool   `long:"force-banner" description:"Always return banner if it has non-zero bytes"`
+	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	ProductMatchers string `long:"product-matchers" default:"*/telnet" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -78,9 +79,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 
-	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return strings.HasPrefix(m.Service, "telnet")
-	})
+	patterns := strings.Split(f.ProductMatchers, `,`)
+	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
+
 	return nil
 }
 

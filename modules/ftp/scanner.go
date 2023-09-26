@@ -52,9 +52,10 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	FTPAuthTLS  bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
-	ImplicitTLS bool `long:"implicit-tls" description:"Attempt to connect via a TLS wrapped connection"`
+	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	FTPAuthTLS      bool   `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
+	ImplicitTLS     bool   `long:"implicit-tls" description:"Attempt to connect via a TLS wrapped connection"`
+	ProductMatchers string `long:"product-matchers" default:"*/ftp" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -126,9 +127,9 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
 
-	s.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return strings.HasPrefix(m.Service, "ftp")
-	})
+	patterns := strings.Split(f.ProductMatchers, `,`)
+	s.productMatchers = nmap.SelectMatchersGlob(patterns...)
+
 	return nil
 }
 

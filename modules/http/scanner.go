@@ -79,6 +79,8 @@ type Flags struct {
 
 	// WithBodyLength enables adding the body_size field to the Response
 	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
+
+	ProductMatchers string `long:"product-matchers" default:"*/http" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -227,9 +229,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
-	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return strings.HasPrefix(m.Service, "http")
-	})
+	patterns := strings.Split(fl.ProductMatchers, `,`)
+	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
+
 	return nil
 }
 
