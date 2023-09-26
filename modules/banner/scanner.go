@@ -13,7 +13,6 @@ import (
 	"net"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/nmap"
@@ -129,8 +128,8 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		scanner.probe = []byte(strProbe)
 	}
 
-	patterns := strings.Split(f.ProductMatchers, `,`)
-	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
+	scanner.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
+	log.Printf("MATCHERS: %d", len(scanner.productMatchers))
 
 	return nil
 }

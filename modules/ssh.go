@@ -70,10 +70,7 @@ func (f *SSHFlags) Help() string {
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*SSHFlags)
 	s.config = f
-
-	patterns := strings.Split(f.ProductMatchers, `,`)
-	s.productMatchers = nmap.SelectMatchersGlob(patterns...)
-
+	s.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
 	return nil
 }
 

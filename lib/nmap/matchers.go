@@ -3,7 +3,8 @@ package nmap
 import (
 	"io"
 	"os"
-	"path/filepath"
+
+	"github.com/gobwas/glob"
 )
 
 type Matchers []*Matcher
@@ -41,18 +42,14 @@ func (ms Matchers) Filter(fn func(*Matcher) bool) Matchers {
 
 // Filter matchers using GLOB-pattern.
 // Matchers are identified with `<probe>/<service>` name.
-func (ms Matchers) FilterGlob(patterns ...string) Matchers {
-	if len(patterns) == 0 {
+func (ms Matchers) FilterGlob(pattern string) Matchers {
+	compiled, err := glob.Compile("{" + pattern + "}")
+	if err != nil {
 		return nil
 	}
 	return ms.Filter(func(m *Matcher) bool {
 		name := m.Probe + "/" + m.Service
-		for _, pattern := range patterns {
-			if ok, err := filepath.Match(pattern, name); ok && err == nil {
-				return true
-			}
-		}
-		return false
+		return compiled.Match(name)
 	})
 }
 
@@ -103,6 +100,6 @@ func SelectMatchers(filter func(*Matcher) bool) Matchers {
 	return globalMatchers.Filter(filter)
 }
 
-func SelectMatchersGlob(patterns ...string) Matchers {
-	return globalMatchers.FilterGlob(patterns...)
+func SelectMatchersGlob(pattern string) Matchers {
+	return globalMatchers.FilterGlob(pattern)
 }

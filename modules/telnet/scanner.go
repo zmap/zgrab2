@@ -12,8 +12,6 @@
 package telnet
 
 import (
-	"strings"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/nmap"
@@ -78,10 +76,7 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-
-	patterns := strings.Split(f.ProductMatchers, `,`)
-	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
-
+	scanner.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
 	return nil
 }
 

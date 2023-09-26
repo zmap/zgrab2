@@ -126,10 +126,7 @@ func (s *Scanner) Protocol() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
-
-	patterns := strings.Split(f.ProductMatchers, `,`)
-	s.productMatchers = nmap.SelectMatchersGlob(patterns...)
-
+	s.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
 	return nil
 }
 

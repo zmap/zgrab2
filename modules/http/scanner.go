@@ -229,9 +229,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
-	patterns := strings.Split(fl.ProductMatchers, `,`)
-	scanner.productMatchers = nmap.SelectMatchersGlob(patterns...)
-
+	scanner.productMatchers = nmap.SelectMatchersGlob(fl.ProductMatchers)
 	return nil
 }
 
