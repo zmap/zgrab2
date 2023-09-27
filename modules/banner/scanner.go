@@ -129,8 +129,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
-	log.Printf("MATCHERS: %d", len(scanner.productMatchers))
-
 	return nil
 }
 
