@@ -1,6 +1,7 @@
 package nmap
 
 import (
+	"errors"
 	"io"
 	"os"
 
@@ -65,11 +66,14 @@ func (ms Matchers) ExtractInfoFromBytes(input []byte) ([]ExtractResult, error) {
 	return ms.ExtractInfoFromRunes(intoRunes(input))
 }
 
-func (ms Matchers) ExtractInfoFromRunes(input []rune) (result []ExtractResult, err error) {
+func (ms Matchers) ExtractInfoFromRunes(input []rune) ([]ExtractResult, error) {
+	var result []ExtractResult
+	var errs []error
 	for _, m := range ms {
 		r := m.MatchRunes(input)
 		if err := r.Err(); err != nil {
-			return nil, err
+			errs = append(errs, err)
+			continue
 		}
 		if r.Found() {
 			result = append(result, ExtractResult{
@@ -81,7 +85,7 @@ func (ms Matchers) ExtractInfoFromRunes(input []rune) (result []ExtractResult, e
 			})
 		}
 	}
-	return result, nil
+	return result, errors.Join(errs...)
 }
 
 var globalMatchers Matchers
