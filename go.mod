@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/dlclark/regexp2 v1.10.0
+	github.com/gobwas/glob v0.2.3
 	github.com/hdm/jarm-go v0.0.7
 	github.com/prometheus/client_golang v1.14.0
 	github.com/sirupsen/logrus v1.9.0

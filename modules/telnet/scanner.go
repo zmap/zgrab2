@@ -12,8 +12,6 @@
 package telnet
 
 import (
-	"strings"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/nmap"
@@ -23,9 +21,10 @@ import (
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags
-	MaxReadSize int  `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
-	Banner      bool `long:"force-banner" description:"Always return banner if it has non-zero bytes"`
-	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	MaxReadSize     int    `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
+	Banner          bool   `long:"force-banner" description:"Always return banner if it has non-zero bytes"`
+	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	ProductMatchers string `long:"product-matchers" default:"*/telnet" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -77,10 +76,7 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-
-	scanner.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return strings.HasPrefix(m.Service, "telnet")
-	})
+	scanner.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
 	return nil
 }
 
@@ -120,8 +116,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		}
 	}
 
-	if found, product, _ := scanner.productMatchers.MatchBytes([]byte(result.Banner)); found {
-		result.Product = &product
-	}
+	result.Products, _ = scanner.productMatchers.ExtractInfoFromBytes([]byte(result.Banner))
+
 	return zgrab2.SCAN_SUCCESS, result, nil
 }

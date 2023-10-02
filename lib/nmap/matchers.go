@@ -1,8 +1,11 @@
 package nmap
 
 import (
+	"errors"
 	"io"
 	"os"
+
+	"github.com/gobwas/glob"
 )
 
 type Matchers []*Matcher
@@ -38,47 +41,51 @@ func (ms Matchers) Filter(fn func(*Matcher) bool) Matchers {
 	return filtered
 }
 
-func (ms Matchers) MatchBytes(input []byte) (bool, Info[string], error) {
-	return ms.MatchRunes(intoRunes(input))
+// Filter matchers using GLOB-pattern.
+// Matchers are identified with `<probe>/<service>` name.
+func (ms Matchers) FilterGlob(pattern string) Matchers {
+	compiled, err := glob.Compile("{" + pattern + "}")
+	if err != nil {
+		return nil
+	}
+	return ms.Filter(func(m *Matcher) bool {
+		name := m.Probe + "/" + m.Service
+		return compiled.Match(name)
+	})
 }
 
-func (ms Matchers) MatchRunes(input []rune) (bool, Info[string], error) {
-	var info Info[string]
+type ExtractResult struct {
+	Probe     string `json:"probe"`
+	Service   string `json:"service"`
+	Regex     string `json:"regex"`
+	SoftMatch bool   `json:"softmatch"`
+	Info[string]
+}
+
+func (ms Matchers) ExtractInfoFromBytes(input []byte) ([]ExtractResult, error) {
+	return ms.ExtractInfoFromRunes(intoRunes(input))
+}
+
+func (ms Matchers) ExtractInfoFromRunes(input []rune) ([]ExtractResult, error) {
+	var result []ExtractResult
+	var errs []error
 	for _, m := range ms {
 		r := m.MatchRunes(input)
 		if err := r.Err(); err != nil {
-			return false, info, err
+			errs = append(errs, err)
+			continue
 		}
 		if r.Found() {
-			info = mergeInfo(info, r.Render(m.Info))
-			if !m.Soft {
-				return true, info, nil
-			}
+			result = append(result, ExtractResult{
+				Probe:     m.Probe,
+				Service:   m.Service,
+				Regex:     m.re.String(),
+				SoftMatch: m.Soft,
+				Info:      r.Render(m.Info),
+			})
 		}
 	}
-	return false, info, nil
-}
-
-func mergeInfo[T comparable](a, b Info[T]) Info[T] {
-	return Info[T]{
-		VendorProductName: or(a.VendorProductName, b.VendorProductName),
-		Version:           or(a.Version, b.Version),
-		Info:              or(a.Info, b.Info),
-		Hostname:          or(a.Hostname, b.Hostname),
-		OS:                or(a.OS, b.OS),
-		DeviceType:        or(a.DeviceType, b.DeviceType),
-		CPE:               append(a.CPE, b.CPE...),
-	}
-}
-
-func or[T comparable](value ...T) T {
-	var zero T
-	for _, value := range value {
-		if value != zero {
-			return value
-		}
-	}
-	return zero
+	return result, errors.Join(errs...)
 }
 
 var globalMatchers Matchers
@@ -95,4 +102,8 @@ func LoadServiceProbes(filename string) error {
 
 func SelectMatchers(filter func(*Matcher) bool) Matchers {
 	return globalMatchers.Filter(filter)
+}
+
+func SelectMatchersGlob(pattern string) Matchers {
+	return globalMatchers.FilterGlob(pattern)
 }

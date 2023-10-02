@@ -23,6 +23,7 @@ type SSHFlags struct {
 	GexPreferredBits  uint   `long:"gex-preferred-bits" description:"The preferred number of bits for the DH GEX prime." default:"2048"`
 	HelloOnly         bool   `long:"hello-only" description:"Limit scan to the initial hello message"`
 	Verbose           bool   `long:"verbose" description:"Output additional information, including SSH client properties from the SSH handshake."`
+	ProductMatchers   string `long:"product-matchers" default:"*/ssh" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 type SSHModule struct {
@@ -69,10 +70,7 @@ func (f *SSHFlags) Help() string {
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*SSHFlags)
 	s.config = f
-
-	s.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return m.Service == "ssh"
-	})
+	s.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
 	return nil
 }
 
@@ -128,9 +126,8 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, 
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
 
-	if found, product, _ := s.productMatchers.MatchBytes([]byte(data.RawBanner)); found {
-		data.Product = &product
-	}
+	data.Products, _ = s.productMatchers.ExtractInfoFromBytes([]byte(data.RawBanner))
+
 	return status, data, err
 }
 

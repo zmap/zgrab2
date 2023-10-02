@@ -27,7 +27,7 @@ type ScanResults struct {
 	// Banner is the initial data banner sent by the server.
 	Banner string `json:"banner,omitempty"`
 
-	Product *nmap.Info[string] `json:"product,omitempty"`
+	Products []nmap.ExtractResult `json:"products,omitempty"`
 
 	// AuthTLSResp is the response to the AUTH TLS command.
 	// Only present if the FTPAuthTLS flag is set.
@@ -52,9 +52,10 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	FTPAuthTLS  bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
-	ImplicitTLS bool `long:"implicit-tls" description:"Attempt to connect via a TLS wrapped connection"`
+	Verbose         bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	FTPAuthTLS      bool   `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
+	ImplicitTLS     bool   `long:"implicit-tls" description:"Attempt to connect via a TLS wrapped connection"`
+	ProductMatchers string `long:"product-matchers" default:"*/ftp" description:"Matchers from nmap-service-probes file used to detect product info. Format: <probe>/<service>[,...] (wildcards supported)."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -125,10 +126,7 @@ func (s *Scanner) Protocol() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
-
-	s.productMatchers = nmap.SelectMatchers(func(m *nmap.Matcher) bool {
-		return strings.HasPrefix(m.Service, "ftp")
-	})
+	s.productMatchers = nmap.SelectMatchersGlob(f.ProductMatchers)
 	return nil
 }
 
@@ -284,9 +282,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 		return zgrab2.TryGetScanStatus(err), &ftp.results, err
 	}
 
-	if found, product, _ := s.productMatchers.MatchBytes([]byte(ftp.results.Banner)); found {
-		ftp.results.Product = &product
-	}
+	ftp.results.Products, _ = s.productMatchers.ExtractInfoFromBytes([]byte(ftp.results.Banner))
 
 	if s.config.FTPAuthTLS && is200Banner {
 		if err := ftp.GetFTPSCertificates(); err != nil {
