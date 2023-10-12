@@ -118,13 +118,16 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
 	var ipstr string
-
+	var port uint
 	if t.IP != nil {
 		ipstr = t.IP.String()
 	}
+	if t.Port != nil {
+		port = *t.Port
+	}
 	return &Grab{
 		IP:     ipstr,
-		Port:   *t.Port,
+		Port:   port,
 		Domain: t.Domain,
 		Data:   responses,
 	}
