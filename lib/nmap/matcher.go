@@ -24,9 +24,7 @@ func MakeMatcher(probe ServiceProbe, match Match) (*Matcher, error) {
 	if strings.Contains(match.Flags, "i") {
 		opts |= regexp2.IgnoreCase
 	}
-	if strings.Contains(match.Flags, "s") {
-		opts |= regexp2.Singleline
-	}
+	opts |= regexp2.Singleline
 	re, err := regexp2.Compile(match.Regex, opts)
 	if err != nil {
 		return nil, err
