@@ -5,6 +5,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/stretchr/testify/require"
+
 	"github.com/zmap/zgrab2/lib/nmap/template"
 )
 
@@ -12,7 +13,6 @@ func TestMatcher(t *testing.T) {
 	m, err := MakeMatcher(ServiceProbe{}, Match{
 		MatchPattern: MatchPattern{
 			Regex: `(A+(B+)?)(C+)\xFF!`,
-			Flags: `s`,
 		},
 		Info: Info[Template]{
 			VendorProductName: template.Parse(b(`p:$1`)),
@@ -67,4 +67,18 @@ func TestMatchBinaryInput(t *testing.T) {
 	m, err = re.FindRunesMatch(intoRunes(bin))
 	require.NoError(t, err)
 	require.True(t, m != nil)
+}
+
+func TestMatcherRegexpSingleLine(t *testing.T) {
+	m, err := MakeMatcher(ServiceProbe{}, Match{
+		MatchPattern: MatchPattern{
+			Regex: `abc.+def`,
+		},
+	})
+
+	require.NoError(t, err)
+
+	r := m.MatchBytes([]byte("abc\r\ndef"))
+	require.NoError(t, r.Err())
+	require.True(t, r.Found())
 }
