@@ -19,6 +19,7 @@ import (
 	"github.com/zmap/zgrab2/modules/oracle"
 	"github.com/zmap/zgrab2/modules/pop3"
 	"github.com/zmap/zgrab2/modules/postgres"
+	"github.com/zmap/zgrab2/modules/rdp"
 	"github.com/zmap/zgrab2/modules/redis"
 	"github.com/zmap/zgrab2/modules/siemens"
 	"github.com/zmap/zgrab2/modules/smb"
@@ -53,6 +54,7 @@ func init() {
 		"ssh":      &modules.SSHModule{},
 		"telnet":   &telnet.Module{},
 		"tls":      &modules.TLSModule{},
+		"rdp":      &rdp.Module{},
 	}
 }
 
