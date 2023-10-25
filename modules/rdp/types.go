@@ -49,7 +49,7 @@ func newNTLMInfo(ntlmBytes []byte) NTLMInfo {
 		Raw: ntlmBytes,
 	}
 
-	ntlmInfoIndex := bytes.IndexAny(ntlmBytes, "NTLMSSP")
+	ntlmInfoIndex := bytes.Index(ntlmBytes, []byte("NTLMSSP"))
 	if ntlmInfoIndex == -1 {
 		return info
 	}
@@ -62,13 +62,13 @@ func newNTLMInfo(ntlmBytes []byte) NTLMInfo {
 
 	info.NegotiateFlags = parseNegotiateFlags(binary.LittleEndian.Uint32(ntlmInfoBytes[20:24]))
 
-	info.Os = newOS(ntlmInfoBytes[48:56])
-
 	targetInfoLen := binary.LittleEndian.Uint16(ntlmInfoBytes[40:42])
 	targetInfoOffset := binary.LittleEndian.Uint32(ntlmInfoBytes[44:48])
 	targetInfoBytes := ntlmInfoBytes[targetInfoOffset : targetInfoOffset+uint32(targetInfoLen)]
 
 	info.TargetInfo = newTargetInfo(targetInfoBytes)
+
+	info.Os = newOS(ntlmInfoBytes[48:56])
 
 	return info
 }
