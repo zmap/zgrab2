@@ -98,10 +98,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 
 	result := ScanResults{Banner: banner}
-	result.Products, err = scanner.productMatchers.ExtractInfoFromBytes(banner)
-	if err != nil {
-		log.Println(err)
-	}
+	result.Products, _ = scanner.productMatchers.ExtractInfoFromBytes(banner)
 
 	answer := newFirstAnswer(banner)
 	if !answer.IsRDP {
@@ -116,19 +113,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(c)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &result, errors.Wrap(err, "error TLSFlags.GetTLSConnection")
+		return zgrab2.SCAN_SUCCESS, &result, errors.Wrap(err, "error TLSFlags.GetTLSConnection")
 	}
 
 	tlsLog, err := rdpConn.setTLSConnectionAndGetTLSLog(tlsConn)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &result, errors.Wrap(err, "rdpConn.setTLSConnectionAndGetTLSLog")
+		return zgrab2.SCAN_SUCCESS, &result, errors.Wrap(err, "rdpConn.setTLSConnectionAndGetTLSLog")
 	}
 
 	result.TLSLog = tlsLog
 
 	rdpNTLMInfo, err := rdpConn.getNTLMInfo()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &result, errors.Wrap(err, "error rdpConn.getNTLMInfo")
+		return zgrab2.SCAN_SUCCESS, &result, errors.Wrap(err, "error rdpConn.getNTLMInfo")
 	}
 
 	result.NTLMInfo = rdpNTLMInfo
