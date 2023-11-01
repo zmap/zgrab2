@@ -2,7 +2,6 @@ package http
 
 import (
 	"io"
-	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -50,7 +49,7 @@ func (p htmlParser) parseHTML() htmlParserResult {
 			tagNameString := string(tagName)
 			if _, ok := p.tags[tagNameString]; ok {
 				if tokenType = p.tokenizer.Next(); tokenType == html.TextToken {
-					result.tags[tagNameString] = strings.TrimSpace(html.UnescapeString(string(p.tokenizer.Text())))
+					result.tags[tagNameString] = string(p.tokenizer.Text())
 				}
 				continue
 			}
