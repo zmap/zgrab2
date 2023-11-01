@@ -13,21 +13,32 @@ import (
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/projectdiscovery/httpx/common/httpx"
+	"github.com/projectdiscovery/httpx/common/stringz"
+	"github.com/projectdiscovery/retryablehttp-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/charset"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/nmap"
-	"golang.org/x/net/html/charset"
+)
+
+const (
+	titleHTMLTag     = "title"
+	faviconHTMLField = "favicon"
 )
 
 var (
@@ -102,10 +113,12 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config          *Flags
-	customHeaders   map[string]string
-	decodedHashFn   func([]byte) string
-	productMatchers nmap.Matchers
+	config                *Flags
+	customHeaders         map[string]string
+	decodedHashFn         func([]byte) string
+	productMatchers       nmap.Matchers
+	tagsToFindInHTML      map[string]struct{}
+	htmlAttributesParsers map[string]attributesParser
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -230,6 +243,29 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.productMatchers = nmap.SelectMatchersGlob(fl.ProductMatchers)
+
+	scanner.tagsToFindInHTML = map[string]struct{}{
+		titleHTMLTag: {},
+	}
+	scanner.htmlAttributesParsers = map[string]attributesParser{
+		// https://cyberok.gitlab.yandexcloud.net/cok/rooster/rooster-gears/-/issues/443#note_9831
+		faviconHTMLField: {
+			fieldIndicators: fieldIndicators{
+				attributeKeys: map[string]struct{}{
+					"rel": {},
+					"ref": {},
+				},
+				attributeValues: map[string]struct{}{
+					"shortcut icon":    {},
+					"icon":             {},
+					"apple-touch-icon": {},
+					"mask-icon":        {},
+				},
+			},
+			attributeKeyWithValue: "href",
+		},
+	}
+
 	return nil
 }
 
@@ -523,6 +559,15 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			if resp != nil {
 				banner := scan.getBanner(resp, []byte(resp.BodyText))
 				scan.results.Banner = string(banner)
+
+				htmlParserRes := htmlParser{
+					tokenizer:         html.NewTokenizer(bytes.NewReader(banner)),
+					tags:              scan.scanner.tagsToFindInHTML,
+					attributesParsers: scan.scanner.htmlAttributesParsers,
+				}.parseHTML()
+				scan.results.Response.Title = htmlParserRes.tags[titleHTMLTag]
+				scan.results.Response.FaviconHash = scan.selectFaviconAndGetHash(htmlParserRes.fields[faviconHTMLField])
+
 				scan.results.Products, _ = scan.scanner.productMatchers.ExtractInfoFromBytes(banner)
 			}
 			if scan.scanner.config.RedirectsSucceed {
@@ -544,6 +589,15 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	banner := scan.getBanner(resp, buf.Bytes())
 	scan.results.Banner = string(banner)
+
+	htmlParserRes := htmlParser{
+		tokenizer:         html.NewTokenizer(bytes.NewReader(banner)),
+		tags:              scan.scanner.tagsToFindInHTML,
+		attributesParsers: scan.scanner.htmlAttributesParsers,
+	}.parseHTML()
+	scan.results.Response.Title = htmlParserRes.tags[titleHTMLTag]
+	scan.results.Response.FaviconHash = scan.selectFaviconAndGetHash(htmlParserRes.fields[faviconHTMLField])
+
 	scan.results.Products, _ = scan.scanner.productMatchers.ExtractInfoFromBytes(banner)
 
 	bodyText := ""
@@ -653,4 +707,86 @@ func RegisterModule() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (scan *scan) selectFaviconAndGetHash(favicons []string) int32 {
+	const defaultFavicon = "/favicon.ico"
+
+	selectedFavicon := selectFavicon(favicons)
+	if selectedFavicon == "" {
+		selectedFavicon = defaultFavicon
+	}
+
+	favicon, err := scan.getFavicon(selectedFavicon)
+	if err != nil {
+		return 0
+	}
+
+	hash, err := stringz.FaviconHash(favicon)
+	if err != nil {
+		return 0
+	}
+
+	return hash
+}
+
+func selectFavicon(favicons []string) string {
+	const prioritizedFaviconSuffix = ".ico"
+
+	if len(favicons) == 0 {
+		return ""
+	}
+
+	var selectedFavicon string
+	for _, favicon := range favicons {
+		if strings.HasSuffix(favicon, prioritizedFaviconSuffix) {
+			selectedFavicon = favicon
+			break
+		}
+	}
+
+	if selectedFavicon == "" {
+		return favicons[0]
+	}
+
+	return selectedFavicon
+}
+
+func (scan *scan) getFavicon(selectedFavicon string) ([]byte, error) {
+	baseURL, err := url.Parse(scan.url)
+	if err != nil {
+		return nil, err
+	}
+
+	faviconEndpoint, err := url.Parse(selectedFavicon)
+	if err != nil {
+		return nil, err
+	}
+
+	h, err := httpx.New(&httpx.Options{
+		DefaultUserAgent:          scan.client.UserAgent,
+		FollowRedirects:           true,
+		FollowHostRedirects:       true,
+		MaxRedirects:              scan.scanner.config.MaxRedirects,
+		MaxResponseBodySizeToRead: math.MaxInt64,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error httpx.New")
+	}
+
+	request, err := retryablehttp.NewRequest(http.MethodGet, baseURL.ResolveReference(faviconEndpoint).String(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "error http.NewRequest")
+	}
+
+	response, err := h.Do(request, httpx.UnsafeOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "error client.Do")
+	}
+
+	if response.StatusCode != 200 {
+		return nil, errors.Errorf("status code is %d", response.StatusCode)
+	}
+
+	return response.Data, nil
 }
