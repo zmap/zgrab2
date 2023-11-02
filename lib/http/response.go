@@ -119,6 +119,9 @@ type Response struct {
 
 	// FaviconHash contains MurmurHash3 hash of favicon
 	FaviconHash int32 `json:"favicon_hash,omitempty"`
+
+	// FQDNs contains list of fqdns from http body href fields
+	FQDNs []string `json:"fqdns,omitempty"`
 }
 
 // Hex returns the given fingerprint encoded as a hex string.

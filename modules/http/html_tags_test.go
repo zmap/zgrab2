@@ -13,7 +13,9 @@ func Test_htmlParser_parseHTML(t *testing.T) {
 					<attrs1 attr1=a1 val1=v1>
 					<attrs2 val2=v2 attr2=a2>
 					<attrs3 attr1=a2 val=v1>
-					<attrs4 val=v2 attr2=a1>`
+					<attrs4 val=v2 attr2=a1>
+					<attrs5 val=v3 attr3=a3>
+					<attrs6 val66=v66 attr3=a3>`
 	testErrHtml := `<tag1>tagValue1</tag1><t<t11></t11>><tag2>tagValue2</tag2>`
 
 	type fields struct {
@@ -73,7 +75,7 @@ func Test_htmlParser_parseHTML(t *testing.T) {
 							attributeKeys:   map[string]struct{}{"attr1": {}},
 							attributeValues: map[string]struct{}{"a1": {}},
 						},
-						attributeKeyWithValue: "val1",
+						attributeKeysWithValue: []string{"val1"},
 					},
 				},
 			},
@@ -93,7 +95,7 @@ func Test_htmlParser_parseHTML(t *testing.T) {
 							attributeKeys:   map[string]struct{}{"attr2": {}},
 							attributeValues: map[string]struct{}{"a2": {}},
 						},
-						attributeKeyWithValue: "val2",
+						attributeKeysWithValue: []string{"val2"},
 					},
 				},
 			},
@@ -113,13 +115,23 @@ func Test_htmlParser_parseHTML(t *testing.T) {
 							attributeKeys:   map[string]struct{}{"attr1": {}, "attr2": {}},
 							attributeValues: map[string]struct{}{"a1": {}, "a2": {}},
 						},
-						attributeKeyWithValue: "val",
+						attributeKeysWithValue: []string{"val"},
+					},
+					"field2": {
+						fieldIndicators: fieldIndicators{
+							attributeKeys:   map[string]struct{}{},
+							attributeValues: map[string]struct{}{},
+						},
+						attributeKeysWithValue: []string{"val", "val66"},
 					},
 				},
 			},
 			want: htmlParserResult{
-				tags:   map[string]string{"tag1": "tagValue1", "tag2": "tagValue2"},
-				fields: map[string][]string{"field1": {"v1", "v2"}},
+				tags: map[string]string{"tag1": "tagValue1", "tag2": "tagValue2"},
+				fields: map[string][]string{
+					"field1": {"v1", "v2"},
+					"field2": {"v1", "v2", "v3", "v66"},
+				},
 			},
 		},
 		{

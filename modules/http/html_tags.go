@@ -13,8 +13,8 @@ type htmlParser struct {
 }
 
 type attributesParser struct {
-	fieldIndicators       fieldIndicators
-	attributeKeyWithValue string
+	fieldIndicators        fieldIndicators
+	attributeKeysWithValue []string
 }
 
 type fieldIndicators struct {
@@ -59,28 +59,37 @@ func (p htmlParser) parseHTML() htmlParserResult {
 			}
 
 			var (
-				foundFieldName   string
+				foundFieldNames  = make(map[string]struct{}, 0)
 				foundFieldValues = make(map[string]string, 0)
 			)
 			for {
 				attributeKey, attributeValue, hasMoreAttributes := p.tokenizer.TagAttr()
 
-				if foundFieldName == "" {
-					for fieldName, attributeParser := range p.attributesParsers {
-						if _, ok := attributeParser.fieldIndicators.attributeKeys[string(attributeKey)]; ok {
-							if _, ok = attributeParser.fieldIndicators.attributeValues[string(attributeValue)]; ok {
-								foundFieldName = fieldName
-								continue
-							}
+				for fieldName, attributeParser := range p.attributesParsers {
+					if len(attributeParser.fieldIndicators.attributeKeys) > 0 {
+						if _, ok := attributeParser.fieldIndicators.attributeKeys[string(attributeKey)]; !ok {
+							continue
+						}
+						if _, ok := attributeParser.fieldIndicators.attributeValues[string(attributeValue)]; !ok {
+							continue
 						}
 					}
+
+					foundFieldNames[fieldName] = struct{}{}
 				}
 
 				foundFieldValues[string(attributeKey)] = string(attributeValue)
 
 				if !hasMoreAttributes {
-					if value := foundFieldValues[p.attributesParsers[foundFieldName].attributeKeyWithValue]; value != "" {
-						result.fields[foundFieldName] = append(result.fields[foundFieldName], value)
+					for foundFieldName := range foundFieldNames {
+						parser := p.attributesParsers[foundFieldName]
+						if len(parser.attributeKeysWithValue) > 0 {
+							for _, attributeKeyWithValue := range parser.attributeKeysWithValue {
+								if value := foundFieldValues[attributeKeyWithValue]; value != "" {
+									result.fields[foundFieldName] = append(result.fields[foundFieldName], value)
+								}
+							}
+						}
 					}
 					break
 				}
