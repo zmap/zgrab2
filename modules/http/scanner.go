@@ -764,7 +764,6 @@ func selectFavicon(favicons []string) string {
 
 func (scan *scan) getFavicon(selectedFavicon string) ([]byte, error) {
 	if strings.HasPrefix(selectedFavicon, `data:image/`) {
-		log.Info("favicon from body")
 		favicon, err := parseFavicon(selectedFavicon)
 		return favicon, errors.Wrap(err, "incorrect href with favicon format")
 	}
