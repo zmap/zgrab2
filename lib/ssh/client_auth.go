@@ -22,11 +22,6 @@ const (
 
 // clientAuthenticate authenticates with the remote server. See RFC 4252.
 func (c *connection) clientAuthenticate(config *ClientConfig) error {
-	if c.transport.config.ConnLog != nil && !config.DontAuthenticate {
-		// Use ConnLog existence to indicate that this is a run and not testing
-		return nil
-	}
-
 	// initiate user auth session
 	if err := c.transport.writePacket(Marshal(&serviceRequestMsg{serviceUserAuth})); err != nil {
 		return err
@@ -68,6 +63,11 @@ func (c *connection) clientAuthenticate(config *ClientConfig) error {
 	var serviceAccept serviceAcceptMsg
 	if err := Unmarshal(packet, &serviceAccept); err != nil {
 		return err
+	}
+
+	if config.DontAuthenticate && !config.CollectUserAuth {
+		// Save at least one RTT by exiting early
+		return nil
 	}
 
 	// during the authentication phase the client first attempts the "none" method

@@ -8,8 +8,6 @@ import (
 
 func MakeSSHConfig() *ClientConfig {
 	ret := new(ClientConfig)
-	ret.DontAuthenticate = true                   // IOT scan ethically, never attempt to authenticate
-	ret.HostKeyCallback = InsecureIgnoreHostKey() // Ignore host key for scanning purposes
 	ret.HostKeyAlgorithms = supportedHostKeyAlgos
 	ret.KeyExchanges = supportedKexAlgos
 	ret.Ciphers = supportedCiphers

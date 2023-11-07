@@ -165,6 +165,10 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 	}
 
 	c.sessionID = c.transport.getSessionID()
+	if !config.CollectExtensions && !config.CollectUserAuth && config.DontAuthenticate {
+		// Save at least one RTT by exiting early
+		return nil
+	}
 	return c.clientAuthenticate(config)
 }
 
@@ -299,8 +303,17 @@ type ClientConfig struct {
 	// A Timeout of zero means no timeout.
 	Timeout time.Duration
 
-	// If true, send the "none" Authentication Request to collect the advertised
-	// userauth method names, but do not attempt to authenticate.
+	// If true, the client will collect SSH extensions (if any) as per RFC 8308 by completing the
+	// SSH transport layer protocol. If false, the client will still collect extensions if
+	// either CollectUserAuth is true or DontAuthenticate is false.
+	CollectExtensions bool
+
+	// If true, the client will collect authentication methods by sending a 'none' authentication
+	// request even if DontAuthenticate is true. If false, the client will still collect
+	// authentication methods if DontAuthenticate is false.
+	CollectUserAuth bool
+
+	// If true, the client will not attempt to authenticate.
 	DontAuthenticate bool
 }
 
