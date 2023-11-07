@@ -166,7 +166,7 @@ func TestUnmarshalShortKexInitPacket(t *testing.T) {
 	// This used to panic.
 	// Issue 11348
 	packet := []byte{0x14, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xff, 0xff, 0xff, 0xff}
-	kim := &KexInitMsg{}
+	kim := &kexInitMsg{}
 	if err := Unmarshal(packet, kim); err == nil {
 		t.Error("truncated packet unmarshaled without error")
 	}
@@ -228,8 +228,8 @@ func randomInt(rand *rand.Rand) *big.Int {
 	return new(big.Int).SetInt64(int64(int32(rand.Uint32())))
 }
 
-func (*KexInitMsg) Generate(rand *rand.Rand, size int) reflect.Value {
-	ki := &KexInitMsg{}
+func (*kexInitMsg) Generate(rand *rand.Rand, size int) reflect.Value {
+	ki := &kexInitMsg{}
 	randomBytes(ki.Cookie[:], rand)
 	ki.KexAlgos = randomNameList(rand)
 	ki.ServerHostKeyAlgos = randomNameList(rand)
@@ -254,7 +254,7 @@ func (*kexDHInitMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 }
 
 var (
-	_kexInitMsg   = new(KexInitMsg).Generate(rand.New(rand.NewSource(0)), 10).Elem().Interface()
+	_kexInitMsg   = new(kexInitMsg).Generate(rand.New(rand.NewSource(0)), 10).Elem().Interface()
 	_kexDHInitMsg = new(kexDHInitMsg).Generate(rand.New(rand.NewSource(0)), 10).Elem().Interface()
 
 	_kexInit   = Marshal(_kexInitMsg)
@@ -268,7 +268,7 @@ func BenchmarkMarshalKexInitMsg(b *testing.B) {
 }
 
 func BenchmarkUnmarshalKexInitMsg(b *testing.B) {
-	m := new(KexInitMsg)
+	m := new(kexInitMsg)
 	for i := 0; i < b.N; i++ {
 		Unmarshal(_kexInit, m)
 	}

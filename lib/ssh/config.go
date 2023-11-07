@@ -8,10 +8,11 @@ import (
 
 func MakeSSHConfig() *ClientConfig {
 	ret := new(ClientConfig)
-	ret.DontAuthenticate = true // IOT scan ethically, never attempt to authenticate
+	ret.DontAuthenticate = true                   // IOT scan ethically, never attempt to authenticate
+	ret.HostKeyCallback = InsecureIgnoreHostKey() // Ignore host key for scanning purposes
 	ret.HostKeyAlgorithms = supportedHostKeyAlgos
-	ret.KeyExchanges = defaultKexAlgos
-	ret.Ciphers = defaultCiphers
+	ret.KeyExchanges = supportedKexAlgos
+	ret.Ciphers = supportedCiphers
 	return ret
 }
 
@@ -37,7 +38,7 @@ func (c *ClientConfig) SetHostKeyAlgorithms(value string) error {
 func (c *ClientConfig) SetKexAlgorithms(value string) error {
 	for _, alg := range strings.Split(value, ",") {
 		isValid := false
-		for _, val := range allSupportedKexAlgos {
+		for _, val := range supportedKexAlgos {
 			if val == alg {
 				isValid = true
 				break
@@ -56,7 +57,7 @@ func (c *ClientConfig) SetKexAlgorithms(value string) error {
 func (c *ClientConfig) SetCiphers(value string) error {
 	for _, inCipher := range strings.Split(value, ",") {
 		isValid := false
-		for _, knownCipher := range allSupportedCiphers {
+		for _, knownCipher := range supportedCiphers {
 			if inCipher == knownCipher {
 				isValid = true
 				break

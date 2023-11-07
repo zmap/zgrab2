@@ -5,18 +5,22 @@
 package ssh
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
 // Client implements a traditional SSH client that supports shells,
-// subprocesses, port forwarding and tunneled dialing.
+// subprocesses, TCP port/streamlocal forwarding and tunneled dialing.
 type Client struct {
 	Conn
+
+	handleForwardsOnce sync.Once // guards calling (*Client).handleForwards
 
 	forwards        forwardList // forwarded tcpip connections from the remote side
 	mu              sync.Mutex
@@ -41,7 +45,7 @@ func (c *Client) HandleChannelOpen(channelType string) <-chan NewChannel {
 		return nil
 	}
 
-	ch = make(chan NewChannel, 16)
+	ch = make(chan NewChannel, chanSize)
 	c.channelHandlers[channelType] = ch
 	return ch
 }
@@ -59,7 +63,6 @@ func NewClient(c Conn, chans <-chan NewChannel, reqs <-chan *Request) *Client {
 		conn.Wait()
 		conn.forwards.closeAll()
 	}()
-	go conn.forwards.handleChannels(conn.HandleChannelOpen("forwarded-tcpip"))
 	return conn
 }
 
@@ -69,8 +72,13 @@ func NewClient(c Conn, chans <-chan NewChannel, reqs <-chan *Request) *Client {
 func NewClientConn(c net.Conn, addr string, config *ClientConfig) (Conn, <-chan NewChannel, <-chan *Request, error) {
 	fullConf := *config
 	fullConf.SetDefaults()
+	if fullConf.HostKeyCallback == nil {
+		c.Close()
+		return nil, nil, nil, errors.New("ssh: must specify HostKeyCallback")
+	}
+
 	conn := &connection{
-		sshConn: sshConn{conn: c},
+		sshConn: sshConn{conn: c, user: fullConf.User},
 	}
 
 	if err := conn.clientHandshake(addr, &fullConf); err != nil {
@@ -152,22 +160,24 @@ func (c *connection) clientHandshake(dialAddress string, config *ClientConfig) e
 		return nil
 	}
 
-	if err := c.transport.requestInitialKeyChange(); err != nil {
+	if err := c.transport.waitSession(); err != nil {
 		return err
 	}
 
-	// We just did the key change, so the session ID is established.
 	c.sessionID = c.transport.getSessionID()
-
 	return c.clientAuthenticate(config)
 }
 
-// verifyHostKeySignature verifies the host key obtained in the key
-// exchange.
-func verifyHostKeySignature(hostKey PublicKey, result *kexResult) error {
+// verifyHostKeySignature verifies the host key obtained in the key exchange.
+// algo is the negotiated algorithm, and may be a certificate type.
+func verifyHostKeySignature(hostKey PublicKey, algo string, result *kexResult) error {
 	sig, rest, ok := parseSignatureBody(result.Signature)
 	if len(rest) > 0 || !ok {
 		return errors.New("ssh: signature parse error")
+	}
+
+	if a := underlyingAlgo(algo); sig.Format != a {
+		return fmt.Errorf("ssh: invalid signature algorithm %q, expected %q", sig.Format, a)
 	}
 
 	return hostKey.Verify(result.H, sig)
@@ -234,6 +244,13 @@ func Dial(network, addr string, config *ClientConfig) (*Client, error) {
 	return NewClient(c, chans, reqs), nil
 }
 
+// HostKeyCallback is the function type used for verifying server
+// keys.  A HostKeyCallback must return nil if the host key is OK, or
+// an error to reject it. It receives the hostname as passed to Dial
+// or NewClientConn. The remote address is the RemoteAddr of the
+// net.Conn underlying the SSH connection.
+type HostKeyCallback func(hostname string, remote net.Addr, key PublicKey) error
+
 // BannerCallback is the function type used for treat the banner sent by
 // the server. A BannerCallback receives the message sent by the remote server.
 type BannerCallback func(message string) error
@@ -253,10 +270,12 @@ type ClientConfig struct {
 	// be used during authentication.
 	Auth []AuthMethod
 
-	// HostKeyCallback, if not nil, is called during the cryptographic
-	// handshake to validate the server's host key. A nil HostKeyCallback
-	// implies that all host keys are accepted.
-	HostKeyCallback func(hostname string, remote net.Addr, key PublicKey) error
+	// HostKeyCallback is called during the cryptographic
+	// handshake to validate the server's host key. The client
+	// configuration must supply this callback for the connection
+	// to succeed. The functions InsecureIgnoreHostKey or
+	// FixedHostKey can be used for simplistic host key checks.
+	HostKeyCallback HostKeyCallback
 
 	// BannerCallback is called during the SSH dance to display a custom
 	// server's message. The client configuration can supply this callback to
@@ -268,11 +287,11 @@ type ClientConfig struct {
 	// be used for the connection. If empty, a reasonable default is used.
 	ClientVersion string
 
-	// HostKeyAlgorithms lists the key types that the client will
-	// accept from the server as host key, in order of
+	// HostKeyAlgorithms lists the public key algorithms that the client will
+	// accept from the server for host key authentication, in order of
 	// preference. If empty, a reasonable default is used. Any
-	// string returned from PublicKey.Type method may be used, or
-	// any of the CertAlgoXxxx and KeyAlgoXxxx constants.
+	// string returned from a PublicKey.Type method may be used, or
+	// any of the CertAlgo and KeyAlgo constants.
 	HostKeyAlgorithms []string
 
 	// Timeout is the maximum amount of time for the TCP connection to establish.
@@ -283,4 +302,44 @@ type ClientConfig struct {
 	// If true, send the "none" Authentication Request to collect the advertised
 	// userauth method names, but do not attempt to authenticate.
 	DontAuthenticate bool
+}
+
+// InsecureIgnoreHostKey returns a function that can be used for
+// ClientConfig.HostKeyCallback to accept any host key. It should
+// not be used for production code.
+func InsecureIgnoreHostKey() HostKeyCallback {
+	return func(hostname string, remote net.Addr, key PublicKey) error {
+		return nil
+	}
+}
+
+type fixedHostKey struct {
+	key PublicKey
+}
+
+func (f *fixedHostKey) check(hostname string, remote net.Addr, key PublicKey) error {
+	if f.key == nil {
+		return fmt.Errorf("ssh: required host key was nil")
+	}
+	if !bytes.Equal(key.Marshal(), f.key.Marshal()) {
+		return fmt.Errorf("ssh: host key mismatch")
+	}
+	return nil
+}
+
+// FixedHostKey returns a function for use in
+// ClientConfig.HostKeyCallback to accept only a specific host key.
+func FixedHostKey(key PublicKey) HostKeyCallback {
+	hk := &fixedHostKey{key}
+	return hk.check
+}
+
+// BannerDisplayStderr returns a function that can be used for
+// ClientConfig.BannerCallback to display banners on os.Stderr.
+func BannerDisplayStderr() BannerCallback {
+	return func(banner string) error {
+		_, err := os.Stderr.WriteString(banner)
+
+		return err
+	}
 }
