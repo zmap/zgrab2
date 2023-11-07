@@ -11,9 +11,9 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,12 +22,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+	"github.com/projectdiscovery/httpx/common/stringz"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/charset"
+
+	"github.com/go-playground/validator/v10"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/nmap"
-	"golang.org/x/net/html/charset"
+)
+
+const (
+	titleHTMLTag     = "title"
+	faviconHTMLField = "favicon"
+	linksHTMLField   = "links"
 )
 
 var (
@@ -102,10 +114,12 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config          *Flags
-	customHeaders   map[string]string
-	decodedHashFn   func([]byte) string
-	productMatchers nmap.Matchers
+	config                *Flags
+	customHeaders         map[string]string
+	decodedHashFn         func([]byte) string
+	productMatchers       nmap.Matchers
+	tagsToFindInHTML      map[string]struct{}
+	htmlAttributesParsers map[string]attributesParser
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -230,6 +244,36 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.productMatchers = nmap.SelectMatchersGlob(fl.ProductMatchers)
+
+	scanner.tagsToFindInHTML = map[string]struct{}{
+		titleHTMLTag: {},
+	}
+	scanner.htmlAttributesParsers = map[string]attributesParser{
+		// https://cyberok.gitlab.yandexcloud.net/cok/rooster/rooster-gears/-/issues/443#note_9831
+		faviconHTMLField: {
+			fieldIndicators: fieldIndicators{
+				attributeKeys: map[string]struct{}{
+					"rel": {},
+					"ref": {},
+				},
+				attributeValues: map[string]struct{}{
+					"shortcut icon":    {},
+					"icon":             {},
+					"apple-touch-icon": {},
+					"mask-icon":        {},
+				},
+			},
+			attributeKeysWithValue: []string{"href"},
+		},
+		linksHTMLField: {
+			fieldIndicators: fieldIndicators{
+				attributeKeys:   map[string]struct{}{},
+				attributeValues: map[string]struct{}{},
+			},
+			attributeKeysWithValue: []string{"href", "codebase", "cite", "background", "action", "longdesc", "src", "profile", "usemap", "classid", "data", "formaction", "icon", "manifest", "poster", "srcset", "archive"},
+		},
+	}
+
 	return nil
 }
 
@@ -523,6 +567,16 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			if resp != nil {
 				banner := scan.getBanner(resp, []byte(resp.BodyText))
 				scan.results.Banner = string(banner)
+
+				htmlParserRes := htmlParser{
+					tokenizer:         html.NewTokenizer(bytes.NewReader(banner)),
+					tags:              scan.scanner.tagsToFindInHTML,
+					attributesParsers: scan.scanner.htmlAttributesParsers,
+				}.parseHTML()
+				scan.results.Response.Title = htmlParserRes.tags[titleHTMLTag]
+				scan.results.Response.FaviconHash = scan.selectFaviconAndGetHash(htmlParserRes.fields[faviconHTMLField])
+				scan.results.Response.FQDNs = getUniqueFQDNFromLinks(htmlParserRes.fields[linksHTMLField])
+
 				scan.results.Products, _ = scan.scanner.productMatchers.ExtractInfoFromBytes(banner)
 			}
 			if scan.scanner.config.RedirectsSucceed {
@@ -544,6 +598,16 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 
 	banner := scan.getBanner(resp, buf.Bytes())
 	scan.results.Banner = string(banner)
+
+	htmlParserRes := htmlParser{
+		tokenizer:         html.NewTokenizer(bytes.NewReader(banner)),
+		tags:              scan.scanner.tagsToFindInHTML,
+		attributesParsers: scan.scanner.htmlAttributesParsers,
+	}.parseHTML()
+	scan.results.Response.Title = htmlParserRes.tags[titleHTMLTag]
+	scan.results.Response.FaviconHash = scan.selectFaviconAndGetHash(htmlParserRes.fields[faviconHTMLField])
+	scan.results.Response.FQDNs = getUniqueFQDNFromLinks(htmlParserRes.fields[linksHTMLField])
+
 	scan.results.Products, _ = scan.scanner.productMatchers.ExtractInfoFromBytes(banner)
 
 	bodyText := ""
@@ -653,4 +717,175 @@ func RegisterModule() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (scan *scan) selectFaviconAndGetHash(favicons []string) int32 {
+	const defaultFavicon = "/favicon.ico"
+
+	selectedFavicon := selectFavicon(favicons)
+	if selectedFavicon == "" {
+		selectedFavicon = defaultFavicon
+	}
+
+	favicon, err := scan.getFavicon(selectedFavicon)
+	if err != nil {
+		return 0
+	}
+
+	hash, err := stringz.FaviconHash(favicon)
+	if err != nil {
+		return 0
+	}
+
+	return hash
+}
+
+func selectFavicon(favicons []string) string {
+	const prioritizedFaviconSuffix = ".ico"
+
+	if len(favicons) == 0 {
+		return ""
+	}
+
+	var selectedFavicon string
+	for _, favicon := range favicons {
+		if strings.HasSuffix(favicon, prioritizedFaviconSuffix) {
+			selectedFavicon = favicon
+			break
+		}
+	}
+
+	if selectedFavicon == "" {
+		return favicons[0]
+	}
+
+	return selectedFavicon
+}
+
+func (scan *scan) getFavicon(selectedFavicon string) ([]byte, error) {
+	if strings.HasPrefix(selectedFavicon, `data:image/`) {
+		favicon, err := parseFavicon(selectedFavicon)
+		return favicon, errors.Wrap(err, "incorrect href with favicon format")
+	}
+
+	favicon, err := scan.downloadFavicon(selectedFavicon)
+	return favicon, errors.Wrap(err, "error downloadFavicon")
+}
+
+func parseFavicon(selectedFavicon string) ([]byte, error) {
+	if len(selectedFavicon) == 0 {
+		return nil, errors.Errorf("got empty favicon")
+	}
+
+	faviconParts := strings.SplitN(selectedFavicon, ";", 2)
+	if len(faviconParts) != 2 {
+		return nil, errors.Errorf("';' not found")
+	}
+
+	faviconParts = strings.SplitN(faviconParts[1], ",", 2)
+	if len(faviconParts) != 2 {
+		return nil, errors.Errorf(",' not found")
+	}
+	if faviconParts[0] != "base64" {
+		return nil, errors.Errorf("'base64' not found")
+	}
+
+	decodedFavicon, err := io.ReadAll(base64.NewDecoder(
+		base64.StdEncoding,
+		strings.NewReader(strings.TrimSpace(faviconParts[1])),
+	))
+	if err != nil {
+		return nil, errors.Wrap(err, "error io.ReadAll")
+	}
+
+	return decodedFavicon, nil
+}
+
+func (scan *scan) downloadFavicon(selectedFavicon string) ([]byte, error) {
+	baseURL, err := url.Parse(scan.url)
+	if err != nil {
+		return nil, err
+	}
+
+	faviconEndpoint, err := url.Parse(selectedFavicon)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := http.NewRequest(http.MethodGet, baseURL.ResolveReference(faviconEndpoint).String(), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "error http.NewRequest")
+	}
+
+	response, err := scan.client.Do(request)
+	if err != nil {
+		return nil, errors.Wrap(err, "error client.Do")
+	}
+
+	if response.StatusCode != 200 {
+		return nil, errors.Errorf("status code is %d", response.StatusCode)
+	}
+
+	favicon, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "error io.ReadAll")
+	}
+
+	return favicon, nil
+}
+
+func getUniqueFQDNFromLinks(links []string) []string {
+	if len(links) == 0 {
+		return nil
+	}
+
+	v := validator.New()
+
+	fqdnsMap := make(map[string]struct{}, 0)
+	for _, link := range links {
+		if fqdn := getFqdnFromLink(v, link); fqdn != "" {
+			fqdnsMap[fqdn] = struct{}{}
+		}
+	}
+
+	if len(fqdnsMap) == 0 {
+		return nil
+	}
+
+	fqdnsSlice := make([]string, 0, len(fqdnsMap))
+	for fqdn := range fqdnsMap {
+		fqdnsSlice = append(fqdnsSlice, fqdn)
+	}
+
+	return fqdnsSlice
+}
+
+func getFqdnFromLink(v *validator.Validate, link string) string {
+	if link == "" {
+		return ""
+	}
+
+	linkURL, err := url.Parse(link)
+	if err != nil {
+		return ""
+	}
+
+	if err := v.Var(linkURL.Host, "fqdn"); err != nil {
+		if !strings.HasPrefix(link, "mailto:") {
+			return ""
+		}
+		splittedHost := strings.SplitN(link, "@", 2)
+		if len(splittedHost) != 2 {
+			return ""
+		}
+		hostFromEmail := splittedHost[1]
+
+		if err = v.Var(hostFromEmail, "fqdn"); err != nil {
+			return ""
+		}
+
+		return hostFromEmail
+	}
+
+	return linkURL.Host
 }
