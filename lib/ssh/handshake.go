@@ -622,6 +622,8 @@ func (t *handshakeTransport) enterKeyExchange(otherInitPacket []byte) error {
 		return fmt.Errorf("ssh: unexpected key exchange algorithm %v", t.algorithms.kex)
 	}
 
+	kex = kex.GetNew(t.algorithms.kex)
+
 	if t.config.ConnLog != nil {
 		t.config.ConnLog.KeyExchange = kex
 	}

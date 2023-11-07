@@ -164,6 +164,10 @@ type kexAlgorithm interface {
 
 	// Create a JSON object for the kexAlgorithm group
 	MarshalJSON() ([]byte, error)
+
+	// Get a new instance of this interface
+	// Because the base x/crypto package passes the same object to each connection
+	GetNew(keyType string) kexAlgorithm
 }
 
 // dhGroup is a multiplicative group suitable for implementing Diffie-Hellman key agreement.
@@ -182,6 +186,36 @@ func (group *dhGroup) MarshalJSON() ([]byte, error) {
 	group.JsonLog.Parameters.Generator = group.g
 	group.JsonLog.Parameters.Prime = group.p
 	return json.Marshal(group.JsonLog)
+}
+
+func (group *dhGroup) GetNew(keyType string) kexAlgorithm {
+	ret := new(dhGroup)
+	ret.g = new(big.Int).SetInt64(2)
+
+	switch keyType {
+	case kexAlgoDH1SHA1:
+		ret.p, _ = new(big.Int).SetString("FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF", 16)
+		ret.pMinus1 = new(big.Int).Sub(ret.p, bigOne)
+		ret.hashFunc = crypto.SHA1
+		break
+
+	case kexAlgoDH14SHA1:
+		ret.p, _ = new(big.Int).SetString("FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF", 16)
+		ret.pMinus1 = new(big.Int).Sub(ret.p, bigOne)
+		ret.hashFunc = crypto.SHA1
+		break
+
+	case kexAlgoDH14SHA256:
+		ret.p, _ = new(big.Int).SetString("FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF", 16)
+		ret.pMinus1 = new(big.Int).Sub(ret.p, bigOne)
+		ret.hashFunc = crypto.SHA256
+		break
+
+	default:
+		panic("Unimplemented DH KEX selected")
+	}
+
+	return ret
 }
 
 func (group *dhGroup) diffieHellman(theirPublic, myPrivate *big.Int) (*big.Int, error) {
@@ -342,6 +376,29 @@ type ecdhJsonLog struct {
 
 func (kex *ecdh) MarshalJSON() ([]byte, error) {
 	return json.Marshal(kex.JsonLog)
+}
+
+func (kex *ecdh) GetNew(keyType string) kexAlgorithm {
+	ret := new(ecdh)
+
+	switch keyType {
+	case kexAlgoECDH521:
+		ret.curve = elliptic.P521()
+		break
+
+	case kexAlgoECDH384:
+		ret.curve = elliptic.P384()
+		break
+
+	case kexAlgoECDH256:
+		ret.curve = elliptic.P256()
+		break
+
+	default:
+		panic("Unimplemented ECDH KEX selected")
+	}
+
+	return ret
 }
 
 func (kex *ecdh) Client(c packetConn, rand io.Reader, magics *handshakeMagics, config *Config) (*kexResult, error) {
@@ -609,6 +666,10 @@ func (kex *curve25519sha256) MarshalJSON() ([]byte, error) {
 	return json.Marshal(kex.JsonLog)
 }
 
+func (kex *curve25519sha256) GetNew(keyType string) kexAlgorithm {
+	return new(curve25519sha256)
+}
+
 type curve25519KeyPair struct {
 	priv [32]byte
 	pub  [32]byte
@@ -769,6 +830,27 @@ type gexJsonLog struct {
 
 func (gex *dhGEXSHA) MarshalJSON() ([]byte, error) {
 	return json.Marshal(gex.JsonLog)
+}
+
+func (gex *dhGEXSHA) GetNew(keyType string) kexAlgorithm {
+	switch keyType {
+	case kexAlgoDHGEXSHA1:
+		ret := new(dhGEXSHA)
+		ret.hashFunc = crypto.SHA1
+		ret.JsonLog = new(gexJsonLog)
+		ret.JsonLog.Parameters = new(ztoolsKeys.DHParams)
+		return ret
+
+	case kexAlgoDHGEXSHA256:
+		ret := new(dhGEXSHA)
+		ret.hashFunc = crypto.SHA256
+		ret.JsonLog = new(gexJsonLog)
+		ret.JsonLog.Parameters = new(ztoolsKeys.DHParams)
+		return ret
+
+	default:
+		panic("Unimplemented GEX selected")
+	}
 }
 
 func (gex *dhGEXSHA) Client(c packetConn, randSource io.Reader, magics *handshakeMagics, config *Config) (*kexResult, error) {
