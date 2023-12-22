@@ -42,8 +42,9 @@ type Scanner struct {
 
 // ScanResults instances are returned by the module's Scan function.
 type Results struct {
-	Banner string `json:"banner,omitempty"`
-	Length int    `json:"length,omitempty"`
+	Banner string         `json:"banner,omitempty"`
+	Length int            `json:"length,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -156,6 +157,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 		break
 	}
+
+
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
@@ -186,6 +189,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		results = Results{Banner: hex.EncodeToString(ret), Length: len(ret)}
 	} else {
 		results = Results{Banner: string(ret), Length: len(ret)}
+	}
+	if tlsConn != nil {
+		results.TLSLog = tlsConn.GetLog()
 	}
 	if scanner.regex.Match(ret) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
