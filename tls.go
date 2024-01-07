@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -65,6 +66,14 @@ type TLSFlags struct {
 	ClientRandom string `long:"client-random" description:"Set an explicit Client Random (base64 encoded)"`
 	// TODO: format?
 	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
+
+	// KeyLogFile optionally specifies a destination file for TLS master secrets
+	// in NSS key log format that can be used to allow external programs
+	// such as Wireshark to decrypt TLS connections.
+	// See https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
+	//
+	// Use of KeyLogFile compromises security and should only be used for debugging.
+	KeyLogFile string `long:"key-log-file" description:"File to write TLS master secrets to; useful for sniffing connections with Wireshark."`
 }
 
 func getCSV(arg string) []string {
@@ -272,8 +281,9 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 
 type TLSConnection struct {
 	tls.Conn
-	flags *TLSFlags
-	log   *TLSLog
+	flags            *TLSFlags
+	log              *TLSLog
+	keyLogFileCloser io.Closer
 }
 
 type TLSLog struct {
@@ -293,6 +303,9 @@ func (z *TLSConnection) Handshake() error {
 	log := z.GetLog()
 	err := z.Conn.Handshake()
 	log.HandshakeLog = z.Conn.GetHandshakeLog()
+	if z.keyLogFileCloser != nil {
+		z.keyLogFileCloser.Close()
+	}
 
 	return err
 }
@@ -326,10 +339,26 @@ func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) 
 }
 
 func (t *TLSFlags) GetWrappedConnection(conn net.Conn, cfg *tls.Config) *TLSConnection {
+	var keyLogFileCloser io.Closer
+	if t.KeyLogFile != "" {
+		f, err := os.Create(t.KeyLogFile)
+		if err != nil {
+			log.Errorf(
+				"open $%s: %v",
+				t.KeyLogFile,
+				err,
+			)
+		} else {
+			cfg.KeyLogWriter = f
+			keyLogFileCloser = f
+		}
+	}
+
 	tlsClient := tls.Client(conn, cfg)
 	wrappedClient := TLSConnection{
-		Conn:  *tlsClient,
-		flags: t,
+		Conn:             *tlsClient,
+		flags:            t,
+		keyLogFileCloser: keyLogFileCloser,
 	}
 	return &wrappedClient
 }
