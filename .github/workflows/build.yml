@@ -17,3 +17,7 @@ jobs:
         run: |
           go get -t ./...
           make
+
+      - name: Test
+        run: |
+          make test
