@@ -50,8 +50,9 @@ type Scanner struct {
 
 // ScanResults instances are returned by the module's Scan function.
 type Results struct {
-	Banner string `json:"banner,omitempty"`
-	Length int    `json:"length,omitempty"`
+	Banner string         `json:"banner,omitempty"`
+	Length int            `json:"length,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 	MD5    string `json:"md5,omitempty"`
 	SHA1   string `json:"sha1,omitempty"`
 	SHA256 string `json:"sha25,omitempty"`
@@ -166,6 +167,8 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}
 		}
 		break
 	}
+
+
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
@@ -216,11 +219,12 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}
 			results.SHA256 = hex.EncodeToString(digest[:])
 		}
 	}
-
+	if tlsConn != nil {
+		results.TLSLog = tlsConn.GetLog()
+	}
 	if s.regex == nil {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
-
 	if s.regex.Match(data) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}

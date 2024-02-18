@@ -11,7 +11,8 @@ from . import zgrab2
 banner_scan_response = SubRecord({
     "result": SubRecord({
         "banner": String(),
-        "length": Unsigned32BitInteger()
+        "length": Unsigned32BitInteger(),
+        "tls": zgrab2.tls_log,
     })
 }, extends=zgrab2.base_scan_response)
 
