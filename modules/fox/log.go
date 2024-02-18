@@ -1,5 +1,9 @@
 package fox
 
+import (
+	"github.com/zmap/zgrab2"
+)
+
 // FoxLog is the struct returned to the caller.
 type FoxLog struct {
 	// IsFox should always be true (otherwise, the result should have been nil).
@@ -58,4 +62,6 @@ type FoxLog struct {
 
 	// AuthAgentType corresponds to the "authAgentTypeSpecs" field.
 	AuthAgentType string `json:"auth_agent_type,omitempty"`
+
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
