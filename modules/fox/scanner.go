@@ -7,6 +7,8 @@ package fox
 
 import (
 	"errors"
+	"net"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -17,6 +19,8 @@ type Flags struct {
 	zgrab2.BaseFlags
 
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	UseTLS  bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	zgrab2.TLSFlags
 }
 
 // Module implements the zgrab2.Module interface.
@@ -98,10 +102,38 @@ func (scanner *Scanner) Protocol() string {
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+	var (
+		conn    net.Conn
+		tlsConn *zgrab2.TLSConnection
+		err     error
+	)
+
+	isSSL := false
+	conn, err = target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+
+	if scanner.config.UseTLS {
+		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+
+		if err := tlsConn.Handshake(); err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+
+		conn = tlsConn
+		isSSL = true
+	} else {
+		conn, err = target.Open(&scanner.config.BaseFlags)
+	}
+
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+
 	defer conn.Close()
 	result := new(FoxLog)
 
@@ -113,5 +145,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 			Status: zgrab2.SCAN_PROTOCOL_ERROR,
 		}
 	}
+
+	if isSSL {
+		result.TLSLog = conn.(*zgrab2.TLSConnection).GetLog()
+	}
+
 	return zgrab2.TryGetScanStatus(err), result, err
 }
