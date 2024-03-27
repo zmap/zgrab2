@@ -1,6 +1,6 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/oracle"
+import "github.com/packetloop/zgrab2/modules/oracle"
 
 func init() {
 	oracle.RegisterModule()

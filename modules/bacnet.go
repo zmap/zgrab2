@@ -1,6 +1,6 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/bacnet"
+import "github.com/packetloop/zgrab2/modules/bacnet"
 
 func init() {
 	bacnet.RegisterModule()

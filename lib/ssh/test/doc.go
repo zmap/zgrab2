@@ -3,5 +3,5 @@
 // license that can be found in the LICENSE file.
 
 // This package contains integration tests for the
-// github.com/zmap/zgrab2/lib/ssh.
-package test // import "github.com/zmap/zgrab2/lib/ssh/test"
+// github.com/packetloop/zgrab2/lib/ssh.
+package test // import "github.com/packetloop/zgrab2/lib/ssh/test"

@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/packetloop/zgrab2/lib/http"
+	"github.com/packetloop/zgrab2/lib/http/httptest"
 )
 
 const fakeHopHeader = "X-Fake-Hop-Header-For-Test"

@@ -10,7 +10,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/zmap/zgrab2/lib/ssh"
+	"github.com/packetloop/zgrab2/lib/ssh"
 )
 
 // RequestAgentForwarding sets up agent forwarding for the session.

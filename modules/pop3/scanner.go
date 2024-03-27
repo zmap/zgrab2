@@ -29,7 +29,7 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
+	"github.com/packetloop/zgrab2"
 	"strings"
 )
 

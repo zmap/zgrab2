@@ -19,7 +19,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/zmap/zgrab2"
+	"github.com/packetloop/zgrab2"
 )
 
 // DNP3 Flags

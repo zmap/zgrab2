@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"encoding/hex"
 	"encoding/binary"
-	"github.com/zmap/zgrab2"
+	"github.com/packetloop/zgrab2"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mgo.v2/bson"
 )

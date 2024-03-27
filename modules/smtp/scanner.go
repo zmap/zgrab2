@@ -31,7 +31,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
+	"github.com/packetloop/zgrab2"
 )
 
 // ErrInvalidResponse is returned when the server returns an invalid or unexpected response.

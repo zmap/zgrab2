@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
-	. "github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
+	. "github.com/packetloop/zgrab2/lib/http"
+	"github.com/packetloop/zgrab2/lib/http/httptest"
 )
 
 type clientServerTest struct {

@@ -10,13 +10,13 @@ You will need to have a valid `$GOPATH` set up, for more information about `$GOP
 Once you have a working `$GOPATH`, run:
 
 ```
-$ go get github.com/zmap/zgrab2
+$ go get github.com/packetloop/zgrab2
 ```
 
-This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
+This will install zgrab under `$GOPATH/src/github.com/packetloop/zgrab2`
 
 ```
-$ cd $GOPATH/src/github.com/zmap/zgrab2
+$ cd $GOPATH/src/github.com/packetloop/zgrab2
 $ make
 ```
 

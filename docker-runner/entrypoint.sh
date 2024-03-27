@@ -5,7 +5,7 @@
 
 set -e
 
-cd /go/src/github.com/zmap/zgrab2
+cd /go/src/github.com/packetloop/zgrab2
 
 if ! [ -x $ZGRAB_REBUILD ]; then
   if ! [ -x $ZGRAB_BRANCH ]; then
@@ -16,4 +16,4 @@ if ! [ -x $ZGRAB_REBUILD ]; then
 fi
 
 set -x
-echo $ZGRAB_TARGET | /go/src/github.com/zmap/zgrab2/cmd/zgrab2/zgrab2 $*
+echo $ZGRAB_TARGET | /go/src/github.com/packetloop/zgrab2/cmd/zgrab2/zgrab2 $*

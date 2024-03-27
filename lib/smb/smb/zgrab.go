@@ -9,9 +9,9 @@ import (
 
 	"unicode/utf16"
 
-	"github.com/zmap/zgrab2/lib/smb/gss"
-	"github.com/zmap/zgrab2/lib/smb/ntlmssp"
-	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
+	"github.com/packetloop/zgrab2/lib/smb/gss"
+	"github.com/packetloop/zgrab2/lib/smb/ntlmssp"
+	"github.com/packetloop/zgrab2/lib/smb/smb/encoder"
 )
 
 // HeaderLog contains the relevant parts of the header that is included with

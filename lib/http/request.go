@@ -31,7 +31,7 @@ import (
 	"golang.org/x/text/width"
 
 	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zgrab2"
+	"github.com/packetloop/zgrab2"
 )
 
 const (

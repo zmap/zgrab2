@@ -4,8 +4,8 @@ package smb
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
-	"github.com/zmap/zgrab2/lib/smb/smb"
+	"github.com/packetloop/zgrab2"
+	"github.com/packetloop/zgrab2/lib/smb/smb"
 )
 
 // Flags holds the command-line configuration for the smb scan module.
