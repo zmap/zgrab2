@@ -96,12 +96,12 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-var transaction_id uint16 = 0xdead
+var transaction_id uint16 = 0x800A
 var dns_recursion_query []byte = DnsRecursionQuery()
 
 // based on https://svn.nmap.org/nmap/scripts/dns-recursion.nse
 func DnsRecursionQuery() ([]byte) {
-	domain := "\x03www\x09wikipedia\x03org\x00"			// www.wikipedia.org - encoded and null-terminated
+	domain := "\x06inanis\x10asertdnsresearch\x03com\x00"			//inanis.asertdnsresearch.com - encoded and null-terminated
 	ret := make([]byte, 8*2 + len(domain))
 	binary.BigEndian.PutUint16(ret[ 0: 2], transaction_id)		// Transaction-ID
 	binary.BigEndian.PutUint16(ret[ 2: 4], 0x0100)			// flags (recursion desired)
