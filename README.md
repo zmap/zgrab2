@@ -43,7 +43,7 @@ ZGrab2 supports modules. For example, to run the ssh module use
 ./zgrab2 ssh
 ```
 
-To retrieve detailed command-line usage and options for a specific module, append -h to the command:
+To retrieve detailed command-line usage and options for a specific module, append `-h` to the command:
 
 ```bash
 ./zgrab2 [module] -h
