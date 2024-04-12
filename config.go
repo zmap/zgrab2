@@ -102,7 +102,7 @@ func validateFrameworkConfiguration() {
 	//validate/start prometheus
 	if config.Prometheus != "" {
 		go func() {
-			http.Handle("metrics", promhttp.Handler())
+			http.Handle("/metrics", promhttp.Handler())
 			if err := http.ListenAndServe(config.Prometheus, nil); err != nil {
 				log.Fatalf("could not run prometheus server: %s", err.Error())
 			}
