@@ -250,7 +250,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	var err error
 	conn, err := t.Open(&s.config.BaseFlags)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection: %w", err)
 	}
 	cn := conn
 	defer func() {
@@ -261,13 +261,13 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	if s.config.ImplicitTLS {
 		tlsConn, err := s.config.TLSFlags.GetTLSConnection(conn)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error setting up TLS connection: %w", err)
 		}
 		results.ImplicitTLS = true
 		results.TLSLog = tlsConn.GetLog()
 		err = tlsConn.Handshake()
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("TLS handshake failed: %w", err)
 		}
 		cn = tlsConn
 	}
@@ -275,11 +275,11 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	ftp := Connection{conn: cn, config: s.config, results: results}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &ftp.results, err
+		return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error reading FTP banner: %w", err)
 	}
 	if s.config.FTPAuthTLS && is200Banner {
 		if err := ftp.GetFTPSCertificates(); err != nil {
-			return zgrab2.TryGetScanStatus(err), &ftp.results, err
+			return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error getting FTPS certificates: %w", err)
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &ftp.results, nil
