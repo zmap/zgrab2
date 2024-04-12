@@ -39,9 +39,17 @@ $ make
 
 ZGrab2 supports modules. For example, to run the ssh module use
 
-```
+```bash
 ./zgrab2 ssh
 ```
+
+To retrieve detailed command-line usage and options for a specific module, append `-h` to the command:
+
+```bash
+./zgrab2 [module] -h
+```
+
+This will display the module-specific options, as well as the application-wide options, including usage examples, available flags, and descriptions for each option. 
 
 Module specific options must be included after the module. Application specific options can be specified at any time.
 
