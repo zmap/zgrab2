@@ -1,6 +1,12 @@
 ZGrab 2.0
 =========
 
+NETSCOUT NOTES:
+This repository is a direct clone of a 3rd party vendor.  
+No changes should ever be made on vendor branches to allow us to stay in sync withhttps://github.com/zmap/zgrab2.
+NETSCOUT development changes should be worked on a branch based from 'netscout-master' and merged into the 'netscout-master' branch.
+
+
 This repo contains the new ZGrab framework, and will eventually replace https://github.com/zmap/zgrab.
 
 ## Building
