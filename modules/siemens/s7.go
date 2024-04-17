@@ -323,12 +323,12 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 			return fmt.Errorf("failed parsing data record %d: %v", i, err)
 		}
 
-		switch {
-		case record.Index == S7_MODULE_ID_MODULE_INDEX:
+		switch record.Index {
+		case S7_MODULE_ID_MODULE_INDEX:
 			logStruct.ModuleId = record.MIFB
-		case record.Index == S7_MODULE_ID_HARDWARE_INDEX:
+		case S7_MODULE_ID_HARDWARE_INDEX:
 			logStruct.Hardware = getVersionNumber(record)
-		case record.Index == S7_MODULE_ID_FIRMWARE_INDEX:
+		case S7_MODULE_ID_FIRMWARE_INDEX:
 			logStruct.Firmware = getVersionNumber(record)
 		}
 
