@@ -227,6 +227,7 @@ func LogPanic(format string, args ...interface{}) {
 	panic(err)
 }
 
+// addDefaultPortToDNSServerName validates that the input DNS server address is correct and appends the default DNS port 53 if no port is specified
 func AddDefaultPortToDNSServerName(inAddr string) (string, error) {
 	// Try to split host and port to see if the port is already specified.
 	host, port, err := net.SplitHostPort(inAddr)
@@ -241,9 +242,9 @@ func AddDefaultPortToDNSServerName(inAddr string) (string, error) {
 		return "", fmt.Errorf("invalid IP address")
 	}
 
-	// If the original input does not have a port, specify port 53
+	// If the original input does not have a port, specify port 53 as the default
 	if port == "" {
-		port = "53"
+		port = defaultDNSPort
 	}
 
 	return net.JoinHostPort(ip.String(), port), nil
