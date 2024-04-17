@@ -18,7 +18,7 @@ import (
 
 var parser *flags.Parser
 
-const defaultDNSPort = 53
+const defaultDNSPort = "53"
 
 func init() {
 	parser = flags.NewParser(&config, flags.Default)
@@ -218,6 +218,7 @@ func IsTimeoutError(err error) bool {
 // doing anything. Otherwise, it logs the stacktrace, the panic error, and the provided message
 // before re-raising the original panic.
 // Example:
+//
 //	defer zgrab2.LogPanic("Error decoding body '%x'", body)
 func LogPanic(format string, args ...interface{}) {
 	err := recover()

@@ -133,7 +133,7 @@ func validateFrameworkConfiguration() {
 	// Validate custom DNS
 	if config.CustomDNS != "" {
 		var err error
-		if config.CustomDNS, err = AddDefaultPortToDNSServerName(config.CustomDNS); err != nil {
+		if config.CustomDNS, err = addDefaultPortToDNSServerName(config.CustomDNS); err != nil {
 			log.Fatalf("invalid DNS server address: %s", err)
 		}
 	}
