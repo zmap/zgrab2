@@ -18,6 +18,8 @@ import (
 
 var parser *flags.Parser
 
+const defaultDNSPort = 53
+
 func init() {
 	parser = flags.NewParser(&config, flags.Default)
 }
