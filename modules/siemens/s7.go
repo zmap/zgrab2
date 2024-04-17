@@ -9,11 +9,14 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
+const s7ModuleIdRecordSize = 28
 const (
-	S7_MODULE_ID_MODULE_INDEX   = 0x1
-	S7_MODULE_ID_HARDWARE_INDEX = 0x6
-	S7_MODULE_ID_FIRMWARE_INDEX = 0x7
+	s7ModuleIdModuleIndex   = 0x1
+	s7ModuleIdHardwareIndex = 0x6
+	s7ModuleIdFirmwareIndex = 0x7
 )
+
+const uint16Size = 2
 
 // ReconnectFunction is used to re-connect to the target to re-try the scan with a different TSAP destination.
 type ReconnectFunction func() (net.Conn, error)
@@ -292,7 +295,7 @@ func parseModuleIDDataRecord(data []byte) (*moduleIDData, error) {
 
 // Constructs the version number from a moduleIDData record.
 func getVersionNumber(record *moduleIDData) string {
-        lastByteAusbg1 := record.Ausbg1 & 0xFF
+	lastByteAusbg1 := record.Ausbg1 & 0xFF
 	return fmt.Sprintf("V%d.%d", lastByteAusbg1, record.Ausbg2)
 }
 
@@ -307,13 +310,13 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 
 	// Parse LENTHDR and N_DR from the header
 	recordLen := int(binary.BigEndian.Uint16(s7Packet.Data[offset : offset+2]))
-	offset += 2
+	offset += uint16Size
 
 	numRecords := int(binary.BigEndian.Uint16(s7Packet.Data[offset : offset+2]))
-	offset += 2
+	offset += uint16Size
 
 	// Check if the data record length and number of data records are valid
-	if recordLen != 28 || numRecords*recordLen > len(s7Packet.Data)-offset {
+	if recordLen != s7ModuleIdRecordSize || numRecords*recordLen > len(s7Packet.Data)-offset {
 		return fmt.Errorf("invalid data record length or number of data records")
 	}
 
@@ -325,11 +328,11 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 		}
 
 		switch record.Index {
-		case S7_MODULE_ID_MODULE_INDEX:
+		case s7ModuleIdModuleIndex:
 			logStruct.ModuleId = record.MIFB
-		case S7_MODULE_ID_HARDWARE_INDEX:
+		case s7ModuleIdHardwareIndex:
 			logStruct.Hardware = getVersionNumber(record)
-		case S7_MODULE_ID_FIRMWARE_INDEX:
+		case s7ModuleIdFirmwareIndex:
 			logStruct.Firmware = getVersionNumber(record)
 		}
 
