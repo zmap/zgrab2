@@ -302,25 +302,23 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 
 	// Skip the first 4 bytes (return code, transport size, length)
 	// And the next 4 bytes (SSLID, INDEX)
-	buffer := bytes.NewBuffer(s7Packet.Data[8:])
+	offset := 8
 
 	// Parse LENTHDR and N_DR from the header
-	var recordLen, numRecords uint16
-	if err := binary.Read(buffer, binary.BigEndian, &recordLen); err != nil {
-		return fmt.Errorf("failed reading record length: %v", err)
-	}
-	if err := binary.Read(buffer, binary.BigEndian, &numRecords); err != nil {
-		return fmt.Errorf("failed reading number of records: %v", err)
-	}
+	recordLen := int(binary.BigEndian.Uint16(s7Packet.Data[offset : offset+2]))
+	offset += 2
+
+	numRecords := int(binary.BigEndian.Uint16(s7Packet.Data[offset : offset+2]))
+	offset += 2
 
 	// Check if the data record length and number of data records are valid
-	if recordLen != 28 || numRecords*28 > uint16(buffer.Len()) {
+	if recordLen != 28 || numRecords*recordLen > len(s7Packet.Data)-offset {
 		return fmt.Errorf("invalid data record length or number of data records")
 	}
 
 	// Now parse the data records, considering each one is 28 bytes long after the header
 	for i := 0; i < int(numRecords); i++ {
-		record, err := parseModuleIDDataRecord(buffer.Next(28))
+		record, err := parseModuleIDDataRecord(s7Packet.Data[offset : offset+recordLen])
 		if err != nil {
 			return fmt.Errorf("failed parsing data record %d: %v", i, err)
 		}
@@ -333,6 +331,8 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 		case record.Index == S7_MODULE_ID_FIRMWARE_INDEX:
 			logStruct.Firmware = getVersionNumber(record)
 		}
+
+		offset += recordLen
 	}
 
 	return nil
