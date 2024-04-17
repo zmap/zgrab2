@@ -216,7 +216,6 @@ func IsTimeoutError(err error) bool {
 // doing anything. Otherwise, it logs the stacktrace, the panic error, and the provided message
 // before re-raising the original panic.
 // Example:
-//
 //	defer zgrab2.LogPanic("Error decoding body '%x'", body)
 func LogPanic(format string, args ...interface{}) {
 	err := recover()
