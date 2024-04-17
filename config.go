@@ -24,6 +24,7 @@ type Config struct {
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	ReadLimitPerHost   int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	inputFile          *os.File
 	outputFile         *os.File
@@ -127,6 +128,14 @@ func validateFrameworkConfiguration() {
 	// Stop even third-party libraries from performing unbounded reads on untrusted hosts
 	if config.ReadLimitPerHost > 0 {
 		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
+	}
+
+	// Validate custom DNS
+	if config.CustomDNS != "" {
+		var err error
+		if config.CustomDNS, err = AddDefaultPortToDNSServerName(config.CustomDNS); err != nil {
+			log.Fatalf("invalid DNS server address: %s", err)
+		}
 	}
 }
 
