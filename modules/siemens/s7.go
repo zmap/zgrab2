@@ -292,7 +292,8 @@ func parseModuleIDDataRecord(data []byte) (*moduleIDData, error) {
 
 // Constructs the version number from a moduleIDData record.
 func getVersionNumber(record *moduleIDData) string {
-	return fmt.Sprintf("V%d.%d", record.Ausbg1&0xFF, record.Ausbg2)
+        lastByteAusbg1 := record.Ausbg1 & 0xFF
+	return fmt.Sprintf("V%d.%d", lastByteAusbg1, record.Ausbg2)
 }
 
 func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) error {
