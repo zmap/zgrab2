@@ -341,6 +341,16 @@ func (d *Dialer) SetDefaults() *Dialer {
 			KeepAlive: d.Timeout,
 			DualStack: true,
 		}
+
+		// Use custom DNS as default if set
+		if config.CustomDNS != "" {
+			d.Dialer.Resolver = &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					return net.Dial(network, config.CustomDNS)
+				},
+			}
+		}
 	}
 	return d
 }
