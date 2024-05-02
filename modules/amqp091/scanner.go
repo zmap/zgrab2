@@ -177,7 +177,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	defer amqpConn.Close()
 
-	// if amqpConn.Locales has sth, we must have at least done a handshake. The scan is considered partially successful.
+	// If there's an error and we haven't even received START frame from the server, consider it a failure
 	if err != nil && len(amqpConn.Locales) == 0 {
 		status := zgrab2.TryGetScanStatus(err)
 		if status == zgrab2.SCAN_UNKNOWN_ERROR {
@@ -187,8 +187,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 		return status, nil, err
 	}
+	// If amqpConn.Locales has sth, we are (almost) sure that we are talking to an AMQP 091 server,
+	// therefore the scan is considered successful from this point on.
 
-	// Basic server information that can be gathered without authentication
+	// Following is basic server information that can be gathered without authentication
 	result.VersionMajor = amqpConn.Major
 	result.VersionMinor = amqpConn.Minor
 	result.ServerProperties = amqpConn.Properties
