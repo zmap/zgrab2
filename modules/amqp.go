@@ -1,7 +1,7 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/amqp"
+import "github.com/zmap/zgrab2/modules/amqp091"
 
 func init() {
-	amqp.RegisterModule()
+	amqp091.RegisterModule()
 }

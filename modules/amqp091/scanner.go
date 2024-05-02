@@ -1,9 +1,9 @@
-package amqp
+package amqp091
 
 import (
 	"fmt"
 
-	amqp091 "github.com/rabbitmq/amqp091-go"
+	amqpLib "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
 )
@@ -54,7 +54,7 @@ type Result struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("amqp", "amqp", module.Description(), 5672, &module)
+	_, err := zgrab2.AddCommand("amqp091", "amqp091", module.Description(), 5672, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 
 	// Prepare AMQP connection config
-	config := amqp091.Config{
+	config := amqpLib.Config{
 		Vhost:      scanner.config.Vhost,
 		ChannelMax: 0,
 		FrameSize:  0,
@@ -162,8 +162,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	// If we have auth credentials, set up PLAIN SASL
 	if scanner.config.AuthUser != "" && scanner.config.AuthPass != "" {
-		config.SASL = []amqp091.Authentication{
-			&amqp091.PlainAuth{
+		config.SASL = []amqpLib.Authentication{
+			&amqpLib.PlainAuth{
 				Username: scanner.config.AuthUser,
 				Password: scanner.config.AuthPass,
 			},
@@ -171,10 +171,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 
 	// Open the AMQP connection
-	amqpConn, err := amqp091.Open(conn, config)
+	amqpConn, err := amqpLib.Open(conn, config)
 	if err != nil {
 		result.Failure = err.Error()
 	}
+	defer amqpConn.Close()
 
 	// if amqpConn.Locales has sth, we must have at least done a handshake. The scan is considered partially successful.
 	if err != nil && len(amqpConn.Locales) == 0 {
@@ -195,7 +196,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 
 	// Heuristic to see if we're authenticated.
 	// These values are expected to be non-zero if and only if a tune is received and we're authenticated.
-	if err != amqp091.ErrSASL && err != amqp091.ErrCredentials && amqpConn.Config.ChannelMax > 0 {
+	if err != amqpLib.ErrSASL && err != amqpLib.ErrCredentials && amqpConn.Config.ChannelMax > 0 {
 		result.AuthSuccess = true
 		result.Tune = &connectionTune{
 			ChannelMax: amqpConn.Config.ChannelMax,
