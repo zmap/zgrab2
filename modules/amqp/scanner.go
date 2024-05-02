@@ -1,0 +1,208 @@
+package amqp
+
+import (
+	"fmt"
+
+	amqp091 "github.com/rabbitmq/amqp091-go"
+	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zgrab2"
+)
+
+// Flags holds the command-line configuration for the smb scan module.
+// Populated by the framework.
+type Flags struct {
+	zgrab2.BaseFlags
+
+	Vhost    string `long:"vhost" description:"The vhost to connect to" default:"/"`
+	AuthUser string `long:"auth-user" description:"Username to use for authentication. Must be used with --auth-pass. No auth is attempted if not provided."`
+	AuthPass string `long:"auth-pass" description:"Password to use for authentication. Must be used with --auth-user. No auth is attempted if not provided."`
+
+	UseTLS bool `long:"use-tls" description:"Use TLS to connect to the server. Note that AMQPS uses a different default port (5671) than AMQP (5672) and you will need to specify that port manually with -p."`
+	zgrab2.TLSFlags
+}
+
+// Module implements the zgrab2.Module interface.
+type Module struct {
+}
+
+// Scanner implements the zgrab2.Scanner interface.
+type Scanner struct {
+	config *Flags
+}
+
+type connectionTune struct {
+	ChannelMax int `json:"channel_max"`
+	FrameMax   int `json:"frame_max"`
+	Heartbeat  int `json:"heartbeat"`
+}
+
+type Result struct {
+	Failure string `json:"failure"`
+
+	VersionMajor     int                    `json:"version_major"`
+	VersionMinor     int                    `json:"version_minor"`
+	ServerProperties map[string]interface{} `json:"server_properties"`
+	Locales          []string               `json:"locales"`
+
+	AuthSuccess bool `json:"auth_success"`
+
+	Tune *connectionTune `json:"tune,omitempty"`
+
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+}
+
+// RegisterModule registers the zgrab2 module.
+func RegisterModule() {
+	var module Module
+	_, err := zgrab2.AddCommand("amqp", "amqp", module.Description(), 5672, &module)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// NewFlags returns a default Flags object.
+func (module *Module) NewFlags() interface{} {
+	return new(Flags)
+}
+
+// NewScanner returns a new Scanner instance.
+func (module *Module) NewScanner() zgrab2.Scanner {
+	return new(Scanner)
+}
+
+// Description returns an overview of this module.
+func (module *Module) Description() string {
+	return "Probe for Advanced Message Queuing Protocol 0.9.1 servers"
+}
+
+// Validate checks that the flags are valid.
+// On success, returns nil.
+// On failure, returns an error instance describing the error.
+func (flags *Flags) Validate(args []string) error {
+	if flags.AuthUser != "" && flags.AuthPass == "" {
+		return fmt.Errorf("must provide --auth-pass if --auth-user is set")
+	}
+	if flags.AuthPass != "" && flags.AuthUser == "" {
+		return fmt.Errorf("must provide --auth-user if --auth-pass is set")
+	}
+	return nil
+}
+
+// Help returns the module's help string.
+func (flags *Flags) Help() string {
+	return ""
+}
+
+// Init initializes the Scanner.
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
+	f, ok := flags.(*Flags)
+	if !ok {
+		return fmt.Errorf("failed to cast flags to AMQP flags")
+	}
+
+	scanner.config = f
+	return nil
+}
+
+// InitPerSender initializes the scanner for a given sender.
+func (scanner *Scanner) InitPerSender(senderID int) error {
+	return nil
+}
+
+// GetName returns the Scanner name defined in the Flags.
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
+}
+
+// GetTrigger returns the Trigger defined in the Flags.
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
+}
+
+// Protocol returns the protocol identifier of the scan.
+func (scanner *Scanner) Protocol() string {
+	return "amqp"
+}
+
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+	conn, err := target.Open(&scanner.config.BaseFlags)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+
+	// Setup result and connection cleanup
+	result := &Result{
+		AuthSuccess: false,
+	}
+	var tlsConn *zgrab2.TLSConnection
+	defer func() {
+		conn.Close()
+
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
+		}
+	}()
+
+	// If we're using TLS, wrap the connection
+	if scanner.config.UseTLS {
+		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+		conn = tlsConn
+	}
+
+	// Prepare AMQP connection config
+	config := amqp091.Config{
+		Vhost:      scanner.config.Vhost,
+		ChannelMax: 0,
+		FrameSize:  0,
+		Heartbeat:  0,
+	}
+
+	// If we have auth credentials, set up PLAIN SASL
+	if scanner.config.AuthUser != "" && scanner.config.AuthPass != "" {
+		config.SASL = []amqp091.Authentication{
+			&amqp091.PlainAuth{
+				Username: scanner.config.AuthUser,
+				Password: scanner.config.AuthPass,
+			},
+		}
+	}
+
+	// Open the AMQP connection
+	amqpConn, err := amqp091.Open(conn, config)
+	if err != nil {
+		result.Failure = err.Error()
+	}
+
+	// if amqpConn.Locales has sth, we must have at least done a handshake. The scan is considered partially successful.
+	if err != nil && len(amqpConn.Locales) == 0 {
+		status := zgrab2.TryGetScanStatus(err)
+		if status == zgrab2.SCAN_UNKNOWN_ERROR {
+			// Consider this a protocol error if it's not any of the known network errors
+			status = zgrab2.SCAN_PROTOCOL_ERROR
+		}
+
+		return status, nil, err
+	}
+
+	// Basic server information that can be gathered without authentication
+	result.VersionMajor = amqpConn.Major
+	result.VersionMinor = amqpConn.Minor
+	result.ServerProperties = amqpConn.Properties
+	result.Locales = amqpConn.Locales
+
+	// Heuristic to see if we're authenticated.
+	// These values are expected to be non-zero if and only if a tune is received and we're authenticated.
+	if err != amqp091.ErrSASL && err != amqp091.ErrCredentials && amqpConn.Config.ChannelMax > 0 {
+		result.AuthSuccess = true
+		result.Tune = &connectionTune{
+			ChannelMax: amqpConn.Config.ChannelMax,
+			FrameMax:   amqpConn.Config.FrameSize,
+			Heartbeat:  int(amqpConn.Config.Heartbeat.Seconds()),
+		}
+	}
+
+	return zgrab2.SCAN_SUCCESS, result, nil
+}
