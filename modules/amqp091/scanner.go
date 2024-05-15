@@ -3,6 +3,8 @@ package amqp091
 import (
 	"fmt"
 
+	"encoding/json"
+
 	amqpLib "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zgrab2"
@@ -36,13 +38,52 @@ type connectionTune struct {
 	Heartbeat  int `json:"heartbeat"`
 }
 
+// https://www.rabbitmq.com/amqp-0-9-1-reference#connection.start.server-properties
+type knownServerProperties struct {
+	Product      string `json:"product"`
+	Version      string `json:"version"`
+	Platform     string `json:"platform"`
+	Copyright    string `json:"copyright"`
+	Information  string `json:"information"`
+	UnknownProps string `json:"unknown_props"`
+}
+
+// copy known properties, and store unknown properties in serialized json string
+// if known properties are not found, set fields to empty strings
+func (p *knownServerProperties) populate(props amqpLib.Table) {
+	if product, ok := props["product"].(string); ok {
+		p.Product = product
+		delete(props, "product")
+	}
+	if version, ok := props["version"].(string); ok {
+		p.Version = version
+		delete(props, "version")
+	}
+	if platform, ok := props["platform"].(string); ok {
+		p.Platform = platform
+		delete(props, "platform")
+	}
+	if copyright, ok := props["copyright"].(string); ok {
+		p.Copyright = copyright
+		delete(props, "copyright")
+	}
+	if information, ok := props["information"].(string); ok {
+		p.Information = information
+		delete(props, "information")
+	}
+
+	if unknownProps, err := json.Marshal(props); err == nil {
+		p.UnknownProps = string(unknownProps)
+	}
+}
+
 type Result struct {
 	Failure string `json:"failure"`
 
-	VersionMajor     int                    `json:"version_major"`
-	VersionMinor     int                    `json:"version_minor"`
-	ServerProperties map[string]interface{} `json:"server_properties"`
-	Locales          []string               `json:"locales"`
+	VersionMajor     int                   `json:"version_major"`
+	VersionMinor     int                   `json:"version_minor"`
+	ServerProperties knownServerProperties `json:"server_properties"`
+	Locales          []string              `json:"locales"`
 
 	AuthSuccess bool `json:"auth_success"`
 
@@ -121,7 +162,7 @@ func (scanner *Scanner) GetTrigger() string {
 
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
-	return "amqp"
+	return "amqp091"
 }
 
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
@@ -149,6 +190,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
+
+		if err := tlsConn.Handshake(); err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+
 		conn = tlsConn
 	}
 
@@ -193,8 +239,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// Following is basic server information that can be gathered without authentication
 	result.VersionMajor = amqpConn.Major
 	result.VersionMinor = amqpConn.Minor
-	result.ServerProperties = amqpConn.Properties
 	result.Locales = amqpConn.Locales
+	result.ServerProperties.populate(amqpConn.Properties)
 
 	// Heuristic to see if we're authenticated.
 	// These values are expected to be non-zero if and only if a tune is received and we're authenticated.
