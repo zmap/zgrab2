@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# idea
+.idea
+
 # zgrab
 /zgrab2
 cmd/zgrab2/zgrab2
