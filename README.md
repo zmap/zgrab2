@@ -11,10 +11,10 @@ ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https:
 For Go 1.17 and later you must build from source:
 
 ```shell
-$ git clone https://github.com/zmap/zgrab2.git
-$ cd zgrab2
-$ make
-$ ./zgrab2
+git clone https://github.com/zmap/zgrab2.git
+cd zgrab2
+make
+./zgrab2
 ```
 
 
@@ -25,14 +25,14 @@ You will need to have a valid `$GOPATH` set up, for more information about `$GOP
 Once you have a working `$GOPATH`, run:
 
 ```shell
-$ go get github.com/zmap/zgrab2
+go get github.com/zmap/zgrab2
 ```
 
 This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
 
 ```shell
-$ cd $GOPATH/src/github.com/zmap/zgrab2
-$ make
+cd $GOPATH/src/github.com/zmap/zgrab2
+make
 ```
 
 ## Single Module Usage 
