@@ -45,6 +45,12 @@ type Response struct {
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
 	Header Header `json:"headers,omitempty"`
 
+	// The raw bytes of the MIME headers, as read from the underlying
+	// reader.  This allows for post-processing to be done on an exact
+	// copy of the headers.  The headers will not be canonicalized nor
+	// re-ordered or converted to a map.
+	HeadersRaw []byte `json:"headers_raw,omitempty"`
+
 	// Body represents the response body.
 	//
 	// The http Client and Transport guarantee that Body is always
@@ -158,10 +164,22 @@ func (r *Response) Location() (*url.URL, error) {
 // After that call, clients can inspect resp.Trailer to find key/value
 // pairs included in the response trailer.
 func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
+	return readResponse(&TeeConn{br: r}, req)
+}
+func ReadResponseTee(tc *TeeConn, req *Request) (*Response, error) {
+	return readResponse(tc, req)
+}
+func readResponse(tc *TeeConn, req *Request) (*Response, error) {
+	r := tc.BufioReader()
 	tp := textproto.NewReader(r)
 	resp := &Response{
 		Request: req,
 	}
+
+	// To extract the raw response through headers, we want to find the offsets
+	// for where we are at in the io.TeeReader compared to the bufio.Reader
+	// both at the start of the response parsing, and at the end.
+	hdrStart := tc.ReadPos()
 
 	// Parse the first line of the response.
 	line, err := tp.ReadLine()
@@ -202,6 +220,11 @@ func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
 		}
 		return resp, err
 	}
+	// No need to continue tee reads into the tee buffer, go ahead and
+	// disable it
+	tc.Disable()
+	hdrEnd := tc.ReadPos()
+	resp.HeadersRaw = tc.Bytes(hdrStart, hdrEnd)
 	resp.Header = Header(mimeHeader)
 
 	fixPragmaCacheControl(resp.Header)

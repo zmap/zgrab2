@@ -39,8 +39,27 @@ func TestParseCSVTarget(t *testing.T) {
 		ipnet   *net.IPNet
 		domain  string
 		tag     string
+		port    string
 		success bool
 	}{
+		// IP DOMAIN TAG PORT
+		{
+			fields:  []string{"10.0.0.1", "example.com", "tag", "443"},
+			ipnet:   parseIP("10.0.0.1"),
+			domain:  "example.com",
+			tag:     "tag",
+			port:    "443",
+			success: true,
+		},
+		// IP DOMAIN TAG PORT
+		{
+			fields:  []string{"10.0.0.1", "example.com", "tag"},
+			ipnet:   parseIP("10.0.0.1"),
+			domain:  "example.com",
+			tag:     "tag",
+			port:    "",
+			success: true,
+		},
 		// IP DOMAIN TAG
 		{
 			fields:  []string{"10.0.0.1", "example.com", "tag"},
@@ -129,14 +148,14 @@ func TestParseCSVTarget(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		ipnet, domain, tag, err := ParseCSVTarget(test.fields)
+		ipnet, domain, tag, port, err := ParseCSVTarget(test.fields)
 		if (err == nil) != test.success {
 			t.Errorf("wrong error status (got err=%v, success should be %v): %q", err, test.success, test.fields)
 			return
 		}
 		if err == nil {
-			if ipnetString(ipnet) != ipnetString(test.ipnet) || domain != test.domain || tag != test.tag {
-				t.Errorf("wrong result (got %v,%v,%v; expected %v,%v,%v): %q", ipnetString(ipnet), domain, tag, ipnetString(test.ipnet), test.domain, test.tag, test.fields)
+			if ipnetString(ipnet) != ipnetString(test.ipnet) || domain != test.domain || tag != test.tag || port != test.port {
+				t.Errorf("wrong result (got %v,%v,%v,%v ; expected %v,%v,%v,%v): %q", ipnetString(ipnet), domain, tag, port, ipnetString(test.ipnet), test.domain, test.tag, test.port, test.fields)
 				return
 			}
 		}
@@ -150,8 +169,11 @@ func TestGetTargetsCSV(t *testing.T) {
 10.0.0.1
 ,example.com
 example.com
-2.2.2.2/30,, tag`
-
+2.2.2.2/30,, tag
+10.0.0.1,example.com,tag,443
+10.0.0.1,,,443
+`
+	port := uint(443)
 	expected := []ScanTarget{
 		ScanTarget{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag"},
 		ScanTarget{IP: net.ParseIP("10.0.0.1"), Domain: "example.com"},
@@ -162,6 +184,8 @@ example.com
 		ScanTarget{IP: net.ParseIP("2.2.2.1"), Tag: "tag"},
 		ScanTarget{IP: net.ParseIP("2.2.2.2"), Tag: "tag"},
 		ScanTarget{IP: net.ParseIP("2.2.2.3"), Tag: "tag"},
+		ScanTarget{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag", Port: &port},
+		ScanTarget{IP: net.ParseIP("10.0.0.1"), Port: &port},
 	}
 
 	ch := make(chan ScanTarget, 0)

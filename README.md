@@ -5,21 +5,34 @@ ZGrab is a fast, modular application-layer network scanner designed for completi
 
 ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
+
 ## Building
+
+For Go 1.17 and later you must build from source:
+
+```shell
+$ git clone https://github.com/zmap/zgrab2.git
+$ cd zgrab2
+$ make
+$ ./zgrab2
+```
+
+
+For Go 1.16 and below you can install via go get:
 
 You will need to have a valid `$GOPATH` set up, for more information about `$GOPATH`, see https://golang.org/doc/code.html.
 
-Once you have a working `$GOPATH`, clone the repo:
+Once you have a working `$GOPATH`, run:
 
 ```shell
-git clone github.com/zmap/zgrab2
+$ go get github.com/zmap/zgrab2
 ```
 
-This will install zgrab under current working directory:
+This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
 
 ```shell
-cd zgrab2
-make
+$ cd $GOPATH/src/github.com/zmap/zgrab2
+$ make
 ```
 
 ## Single Module Usage 
@@ -29,6 +42,14 @@ ZGrab2 supports modules. For example, to run the ssh module use
 ```shell
 ./zgrab2 ssh
 ```
+
+To retrieve detailed command-line usage and options for a specific module, append `-h` to the command:
+
+```bash
+./zgrab2 [module] -h
+```
+
+This will display the module-specific options, as well as the application-wide options, including usage examples, available flags, and descriptions for each option. 
 
 Module specific options must be included after the module. Application specific options can be specified at any time.
 
