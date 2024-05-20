@@ -6,6 +6,9 @@ name: Publish Docker image
 
 on:
   push:
+    branches:
+      - master
+    tags:
 
 env:
   REGISTRY: ghcr.io
@@ -118,6 +121,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
+            type=ref,event=tag
             type=ref,event=branch
 
       - name: Log in to the Container registry
