@@ -28,9 +28,7 @@ set -o pipefail
 # 
 
 # Run from root of project
-TEST_DIR=$(dirname "$0")
 ZGRAB_ROOT=$(git rev-parse --show-toplevel)
-INTEGRATION_TEST_VENV=".integration_tests.venv"
 
 cd "$ZGRAB_ROOT"
 
@@ -39,8 +37,8 @@ ZGRAB_OUTPUT="zgrab-output"
 mkdir -p $ZGRAB_OUTPUT
 
 if ! which jp; then
-    go get github.com/jmespath/jp && go build github.com/jmespath/jp
-    export PATH=$PATH:$GOPATH/bin
+    echo "Please install jp"
+    exit 1
 fi
 
 pushd integration_tests
@@ -73,14 +71,6 @@ fi
 status=0
 failures=""
 echo "Doing schema validation..."
-
-if ! [ -f "${INTEGRATION_TEST_VENV}/bin/python" ]; then
-	virtualenv "${INTEGRATION_TEST_VENV}"
-	"${INTEGRATION_TEST_VENV}/bin/pip" install zschema
-	"${INTEGRATION_TEST_VENV}/bin/pip" install -r requirements.txt
-fi
-
-. "${INTEGRATION_TEST_VENV}/bin/activate"
 
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
