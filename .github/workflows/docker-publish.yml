@@ -24,7 +24,7 @@ jobs:
       id-token: write
       attestations: write
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         platform:
           - linux/amd64
