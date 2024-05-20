@@ -7,9 +7,7 @@ VERSIONS="3.12.14 3.13.2"
 # 1. Run zgrab2 on the container
 # 2. Check that data.amqp091.result.server_properties.version matches $MQ_VERSION
 
-MODULE_DIR=$(dirname $0)
-TEST_ROOT=$MODULE_DIR/..
-ZGRAB_ROOT=$MODULE_DIR/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 status=0
