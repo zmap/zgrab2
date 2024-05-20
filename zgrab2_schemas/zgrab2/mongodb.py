@@ -16,6 +16,12 @@ mongodb_scan_response = SubRecord(
                         "version": String(doc="Version of mongodb server"),
                         "git_version": String(doc="Git Version of mongodb server"),
                         "max_wire_version": Signed32BitInteger(),
+                        "sys_info": String(),
+                        "allocator": String(),
+                        "bits": Unsigned32BitInteger(),
+                        "max_bson_object_size": Unsigned32BitInteger(),
+                        "javascript_engine": String(),
+                        "storage_engines": ListOf(String()),
                         "build_environment": SubRecord(
                             {
                                 "dist_mod": String(),
@@ -29,6 +35,20 @@ mongodb_scan_response = SubRecord(
                                 "target_os": String(),
                             }
                         ),
+                    }
+                ),
+                "database_info": SubRecord(
+                    {
+                        "databases": ListOf(
+                            SubRecord(
+                                {
+                                    "name": String(),
+                                    "size_on_disk": Signed32BitInteger(),
+                                    "empty": Boolean(),
+                                }
+                            )
+                        ),
+                        "total_size": Signed32BitInteger(),
                     }
                 ),
                 "is_master": SubRecord(
