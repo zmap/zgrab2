@@ -29,7 +29,7 @@ set -o pipefail
 
 # Run from root of project
 TEST_DIR=$(dirname "$0")
-ZGRAB_ROOT="$TEST_DIR/.."
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 INTEGRATION_TEST_VENV=".integration_tests.venv"
 
 cd "$ZGRAB_ROOT"

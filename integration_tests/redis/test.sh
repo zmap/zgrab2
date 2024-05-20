@@ -2,7 +2,7 @@
 
 set -e
 MODULE_DIR=$(dirname $0)
-ZGRAB_ROOT=$MODULE_DIR/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 # FIXME: Find a way to mount host to container and have it pass CircleCI tests.

@@ -5,7 +5,7 @@ set -e
 versions="9.3 9.4 9.5 9.6 10.1"
 types="ssl nossl"
 
-ZGRAB_ROOT=$(dirname $0)/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 mkdir -p $ZGRAB_OUTPUT/postgres
