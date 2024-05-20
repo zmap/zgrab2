@@ -1,8 +1,8 @@
 name: Integration Test
 on: [push, pull_request]
 jobs:
-  build:
-    name: Build
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
