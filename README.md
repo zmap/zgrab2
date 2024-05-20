@@ -146,7 +146,7 @@ func init() {
 
 ### Output schema
 
-To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](schemas/__init__.py) to ensure that it is loaded.
+To add a schema for the new module, add a module under schemas, and update [`zgrab2_schemas/zgrab2/__init__.py`](zgrab2_schemas/zgrab2/__init__.py) to ensure that it is loaded.
 
 See [zgrab2_schemas/README.md](zgrab2_schemas/README.md) for details.
 
@@ -158,11 +158,13 @@ The only hard requirement is that the `test.sh` script drops its output in `$ZGR
 
 #### How to Run Integration Tests
 
-To run integration tests, you must have [Docker](https://www.docker.com/) installed. Then, you can follow the following steps to run integration tests:
+To run integration tests, you must have [Docker](https://www.docker.com/) and **Python 2** on host installed. Then, you can follow the following steps to run integration tests:
 
 ```shell
 go get github.com/jmespath/jp && go build github.com/jmespath/jp
-pip install --user zschema
+# or, sudo wget https://github.com/jmespath/jp/releases/download/0.2.1/jp-linux-amd64 -O /usr/local/bin/jp && sudo chmod +x /usr/local/bin/jp
+pip2 install --user zschema
+pip2 install --user -r requirements.txt
 make integration-test
 ```
 
@@ -172,6 +174,8 @@ Running the integration tests will generate quite a bit of debug output. To ensu
 echo $?
 0
 ```
+
+Refer to our [Github Actions workflow](.github/workflows/integration-test.yml) for an example of how to prepare environment for integration tests.
 
 ## License
 ZGrab2.0 is licensed under Apache 2.0 and ISC. For more information, see the LICENSE file.
