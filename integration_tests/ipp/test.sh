@@ -82,14 +82,14 @@ for version in $versions; do
     # TODO: If there are any other relevant log files, dump those to stdout here.
     # FIXME: Only dump these 3 logs if they exist
     #echo "ipp/test: BEGIN cups logs from $CONTAINER_NAME [{("
-    #docker exec -t $CONTAINER_NAME cat //var/log/cups/access_log
+    #docker exec $CONTAINER_NAME cat //var/log/cups/access_log
     #echo ")}] END cups logs from $CONTAINER_NAME"
 
     #echo "ipp/test: BEGIN cups logs from $CONTAINER_NAME [{("
-    #docker exec -t $CONTAINER_NAME cat //var/log/cups/error_log
+    #docker exec $CONTAINER_NAME cat //var/log/cups/error_log
     #echo ")}] END cups logs from $CONTAINER_NAME"
 
     #echo "ipp/test: BEGIN cups logs from $CONTAINER_NAME [{("
-    #docker exec -t $CONTAINER_NAME cat //var/log/cups/page_log
+    #docker exec $CONTAINER_NAME cat //var/log/cups/page_log
     #echo ")}] END cups logs from $CONTAINER_NAME"
 done

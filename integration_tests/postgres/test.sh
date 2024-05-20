@@ -20,7 +20,7 @@ function doTest() {
   echo ")}] END DOCKER LOGS FROM $CONTAINER_NAME"
   echo "BEGIN POSTGRES LOGS FROM $CONTAINER_NAME [{("
   # TODO: The "//var/lib" is a work-around for MinGW
-  docker exec -t $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log
+  docker exec $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log
   echo ")}] END POSTGRES LOGS FROM $CONTAINER_NAME"
 }
 

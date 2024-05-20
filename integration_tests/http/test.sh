@@ -29,5 +29,5 @@ docker logs --tail all $CONTAINER_NAME
 echo ")}] END docker logs from $CONTAINER_NAME"
 
 echo "http/test: BEGIN https logs from $CONTAINER_NAME [{("
-docker exec -it $CONTAINER_NAME cat //var/log/lighttpd/error.log
+docker exec $CONTAINER_NAME cat //var/log/lighttpd/error.log
 echo ")}] END docker logs from $CONTAINER_NAME"

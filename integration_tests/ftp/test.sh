@@ -22,7 +22,7 @@ echo "ftp/test: Testing FTP on $CONTAINER_NAME..."
 CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh ftp > $OUTPUT_DIR/default.json
 
 echo "ftp/test: BEGIN vsftpd logs from $CONTAINER_NAME [{("
-docker exec -t $CONTAINER_NAME cat //var/log/vsftpd.log
+docker exec $CONTAINER_NAME cat //var/log/vsftpd.log
 echo ")}] END vsftpd logs from $CONTAINER_NAME"
 
 echo "ftp/test: BEGIN docker logs from $CONTAINER_NAME [{("
