@@ -27,7 +27,6 @@ package pop3
 
 import (
 	"fmt"
-	"errors"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -179,6 +178,8 @@ func VerifyPOP3Contents(banner string) zgrab2.ScanStatus {
 	     strings.Contains(lowerBanner, "spamhaus"),
 	     strings.Contains(lowerBanner, "relay"):
 		return zgrab2.SCAN_SUCCESS
+	case banner == "+OK\r\n":
+		return zgrab2.SCAN_SUCCESS
 	default:
 		return zgrab2.SCAN_PROTOCOL_ERROR
 	}
@@ -222,7 +223,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	// OR save it to return later
 	sr := VerifyPOP3Contents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, errors.New("Invalid response for POP3")
+		return sr, nil, fmt.Errorf("Invalid POP3 banner: %s", banner)
 	}
 	result.Banner = banner
 	if scanner.config.SendHELP {
