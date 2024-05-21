@@ -8,14 +8,19 @@ import zcrypto_schemas.zcrypto as zcrypto
 from . import zgrab2
 
 # modules/ftp.go - FTPScanResults
-ftp_scan_response = SubRecord({
-    "result": SubRecord({
-        "tls": zgrab2.tls_log,
-        "banner": String(),
-        "auth_tls": String(),
-        "auth_ssl": String(),
-    })
-}, extends=zgrab2.base_scan_response)
+ftp_scan_response = SubRecord(
+    {
+        "result": SubRecord(
+            {
+                "tls": zgrab2.tls_log,
+                "banner": String(),
+                "auth_tls": String(),
+                "auth_ssl": String(),
+            }
+        )
+    },
+    extends=zgrab2.base_scan_response,
+)
 
 zschema.registry.register_schema("zgrab2-ftp", ftp_scan_response)
 

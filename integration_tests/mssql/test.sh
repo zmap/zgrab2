@@ -3,7 +3,7 @@
 set -e
 MODULE_DIR=$(dirname $0)
 TEST_ROOT=$MODULE_DIR/..
-ZGRAB_ROOT=$MODULE_DIR/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 CONTAINER_NAME="zgrab_mssql-2017-linux"

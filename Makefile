@@ -9,7 +9,7 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean docker-runner container-clean gofmt test
+.PHONY: all clean integration-test integration-test-clean docker-runner gofmt test
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
@@ -25,7 +25,7 @@ zgrab2: $(GO_FILES)
 	rm -f zgrab2
 	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
-docker-runner: zgrab2
+docker-runner: clean
 	make -C docker-runner
 
 integration-test: docker-runner
@@ -36,12 +36,6 @@ integration-test-clean:
 	rm -rf zgrab-output
 	./integration_tests/cleanup.sh
 	make -C docker-runner clean
-
-# This is the target for re-building from source in the container
-container-clean:
-	rm -f zgrab2
-	cd cmd/zgrab2 && go build -v -a . && cd ../..
-	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
 clean:
 	cd cmd/zgrab2 && go clean

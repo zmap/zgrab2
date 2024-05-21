@@ -7,17 +7,22 @@ import zschema.registry
 import zcrypto_schemas.zcrypto as zcrypto
 from . import zgrab2
 
-smtp_scan_response = SubRecord({
-    "result": SubRecord({
-        "banner": String(),
-        "ehlo": String(),
-        "helo": String(),
-        "help": String(),
-        "starttls": String(),
-        "quit": String(),
-        "tls": zgrab2.tls_log,
-    })
-}, extends=zgrab2.base_scan_response)
+smtp_scan_response = SubRecord(
+    {
+        "result": SubRecord(
+            {
+                "banner": String(),
+                "ehlo": String(),
+                "helo": String(),
+                "help": String(),
+                "starttls": String(),
+                "quit": String(),
+                "tls": zgrab2.tls_log,
+            }
+        )
+    },
+    extends=zgrab2.base_scan_response,
+)
 
 zschema.registry.register_schema("zgrab2-smtp", smtp_scan_response)
 

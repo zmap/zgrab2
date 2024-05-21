@@ -9,7 +9,7 @@ versions="5.5 5.6 5.7 8.0"
 
 MODULE_DIR=$(dirname $0)
 TEST_ROOT=$MODULE_DIR/..
-ZGRAB_ROOT=$MODULE_DIR/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 status=0
