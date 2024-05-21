@@ -2,8 +2,8 @@
 
 echo "mssql/setup: Tests setup for mssql"
 
-CONTAINER_IMAGE="microsoft/mssql-server-linux"
-CONTAINER_VERSION="2017-CU3"
+CONTAINER_IMAGE="mcr.microsoft.com/mssql/server"
+CONTAINER_VERSION="2017-latest"
 CONTAINER_NAME="zgrab_mssql-2017-linux"
 
 # Supported MSSQL_PRODUCT_ID values are Developer, Express, Standard, Enterprise, EnterpriseCore
