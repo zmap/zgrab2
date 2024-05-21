@@ -295,8 +295,13 @@ func parseModuleIDDataRecord(data []byte) (*moduleIDData, error) {
 
 // Constructs the version number from a moduleIDData record.
 func getVersionNumber(record *moduleIDData) string {
-	lastByteAusbg1 := record.Ausbg1 & 0xFF
-	return fmt.Sprintf("V%d.%d", lastByteAusbg1, record.Ausbg2)
+	// The major, minor, and patch versions are stored in the lower 8 bits of Ausbg1,
+	// the upper 8 bits of Ausbg2, and the lower 8 bits of Ausbg2, respectively.
+	major := record.Ausbg1 & 0xFF
+	minor := record.Ausbg2 >> 8
+	patch := record.Ausbg2 & 0xFF
+
+	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
 }
 
 func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) error {
