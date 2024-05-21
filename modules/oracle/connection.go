@@ -250,7 +250,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		Version: encodeReleaseVersion(conn.scanner.config.ReleaseVersion),
 		Options: NSNOptions(0),
 		Services: []NSNService{
-			NSNService{
+			{
 				Type: NSNServiceSupervisor,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
@@ -259,7 +259,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 				},
 				Marker: 0,
 			},
-			NSNService{
+			{
 				Type: NSNServiceAuthentication,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
@@ -270,7 +270,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 				},
 				Marker: 0,
 			},
-			NSNService{
+			{
 				Type: NSNServiceEncryption,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
@@ -278,7 +278,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 				},
 				Marker: 0,
 			},
-			NSNService{
+			{
 				Type: NSNServiceDataIntegrity,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),

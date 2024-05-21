@@ -311,11 +311,11 @@ func (m *connectionManager) closeConnection(c io.Closer) {
 func (m *connectionManager) cleanUp() {
 	// first in, last out: empty out the map
 	defer func() {
-		for conn, _ := range m.connections {
+		for conn := range m.connections {
 			delete(m.connections, conn)
 		}
 	}()
-	for connection, _ := range m.connections {
+	for connection := range m.connections {
 		// Close them all even if there is a panic with one
 		defer func(c io.Closer) {
 			m.closeConnection(c)

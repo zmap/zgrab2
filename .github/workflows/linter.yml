@@ -24,4 +24,11 @@ jobs:
         with:
           go-version: 1.18
       - name: Run go fmt
-        run: go fmt ./...
+        run: |
+          NON_COMPLIANT_FILES=$(gofmt -s -l $(find . -type f -name '*.go'| grep -v "/.template/"))
+          if [ -n "$NON_COMPLIANT_FILES" ]; then
+            echo "The following files are not formatted correctly:"
+            echo "$NON_COMPLIANT_FILES"
+            exit 1
+          fi
+        
