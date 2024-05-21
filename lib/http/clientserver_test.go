@@ -179,63 +179,64 @@ type reqFunc func(c *Client, url string) (*Response, error)
 /*
 // h12Compare is a test that compares HTTP/1 and HTTP/2 behavior
 // against each other.
-type h12Compare struct {
-	http.Handler            func(ResponseWriter, *Request)    // required
-	ReqFunc            reqFunc                           // optional
-	CheckResponse      func(proto string, res *Response) // optional
-	EarlyCheckResponse func(proto string, res *Response) // optional; pre-normalize
-	Opts               []interface{}
-}
 
-func (tt h12Compare) reqFunc() reqFunc {
-	if tt.ReqFunc == nil {
-		return (*Client).Get
-	}
-	return tt.ReqFunc
-}
-
-func (tt h12Compare) run(t *testing.T) {
-	setParallel(t)
-	cst1 := newClientServerTest(t, false, HandlerFunc(tt.Handler), tt.Opts...)
-	defer cst1.close()
-	cst2 := newClientServerTest(t, true, HandlerFunc(tt.Handler), tt.Opts...)
-	defer cst2.close()
-
-	res1, err := tt.reqFunc()(cst1.c, cst1.ts.URL)
-	if err != nil {
-		t.Errorf("HTTP/1 request: %v", err)
-		return
-	}
-	res2, err := tt.reqFunc()(cst2.c, cst2.ts.URL)
-	if err != nil {
-		t.Errorf("HTTP/2 request: %v", err)
-		return
+	type h12Compare struct {
+		http.Handler            func(ResponseWriter, *Request)    // required
+		ReqFunc            reqFunc                           // optional
+		CheckResponse      func(proto string, res *Response) // optional
+		EarlyCheckResponse func(proto string, res *Response) // optional; pre-normalize
+		Opts               []interface{}
 	}
 
-	if fn := tt.EarlyCheckResponse; fn != nil {
-		fn("HTTP/1.1", res1)
-		fn("HTTP/2.0", res2)
+	func (tt h12Compare) reqFunc() reqFunc {
+		if tt.ReqFunc == nil {
+			return (*Client).Get
+		}
+		return tt.ReqFunc
 	}
 
-	tt.normalizeRes(t, res1, "HTTP/1.1")
-	tt.normalizeRes(t, res2, "HTTP/2.0")
-	res1body, res2body := res1.Body, res2.Body
+	func (tt h12Compare) run(t *testing.T) {
+		setParallel(t)
+		cst1 := newClientServerTest(t, false, HandlerFunc(tt.Handler), tt.Opts...)
+		defer cst1.close()
+		cst2 := newClientServerTest(t, true, HandlerFunc(tt.Handler), tt.Opts...)
+		defer cst2.close()
 
-	eres1 := mostlyCopy(res1)
-	eres2 := mostlyCopy(res2)
-	if !reflect.DeepEqual(eres1, eres2) {
-		t.Errorf("Response headers to handler differed:\nhttp/1 (%v):\n\t%#v\nhttp/2 (%v):\n\t%#v",
-			cst1.ts.URL, eres1, cst2.ts.URL, eres2)
+		res1, err := tt.reqFunc()(cst1.c, cst1.ts.URL)
+		if err != nil {
+			t.Errorf("HTTP/1 request: %v", err)
+			return
+		}
+		res2, err := tt.reqFunc()(cst2.c, cst2.ts.URL)
+		if err != nil {
+			t.Errorf("HTTP/2 request: %v", err)
+			return
+		}
+
+		if fn := tt.EarlyCheckResponse; fn != nil {
+			fn("HTTP/1.1", res1)
+			fn("HTTP/2.0", res2)
+		}
+
+		tt.normalizeRes(t, res1, "HTTP/1.1")
+		tt.normalizeRes(t, res2, "HTTP/2.0")
+		res1body, res2body := res1.Body, res2.Body
+
+		eres1 := mostlyCopy(res1)
+		eres2 := mostlyCopy(res2)
+		if !reflect.DeepEqual(eres1, eres2) {
+			t.Errorf("Response headers to handler differed:\nhttp/1 (%v):\n\t%#v\nhttp/2 (%v):\n\t%#v",
+				cst1.ts.URL, eres1, cst2.ts.URL, eres2)
+		}
+		if !reflect.DeepEqual(res1body, res2body) {
+			t.Errorf("Response bodies to handler differed.\nhttp1: %v\nhttp2: %v\n", res1body, res2body)
+		}
+		if fn := tt.CheckResponse; fn != nil {
+			res1.Body, res2.Body = res1body, res2body
+			fn("HTTP/1.1", res1)
+			fn("HTTP/2.0", res2)
+		}
 	}
-	if !reflect.DeepEqual(res1body, res2body) {
-		t.Errorf("Response bodies to handler differed.\nhttp1: %v\nhttp2: %v\n", res1body, res2body)
-	}
-	if fn := tt.CheckResponse; fn != nil {
-		res1.Body, res2.Body = res1body, res2body
-		fn("HTTP/1.1", res1)
-		fn("HTTP/2.0", res2)
-	}
-}
 */
 func mostlyCopy(r *Response) *Response {
 	c := *r
@@ -525,7 +526,7 @@ func h12requestContentLength(t *testing.T, bodyfn func() io.Reader, wantLen int6
 // reading the response body. Issue 13159.
 func TestCancelRequestMidBody_h1(t *testing.T) { testCancelRequestMidBody(t, h1Mode) }
 
-//func TestCancelRequestMidBody_h2(t *testing.T) { testCancelRequestMidBody(t, h2Mode) }
+// func TestCancelRequestMidBody_h2(t *testing.T) { testCancelRequestMidBody(t, h2Mode) }
 func testCancelRequestMidBody(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	unblock := make(chan bool)
@@ -631,7 +632,7 @@ func testTrailersClientToServer(t *testing.T, h2 bool) {
 // Tests that servers send trailers to a client and that the client can read them.
 func TestTrailersServerToClient_h1(t *testing.T) { testTrailersServerToClient(t, h1Mode, false) }
 
-//func TestTrailersServerToClient_h2(t *testing.T)       { testTrailersServerToClient(t, h2Mode, false) }
+// func TestTrailersServerToClient_h2(t *testing.T)       { testTrailersServerToClient(t, h2Mode, false) }
 func TestTrailersServerToClient_Flush_h1(t *testing.T) { testTrailersServerToClient(t, h1Mode, true) }
 
 //func TestTrailersServerToClient_Flush_h2(t *testing.T) { testTrailersServerToClient(t, h2Mode, true) }
@@ -731,7 +732,7 @@ func testResponseBodyReadAfterClose(t *testing.T, h2 bool) {
 
 func TestConcurrentReadWriteReqBody_h1(t *testing.T) { testConcurrentReadWriteReqBody(t, h1Mode) }
 
-//func TestConcurrentReadWriteReqBody_h2(t *testing.T) { testConcurrentReadWriteReqBody(t, h2Mode) }
+// func TestConcurrentReadWriteReqBody_h2(t *testing.T) { testConcurrentReadWriteReqBody(t, h2Mode) }
 func testConcurrentReadWriteReqBody(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	const reqBody = "some request body"
@@ -785,7 +786,7 @@ func testConcurrentReadWriteReqBody(t *testing.T, h2 bool) {
 
 func TestConnectRequest_h1(t *testing.T) { testConnectRequest(t, h1Mode) }
 
-//func TestConnectRequest_h2(t *testing.T) { testConnectRequest(t, h2Mode) }
+// func TestConnectRequest_h2(t *testing.T) { testConnectRequest(t, h2Mode) }
 func testConnectRequest(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	gotc := make(chan *Request, 1)
@@ -844,7 +845,7 @@ func testConnectRequest(t *testing.T, h2 bool) {
 
 func TestTransportUserAgent_h1(t *testing.T) { testTransportUserAgent(t, h1Mode) }
 
-//func TestTransportUserAgent_h2(t *testing.T) { testTransportUserAgent(t, h2Mode) }
+// func TestTransportUserAgent_h2(t *testing.T) { testTransportUserAgent(t, h2Mode) }
 func testTransportUserAgent(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
@@ -906,10 +907,10 @@ func testTransportUserAgent(t *testing.T, h2 bool) {
 
 func TestStarRequestFoo_h1(t *testing.T) { testStarRequest(t, "FOO", h1Mode) }
 
-//func TestStarRequestFoo_h2(t *testing.T)     { testStarRequest(t, "FOO", h2Mode) }
+// func TestStarRequestFoo_h2(t *testing.T)     { testStarRequest(t, "FOO", h2Mode) }
 func TestStarRequestOptions_h1(t *testing.T) { testStarRequest(t, "OPTIONS", h1Mode) }
 
-//func TestStarRequestOptions_h2(t *testing.T) { testStarRequest(t, "OPTIONS", h2Mode) }
+// func TestStarRequestOptions_h2(t *testing.T) { testStarRequest(t, "OPTIONS", h2Mode) }
 func testStarRequest(t *testing.T, method string, h2 bool) {
 	defer afterTest(t)
 	gotc := make(chan *Request, 1)
@@ -1061,10 +1062,10 @@ func TestTransportDiscardsUnneededConns(t *testing.T) {
 // tests that Transport doesn't retain a pointer to the provided request.
 func TestTransportGCRequest_Body_h1(t *testing.T) { testTransportGCRequest(t, h1Mode, true) }
 
-//func TestTransportGCRequest_Body_h2(t *testing.T)   { testTransportGCRequest(t, h2Mode, true) }
+// func TestTransportGCRequest_Body_h2(t *testing.T)   { testTransportGCRequest(t, h2Mode, true) }
 func TestTransportGCRequest_NoBody_h1(t *testing.T) { testTransportGCRequest(t, h1Mode, false) }
 
-//func TestTransportGCRequest_NoBody_h2(t *testing.T) { testTransportGCRequest(t, h2Mode, false) }
+// func TestTransportGCRequest_NoBody_h2(t *testing.T) { testTransportGCRequest(t, h2Mode, false) }
 func testTransportGCRequest(t *testing.T, h2, body bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -1168,7 +1169,7 @@ func testTransportRejectsInvalidHeaders(t *testing.T, h2 bool) {
 // have. This might change at some point, but not yet in Go 1.6.
 func TestBogusStatusWorks_h1(t *testing.T) { testBogusStatusWorks(t, h1Mode) }
 
-//func TestBogusStatusWorks_h2(t *testing.T) { testBogusStatusWorks(t, h2Mode) }
+// func TestBogusStatusWorks_h2(t *testing.T) { testBogusStatusWorks(t, h2Mode) }
 func testBogusStatusWorks(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	const code = 7
@@ -1188,10 +1189,10 @@ func testBogusStatusWorks(t *testing.T, h2 bool) {
 
 func TestInterruptWithPanic_h1(t *testing.T) { testInterruptWithPanic(t, h1Mode, "boom") }
 
-//func TestInterruptWithPanic_h2(t *testing.T)     { testInterruptWithPanic(t, h2Mode, "boom") }
+// func TestInterruptWithPanic_h2(t *testing.T)     { testInterruptWithPanic(t, h2Mode, "boom") }
 func TestInterruptWithPanic_nil_h1(t *testing.T) { testInterruptWithPanic(t, h1Mode, nil) }
 
-//func TestInterruptWithPanic_nil_h2(t *testing.T) { testInterruptWithPanic(t, h2Mode, nil) }
+// func TestInterruptWithPanic_nil_h2(t *testing.T) { testInterruptWithPanic(t, h2Mode, nil) }
 func TestInterruptWithPanic_ErrAbortHandler_h1(t *testing.T) {
 	testInterruptWithPanic(t, h1Mode, ErrAbortHandler)
 } /*
@@ -1305,7 +1306,7 @@ func TestH12_AutoGzipWithDumpResponse(t *testing.T) {
 // Issue 14607
 func TestCloseIdleConnections_h1(t *testing.T) { testCloseIdleConnections(t, h1Mode) }
 
-//func TestCloseIdleConnections_h2(t *testing.T) { testCloseIdleConnections(t, h2Mode) }
+// func TestCloseIdleConnections_h2(t *testing.T) { testCloseIdleConnections(t, h2Mode) }
 func testCloseIdleConnections(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -1382,7 +1383,7 @@ func testNoSniffExpectRequestBody(t *testing.T, h2 bool) {
 
 func TestServerUndeclaredTrailers_h1(t *testing.T) { testServerUndeclaredTrailers(t, h1Mode) }
 
-//func TestServerUndeclaredTrailers_h2(t *testing.T) { testServerUndeclaredTrailers(t, h2Mode) }
+// func TestServerUndeclaredTrailers_h2(t *testing.T) { testServerUndeclaredTrailers(t, h2Mode) }
 func testServerUndeclaredTrailers(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {

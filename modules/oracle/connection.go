@@ -152,11 +152,11 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 
 	// TODO: Variable fields in the connect descriptor (e.g. host?)
 	connectPacket := &TNSConnect{
-		Version:              conn.scanner.config.Version,
-		MinVersion:           conn.scanner.config.MinVersion,
-		GlobalServiceOptions: ServiceOptions(u16Flag(conn.scanner.config.GlobalServiceOptions)),
-		SDU:                  u16Flag(conn.scanner.config.SDU),
-		TDU:                  u16Flag(conn.scanner.config.TDU),
+		Version:                 conn.scanner.config.Version,
+		MinVersion:              conn.scanner.config.MinVersion,
+		GlobalServiceOptions:    ServiceOptions(u16Flag(conn.scanner.config.GlobalServiceOptions)),
+		SDU:                     u16Flag(conn.scanner.config.SDU),
+		TDU:                     u16Flag(conn.scanner.config.TDU),
 		ProtocolCharacteristics: NTProtocolCharacteristics(u16Flag(conn.scanner.config.ProtocolCharacterisics)),
 		MaxBeforeAck:            0,
 		ByteOrder:               defaultByteOrder,

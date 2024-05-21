@@ -232,11 +232,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00ca, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x013a,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
-				SDU:                  0x2000,
-				TDU:                  0xffff,
+				Version:                 0x013a,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
+				SDU:                     0x2000,
+				TDU:                     0xffff,
 				ProtocolCharacteristics: NTPCConfirmedRelease | NTPCTDUBasedIO | NTPCSpawnerRunning | NTPCDataTest | NTPCCallbackIO | NTPCAsyncIO | NTPCPacketIO | NTPCGenerateSIGURG, // 0x7F08
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -274,11 +274,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x0100, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x0138,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: 0,
-				SDU:                  0x0800,
-				TDU:                  0x7fff,
+				Version:                 0x0138,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    0,
+				SDU:                     0x0800,
+				TDU:                     0x7fff,
 				ProtocolCharacteristics: NTPCHangon | NTPCCallbackIO | NTPCAsyncIO | NTPCGenerateSIGURG | NTPCUrgentIO | NTPCFullDuplex, // 0x860e
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -315,11 +315,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00EC, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x0138,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: 0,
-				SDU:                  0x0800,
-				TDU:                  0x7fff,
+				Version:                 0x0138,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    0,
+				SDU:                     0x0800,
+				TDU:                     0x7fff,
 				ProtocolCharacteristics: NTPCHangon | NTPCCallbackIO | NTPCAsyncIO | NTPCGenerateSIGURG | NTPCUrgentIO | NTPCFullDuplex, // 0x860e
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -355,11 +355,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x013b,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
-				SDU:                  0x2000,
-				TDU:                  0xffff,
+				Version:                 0x013b,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
+				SDU:                     0x2000,
+				TDU:                     0xffff,
 				ProtocolCharacteristics: NTPCConfirmedRelease | NTPCTDUBasedIO | NTPCSpawnerRunning | NTPCDataTest | NTPCCallbackIO | NTPCAsyncIO | NTPCPacketIO | NTPCGenerateSIGURG, // 0x7F08
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -395,11 +395,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x013b,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
-				SDU:                  0x2000,
-				TDU:                  0xffff,
+				Version:                 0x013b,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
+				SDU:                     0x2000,
+				TDU:                     0xffff,
 				ProtocolCharacteristics: NTPCConfirmedRelease | NTPCTDUBasedIO | NTPCSpawnerRunning | NTPCDataTest | NTPCCallbackIO | NTPCAsyncIO | NTPCPacketIO | NTPCGenerateSIGURG, // 0x7F08
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,

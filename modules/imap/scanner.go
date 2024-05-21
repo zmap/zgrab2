@@ -23,8 +23,8 @@
 package imap
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
 	"strings"
 
@@ -154,18 +154,18 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 	lowerBanner := strings.ToLower(banner)
 	switch {
 	case strings.HasPrefix(banner, "* NO"),
-	     strings.HasPrefix(banner, "* BAD"):
+		strings.HasPrefix(banner, "* BAD"):
 		return zgrab2.SCAN_APPLICATION_ERROR
 	case strings.HasPrefix(banner, "* OK"),
-	     strings.HasPrefix(banner, "* PREAUTH"),
-	     strings.HasPrefix(banner, "* BYE"),
-	     strings.HasPrefix(banner, "* OKAY"),
-	     strings.Contains(banner, "IMAP"),
-	     strings.Contains(lowerBanner, "blacklist"),
-	     strings.Contains(lowerBanner, "abuse"),
-	     strings.Contains(lowerBanner, "rbl"),
-	     strings.Contains(lowerBanner, "spamhaus"),
-	     strings.Contains(lowerBanner, "relay"):
+		strings.HasPrefix(banner, "* PREAUTH"),
+		strings.HasPrefix(banner, "* BYE"),
+		strings.HasPrefix(banner, "* OKAY"),
+		strings.Contains(banner, "IMAP"),
+		strings.Contains(lowerBanner, "blacklist"),
+		strings.Contains(lowerBanner, "abuse"),
+		strings.Contains(lowerBanner, "rbl"),
+		strings.Contains(lowerBanner, "spamhaus"),
+		strings.Contains(lowerBanner, "relay"):
 		return zgrab2.SCAN_SUCCESS
 	default:
 		return zgrab2.SCAN_PROTOCOL_ERROR
@@ -173,14 +173,14 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 }
 
 // Scan performs the IMAP scan.
-// 1. Open a TCP connection to the target port (default 143).
-// 2. If --imaps is set, perform a TLS handshake using the command-line
-//    flags.
-// 3. Read the banner.
-// 6. If --starttls is sent, send a001 STARTTLS, read the result, negotiate a
-//    TLS connection using the command-line flags.
-// 7. If --send-close is sent, send a001 CLOSE and read the result.
-// 8. Close the connection.
+//  1. Open a TCP connection to the target port (default 143).
+//  2. If --imaps is set, perform a TLS handshake using the command-line
+//     flags.
+//  3. Read the banner.
+//  6. If --starttls is sent, send a001 STARTTLS, read the result, negotiate a
+//     TLS connection using the command-line flags.
+//  7. If --send-close is sent, send a001 CLOSE and read the result.
+//  8. Close the connection.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	c, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
