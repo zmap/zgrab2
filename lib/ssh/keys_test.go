@@ -30,7 +30,7 @@ func rawKey(pub PublicKey) interface{} {
 	case *rsaPublicKey:
 		return (*rsa.PublicKey)(k)
 	case *dsaPublicKey:
-		return (*dsa.PublicKey)(k)
+		return (*dsaPublicKey)(k)
 	case *ecdsaPublicKey:
 		return (*ecdsa.PublicKey)(k)
 	case ed25519PublicKey:

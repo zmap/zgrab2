@@ -13,6 +13,7 @@ import (
 // Grab contains all scan responses for a single host
 type Grab struct {
 	IP     string                  `json:"ip,omitempty"`
+	Port   uint                    `json:"port,omitempty"`
 	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
 }
@@ -117,12 +118,16 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
 	var ipstr string
-
+	var port uint
 	if t.IP != nil {
 		ipstr = t.IP.String()
 	}
+	if t.Port != nil {
+		port = *t.Port
+	}
 	return &Grab{
 		IP:     ipstr,
+		Port:   port,
 		Domain: t.Domain,
 		Data:   responses,
 	}

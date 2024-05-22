@@ -5,7 +5,7 @@ set -e
 versions="9.3 9.4 9.5 9.6 10.1"
 types="ssl nossl"
 
-ZGRAB_ROOT=$(dirname $0)/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 mkdir -p $ZGRAB_OUTPUT/postgres
@@ -20,7 +20,7 @@ function doTest() {
   echo ")}] END DOCKER LOGS FROM $CONTAINER_NAME"
   echo "BEGIN POSTGRES LOGS FROM $CONTAINER_NAME [{("
   # TODO: The "//var/lib" is a work-around for MinGW
-  docker exec -t $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log
+  docker exec $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log
   echo ")}] END POSTGRES LOGS FROM $CONTAINER_NAME"
 }
 
