@@ -6,7 +6,9 @@ package ssh
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,6 +86,7 @@ type JsonKexInitMsg struct {
 	LanguagesServerClient   []string `json:"server_to_client_languages,omitempty"`
 	FirstKexFollows         bool     `json:"first_kex_follows"`
 	Reserved                uint32   `json:"reserved"`
+	ServerHaSSH             string   `json:"serverHaSSH"`
 }
 
 func (kex *KexInitMsg) MarshalJSON() ([]byte, error) {
@@ -101,8 +104,21 @@ func (kex *KexInitMsg) MarshalJSON() ([]byte, error) {
 		LanguagesServerClient:   kex.LanguagesServerClient,
 		FirstKexFollows:         kex.FirstKexFollows,
 		Reserved:                kex.Reserved,
+		ServerHaSSH:             kex.GenerateServerHaSSH(),
 	}
 	return json.Marshal(temp)
+}
+
+func (kex *KexInitMsg) GenerateServerHaSSH() string {
+  input := strings.Join(
+    []string {
+      strings.Join(kex.KexAlgos, ","),
+      strings.Join(kex.CiphersServerClient, ","),
+      strings.Join(kex.MACsServerClient, ","),
+      strings.Join(kex.CompressionServerClient, ","),
+    }, ";")
+  md5 := md5.Sum([]byte(input))
+  return hex.EncodeToString(md5[:])
 }
 
 // See RFC 4253, section 8.

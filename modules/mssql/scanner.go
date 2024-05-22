@@ -19,7 +19,7 @@ import (
 )
 
 // ScanResults contains detailed information about each step of the
-// MySQL handshake, and can be encoded to JSON.
+// MSSQL handshake, and can be encoded to JSON.
 type ScanResults struct {
 	// Version is the version returned by the server in the PRELOGIN response.
 	// Its format is "MAJOR.MINOR.BUILD_NUMBER".

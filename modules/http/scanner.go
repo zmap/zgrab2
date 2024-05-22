@@ -70,7 +70,8 @@ type Flags struct {
 	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
 	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
 	// Set HTTP Request body
-	RequestBody string `long:"request-body" description:"HTTP request body to send to server"`
+	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
+	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -80,6 +81,9 @@ type Flags struct {
 
 	// WithBodyLength enables adding the body_size field to the Response
 	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
+
+	// Extract the raw header as it is on the wire
+	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -453,6 +457,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 			DisableKeepAlives:   false,
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
+			RawHeaderBuffer:     scanner.config.RawHeaders,
 		},
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
@@ -489,6 +494,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	)
 	if len(scan.scanner.config.RequestBody) > 0 {
 		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, strings.NewReader(scan.scanner.config.RequestBody))
+	} else if len(scan.scanner.config.RequestBodyHex) > 0 {
+		reqbody, _ := hex.DecodeString(scan.scanner.config.RequestBodyHex)
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, bytes.NewReader(reqbody))
 	} else {
 		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, nil)
 	}

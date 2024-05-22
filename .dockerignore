@@ -1,2 +1,5 @@
 Dockerfile
-
+.github
+integration_tests
+zgrab2_schemas
+*.md

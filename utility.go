@@ -2,6 +2,7 @@ package zgrab2
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"regexp"
 	"strconv"
@@ -9,12 +10,15 @@ import (
 
 	"time"
 
-	"github.com/zmap/zflags"
-	"github.com/sirupsen/logrus"
 	"runtime/debug"
+
+	"github.com/sirupsen/logrus"
+	flags "github.com/zmap/zflags"
 )
 
 var parser *flags.Parser
+
+const defaultDNSPort = "53"
 
 func init() {
 	parser = flags.NewParser(&config, flags.Default)
@@ -214,8 +218,9 @@ func IsTimeoutError(err error) bool {
 // doing anything. Otherwise, it logs the stacktrace, the panic error, and the provided message
 // before re-raising the original panic.
 // Example:
-//     defer zgrab2.LogPanic("Error decoding body '%x'", body)
-func LogPanic(format string, args...interface{}) {
+//
+//	defer zgrab2.LogPanic("Error decoding body '%x'", body)
+func LogPanic(format string, args ...interface{}) {
 	err := recover()
 	if err == nil {
 		return
@@ -223,4 +228,27 @@ func LogPanic(format string, args...interface{}) {
 	logrus.Errorf("Uncaught panic at %s: %v", string(debug.Stack()), err)
 	logrus.Errorf(format, args...)
 	panic(err)
+}
+
+// addDefaultPortToDNSServerName validates that the input DNS server address is correct and appends the default DNS port 53 if no port is specified
+func addDefaultPortToDNSServerName(inAddr string) (string, error) {
+	// Try to split host and port to see if the port is already specified.
+	host, port, err := net.SplitHostPort(inAddr)
+	if err != nil {
+		// might mean there's no port specified
+		host = inAddr
+	}
+
+	// Validate the host part as an IP address.
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return "", fmt.Errorf("invalid IP address")
+	}
+
+	// If the original input does not have a port, specify port 53 as the default
+	if port == "" {
+		port = defaultDNSPort
+	}
+
+	return net.JoinHostPort(ip.String(), port), nil
 }

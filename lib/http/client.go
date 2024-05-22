@@ -831,9 +831,11 @@ func (b *cancelTimerBody) Read(p []byte) (n int, err error) {
 }
 
 func (b *cancelTimerBody) Close() error {
-	err := b.rc.Close()
-	b.stop()
-	return err
+	defer b.stop()
+	if b.rc != nil {
+		return b.rc.Close()
+	}
+	return nil
 }
 
 func shouldCopyHeaderOnRedirect(headerKey string, initial, dest *url.URL) bool {
