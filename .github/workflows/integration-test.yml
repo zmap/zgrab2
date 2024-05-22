@@ -1,4 +1,4 @@
-name: Integration Test
+name: Test
 on:
   push:
     branches:
@@ -6,8 +6,29 @@ on:
   pull_request:
 
 jobs:
-  test:
-    name: Test
+  go-test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.18
+
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          go get -t ./...
+          make
+
+      - name: Test
+        run: |
+          make test
+
+  integration-test:
+    name: Integration Test
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
