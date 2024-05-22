@@ -139,7 +139,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, inter
 	}
 	is_dns := binary.BigEndian.Uint16(buf[0:2]) == transaction_id
 	// QR == 1 and RA == 1 and RCODE == 0 - is response and recursion available and no error, see rfc1035 4.1.1(page 26)
-	dns_recursion_on := (buf[2] & 0x80 == 0x80) && (buf[3] & 0x85 == 0x80)
+	dns_recursion_on := (buf[2] & 0x80 == 0x80) && (buf[3] & 0x8F == 0x80)
 	response_base64 := base64.StdEncoding.EncodeToString(buf[:n])
 
 	return zgrab2.SCAN_SUCCESS, Results{is_dns, dns_recursion_on, response_base64}, nil
