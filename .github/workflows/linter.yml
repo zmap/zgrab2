@@ -29,6 +29,18 @@ jobs:
           if [ -n "$NON_COMPLIANT_FILES" ]; then
             echo "The following files are not formatted correctly:"
             echo "$NON_COMPLIANT_FILES"
+
+            mkdir -p /tmp/gofmt
+            for file in $NON_COMPLIANT_FILES; do
+              mkdir -p /tmp/gofmt/$(dirname $file)
+              gofmt -s $file > /tmp/gofmt/$file
+            done
+
             exit 1
           fi
-        
+      - name: Upload formatted files
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatted-files
+          path: /tmp/gofmt
