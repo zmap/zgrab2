@@ -146,6 +146,7 @@ func init() {
 
 ### Output schema
 
+ 
 To add a schema for the new module, add a module under schemas, and update [`schemas/__init__.py`](schemas/__init__.py) to ensure that it is loaded.
 
 See [zgrab2_schemas/README.md](zgrab2_schemas/README.md) for details.
