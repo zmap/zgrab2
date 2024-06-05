@@ -61,7 +61,7 @@ func dumpHeapProfile() {
 // If CPU profiling is enabled (ZGRAB2_CPUPROFILE is not empty), start tracking
 // CPU profiling in the configured file. Caller is responsible for invoking
 // stopCPUProfile() when finished.
-func startCPUProfile() {
+func startCPUProfile() *os.File {
 	if file := getCPUProfileFile(); file != "" {
 		now := time.Now()
 		fullFile := getFormattedFile(file, now)
@@ -72,14 +72,20 @@ func startCPUProfile() {
 		if err := pprof.StartCPUProfile(f); err != nil {
 			log.Fatal("could not start CPU profile: ", err)
 		}
+		return f
 	}
+
+	return nil
 }
 
 // If CPU profiling is enabled (ZGRAB2_CPUPROFILE is not empty), stop profiling
 // CPU usage.
-func stopCPUProfile() {
+func stopCPUProfile(f *os.File) {
 	if getCPUProfileFile() != "" {
 		pprof.StopCPUProfile()
+	}
+	if f != nil {
+		f.Close()
 	}
 }
 
@@ -88,8 +94,8 @@ func stopCPUProfile() {
 // include custom sets of scan modules by creating new main packages with custom
 // sets of ZGrab modules imported with side-effects.
 func ZGrab2Main() {
-	startCPUProfile()
-	defer stopCPUProfile()
+	f := startCPUProfile()
+	defer stopCPUProfile(f)
 	defer dumpHeapProfile()
 	_, moduleType, flag, err := zgrab2.ParseCommandLine(os.Args[1:])
 
