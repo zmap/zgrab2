@@ -21,7 +21,7 @@ For more complex scanning scenarios, such as using multiple modules or custom co
 docker run --rm -i -v /path/to/your/config.ini:/config.ini ghcr.io/zmap/zgrab2 multiple -c /config.ini
 ```
 
-Replace `/path/to/your/config.ini` with the path to your configuration file on the host machine. See follow for more details on configurations.
+Replace `/path/to/your/config.ini` with the path to your configuration file on the host machine. See [Multiple Module Usage](#multiple-module-usage) for more details on configurations.
 
 ### Building from Source
 
