@@ -5,8 +5,25 @@ ZGrab is a fast, modular application-layer network scanner designed for completi
 
 ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
+## Installation
 
-## Building
+### With Docker
+
+You can run ZGrab 2.0 with our official Docker image. For example, to scan a single website using the HTTP module, you can use:
+
+```shell
+echo 'example.com' | docker run --rm -i ghcr.io/zmap/zgrab2 http
+```
+
+For more complex scanning scenarios, such as using multiple modules or custom configurations, you can create a configuration file and pass it to the container:
+
+```shell
+docker run --rm -i -v /path/to/your/config.ini:/config.ini ghcr.io/zmap/zgrab2 multiple -c /config.ini
+```
+
+Replace `/path/to/your/config.ini` with the path to your configuration file on the host machine. See [Multiple Module Usage](#multiple-module-usage) for more details on configurations.
+
+### Building from Source
 
 For Go 1.17 and later you must build from source:
 
