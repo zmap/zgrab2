@@ -3,11 +3,11 @@
 # Keep cleaning up even if something fails
 set +e
 
-# Stop all MySQL containers.
+# Stop all AMQP containers.
 
 VERSIONS="3.12.14 3.13.2"
 
-for version in $MYSQL_VERSIONS; do
+for version in $VERSIONS; do
     CONTAINER_NAME="zgrab_amqp091-$version"
     echo "amqp091/cleanup: Stopping $CONTAINER_NAME..."
     docker stop $CONTAINER_NAME
