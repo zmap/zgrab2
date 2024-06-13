@@ -13,6 +13,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -62,6 +63,7 @@ func dumpHeapProfile() {
 // CPU profiling in the configured file. Caller is responsible for invoking
 // stopCPUProfile() when finished.
 func startCPUProfile() *os.File {
+	log.Warn("checking CPU profile file")
 	if file := getCPUProfileFile(); file != "" {
 		now := time.Now()
 		fullFile := getFormattedFile(file, now)
