@@ -670,7 +670,7 @@ type fileHandler struct {
 // To use the operating system's file system implementation,
 // use http.Dir:
 //
-//     http.Handle("/", http.FileServer(http.Dir("/tmp")))
+//	http.Handle("/", http.FileServer(http.Dir("/tmp")))
 //
 // As a special case, the returned file server redirects any request
 // ending in "/index.html" to the same path, without the final
@@ -714,7 +714,7 @@ func parseRange(s string, size int64) ([]httpRange, error) {
 	if !strings.HasPrefix(s, b) {
 		return nil, errors.New("invalid range")
 	}
-	var ranges []httpRange
+	ranges := make([]httpRange, 0, len(strings.Split(s[len(b):], ",")))
 	noOverlap := false
 	for _, ra := range strings.Split(s[len(b):], ",") {
 		ra = strings.TrimSpace(ra)
