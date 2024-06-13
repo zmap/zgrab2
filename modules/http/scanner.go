@@ -18,15 +18,18 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/html/charset"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/net/html/charset"
 )
 
 var (
@@ -107,6 +110,8 @@ type Scanner struct {
 	customHeaders map[string]string
 	requestBody   string
 	decodedHashFn func([]byte) string
+	runtimes      []time.Duration
+	runtimeLock   sync.Mutex
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -157,6 +162,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
 	scanner.config.RequestBody = fl.RequestBody
+	scanner.runtimes = make([]time.Duration, 0, 5000)
 
 	// parse out custom headers at initialization so that they can be easily
 	// iterated over when constructing individual scanners
@@ -488,6 +494,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
+	startTime := time.Now()
 	var (
 		request *http.Request
 		err     error
@@ -611,6 +618,22 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			scan.results.Response.BodySHA256 = m.Sum(nil)
 		}
 	}
+	scan.scanner.runtimeLock.Lock()
+	scan.scanner.runtimes = append(scan.scanner.runtimes, time.Since(startTime))
+	if len(scan.scanner.runtimes)%5000 == 0 {
+		sort.Slice(scan.scanner.runtimes, func(i, j int) bool {
+			return scan.scanner.runtimes[i] < scan.scanner.runtimes[j]
+		})
+		log.Warnf("Minimum Runtime: %v", scan.scanner.runtimes[0])
+		log.Warnf("Maximum Runtime: %v", scan.scanner.runtimes[len(scan.scanner.runtimes)-1])
+		log.Warnf("Median Runtime: %v", scan.scanner.runtimes[len(scan.scanner.runtimes)/2])
+		totalRuntime := time.Duration(0)
+		for _, runtime := range scan.scanner.runtimes {
+			totalRuntime += runtime
+		}
+		log.Warnf("Average Runtime: %v", totalRuntime/time.Duration(len(scan.scanner.runtimes)))
+	}
+	scan.scanner.runtimeLock.Unlock()
 
 	return nil
 }
