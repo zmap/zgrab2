@@ -495,6 +495,24 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
 	startTime := time.Now()
+	defer func() {
+		scan.scanner.runtimeLock.Lock()
+		scan.scanner.runtimes = append(scan.scanner.runtimes, time.Since(startTime))
+		if len(scan.scanner.runtimes)%5000 == 0 {
+			sort.Slice(scan.scanner.runtimes, func(i, j int) bool {
+				return scan.scanner.runtimes[i] < scan.scanner.runtimes[j]
+			})
+			log.Warnf("Minimum Runtime: %v", scan.scanner.runtimes[0])
+			log.Warnf("Maximum Runtime: %v", scan.scanner.runtimes[len(scan.scanner.runtimes)-1])
+			log.Warnf("Median Runtime: %v", scan.scanner.runtimes[len(scan.scanner.runtimes)/2])
+			totalRuntime := time.Duration(0)
+			for _, runtime := range scan.scanner.runtimes {
+				totalRuntime += runtime
+			}
+			log.Warnf("Average Runtime: %v", totalRuntime/time.Duration(len(scan.scanner.runtimes)))
+		}
+		scan.scanner.runtimeLock.Unlock()
+	}()
 	var (
 		request *http.Request
 		err     error
@@ -618,22 +636,6 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			scan.results.Response.BodySHA256 = m.Sum(nil)
 		}
 	}
-	scan.scanner.runtimeLock.Lock()
-	scan.scanner.runtimes = append(scan.scanner.runtimes, time.Since(startTime))
-	if len(scan.scanner.runtimes)%5000 == 0 {
-		sort.Slice(scan.scanner.runtimes, func(i, j int) bool {
-			return scan.scanner.runtimes[i] < scan.scanner.runtimes[j]
-		})
-		log.Warnf("Minimum Runtime: %v", scan.scanner.runtimes[0])
-		log.Warnf("Maximum Runtime: %v", scan.scanner.runtimes[len(scan.scanner.runtimes)-1])
-		log.Warnf("Median Runtime: %v", scan.scanner.runtimes[len(scan.scanner.runtimes)/2])
-		totalRuntime := time.Duration(0)
-		for _, runtime := range scan.scanner.runtimes {
-			totalRuntime += runtime
-		}
-		log.Warnf("Average Runtime: %v", totalRuntime/time.Duration(len(scan.scanner.runtimes)))
-	}
-	scan.scanner.runtimeLock.Unlock()
 
 	return nil
 }
