@@ -40,7 +40,8 @@ func sshPipe() (Conn, *server, error) {
 	}
 
 	clientConf := ClientConfig{
-		User: "user",
+		User:            "user",
+		HostKeyCallback: InsecureIgnoreHostKey(),
 	}
 	serverConf := ServerConfig{
 		NoClientAuth: true,
@@ -91,7 +92,10 @@ func BenchmarkEndToEnd(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Client: %v", err)
 		}
-		ch, incoming, _ := newCh.Accept()
+		ch, incoming, err := newCh.Accept()
+		if err != nil {
+			b.Fatalf("Accept: %v", err)
+		}
 		go DiscardRequests(incoming)
 		for i := 0; i < b.N; i++ {
 			if _, err := io.ReadFull(ch, output); err != nil {

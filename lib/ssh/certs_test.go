@@ -6,7 +6,12 @@ package ssh
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"fmt"
+	"io"
+	"net"
 	"reflect"
 	"testing"
 	"time"
@@ -44,14 +49,17 @@ func TestParseCert(t *testing.T) {
 // % ssh-keygen -s ca -I testcert -O source-address=192.168.1.0/24 -O force-command=/bin/sleep user.pub
 // user.pub key: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDACh1rt2DXfV3hk6fszSQcQ/rueMId0kVD9U7nl8cfEnFxqOCrNT92g4laQIGl2mn8lsGZfTLg8ksHq3gkvgO3oo/0wHy4v32JeBOHTsN5AL4gfHNEhWeWb50ev47hnTsRIt9P4dxogeUo/hTu7j9+s9lLpEQXCvq6xocXQt0j8MV9qZBBXFLXVT3cWIkSqOdwt/5ZBg+1GSrc7WfCXVWgTk4a20uPMuJPxU4RQwZW6X3+O8Pqo8C3cW0OzZRFP6gUYUKUsTI5WntlS+LAxgw1mZNsozFGdbiOPRnEryE3SRldh9vjDR3tin1fGpA5P7+CEB/bqaXtG3V+F2OkqaMN
 // Critical Options:
-//         force-command /bin/sleep
-//         source-address 192.168.1.0/24
+//
+//	force-command /bin/sleep
+//	source-address 192.168.1.0/24
+//
 // Extensions:
-//         permit-X11-forwarding
-//         permit-agent-forwarding
-//         permit-port-forwarding
-//         permit-pty
-//         permit-user-rc
+//
+//	permit-X11-forwarding
+//	permit-agent-forwarding
+//	permit-port-forwarding
+//	permit-pty
+//	permit-user-rc
 const exampleSSHCertWithOptions = `ssh-rsa-cert-v01@openssh.com AAAAHHNzaC1yc2EtY2VydC12MDFAb3BlbnNzaC5jb20AAAAgDyysCJY0XrO1n03EeRRoITnTPdjENFmWDs9X58PP3VUAAAADAQABAAABAQDACh1rt2DXfV3hk6fszSQcQ/rueMId0kVD9U7nl8cfEnFxqOCrNT92g4laQIGl2mn8lsGZfTLg8ksHq3gkvgO3oo/0wHy4v32JeBOHTsN5AL4gfHNEhWeWb50ev47hnTsRIt9P4dxogeUo/hTu7j9+s9lLpEQXCvq6xocXQt0j8MV9qZBBXFLXVT3cWIkSqOdwt/5ZBg+1GSrc7WfCXVWgTk4a20uPMuJPxU4RQwZW6X3+O8Pqo8C3cW0OzZRFP6gUYUKUsTI5WntlS+LAxgw1mZNsozFGdbiOPRnEryE3SRldh9vjDR3tin1fGpA5P7+CEB/bqaXtG3V+F2OkqaMNAAAAAAAAAAAAAAABAAAACHRlc3RjZXJ0AAAAAAAAAAAAAAAA//////////8AAABLAAAADWZvcmNlLWNvbW1hbmQAAAAOAAAACi9iaW4vc2xlZXAAAAAOc291cmNlLWFkZHJlc3MAAAASAAAADjE5Mi4xNjguMS4wLzI0AAAAggAAABVwZXJtaXQtWDExLWZvcndhcmRpbmcAAAAAAAAAF3Blcm1pdC1hZ2VudC1mb3J3YXJkaW5nAAAAAAAAABZwZXJtaXQtcG9ydC1mb3J3YXJkaW5nAAAAAAAAAApwZXJtaXQtcHR5AAAAAAAAAA5wZXJtaXQtdXNlci1yYwAAAAAAAAAAAAABFwAAAAdzc2gtcnNhAAAAAwEAAQAAAQEAwU+c5ui5A8+J/CFpjW8wCa52bEODA808WWQDCSuTG/eMXNf59v9Y8Pk0F1E9dGCosSNyVcB/hacUrc6He+i97+HJCyKavBsE6GDxrjRyxYqAlfcOXi/IVmaUGiO8OQ39d4GHrjToInKvExSUeleQyH4Y4/e27T/pILAqPFL3fyrvMLT5qU9QyIt6zIpa7GBP5+urouNavMprV3zsfIqNBbWypinOQAw823a5wN+zwXnhZrgQiHZ/USG09Y6k98y1dTVz8YHlQVR4D3lpTAsKDKJ5hCH9WU4fdf+lU8OyNGaJ/vz0XNqxcToe1l4numLTnaoSuH89pHryjqurB7lJKwAAAQ8AAAAHc3NoLXJzYQAAAQCaHvUIoPL1zWUHIXLvu96/HU1s/i4CAW2IIEuGgxCUCiFj6vyTyYtgxQxcmbfZf6eaITlS6XJZa7Qq4iaFZh75C1DXTX8labXhRSD4E2t//AIP9MC1rtQC5xo6FmbQ+BoKcDskr+mNACcbRSxs3IL3bwCfWDnIw2WbVox9ZdcthJKk4UoCW4ix4QwdHw7zlddlz++fGEEVhmTbll1SUkycGApPFBsAYRTMupUJcYPIeReBI/m8XfkoMk99bV8ZJQTAd7OekHY2/48Ff53jLmyDjP7kNw1F8OaPtkFs6dGJXta4krmaekPy87j+35In5hFj7yoOqvSbmYUkeX70/GGQ`
 
 func TestParseCertWithOptions(t *testing.T) {
@@ -104,7 +112,7 @@ func TestValidateCert(t *testing.T) {
 		t.Fatalf("got %v (%T), want *Certificate", key, key)
 	}
 	checker := CertChecker{}
-	checker.IsAuthority = func(k PublicKey) bool {
+	checker.IsUserAuthority = func(k PublicKey) bool {
 		return bytes.Equal(k.Marshal(), validCert.SignatureKey.Marshal())
 	}
 
@@ -142,7 +150,7 @@ func TestValidateCertTime(t *testing.T) {
 		checker := CertChecker{
 			Clock: func() time.Time { return time.Unix(ts, 0) },
 		}
-		checker.IsAuthority = func(k PublicKey) bool {
+		checker.IsUserAuthority = func(k PublicKey) bool {
 			return bytes.Equal(k.Marshal(),
 				testPublicKeys["ecdsa"].Marshal())
 		}
@@ -160,7 +168,7 @@ func TestValidateCertTime(t *testing.T) {
 
 func TestHostKeyCert(t *testing.T) {
 	cert := &Certificate{
-		ValidPrincipals: []string{"hostname", "hostname.domain"},
+		ValidPrincipals: []string{"hostname", "hostname.domain", "otherhost"},
 		Key:             testPublicKeys["rsa"],
 		ValidBefore:     CertTimeInfinity,
 		CertType:        HostCert,
@@ -168,8 +176,8 @@ func TestHostKeyCert(t *testing.T) {
 	cert.SignCert(rand.Reader, testSigners["ecdsa"])
 
 	checker := &CertChecker{
-		IsAuthority: func(p PublicKey) bool {
-			return bytes.Equal(testPublicKeys["ecdsa"].Marshal(), p.Marshal())
+		IsHostAuthority: func(p PublicKey, addr string) bool {
+			return addr == "hostname:22" && bytes.Equal(testPublicKeys["ecdsa"].Marshal(), p.Marshal())
 		},
 	}
 
@@ -178,7 +186,14 @@ func TestHostKeyCert(t *testing.T) {
 		t.Errorf("NewCertSigner: %v", err)
 	}
 
-	for _, name := range []string{"hostname", "otherhost"} {
+	for _, test := range []struct {
+		addr    string
+		succeed bool
+	}{
+		{addr: "hostname:22", succeed: true},
+		{addr: "otherhost:22", succeed: false}, // The certificate is valid for 'otherhost' as hostname, but we only recognize the authority of the signer for the address 'hostname:22'
+		{addr: "lasthost:22", succeed: false},
+	} {
 		c1, c2, err := netPipe()
 		if err != nil {
 			t.Fatalf("netPipe: %v", err)
@@ -201,16 +216,105 @@ func TestHostKeyCert(t *testing.T) {
 			User:            "user",
 			HostKeyCallback: checker.CheckHostKey,
 		}
-		_, _, _, err = NewClientConn(c2, name, config)
+		_, _, _, err = NewClientConn(c2, test.addr, config)
 
-		succeed := name == "hostname"
-		if (err == nil) != succeed {
-			t.Fatalf("NewClientConn(%q): %v", name, err)
+		if (err == nil) != test.succeed {
+			t.Errorf("NewClientConn(%q): %v", test.addr, err)
 		}
 
 		err = <-errc
-		if (err == nil) != succeed {
-			t.Fatalf("NewServerConn(%q): %v", name, err)
+		if (err == nil) != test.succeed {
+			t.Errorf("NewServerConn(%q): %v", test.addr, err)
 		}
+	}
+}
+
+type legacyRSASigner struct {
+	Signer
+}
+
+func (s *legacyRSASigner) Sign(rand io.Reader, data []byte) (*Signature, error) {
+	v, ok := s.Signer.(AlgorithmSigner)
+	if !ok {
+		return nil, fmt.Errorf("invalid signer")
+	}
+	return v.SignWithAlgorithm(rand, data, KeyAlgoRSA)
+}
+
+func TestCertTypes(t *testing.T) {
+	var testVars = []struct {
+		name   string
+		signer Signer
+		algo   string
+	}{
+		{CertAlgoECDSA256v01, testSigners["ecdsap256"], ""},
+		{CertAlgoECDSA384v01, testSigners["ecdsap384"], ""},
+		{CertAlgoECDSA521v01, testSigners["ecdsap521"], ""},
+		{CertAlgoED25519v01, testSigners["ed25519"], ""},
+		{CertAlgoRSAv01, testSigners["rsa"], KeyAlgoRSASHA512},
+		{"legacyRSASigner", &legacyRSASigner{testSigners["rsa"]}, KeyAlgoRSA},
+		{CertAlgoDSAv01, testSigners["dsa"], ""},
+	}
+
+	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("error generating host key: %v", err)
+	}
+
+	signer, err := NewSignerFromKey(k)
+	if err != nil {
+		t.Fatalf("error generating signer for ssh listener: %v", err)
+	}
+
+	conf := &ServerConfig{
+		PublicKeyCallback: func(c ConnMetadata, k PublicKey) (*Permissions, error) {
+			return new(Permissions), nil
+		},
+	}
+	conf.AddHostKey(signer)
+
+	for _, m := range testVars {
+		t.Run(m.name, func(t *testing.T) {
+
+			c1, c2, err := netPipe()
+			if err != nil {
+				t.Fatalf("netPipe: %v", err)
+			}
+			defer c1.Close()
+			defer c2.Close()
+
+			go NewServerConn(c1, conf)
+
+			priv := m.signer
+			if err != nil {
+				t.Fatalf("error generating ssh pubkey: %v", err)
+			}
+
+			cert := &Certificate{
+				CertType: UserCert,
+				Key:      priv.PublicKey(),
+			}
+			cert.SignCert(rand.Reader, priv)
+
+			certSigner, err := NewCertSigner(cert, priv)
+			if err != nil {
+				t.Fatalf("error generating cert signer: %v", err)
+			}
+
+			if m.algo != "" && cert.Signature.Format != m.algo {
+				t.Errorf("expected %q signature format, got %q", m.algo, cert.Signature.Format)
+			}
+
+			config := &ClientConfig{
+				User:            "user",
+				HostKeyCallback: func(h string, r net.Addr, k PublicKey) error { return nil },
+				Auth:            []AuthMethod{PublicKeys(certSigner)},
+			}
+
+			_, _, _, err = NewClientConn(c2, "", config)
+			if err != nil {
+				t.Fatalf("error connecting: %v", err)
+			}
+		})
 	}
 }

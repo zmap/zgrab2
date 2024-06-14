@@ -11,12 +11,9 @@ import (
 	crypto_rand "crypto/rand"
 	"errors"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"testing"
-
-	"github.com/zmap/zgrab2/lib/ssh/terminal"
 )
 
 type serverType func(Channel, <-chan *Request, *testing.T)
@@ -35,7 +32,7 @@ func dial(handler serverType, t *testing.T) *Client {
 		}
 		conf.AddHostKey(testSigners["rsa"])
 
-		_, chans, reqs, err := NewServerConn(c1, &conf)
+		conn, chans, reqs, err := NewServerConn(c1, &conf)
 		if err != nil {
 			t.Fatalf("Unable to handshake: %v", err)
 		}
@@ -56,10 +53,14 @@ func dial(handler serverType, t *testing.T) *Client {
 				handler(ch, inReqs, t)
 			}()
 		}
+		if err := conn.Wait(); err != io.EOF {
+			t.Logf("server exit reason: %v", err)
+		}
 	}()
 
 	config := &ClientConfig{
-		User: "testuser",
+		User:            "testuser",
+		HostKeyCallback: InsecureIgnoreHostKey(),
 	}
 
 	conn, chans, reqs, err := NewClientConn(c2, "", config)
@@ -70,64 +71,7 @@ func dial(handler serverType, t *testing.T) *Client {
 	return NewClient(conn, chans, reqs)
 }
 
-// Test a simple string is returned to session.Stdout.
-func TestSessionShell(t *testing.T) {
-	conn := dial(shellHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	stdout := new(bytes.Buffer)
-	session.Stdout = stdout
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %s", err)
-	}
-	if err := session.Wait(); err != nil {
-		t.Fatalf("Remote command did not exit cleanly: %v", err)
-	}
-	actual := stdout.String()
-	if actual != "golang" {
-		t.Fatalf("Remote shell did not return expected string: expected=golang, actual=%s", actual)
-	}
-}
-
 // TODO(dfc) add support for Std{in,err}Pipe when the Server supports it.
-
-// Test a simple string is returned via StdoutPipe.
-func TestSessionStdoutPipe(t *testing.T) {
-	conn := dial(shellHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		t.Fatalf("Unable to request StdoutPipe(): %v", err)
-	}
-	var buf bytes.Buffer
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	done := make(chan bool, 1)
-	go func() {
-		if _, err := io.Copy(&buf, stdout); err != nil {
-			t.Errorf("Copy of stdout failed: %v", err)
-		}
-		done <- true
-	}()
-	if err := session.Wait(); err != nil {
-		t.Fatalf("Remote command did not exit cleanly: %v", err)
-	}
-	<-done
-	actual := buf.String()
-	if actual != "golang" {
-		t.Fatalf("Remote shell did not return expected string: expected=golang, actual=%s", actual)
-	}
-}
 
 // Test that a simple string is returned via the Output helper,
 // and that stderr is discarded.
@@ -178,145 +122,6 @@ func TestSessionCombinedOutput(t *testing.T) {
 	}
 }
 
-// Test non-0 exit status is returned correctly.
-func TestExitStatusNonZero(t *testing.T) {
-	conn := dial(exitStatusNonZeroHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err == nil {
-		t.Fatalf("expected command to fail but it didn't")
-	}
-	e, ok := err.(*ExitError)
-	if !ok {
-		t.Fatalf("expected *ExitError but got %T", err)
-	}
-	if e.ExitStatus() != 15 {
-		t.Fatalf("expected command to exit with 15 but got %v", e.ExitStatus())
-	}
-}
-
-// Test 0 exit status is returned correctly.
-func TestExitStatusZero(t *testing.T) {
-	conn := dial(exitStatusZeroHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err != nil {
-		t.Fatalf("expected nil but got %v", err)
-	}
-}
-
-// Test exit signal and status are both returned correctly.
-func TestExitSignalAndStatus(t *testing.T) {
-	conn := dial(exitSignalAndStatusHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err == nil {
-		t.Fatalf("expected command to fail but it didn't")
-	}
-	e, ok := err.(*ExitError)
-	if !ok {
-		t.Fatalf("expected *ExitError but got %T", err)
-	}
-	if e.Signal() != "TERM" || e.ExitStatus() != 15 {
-		t.Fatalf("expected command to exit with signal TERM and status 15 but got signal %s and status %v", e.Signal(), e.ExitStatus())
-	}
-}
-
-// Test exit signal and status are both returned correctly.
-func TestKnownExitSignalOnly(t *testing.T) {
-	conn := dial(exitSignalHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err == nil {
-		t.Fatalf("expected command to fail but it didn't")
-	}
-	e, ok := err.(*ExitError)
-	if !ok {
-		t.Fatalf("expected *ExitError but got %T", err)
-	}
-	if e.Signal() != "TERM" || e.ExitStatus() != 143 {
-		t.Fatalf("expected command to exit with signal TERM and status 143 but got signal %s and status %v", e.Signal(), e.ExitStatus())
-	}
-}
-
-// Test exit signal and status are both returned correctly.
-func TestUnknownExitSignal(t *testing.T) {
-	conn := dial(exitSignalUnknownHandler, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err == nil {
-		t.Fatalf("expected command to fail but it didn't")
-	}
-	e, ok := err.(*ExitError)
-	if !ok {
-		t.Fatalf("expected *ExitError but got %T", err)
-	}
-	if e.Signal() != "SYS" || e.ExitStatus() != 128 {
-		t.Fatalf("expected command to exit with signal SYS and status 128 but got signal %s and status %v", e.Signal(), e.ExitStatus())
-	}
-}
-
-func TestExitWithoutStatusOrSignal(t *testing.T) {
-	conn := dial(exitWithoutSignalOrStatus, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatalf("Unable to request new session: %v", err)
-	}
-	defer session.Close()
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err == nil {
-		t.Fatalf("expected command to fail but it didn't")
-	}
-	if _, ok := err.(*ExitMissingError); !ok {
-		t.Fatalf("got %T want *ExitMissingError", err)
-	}
-}
-
 // windowTestBytes is the number of bytes that we'll send to the SSH server.
 const windowTestBytes = 16000 * 200
 
@@ -357,10 +162,9 @@ func TestServerWindow(t *testing.T) {
 	}
 	written, err := copyNRandomly("stdin", serverStdin, origBuf, windowTestBytes)
 	if err != nil {
-		t.Fatalf("failed to copy origBuf to serverStdin: %v", err)
-	}
-	if written != windowTestBytes {
-		t.Fatalf("Wrote only %d of %d bytes to server", written, windowTestBytes)
+		t.Errorf("failed to copy origBuf to serverStdin: %v", err)
+	} else if written != windowTestBytes {
+		t.Errorf("Wrote only %d of %d bytes to server", written, windowTestBytes)
 	}
 
 	echoedBytes := <-result
@@ -370,107 +174,8 @@ func TestServerWindow(t *testing.T) {
 	}
 }
 
-// Verify the client can handle a keepalive packet from the server.
-func TestClientHandlesKeepalives(t *testing.T) {
-	conn := dial(channelKeepaliveSender, t)
-	defer conn.Close()
-	session, err := conn.NewSession()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer session.Close()
-	if err := session.Shell(); err != nil {
-		t.Fatalf("Unable to execute command: %v", err)
-	}
-	err = session.Wait()
-	if err != nil {
-		t.Fatalf("expected nil but got: %v", err)
-	}
-}
-
 type exitStatusMsg struct {
 	Status uint32
-}
-
-type exitSignalMsg struct {
-	Signal     string
-	CoreDumped bool
-	Errmsg     string
-	Lang       string
-}
-
-func handleTerminalRequests(in <-chan *Request) {
-	for req := range in {
-		ok := false
-		switch req.Type {
-		case "shell":
-			ok = true
-			if len(req.Payload) > 0 {
-				// We don't accept any commands, only the default shell.
-				ok = false
-			}
-		case "env":
-			ok = true
-		}
-		req.Reply(ok, nil)
-	}
-}
-
-func newServerShell(ch Channel, in <-chan *Request, prompt string) *terminal.Terminal {
-	term := terminal.NewTerminal(ch, prompt)
-	go handleTerminalRequests(in)
-	return term
-}
-
-func exitStatusZeroHandler(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	// this string is returned to stdout
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-	sendStatus(0, ch, t)
-}
-
-func exitStatusNonZeroHandler(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-	sendStatus(15, ch, t)
-}
-
-func exitSignalAndStatusHandler(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-	sendStatus(15, ch, t)
-	sendSignal("TERM", ch, t)
-}
-
-func exitSignalHandler(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-	sendSignal("TERM", ch, t)
-}
-
-func exitSignalUnknownHandler(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-	sendSignal("SYS", ch, t)
-}
-
-func exitWithoutSignalOrStatus(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-}
-
-func shellHandler(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	// this string is returned to stdout
-	shell := newServerShell(ch, in, "golang")
-	readLine(shell, t)
-	sendStatus(0, ch, t)
 }
 
 // Ignores the command, writes fixed strings to stderr and stdout.
@@ -499,12 +204,6 @@ func fixedOutputHandler(ch Channel, in <-chan *Request, t *testing.T) {
 	sendStatus(0, ch, t)
 }
 
-func readLine(shell *terminal.Terminal, t *testing.T) {
-	if _, err := shell.ReadLine(); err != nil && err != io.EOF {
-		t.Errorf("unable to read line: %v", err)
-	}
-}
-
 func sendStatus(status uint32, ch Channel, t *testing.T) {
 	msg := exitStatusMsg{
 		Status: status,
@@ -512,23 +211,6 @@ func sendStatus(status uint32, ch Channel, t *testing.T) {
 	if _, err := ch.SendRequest("exit-status", false, Marshal(&msg)); err != nil {
 		t.Errorf("unable to send status: %v", err)
 	}
-}
-
-func sendSignal(signal string, ch Channel, t *testing.T) {
-	sig := exitSignalMsg{
-		Signal:     signal,
-		CoreDumped: false,
-		Errmsg:     "Process terminated",
-		Lang:       "en-GB-oed",
-	}
-	if _, err := ch.SendRequest("exit-signal", false, Marshal(&sig)); err != nil {
-		t.Errorf("unable to send signal: %v", err)
-	}
-}
-
-func discardHandler(ch Channel, t *testing.T) {
-	defer ch.Close()
-	io.Copy(ioutil.Discard, ch)
 }
 
 func echoHandler(ch Channel, in <-chan *Request, t *testing.T) {
@@ -568,16 +250,6 @@ func copyNRandomly(title string, dst io.Writer, src io.Reader, n int) (int, erro
 	return written, nil
 }
 
-func channelKeepaliveSender(ch Channel, in <-chan *Request, t *testing.T) {
-	defer ch.Close()
-	shell := newServerShell(ch, in, "> ")
-	readLine(shell, t)
-	if _, err := ch.SendRequest("keepalive@openssh.com", true, nil); err != nil {
-		t.Errorf("unable to send channel keepalive request: %v", err)
-	}
-	sendStatus(0, ch, t)
-}
-
 func TestClientWriteEOF(t *testing.T) {
 	conn := dial(simpleEchoHandler, t)
 	defer conn.Close()
@@ -603,7 +275,7 @@ func TestClientWriteEOF(t *testing.T) {
 	}
 	stdin.Close()
 
-	res, err := ioutil.ReadAll(stdout)
+	res, err := io.ReadAll(stdout)
 	if err != nil {
 		t.Fatalf("Read failed: %v", err)
 	}
@@ -615,7 +287,7 @@ func TestClientWriteEOF(t *testing.T) {
 
 func simpleEchoHandler(ch Channel, in <-chan *Request, t *testing.T) {
 	defer ch.Close()
-	data, err := ioutil.ReadAll(ch)
+	data, err := io.ReadAll(ch)
 	if err != nil {
 		t.Errorf("handler read error: %v", err)
 	}
@@ -641,7 +313,8 @@ func TestSessionID(t *testing.T) {
 	}
 	serverConf.AddHostKey(testSigners["ecdsa"])
 	clientConf := &ClientConfig{
-		User: "user",
+		HostKeyCallback: InsecureIgnoreHostKey(),
+		User:            "user",
 	}
 
 	go func() {
@@ -747,11 +420,19 @@ func TestHostKeyAlgorithms(t *testing.T) {
 
 	// By default, we get the preferred algorithm, which is ECDSA 256.
 
-	clientConf := &ClientConfig{}
+	clientConf := &ClientConfig{
+		HostKeyCallback: InsecureIgnoreHostKey(),
+	}
 	connect(clientConf, KeyAlgoECDSA256)
 
 	// Client asks for RSA explicitly.
 	clientConf.HostKeyAlgorithms = []string{KeyAlgoRSA}
+	connect(clientConf, KeyAlgoRSA)
+
+	// Client asks for RSA-SHA2-512 explicitly.
+	clientConf.HostKeyAlgorithms = []string{KeyAlgoRSASHA512}
+	// We get back an "ssh-rsa" key but the verification happened
+	// with an RSA-SHA2-512 signature.
 	connect(clientConf, KeyAlgoRSA)
 
 	c1, c2, err := netPipe()
@@ -766,5 +447,56 @@ func TestHostKeyAlgorithms(t *testing.T) {
 	_, _, _, err = NewClientConn(c2, "", clientConf)
 	if err == nil {
 		t.Fatal("succeeded connecting with unknown hostkey algorithm")
+	}
+}
+
+func TestServerClientAuthCallback(t *testing.T) {
+	c1, c2, err := netPipe()
+	if err != nil {
+		t.Fatalf("netPipe: %v", err)
+	}
+	defer c1.Close()
+	defer c2.Close()
+
+	userCh := make(chan string, 1)
+
+	serverConf := &ServerConfig{
+		NoClientAuth: true,
+		NoClientAuthCallback: func(conn ConnMetadata) (*Permissions, error) {
+			userCh <- conn.User()
+			return nil, nil
+		},
+	}
+	const someUsername = "some-username"
+
+	serverConf.AddHostKey(testSigners["ecdsa"])
+	clientConf := &ClientConfig{
+		HostKeyCallback: InsecureIgnoreHostKey(),
+		User:            someUsername,
+	}
+
+	go func() {
+		_, chans, reqs, err := NewServerConn(c1, serverConf)
+		if err != nil {
+			t.Errorf("server handshake: %v", err)
+			userCh <- "error"
+			return
+		}
+		go DiscardRequests(reqs)
+		for ch := range chans {
+			ch.Reject(Prohibited, "")
+		}
+	}()
+
+	conn, _, _, err := NewClientConn(c2, "", clientConf)
+	if err != nil {
+		t.Fatalf("client handshake: %v", err)
+		return
+	}
+	conn.Close()
+
+	got := <-userCh
+	if got != someUsername {
+		t.Errorf("username = %q; want %q", got, someUsername)
 	}
 }

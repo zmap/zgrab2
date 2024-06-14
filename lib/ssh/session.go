@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"sync"
 )
 
@@ -85,6 +84,7 @@ const (
 	IXANY         = 39
 	IXOFF         = 40
 	IMAXBEL       = 41
+	IUTF8         = 42 // RFC 8160
 	ISIG          = 50
 	ICANON        = 51
 	XCASE         = 52
@@ -123,7 +123,7 @@ type Session struct {
 	// output and error.
 	//
 	// If either is nil, Run connects the corresponding file
-	// descriptor to an instance of ioutil.Discard. There is a
+	// descriptor to an instance of io.Discard. There is a
 	// fixed amount of buffering that is shared for the two streams.
 	// If either blocks it may eventually cause the remote
 	// command to block.
@@ -228,6 +228,26 @@ func (s *Session) RequestSubsystem(subsystem string) error {
 	if err == nil && !ok {
 		err = errors.New("ssh: subsystem request failed")
 	}
+	return err
+}
+
+// RFC 4254 Section 6.7.
+type ptyWindowChangeMsg struct {
+	Columns uint32
+	Rows    uint32
+	Width   uint32
+	Height  uint32
+}
+
+// WindowChange informs the remote host about a terminal window dimension change to h rows and w columns.
+func (s *Session) WindowChange(h, w int) error {
+	req := ptyWindowChangeMsg{
+		Columns: uint32(w),
+		Rows:    uint32(h),
+		Width:   uint32(w * 8),
+		Height:  uint32(h * 8),
+	}
+	_, err := s.ch.SendRequest("window-change", false, Marshal(&req))
 	return err
 }
 
@@ -485,7 +505,7 @@ func (s *Session) stdout() {
 		return
 	}
 	if s.Stdout == nil {
-		s.Stdout = ioutil.Discard
+		s.Stdout = io.Discard
 	}
 	s.copyFuncs = append(s.copyFuncs, func() error {
 		_, err := io.Copy(s.Stdout, s.ch)
@@ -498,7 +518,7 @@ func (s *Session) stderr() {
 		return
 	}
 	if s.Stderr == nil {
-		s.Stderr = ioutil.Discard
+		s.Stderr = io.Discard
 	}
 	s.copyFuncs = append(s.copyFuncs, func() error {
 		_, err := io.Copy(s.Stderr, s.ch.Stderr())

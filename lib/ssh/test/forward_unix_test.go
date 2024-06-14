@@ -2,53 +2,62 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux netbsd openbsd
+//go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd
+// +build aix darwin dragonfly freebsd linux netbsd openbsd
 
 package test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"testing"
 	"time"
 )
 
-func DISABLED_TestPortForward(t *testing.T) {
+type closeWriter interface {
+	CloseWrite() error
+}
+
+func testPortForward(t *testing.T, n, listenAddr string) {
 	server := newServer(t)
 	defer server.Shutdown()
 	conn := server.Dial(clientConfig())
 	defer conn.Close()
 
-	sshListener, err := conn.Listen("tcp", "localhost:0")
+	sshListener, err := conn.Listen(n, listenAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	errCh := make(chan error, 1)
+
 	go func() {
+		defer close(errCh)
 		sshConn, err := sshListener.Accept()
 		if err != nil {
-			t.Fatalf("listen.Accept failed: %v", err)
+			errCh <- fmt.Errorf("listen.Accept failed: %v", err)
+			return
 		}
+		defer sshConn.Close()
 
 		_, err = io.Copy(sshConn, sshConn)
 		if err != nil && err != io.EOF {
-			t.Fatalf("ssh client copy: %v", err)
+			errCh <- fmt.Errorf("ssh client copy: %v", err)
 		}
-		sshConn.Close()
 	}()
 
 	forwardedAddr := sshListener.Addr().String()
-	tcpConn, err := net.Dial("tcp", forwardedAddr)
+	netConn, err := net.Dial(n, forwardedAddr)
 	if err != nil {
-		t.Fatalf("TCP dial failed: %v", err)
+		t.Fatalf("net dial failed: %v", err)
 	}
 
 	readChan := make(chan []byte)
 	go func() {
-		data, _ := ioutil.ReadAll(tcpConn)
+		data, _ := io.ReadAll(netConn)
 		readChan <- data
 	}()
 
@@ -62,14 +71,20 @@ func DISABLED_TestPortForward(t *testing.T) {
 	for len(sent) < 1000*1000 {
 		// Send random sized chunks
 		m := rand.Intn(len(data))
-		n, err := tcpConn.Write(data[:m])
+		n, err := netConn.Write(data[:m])
 		if err != nil {
 			break
 		}
 		sent = append(sent, data[:n]...)
 	}
-	if err := tcpConn.(*net.TCPConn).CloseWrite(); err != nil {
-		t.Errorf("tcpConn.CloseWrite: %v", err)
+	if err := netConn.(closeWriter).CloseWrite(); err != nil {
+		t.Errorf("netConn.CloseWrite: %v", err)
+	}
+
+	// Check for errors on server goroutine
+	err = <-errCh
+	if err != nil {
+		t.Fatalf("server: %v", err)
 	}
 
 	read := <-readChan
@@ -86,19 +101,29 @@ func DISABLED_TestPortForward(t *testing.T) {
 	}
 
 	// Check that the forward disappeared.
-	tcpConn, err = net.Dial("tcp", forwardedAddr)
+	netConn, err = net.Dial(n, forwardedAddr)
 	if err == nil {
-		tcpConn.Close()
+		netConn.Close()
 		t.Errorf("still listening to %s after closing", forwardedAddr)
 	}
 }
 
-func DISABLED_TestAcceptClose(t *testing.T) {
+func TestPortForwardTCP(t *testing.T) {
+	testPortForward(t, "tcp", "localhost:0")
+}
+
+func TestPortForwardUnix(t *testing.T) {
+	addr, cleanup := newTempSocket(t)
+	defer cleanup()
+	testPortForward(t, "unix", addr)
+}
+
+func testAcceptClose(t *testing.T, n, listenAddr string) {
 	server := newServer(t)
 	defer server.Shutdown()
 	conn := server.Dial(clientConfig())
 
-	sshListener, err := conn.Listen("tcp", "localhost:0")
+	sshListener, err := conn.Listen(n, listenAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,13 +149,23 @@ func DISABLED_TestAcceptClose(t *testing.T) {
 	}
 }
 
+func TestAcceptCloseTCP(t *testing.T) {
+	testAcceptClose(t, "tcp", "localhost:0")
+}
+
+func TestAcceptCloseUnix(t *testing.T) {
+	addr, cleanup := newTempSocket(t)
+	defer cleanup()
+	testAcceptClose(t, "unix", addr)
+}
+
 // Check that listeners exit if the underlying client transport dies.
-func DISABLED_TestPortForwardConnectionClose(t *testing.T) {
+func testPortForwardConnectionClose(t *testing.T, n, listenAddr string) {
 	server := newServer(t)
 	defer server.Shutdown()
 	conn := server.Dial(clientConfig())
 
-	sshListener, err := conn.Listen("tcp", "localhost:0")
+	sshListener, err := conn.Listen(n, listenAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,4 +192,14 @@ func DISABLED_TestPortForwardConnectionClose(t *testing.T) {
 	case err := <-quit:
 		t.Logf("quit as expected (error %v)", err)
 	}
+}
+
+func TestPortForwardConnectionCloseTCP(t *testing.T) {
+	testPortForwardConnectionClose(t, "tcp", "localhost:0")
+}
+
+func TestPortForwardConnectionCloseUnix(t *testing.T) {
+	addr, cleanup := newTempSocket(t)
+	defer cleanup()
+	testPortForwardConnectionClose(t, "unix", addr)
 }

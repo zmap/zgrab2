@@ -46,7 +46,7 @@ func init() {
 		Nonce:           []byte{},                       // To pass reflect.DeepEqual after marshal & parse, this must be non-nil
 		ValidPrincipals: []string{"gopher1", "gopher2"}, // increases test coverage
 		ValidAfter:      0,                              // unix epoch
-		ValidBefore:     ssh.CertTimeInfinity,          // The end of currently representable time.
+		ValidBefore:     ssh.CertTimeInfinity,           // The end of currently representable time.
 		Reserved:        []byte{},                       // To pass reflect.DeepEqual after marshal & parse, this must be non-nil
 		Key:             testPublicKeys["ecdsa"],
 		SignatureKey:    testPublicKeys["rsa"],
