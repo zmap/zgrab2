@@ -3,6 +3,7 @@ package pptp
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 type Flags struct {
 	zgrab2.BaseFlags
+	Hex bool `short:"x" long:"hex" description:"Оutputs as a byte sequence or conversion to a string"`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -135,10 +137,11 @@ type StartControlConnectionReply struct {
 	FirmwareRevision    uint16
 	Hostname            string
 	Vendor              string
+	Banner              string
 }
 
 // Reading the response and filling in the structure
-func readReply(data []byte) *StartControlConnectionReply {
+func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 
 	//Clipping the last insignificant zeros in a string
 	cutLastZero := func(b []byte) []byte {
@@ -166,6 +169,12 @@ func readReply(data []byte) *StartControlConnectionReply {
 		Vendor:              string(cutLastZero(data[92:156])),
 	}
 
+	if scanner.config.Hex {
+		reply.Banner = hex.EncodeToString(data)
+	} else {
+		reply.Banner = string(data)
+	}
+
 	return reply
 }
 
@@ -189,8 +198,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-
-	reply := readReply(data)
+	reply := scanner.readReply(data)
 	if reply.MagicCookie != MAGIC_COOKIE {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("magic cookie is not equal")
 	}
