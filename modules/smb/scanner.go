@@ -93,17 +93,17 @@ func (scanner *Scanner) Protocol() string {
 }
 
 // Scan performs the following:
-// 1. Connect to the TCP port (default 445).
-// 2. Send a negotiation packet with the default values:
-//      Dialects = { DialectSmb_2_1 },
-//      SecurityMode = SecurityModeSigningEnabled
-// 3. Read response from server; on failure, exit with log = nil.
-//      If the server returns a protocol ID indicating support for version 1, set smbv1_support = true
-//      Pull out the relevant information from the response packet
-// 4. If --setup-session is not set, exit with success.
-// 5. Send a setup session packet to the server with appropriate values
-// 6. Read the response from the server; on failure, exit with the log so far.
-// 7. Return the log.
+//  1. Connect to the TCP port (default 445).
+//  2. Send a negotiation packet with the default values:
+//     Dialects = { DialectSmb_2_1 },
+//     SecurityMode = SecurityModeSigningEnabled
+//  3. Read response from server; on failure, exit with log = nil.
+//     If the server returns a protocol ID indicating support for version 1, set smbv1_support = true
+//     Pull out the relevant information from the response packet
+//  4. If --setup-session is not set, exit with success.
+//  5. Send a setup session packet to the server with appropriate values
+//  6. Read the response from the server; on failure, exit with the log so far.
+//  7. Return the log.
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {

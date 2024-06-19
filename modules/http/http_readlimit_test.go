@@ -109,11 +109,11 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 
 		head := "HTTP/1.0 200 OK\r\nBogus-Header: X"
 		if cfg.customHeader != nil {
-		  head = *cfg.customHeader
+			head = *cfg.customHeader
 		}
 		headSuffix := fmt.Sprintf("\r\nContent-Length: %d\r\n\r\n", cfg.bodySize)
 		if cfg.customSuffix != nil {
-		  headSuffix = *cfg.customSuffix
+			headSuffix = *cfg.customSuffix
 		}
 		size := cfg.headerSize - len(head) - len(headSuffix)
 		if size < 0 {
@@ -210,7 +210,7 @@ const (
 	readLimitTestConfigHTTPSBasePort = 0x7bbc
 )
 
-func adr(s string) *string {return &s}
+func adr(s string) *string { return &s }
 
 var readLimitTestConfigs = map[string]*readLimitTestConfig{
 	// The socket truncates the connection while reading the body. To the client it looks as if the
@@ -233,21 +233,21 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 	// and the truncated body.
 	// maxReadSize > headerSize + bodySize > bodySize > maxBodySize
 	"truncate_body": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 1,
-		maxBodySize:	2048,
-		maxReadSize:	8192,
-		headerSize:		64,
-		bodySize:		4096,
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 1,
+		maxBodySize:    2048,
+		maxReadSize:    8192,
+		headerSize:     64,
+		bodySize:       4096,
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 	"tls_truncate_body": {
-		tls:			true,
-		port:			readLimitTestConfigHTTPSBasePort + 1,
-		maxBodySize:	2048,
-		maxReadSize:	8192,
-		headerSize:		64,
-		bodySize:		4096,
+		tls:            true,
+		port:           readLimitTestConfigHTTPSBasePort + 1,
+		maxBodySize:    2048,
+		maxReadSize:    8192,
+		headerSize:     64,
+		bodySize:       4096,
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 
@@ -255,21 +255,21 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 	// response, but we capture the output regardless
 	// headerSize > maxReadSize
 	"truncate_read_header": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 2,
-		maxBodySize:	1024,
-		maxReadSize:	2048,
-		headerSize:		3072,
-		bodySize:		0,
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    1024,
+		maxReadSize:    2048,
+		headerSize:     3072,
+		bodySize:       0,
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 	"tls_truncate_read_header": {
-		tls:			true,
-		port:			readLimitTestConfigHTTPSBasePort + 2,
-		maxBodySize:	1024,
-		maxReadSize:	2048,
-		headerSize:		3072,
-		bodySize:		0,
+		tls:            true,
+		port:           readLimitTestConfigHTTPSBasePort + 2,
+		maxBodySize:    1024,
+		maxReadSize:    2048,
+		headerSize:     3072,
+		bodySize:       0,
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 
@@ -277,82 +277,82 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 	// response
 	// headerSize > maxReadSize
 	"invalid_status_code": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 2,
-		maxBodySize:	8192,
-		maxReadSize:	8192,
-		headerSize:		1024,
-		bodySize:		1024,
-		customHeader:	adr("HTTP/1.0 200"),
-		expectedError:	"malformed HTTP status code",
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr("HTTP/1.0 200"),
+		expectedError:  "malformed HTTP status code",
 		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
 	},
 	"tls_invalid_status_code": {
-		tls:			true,
-		port:			readLimitTestConfigHTTPSBasePort + 2,
-		maxBodySize:	8192,
-		maxReadSize:	8192,
-		headerSize:		1024,
-		bodySize:		1024,
-		customHeader:	adr("HTTP/1.0 200"),
-		expectedError:	"malformed HTTP status code",
+		tls:            true,
+		port:           readLimitTestConfigHTTPSBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr("HTTP/1.0 200"),
+		expectedError:  "malformed HTTP status code",
 		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
 	},
 
 	"invalid_no_status": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 2,
-		maxBodySize:	8192,
-		maxReadSize:	8192,
-		headerSize:		1024,
-		bodySize:		1024,
-		customHeader:	adr(""),
-		customSuffix:	adr(""),
-		expectedError:	"malformed HTTP response",
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr(""),
+		customSuffix:   adr(""),
+		expectedError:  "malformed HTTP response",
 		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
 	},
 
 	"invalid_response": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 2,
-		maxBodySize:	8192,
-		maxReadSize:	8192,
-		headerSize:		1024,
-		bodySize:		1024,
-		customHeader:	adr(""),
-		expectedError:	"malformed HTTP response",
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr(""),
+		expectedError:  "malformed HTTP response",
 		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
 	},
 
 	"invalid_low_read_limit": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 2,
-		maxBodySize:	8192,
-		maxReadSize:	1,
-		headerSize:		1024,
-		bodySize:		1024,
-		expectedError:	"malformed HTTP response",
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    1,
+		headerSize:     1024,
+		bodySize:       1024,
+		expectedError:  "malformed HTTP response",
 		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
 	},
 
 	// Happy case. None of the limits are hit.
 	// maxReadSize >= maxBodySize > bodySize + headerSize
 	"happy_case": {
-		tls:			false,
-		port:			readLimitTestConfigHTTPBasePort + 3,
-		maxBodySize:	8192,
-		maxReadSize:	8192,
-		headerSize:		1024,
-		bodySize:		1024,
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 3,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 	"tls_happy_case": {
-		tls:			true,
-		port:			readLimitTestConfigHTTPSBasePort + 3,
-		maxBodySize:	8192,
-		maxReadSize:	8192,
-		headerSize:		1024,
-		bodySize:		1024,
+		tls:            true,
+		port:           readLimitTestConfigHTTPSBasePort + 3,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 }
@@ -390,30 +390,30 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 		t.Errorf("Expected error '%s' but got none", cfg.expectedError)
 	}
 	if cfg.expectedStatus == zgrab2.SCAN_SUCCESS {
-	  if response == nil {
-		t.Errorf("Expected response, but got none")
-	  }
+		if response == nil {
+			t.Errorf("Expected response, but got none")
+		}
 
-	  statusCode := response.Status
-	  if statusCode != "200 OK" {
-		t.Errorf("Expected status %s, but got %s", "200 OK", statusCode)
-	  }
+		statusCode := response.Status
+		if statusCode != "200 OK" {
+			t.Errorf("Expected status %s, but got %s", "200 OK", statusCode)
+		}
 
-	  body := response.BodyText
-	  if body == "" {
-		if cfg.bodySize != 0 {
-		  t.Errorf("Expected success, but got no body")
+		body := response.BodyText
+		if body == "" {
+			if cfg.bodySize != 0 {
+				t.Errorf("Expected success, but got no body")
+			}
+		} else {
+			if len(body) > cfg.maxBodySize || len(body) > cfg.maxReadSize {
+				t.Errorf("Body exceeds max size: len(body)=%d; maxBodySize=%d, maxReadSize=%d", len(body), cfg.maxBodySize, cfg.maxReadSize)
+			}
+			if !cfg.tls {
+				if len(body)+cfg.headerSize > cfg.maxReadSize {
+					t.Errorf("Body and header exceed max read size: len(body)=%d, headerSize=%d, maxReadSize=%d", len(body), cfg.headerSize, cfg.maxReadSize)
+				}
+			}
 		}
-	  } else {
-		if len(body) > cfg.maxBodySize || len(body) > cfg.maxReadSize {
-		  t.Errorf("Body exceeds max size: len(body)=%d; maxBodySize=%d, maxReadSize=%d", len(body), cfg.maxBodySize, cfg.maxReadSize)
-		}
-		if !cfg.tls {
-		  if len(body)+cfg.headerSize > cfg.maxReadSize {
-			t.Errorf("Body and header exceed max read size: len(body)=%d, headerSize=%d, maxReadSize=%d", len(body), cfg.headerSize, cfg.maxReadSize)
-		  }
-		}
-	  }
 	}
 }
 

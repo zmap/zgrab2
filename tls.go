@@ -67,7 +67,7 @@ type TLSFlags struct {
 	// TODO: format?
 	ClientRandom string `long:"client-random" description:"Set an explicit Client Random (base64 encoded)"`
 	// TODO: format?
-	ClientHello       string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
+	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
 }
 
 func getCSV(arg string) []string {
@@ -152,8 +152,8 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		}
 	}
 
-  asn1.AllowPermissiveParsing = true
-  pkix.LegacyNameString = true
+	asn1.AllowPermissiveParsing = true
+	pkix.LegacyNameString = true
 
 	if t.NextProtos != "" {
 		// TODO: Different format?

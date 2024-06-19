@@ -110,15 +110,15 @@ func (kex *KexInitMsg) MarshalJSON() ([]byte, error) {
 }
 
 func (kex *KexInitMsg) GenerateServerHaSSH() string {
-  input := strings.Join(
-    []string {
-      strings.Join(kex.KexAlgos, ","),
-      strings.Join(kex.CiphersServerClient, ","),
-      strings.Join(kex.MACsServerClient, ","),
-      strings.Join(kex.CompressionServerClient, ","),
-    }, ";")
-  md5 := md5.Sum([]byte(input))
-  return hex.EncodeToString(md5[:])
+	input := strings.Join(
+		[]string{
+			strings.Join(kex.KexAlgos, ","),
+			strings.Join(kex.CiphersServerClient, ","),
+			strings.Join(kex.MACsServerClient, ","),
+			strings.Join(kex.CompressionServerClient, ","),
+		}, ";")
+	md5 := md5.Sum([]byte(input))
+	return hex.EncodeToString(md5[:])
 }
 
 // See RFC 4253, section 8.
