@@ -17,7 +17,7 @@ test:
 	cd lib/output/test && go test -v ./...
 	cd modules && go test -v ./...
 
-gofmt:
+lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
 
 zgrab2: $(GO_FILES)
