@@ -86,13 +86,16 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 type StartControlConnectionReply struct {
+	Vendor string
 	Banner string
 }
 
 // Reading the response and filling in the structure
 func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 
-	reply := &StartControlConnectionReply{}
+	reply := &StartControlConnectionReply{
+		Vendor: "Mikrotik RouterOS",
+	}
 
 	if scanner.config.Hex {
 		reply.Banner = hex.EncodeToString(data)
