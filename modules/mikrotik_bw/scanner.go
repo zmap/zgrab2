@@ -117,7 +117,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	reply := scanner.readReply(data)
-	if reply.Banner != "01000000" {
+	if data != []byte("\x01\x00\x00\x00") {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("magic cookie is not equal")
 	}
 
