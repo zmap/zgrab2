@@ -86,8 +86,8 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 type StartControlConnectionReply struct {
-	vendor string
-	banner string
+	Vendor string
+	Banner string
 }
 
 // Reading the response and filling in the structure
@@ -96,12 +96,12 @@ func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 	reply := &StartControlConnectionReply{}
 
 	if scanner.config.Hex {
-		reply.banner = hex.EncodeToString(data)
+		reply.Banner = hex.EncodeToString(data)
 	} else {
-		reply.banner = string(data)
+		reply.Banner = string(data)
 	}
 	if bytes.Equal(data, []byte("\x01\x00\x00\x00")) {
-		reply.vendor = "Mikrotik RouterOS"
+		reply.Vendor = "Mikrotik RouterOS"
 	}
 
 	return reply
@@ -122,7 +122,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	reply := scanner.readReply(data)
-	if reply.vendor == "" {
+	if reply.Vendor == "" {
 		return zgrab2.SCAN_UNKNOWN_ERROR, reply, fmt.Errorf("banner not equal")
 	}
 
