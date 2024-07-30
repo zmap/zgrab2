@@ -87,31 +87,32 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 type ConnectionReply struct {
-	Start           [32]byte
-	Model           string //16
-	Middle          [32]byte
-	FirmwareVersion string // 16
-	End             [32]byte
-	SerialNumber    string // 16
-	Banner          string
+	/* 	Start           [32]byte
+	   	Model           string //16
+	   	Middle          [32]byte
+	   	FirmwareVersion string // 16
+	   	End             [32]byte
+	   	SerialNumber    string // 16 */
+	Banner string
 }
 
 // Reading the response and filling in the structure
 func (scanner *Scanner) readReply(data []byte) *ConnectionReply {
 
 	//Clipping the last insignificant zeros in a string
-	cutLastZero := func(b []byte) []byte {
+	/* cutLastZero := func(b []byte) []byte {
 		for i := len(b) - 1; i > 0; i-- {
 			if b[i] != 0 {
 				return b[:i+1]
 			}
 		}
 		return make([]byte, 0)
-	}
+	} */
 
 	reply := &ConnectionReply{}
-	lenData := len(data)
-	if lenData >= 32 {
+
+	//lenData := len(data)
+	/* if lenData >= 32 {
 		copy(reply.Start[:], data[:32])
 		if lenData >= 48 {
 			reply.Model = string(cutLastZero(data[32:48]))
@@ -128,7 +129,7 @@ func (scanner *Scanner) readReply(data []byte) *ConnectionReply {
 				}
 			}
 		}
-	}
+	} */
 
 	if scanner.config.Hex {
 		reply.Banner = hex.EncodeToString(data)
@@ -159,7 +160,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	reply := scanner.readReply(data)
-	if !(len(data) >= 32 && bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.Start[8] == byte(0x0b)) {
+	//if !(len(data) >= 32 && bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.Start[8] == byte(0x0b)) {
+	if !bytes.Equal(data[:3], []byte{0xb4, 0x00, 0x00}) {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("its not a dahua dvr")
 	}
 
