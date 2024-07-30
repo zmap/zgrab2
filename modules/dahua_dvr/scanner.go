@@ -65,7 +65,7 @@ func (f *Flags) Validate(args []string) (err error) {
 // RegisterModule registers the ftp zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("dahua_dvr", "Dahua DVR", module.Description(), 1723, &module)
+	_, err := zgrab2.AddCommand("dahua_dvr", "Dahua DVR", module.Description(), 37777, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
