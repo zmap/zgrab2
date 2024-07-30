@@ -2,7 +2,6 @@ package dahua_dvr
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -87,61 +86,18 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
 
-const MAGIC_COOKIE = 0x1A2B3C4D
-
-type StartControlConnectionRequest struct {
-	Length              uint16
-	MsgType             uint16
-	MagicCookie         uint32
-	ControlMessageType  uint16
-	Reserved0           uint16
-	ProtocolVersion     uint16
-	Reserved1           uint16
-	FramingCapabilities uint32
-	BearerCapabilities  uint32
-	MaxChannels         uint16
-	FirmwareRevision    uint16
-	Hostname            [64]byte
-	Vendor              [64]byte
-}
-
-func createStartControlConnectionRequest() *StartControlConnectionRequest {
-	request := &StartControlConnectionRequest{
-		Length:              156,
-		MsgType:             1,
-		MagicCookie:         MAGIC_COOKIE,
-		ControlMessageType:  1,
-		ProtocolVersion:     0x0100,
-		FramingCapabilities: 0x1,
-		BearerCapabilities:  0x1,
-		FirmwareRevision:    0x1,
-	}
-	copy(request.Hostname[:], "Client")
-	copy(request.Vendor[:], "Go")
-
-	return request
-}
-
-type StartControlConnectionReply struct {
-	Length              uint16
-	MsgType             uint16
-	MagicCookie         uint32
-	ControlMessageType  uint16
-	Reserved0           uint16
-	ProtocolVersion     uint16
-	ResultCode          uint8
-	ErrorCode           uint8
-	FramingCapabilities uint32
-	BearerCapabilities  uint32
-	MaxChannels         uint16
-	FirmwareRevision    uint16
-	Hostname            string
-	Vendor              string
-	Banner              string
+type ConnectionReply struct {
+	Start           [32]byte
+	Model           string //16
+	Middle          [32]byte
+	FirmwareVersion string // 16
+	End             [32]byte
+	SerialNumber    string // 16
+	Banner          string
 }
 
 // Reading the response and filling in the structure
-func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
+func (scanner *Scanner) readReply(data []byte) *ConnectionReply {
 
 	//Clipping the last insignificant zeros in a string
 	cutLastZero := func(b []byte) []byte {
@@ -153,20 +109,25 @@ func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 		return make([]byte, 0)
 	}
 
-	reply := &StartControlConnectionReply{
-		Length:              binary.BigEndian.Uint16(data[0:2]),
-		MsgType:             binary.BigEndian.Uint16(data[2:4]),
-		MagicCookie:         binary.BigEndian.Uint32(data[4:8]),
-		ControlMessageType:  binary.BigEndian.Uint16(data[8:10]),
-		ProtocolVersion:     binary.BigEndian.Uint16(data[12:14]),
-		ResultCode:          uint8(data[14]) << 4,
-		ErrorCode:           uint8(data[15]) << 4,
-		FramingCapabilities: binary.BigEndian.Uint32(data[16:20]),
-		BearerCapabilities:  binary.BigEndian.Uint32(data[20:24]),
-		MaxChannels:         binary.BigEndian.Uint16(data[24:26]),
-		FirmwareRevision:    binary.BigEndian.Uint16(data[26:28]),
-		Hostname:            string(cutLastZero(data[28:92])),
-		Vendor:              string(cutLastZero(data[92:156])),
+	reply := &ConnectionReply{}
+	lenData := len(data)
+	if lenData >= 32 {
+		copy(reply.Start[:], data[:32])
+		if lenData >= 48 {
+			reply.Model = string(cutLastZero(data[32:48]))
+			if lenData >= 80 {
+				copy(reply.Middle[:], data[48:80])
+				if lenData >= 96 {
+					reply.FirmwareVersion = string(cutLastZero(data[80:96]))
+					if lenData >= 128 {
+						copy(reply.End[:], data[96:128])
+						if lenData >= 144 {
+							reply.SerialNumber = string(cutLastZero(data[128:144]))
+						}
+					}
+				}
+			}
+		}
 	}
 
 	if scanner.config.Hex {
@@ -186,20 +147,19 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 	}
 	defer conn.Close()
 
-	request := createStartControlConnectionRequest()
-	var buffer bytes.Buffer
-	if err := binary.Write(&buffer, binary.BigEndian, request); err != nil {
+	request, err := hex.DecodeString("a4000000000000000b0000000000000000000000000000000000000000000000a400000000000000080000000000000000000000000000000000000000000000a400000000000000070000000000000000000000000000000000000000000000")
+	if err != nil {
 		fmt.Printf("Failed to encode request: %v\n", err)
 		os.Exit(1)
 	}
-	conn.Write(buffer.Bytes())
+	conn.Write(request)
 
 	data, err := zgrab2.ReadAvailable(conn)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	reply := scanner.readReply(data)
-	if reply.MagicCookie != MAGIC_COOKIE {
+	if !(bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.SomeDataFirstB[0] == 0x0b && bytes.Contains([]byte{0x00, 0x01, 0x02}, []byte{reply.SomeData3[0]})) {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("magic cookie is not equal")
 	}
 
