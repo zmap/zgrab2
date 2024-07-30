@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 
 	"github.com/zmap/zgrab2"
 )
@@ -93,43 +94,33 @@ type ConnectionReply struct {
 	   	FirmwareVersion string // 16
 	   	End             [32]byte
 	   	SerialNumber    string // 16 */
-	Banner string
+	Model           string
+	FirmwareVersion string
+	SerialNumber    string
+	Length          int
+	Banner          string
 }
 
 // Reading the response and filling in the structure
 func (scanner *Scanner) readReply(data []byte) *ConnectionReply {
 
-	//Clipping the last insignificant zeros in a string
-	/* cutLastZero := func(b []byte) []byte {
-		for i := len(b) - 1; i > 0; i-- {
-			if b[i] != 0 {
-				return b[:i+1]
+	strData := string(data)
+	re, _ := regexp.Compile(`[A-Za-z\d-\.]{2,20}`)
+	res := re.FindAllString(strData, -1)
+	lenRes := len(res)
+	reply := &ConnectionReply{
+		Length: len(data),
+	}
+
+	if lenRes >= 1 {
+		reply.Model = res[0]
+		if lenRes >= 2 {
+			reply.FirmwareVersion = res[1]
+			if lenRes >= 3 {
+				reply.SerialNumber = res[2]
 			}
 		}
-		return make([]byte, 0)
-	} */
-
-	reply := &ConnectionReply{}
-
-	//lenData := len(data)
-	/* if lenData >= 32 {
-		copy(reply.Start[:], data[:32])
-		if lenData >= 48 {
-			reply.Model = string(cutLastZero(data[32:48]))
-			if lenData >= 80 {
-				copy(reply.Middle[:], data[48:80])
-				if lenData >= 96 {
-					reply.FirmwareVersion = string(cutLastZero(data[80:96]))
-					if lenData >= 128 {
-						copy(reply.End[:], data[96:128])
-						if lenData >= 144 {
-							reply.SerialNumber = string(cutLastZero(data[128:144]))
-						}
-					}
-				}
-			}
-		}
-	} */
+	}
 
 	if scanner.config.Hex {
 		reply.Banner = hex.EncodeToString(data)
@@ -161,7 +152,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 	}
 	reply := scanner.readReply(data)
 	//if !(len(data) >= 32 && bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.Start[8] == byte(0x0b)) {
-	if !bytes.Equal(data[:3], []byte{0xb4, 0x00, 0x00}) {
+	if !(bytes.Equal(data[:3], []byte{0xb4, 0x00, 0x00}) && data[8] == byte(0x0b)) {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("its not a dahua dvr")
 	}
 
