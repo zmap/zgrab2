@@ -105,7 +105,7 @@ type ConnectionReply struct {
 func (scanner *Scanner) readReply(data []byte) *ConnectionReply {
 
 	strData := string(data)
-	re, _ := regexp.Compile(`[A-Za-z\d-\.]{2,20}`)
+	re, _ := regexp.Compile(`[A-Za-z\d-\./]{2,20}`)
 	res := re.FindAllString(strData, -1)
 	lenRes := len(res)
 	reply := &ConnectionReply{
