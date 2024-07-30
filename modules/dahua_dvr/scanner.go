@@ -159,8 +159,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	reply := scanner.readReply(data)
-	if !(bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.SomeDataFirstB[0] == 0x0b && bytes.Contains([]byte{0x00, 0x01, 0x02}, []byte{reply.SomeData3[0]})) {
-		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("magic cookie is not equal")
+	if !(len(data) >= 32 && bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.Start[8] == byte(0x0b)) {
+		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("its not a dahua dvr")
 	}
 
 	return zgrab2.SCAN_SUCCESS, reply, nil
