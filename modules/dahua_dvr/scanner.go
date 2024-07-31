@@ -101,36 +101,6 @@ type ConnectionReply struct {
 	Banner          string
 }
 
-// Reading the response and filling in the structure
-func (scanner *Scanner) readReply(data []byte) *ConnectionReply {
-
-	strData := string(data)
-	re, _ := regexp.Compile(`[A-Za-z\d-\./\(\)]{2,20}`)
-	res := re.FindAllString(strData, -1)
-	lenRes := len(res)
-	reply := &ConnectionReply{
-		Length: len(data),
-	}
-
-	if lenRes >= 1 {
-		reply.Model = res[0]
-		if lenRes >= 2 {
-			reply.FirmwareVersion = res[1]
-			if lenRes >= 3 {
-				reply.SerialNumber = res[2]
-			}
-		}
-	}
-
-	if scanner.config.Hex {
-		reply.Banner = hex.EncodeToString(data)
-	} else {
-		reply.Banner = string(data)
-	}
-
-	return reply
-}
-
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
 
 	conn, err := target.Open(&scanner.config.BaseFlags)
@@ -139,22 +109,51 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 	}
 	defer conn.Close()
 
-	request, err := hex.DecodeString("a4000000000000000b0000000000000000000000000000000000000000000000a400000000000000080000000000000000000000000000000000000000000000a400000000000000070000000000000000000000000000000000000000000000")
+	request, err := hex.DecodeString("a4000000000000000b0000000000000000000000000000000000000000000000")
 	if err != nil {
 		fmt.Printf("Failed to encode request: %v\n", err)
 		os.Exit(1)
 	}
 	conn.Write(request)
-
 	data, err := zgrab2.ReadAvailable(conn)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	reply := scanner.readReply(data)
-	//if !(len(data) >= 32 && bytes.Equal(reply.Start[:3], []byte{0xb4, 0x00, 0x00}) && reply.Start[8] == byte(0x0b)) {
 	if !(bytes.Equal(data[:3], []byte{0xb4, 0x00, 0x00}) && data[8] == byte(0x0b)) {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("its not a dahua dvr")
 	}
+
+	re, _ := regexp.Compile(`[A-Za-z\d-\./\(\)]{2,20}`)
+	reply := &ConnectionReply{
+		Model:  re.FindString(string(data)),
+		Banner: string(data),
+	}
+
+	request, err = hex.DecodeString("a400000000000000080000000000000000000000000000000000000000000000")
+	if err != nil {
+		fmt.Printf("Failed to encode request: %v\n", err)
+		os.Exit(1)
+	}
+	conn.Write(request)
+	data, err = zgrab2.ReadAvailable(conn)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	reply.FirmwareVersion = re.FindString(string(data))
+	reply.Banner = reply.Banner + string(data)
+
+	request, err = hex.DecodeString("a400000000000000070000000000000000000000000000000000000000000000")
+	if err != nil {
+		fmt.Printf("Failed to encode request: %v\n", err)
+		os.Exit(1)
+	}
+	conn.Write(request)
+	data, err = zgrab2.ReadAvailable(conn)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	reply.SerialNumber = re.FindString(string(data))
+	reply.Banner = reply.Banner + string(data)
 
 	return zgrab2.SCAN_SUCCESS, reply, nil
 }
