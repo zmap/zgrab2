@@ -64,7 +64,7 @@ func (f *Flags) Validate(args []string) (err error) {
 // RegisterModule registers this module in zgrab2
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("checkpoint_topology", "checkpoint_topology", module.Description(), 2000, &module)
+	_, err := zgrab2.AddCommand("checkpoint_topology", "checkpoint_topology", module.Description(), 264, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
