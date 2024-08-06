@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"regexp"
 
 	"github.com/zmap/zgrab2"
 )
@@ -86,14 +87,21 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 type StartControlConnectionReply struct {
-	Vendor string
-	Banner string
+	FirewallHost    string
+	SmartCenterHost string
+	Banner          string
 }
 
 // Reading the response and filling in the structure
 func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 
-	reply := &StartControlConnectionReply{}
+	re, _ := regexp.Compile(`CN=(.+),O=(.+)\.`)
+	res := re.FindAllStringSubmatch(string(data), 2)
+
+	reply := &StartControlConnectionReply{
+		FirewallHost:    res[0][1],
+		SmartCenterHost: res[0][2],
+	}
 
 	if scanner.config.Hex {
 		reply.Banner = hex.EncodeToString(data)
@@ -119,10 +127,16 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 
-	reply := scanner.readReply(data)
 	if !bytes.Equal(data, []byte("Y\x00\x00\x00")) {
-		return zgrab2.SCAN_UNKNOWN_ERROR, reply, fmt.Errorf("banner not equal")
+		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("banner not equal")
 	}
+
+	conn.Write([]byte("\x00\x00\x00\x0bsecuremote\x00"))
+	data, err = zgrab2.ReadAvailable(conn)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	reply := scanner.readReply(data)
 
 	return zgrab2.SCAN_SUCCESS, reply, nil
 }
