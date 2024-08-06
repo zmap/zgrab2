@@ -99,11 +99,13 @@ func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 	res := re.FindAllStringSubmatch(string(data), 2)
 
 	reply := &StartControlConnectionReply{}
-	if len(res[0]) > 1 {
-		reply.FirewallHost = res[0][1]
-	}
-	if len(res[0]) > 2 {
-		reply.SmartCenterHost = res[0][2]
+	if len(res) > 0 {
+		if len(res[0]) > 1 {
+			reply.FirewallHost = res[0][1]
+		}
+		if len(res[0]) > 2 {
+			reply.SmartCenterHost = res[0][2]
+		}
 	}
 
 	if scanner.config.Hex {
