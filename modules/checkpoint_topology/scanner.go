@@ -95,7 +95,7 @@ type StartControlConnectionReply struct {
 // Reading the response and filling in the structure
 func (scanner *Scanner) readReply(data []byte) *StartControlConnectionReply {
 
-	re, _ := regexp.Compile(`CN=(.+),O=(.+)\.`)
+	re, _ := regexp.Compile("CN=(.+),O=(.+)\u0000")
 	res := re.FindAllStringSubmatch(string(data), 2)
 
 	reply := &StartControlConnectionReply{}
