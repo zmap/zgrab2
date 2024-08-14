@@ -1,6 +1,9 @@
 package zgrab2
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -26,6 +29,7 @@ type Config struct {
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
+	WeakCSFileName     string          `long:"weak-cs-file" description:"Weak cipher suites json filename. Is used for weak-cs module."`
 	inputFile          *os.File
 	outputFile         *os.File
 	metaFile           *os.File
@@ -33,6 +37,7 @@ type Config struct {
 	inputTargets       InputTargetsFunc
 	outputResults      OutputResultsFunc
 	localAddr          *net.TCPAddr
+	WeakCSList         map[string][]uint16
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -48,6 +53,14 @@ func SetOutputFunc(f OutputResultsFunc) {
 func init() {
 	config.Multiple.ContinueOnError = true // set default for multiple value
 	config.Multiple.BreakOnSuccess = false // set default for multiple value
+}
+
+func GetWeakCSFromProtoVersion(protoVersion string) []uint16 {
+	csList, ok := config.WeakCSList[protoVersion]
+	if !ok {
+		return nil
+	}
+	return csList
 }
 
 var config Config
@@ -137,6 +150,42 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("invalid DNS server address: %s", err)
 		}
 	}
+
+	if config.WeakCSFileName == "" {
+		return
+	}
+
+	// reads named weak_cs.json containing weak ciphers per protocols, and saves it in config
+	file, err := os.Open(config.WeakCSFileName)
+	if err != nil {
+		log.Fatalf("Failed to open file: %s", err)
+	}
+	defer file.Close()
+
+	bytes, err := io.ReadAll(file)
+	if err != nil {
+		log.Fatalf("Failed to read file: %s", err)
+	}
+	var tmp map[string][]string
+	if err := json.Unmarshal(bytes, &tmp); err != nil {
+		log.Fatalf("Failed to parse JSON: %s", err)
+	}
+	result := make(map[string][]uint16)
+
+	for version, codes := range tmp {
+		var uint16Codes []uint16
+		for _, code := range codes {
+			i := 0
+			_, err := fmt.Sscan(code, &i)
+			if err != nil {
+				log.Fatal(
+					"Wrong format for weak cipher suites json file. Should be {\"protocol\": [\"cs_hex1\",...]}")
+			}
+			uint16Codes = append(uint16Codes, uint16(i))
+		}
+		result[version] = uint16Codes
+	}
+	config.WeakCSList = result
 }
 
 // GetMetaFile returns the file to which metadata should be output
