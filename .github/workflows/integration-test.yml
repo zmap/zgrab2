@@ -16,12 +16,12 @@ jobs:
           # Read the variable from the file
           GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
           # Set the variable as an output
-          echo "::set-output name=go_version::$GO_VERSION"
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ steps.go_version.outputs.go_version }}
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Check out source
         uses: actions/checkout@v4
@@ -45,11 +45,12 @@ jobs:
           # Read the variable from the file
           GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
           # Set the variable as an output
-          echo "::set-output name=go_version::$GO_VERSION"
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ steps.go_version.outputs.go_version }}
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Check out source
         uses: actions/checkout@v4
