@@ -10,10 +10,18 @@ jobs:
     name: Go Test
     runs-on: ubuntu-latest
     steps:
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "::set-output name=go_version::$GO_VERSION"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: ${{ steps.go_version.outputs.go_version }}
 
       - name: Check out source
         uses: actions/checkout@v4
@@ -31,10 +39,17 @@ jobs:
     name: Integration Test
     runs-on: ubuntu-latest
     steps:
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "::set-output name=go_version::$GO_VERSION"
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
+          go-version: ${{ steps.go_version.outputs.go_version }}
 
       - name: Check out source
         uses: actions/checkout@v4
