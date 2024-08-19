@@ -393,7 +393,8 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if scan.scanner.config.MaxRedirects == 0 {
 			return ErrDoNotRedirect
 		}
-		if len(via) > scan.scanner.config.MaxRedirects {
+		//len-1 because otherwise we'll return a failure on 1 redirect when we specify only 1 redirect. I.e. we are 0
+		if len(via)-1 > scan.scanner.config.MaxRedirects {
 			return ErrTooManyRedirects
 		}
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
