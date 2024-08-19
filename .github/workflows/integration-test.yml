@@ -20,6 +20,8 @@ jobs:
           GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
           # Set the variable as an output
           echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+          echo $GO_VERSION
+          echo $GITHUB_OUTPUT
 
       - name: Set up Go
         uses: actions/setup-go@v5
