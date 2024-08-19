@@ -1,5 +1,6 @@
 ## Build image ##
-FROM golang:1.20.4-alpine3.16 as build
+ARG GO_VERSION=1.20
+FROM golang:${GO_VERSION}-alpine3.16 as build
 
 # System dependencies
 RUN apk add --no-cache make
