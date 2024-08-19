@@ -388,6 +388,12 @@ func redirectsToLocalhost(host string) bool {
 // the redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
+		if scan.scanner.config.MaxRedirects == 0 {
+			return nil
+		}
+		if len(via) > scan.scanner.config.MaxRedirects {
+			return ErrTooManyRedirects
+		}
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
 			return ErrRedirLocalhost
 		}
@@ -411,10 +417,6 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 				m.Write(b.Bytes())
 				res.BodySHA256 = m.Sum(nil)
 			}
-		}
-
-		if len(via) > scan.scanner.config.MaxRedirects {
-			return ErrTooManyRedirects
 		}
 
 		return nil
