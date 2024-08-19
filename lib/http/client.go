@@ -614,6 +614,17 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			}
 			return nil, uerr(err)
 		}
+		err = c.checkRedirect(req, resp, reqs)
+
+		// Sentinel error to let users select the
+		// previous response, without closing its
+		// body. See Issue 10069.
+		if err == ErrUseLastResponse {
+			return resp, nil
+		}
+		if err != nil {
+			return resp, err
+		}
 
 		var shouldRedirect bool
 		redirectMethod, shouldRedirect, includeBody = redirectBehavior(req.Method, resp, reqs[0])
