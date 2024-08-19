@@ -534,8 +534,9 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 	for {
 		// For all but the first request, create the next
 		// request hop and replace req.
+		loc := req.URL.String()
 		if len(reqs) > 0 {
-			loc := resp.Header.Get("Location")
+			loc = resp.Header.Get("Location")
 			if loc == "" {
 				return nil, uerr(fmt.Errorf("%d response missing Location header", resp.StatusCode))
 			}
@@ -571,14 +572,6 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			if ref := refererForURL(reqs[len(reqs)-1].URL, req.URL); ref != "" {
 				req.Header.Set("Referer", ref)
 			}
-			err = c.checkRedirect(req, resp, reqs)
-
-			// Sentinel error to let users select the
-			// previous response, without closing its
-			// body. See Issue 10069.
-			if err == ErrUseLastResponse {
-				return resp, nil
-			}
 
 			// Close the previous response's body. But
 			// read at least some of the body so if it's
@@ -590,16 +583,6 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 				io.CopyN(ioutil.Discard, resp.Body, maxBodySlurpSize)
 			}
 			resp.Body.Close()
-
-			if err != nil {
-				// Special case for Go 1 compatibility: return both the response
-				// and an error if the CheckRedirect function failed.
-				// See https://golang.org/issue/3795
-				// The resp.Body has already been closed.
-				ue := uerr(err)
-				ue.(*url.Error).URL = loc
-				return resp, ue
-			}
 		}
 
 		reqs = append(reqs, req)
@@ -623,6 +606,11 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			return resp, nil
 		}
 		if err != nil {
+			// Special case for Go 1 compatibility: return both the response
+			// and an error if the CheckRedirect function failed.
+			// See https://golang.org/issue/3795
+			ue := uerr(err)
+			ue.(*url.Error).URL = loc
 			return resp, err
 		}
 
