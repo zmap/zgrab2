@@ -1,4 +1,4 @@
-module github.com/zmap/zgrab2
+module github.com/scovery/zgrab2
 
 go 1.18
 
