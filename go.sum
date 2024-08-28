@@ -75,6 +75,8 @@ github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300 h1:DZH5n7L3L8RxKdSyJH
 github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300/go.mod h1:mOd4yUMgn2fe2nV9KXsa9AyQBFZGzygVPovsZR+Rl5w=
 github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6 h1:XYA+NN2AS4mRmIDVu2nCtrjU17zKlRihO3MnlcmueUw=
 github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6/go.mod h1:HXDUD+uue8yeLHr0eXx1lvY6CvMiHbTKw5nGmA9OUoo=
+github.com/zmap/zgrab2 v0.1.9-0.20240826202101-82b0038c0494 h1:M+HlccX5LTu/zb2QTxAGQ+PJpgXhXugOUzdAo8koCzs=
+github.com/zmap/zgrab2 v0.1.9-0.20240826202101-82b0038c0494/go.mod h1:yNWDvISYZ+JuvB9c7SETmBI8JADJb5n+UCpizOunoKI=
 github.com/zmap/zlint/v3 v3.0.0/go.mod h1:paGwFySdHIBEMJ61YjoqT4h7Ge+fdYG4sUQhnTb1lJ8=
 go.uber.org/goleak v1.2.1 h1:NBol2c7O1ZokfZ0LEU9K6Whx/KnwvepVetCUhtKja4A=
 go.uber.org/goleak v1.2.1/go.mod h1:qlT2yGI9QafXHhZZLxlSuNsMw3FFLxBr+tBRlmO1xH4=
