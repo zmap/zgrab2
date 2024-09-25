@@ -17,6 +17,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/zmap/zgrab2"
 )
@@ -24,6 +25,9 @@ import (
 // Flags give the command-line flags for the banner module.
 type Flags struct {
 	zgrab2.BaseFlags
+	ReadTimeout int  `long:"read-timeout" default:"10" description:"Read timeout in milliseconds"`
+	BufferSize  int  `long:"buffer-size" default:"8209" description:"Read buffer size in bytes"`
+	MaxReadSize int  `long:"max-read-size" default:"512" description:"Maximum amount of data to read in KiB (1024 bytes)"`
 	Probe     string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file."`
 	ProbeFile string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe."`
 	Pattern   string `long:"pattern" description:"Pattern to match, must be valid regexp."`
@@ -177,7 +181,11 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}
 
 	for try := 0; try < s.config.MaxTries; try++ {
 		_, err = conn.Write(s.probe)
-		data, readErr = zgrab2.ReadAvailable(conn)
+		data, readErr = zgrab2.ReadAvailableWithOptions(conn,
+			s.config.BufferSize,
+			time.Duration(s.config.ReadTimeout)*time.Millisecond,
+			0,
+			s.config.MaxReadSize*1024)
 		if err != nil {
 			continue
 		}
