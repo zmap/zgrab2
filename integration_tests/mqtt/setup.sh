@@ -11,7 +11,7 @@ if docker ps --filter "name=$CONTAINER_NAME" | grep -q $CONTAINER_NAME; then
     exit 0
 fi
 
-DOCKER_RUN_FLAGS="--rm --name $CONTAINER_NAME -td -v ./mosquitto.conf:/mosquitto/config/mosquitto.conf -v ./server.pem:/mosquitto/server.pem -v ./server.key:/mosquitto/server.key"
+DOCKER_RUN_FLAGS="--rm --name $CONTAINER_NAME -td -v ./mosquitto.conf:/mosquitto/config/mosquitto.conf"
 
 # If it is not running, try launching it -- on success, use that. 
 echo "mqtt/setup: Trying to launch $CONTAINER_NAME..."

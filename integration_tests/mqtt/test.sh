@@ -13,11 +13,8 @@ OUTPUT_FILE=$ZGRAB_OUTPUT/mqtt/mqtt.json
 
 echo "mqtt/test: Tests runner for mqtt"
 # TODO FIXME: Add any necessary flags or additional tests
-echo -e ",target,mqtt
-,target,mqtt-tls
-,target,mqtt-v5
-,target,mqtt-tls-v5" | docker run --rm -i -v ./multiple.ini:/multiple.ini --link $CONTAINER_NAME:target zgrab2_runner multiple -c /multiple.ini> $OUTPUT_FILE
-#CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --v5 >> $OUTPUT_FILE
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt > $OUTPUT_FILE
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --v5 >> $OUTPUT_FILE
 
 # Dump the docker logs
 echo "mqtt/test: BEGIN docker logs from $CONTAINER_NAME [{("
