@@ -1,5 +1,5 @@
-# zschema sub-schema for zgrab2's MQTT module
-# Registers zgrab2-mqtt globally, and mqtt with the main zgrab2 schema.
+# zschema sub-schema for zgrab2's PPTP module
+# Registers zgrab2-pptp globally, and pptp with the main zgrab2 schema.
 from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
