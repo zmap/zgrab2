@@ -1,5 +1,5 @@
-# zschema sub-schema for zgrab2's MQTT module
-# Registers zgrab2-mqtt globally, and mqtt with the main zgrab2 schema.
+# zschema sub-schema for zgrab2's Socks5 module
+# Registers zgrab2-socks5 globally, and socks5 with the main zgrab2 schema.
 from zschema.leaves import *
 from zschema.compounds import *
 import zschema.registry
