@@ -9,7 +9,7 @@ from . import zgrab2
 # Schema for ScanResults struct
 mqtt_scan_response = SubRecord({
     "session_present": Boolean(),
-    "connect_return_code": Byte(),
+    "connect_return_code": Binary(),
     "response": String(),
     "tls": zgrab2.tls_log,
 })
