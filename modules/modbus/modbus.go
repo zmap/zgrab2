@@ -17,10 +17,10 @@ package modbus
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
-	"errors"
 )
 
 // MEIResponse is the parsed data field from the 0x2B/0x0E response.

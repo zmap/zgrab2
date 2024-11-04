@@ -8,7 +8,8 @@
 // ssh-agent process using the sample server.
 //
 // References:
-//  [PROTOCOL.agent]:    http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent?rev=HEAD
+//
+//	[PROTOCOL.agent]:    http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent?rev=HEAD
 package agent // import "github.com/zmap/zgrab2/lib/ssh/agent"
 
 import (

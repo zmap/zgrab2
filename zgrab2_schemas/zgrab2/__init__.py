@@ -21,3 +21,4 @@ from . import ssh
 from . import telnet
 from . import ipp
 from . import banner
+from . import amqp091

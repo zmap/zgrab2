@@ -170,7 +170,7 @@ type NegotiateResV1 struct {
 	ServerTimezon   uint16
 	ChallengeLength uint8
 	ByteCount       uint16 `smb:"len:VarData"`
-	VarData []byte
+	VarData         []byte
 }
 
 type NegotiateReq struct {

@@ -330,7 +330,7 @@ func (s *Session) TreeDisconnect(name string) error {
 
 func (s *Session) Close() {
 	s.Debug("Closing session", nil)
-	for k, _ := range s.trees {
+	for k := range s.trees {
 		s.TreeDisconnect(k)
 	}
 	s.Debug("Closing TCP connection", nil)

@@ -235,6 +235,7 @@ type ServerVersion struct {
 
 // Decode a VERSION response and return the parsed ServerVersion struct
 // As defined in the MSDN docs, these come from token 0:
+//
 //	VERSION -- UL_VERSION = ((US_BUILD<<16)|(VER_SQL_MINOR<<8)|( VER_SQL_MAJOR))
 func decodeServerVersion(buf []byte) *ServerVersion {
 	if len(buf) != 6 {

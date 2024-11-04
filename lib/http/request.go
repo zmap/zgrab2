@@ -292,7 +292,7 @@ type Request struct {
 	// This field is ignored by the HTTP client.
 	TLS *tls.ConnectionState `json:"tls,omitempty"`
 
-	// Everywhere else, this is "tls". Conains the logs from the configured zgrab2 TLS scan (TLS handshake, heartbleed check, etc) 
+	// Everywhere else, this is "tls". Conains the logs from the configured zgrab2 TLS scan (TLS handshake, heartbleed check, etc)
 	TLSLog *zgrab2.TLSLog `json:"tls_log,omitempty"`
 
 	// Cancel is an optional channel whose closure indicates that the client
@@ -496,6 +496,7 @@ const defaultUserAgent = "Mozilla/5.0 zgrab/0.x"
 
 // Write writes an HTTP/1.1 request, which is the header and body, in wire format.
 // This method consults the following fields of the request:
+//
 //	Host
 //	URL
 //	Method (defaults to "GET")
@@ -682,9 +683,11 @@ func idnaASCII(v string) (string, error) {
 // into Punycode form, if necessary.
 //
 // Ideally we'd clean the Host header according to the spec:
-//   https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
-//   https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
-//   https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+//
+//	https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
+//	https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
+//	https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+//
 // But practically, what we are trying to avoid is the situation in
 // issue 11206, where a malformed Host header used in the proxy context
 // would create a bad request. So it is enough to just truncate at the

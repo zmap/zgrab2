@@ -209,7 +209,7 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //  6. If the response is...
 //     a. ...a Resend packet, then set result.DidResend and re-send the packet.
 //     b. ...a Refused packet, then set the result.RefuseReason and RefuseError,
-//        then exit.
+//     then exit.
 //     c. ...a Redirect packet, then set result.RedirectTarget and exit.
 //     d. ...an Accept packet, go to 7
 //     e. ...anything else: exit with SCAN_APPLICATION_ERROR

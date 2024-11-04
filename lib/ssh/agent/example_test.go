@@ -9,8 +9,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/zmap/zgrab2/lib/ssh/agent"
 	"github.com/zmap/zgrab2/lib/ssh"
+	"github.com/zmap/zgrab2/lib/ssh/agent"
 )
 
 func ExampleClientAgent() {

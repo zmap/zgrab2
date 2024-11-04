@@ -131,11 +131,13 @@ func (c *Conn) getUnderlyingConn() net.Conn {
 
 // Scan probes for a modbus service.
 // It connects to the configured TCP port (default 502) and sends a packet with:
-//	 UnitID = <flags.UnitID, default 0>
-//   FunctionCode = 0x2B: Encapsulated Interface Transport)
-//   MEI Type = 0x0E: Read Device Info
-//   Category = 0x01: Basic
-//	 ObjectID = <flags.ObjectID, default 0: VendorName>
+//
+//		 UnitID = <flags.UnitID, default 0>
+//	  FunctionCode = 0x2B: Encapsulated Interface Transport)
+//	  MEI Type = 0x0E: Read Device Info
+//	  Category = 0x01: Basic
+//		 ObjectID = <flags.ObjectID, default 0: VendorName>
+//
 // If the response is not a valid modbus response to this packet, then fail with a SCAN_PROTOCOL_ERROR.
 // Otherwise, return the parsed response and status (SCAN_SUCCESS or SCAN_APPLICATION_ERROR)
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {

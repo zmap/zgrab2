@@ -152,10 +152,11 @@ func isASCIISpace(b byte) bool {
 
 // removeChunkExtension removes any chunk-extension from p.
 // For example,
-//     "0" => "0"
-//     "0;token" => "0"
-//     "0;token=val" => "0"
-//     `0;token="quoted string"` => "0"
+//
+//	"0" => "0"
+//	"0;token" => "0"
+//	"0;token=val" => "0"
+//	`0;token="quoted string"` => "0"
 func removeChunkExtension(p []byte) ([]byte, error) {
 	semi := bytes.IndexByte(p, ';')
 	if semi == -1 {

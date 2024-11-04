@@ -64,7 +64,7 @@ type scan struct {
 	tls         bool
 }
 
-//TODO: Tag relevant results and exlain in comments
+// TODO: Tag relevant results and exlain in comments
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
 	//TODO: ?Include the request sent as well??
@@ -246,8 +246,10 @@ func detectReadBodyError(err error) error {
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
 
-/* An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
-   https://tools.ietf.org/html/rfc8010#section-3.1.8)
+/*
+	An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
+	  https://tools.ietf.org/html/rfc8010#section-3.1.8)
+
 bytes name
 ----------------------------
 2     version-number
@@ -594,7 +596,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	return nil
 }
 
-//Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
+// Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
 func redirectsToLocalhost(host string) bool {
 	if i := net.ParseIP(host); i != nil {
 		return i.IsLoopback() || i.Equal(net.IPv4zero)
@@ -738,8 +740,8 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 }
 
 // Scan TODO: describe how scan operates in appropriate detail
-//1. Send a request (currently get-printer-attributes)
-//2. Take in that response & read out version numbers
+// 1. Send a request (currently get-printer-attributes)
+// 2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
 	scan, err := scanner.tryGrabForVersions(&target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure)

@@ -66,14 +66,14 @@ func fromHex(h string) []byte {
 }
 
 var validHeaders = map[string]TNSHeader{
-	"00 08 00 01 02 03 00 45": TNSHeader{
+	"00 08 00 01 02 03 00 45": {
 		Length:         8,
 		PacketChecksum: 1,
 		Type:           2,
 		Flags:          3,
 		HeaderChecksum: 0x45,
 	},
-	"f2 1e 01 00 07 06 76 54": TNSHeader{
+	"f2 1e 01 00 07 06 76 54": {
 		Length:         0xF21E,
 		PacketChecksum: 0x0100,
 		Type:           0x07,
@@ -95,7 +95,7 @@ func orPanic(ret []byte, err error) []byte {
 }
 
 var validTNSData = map[string]TestCase{
-	"00.empty": TestCase{
+	"00.empty": {
 		Encoding: "00 0A 00 00 06 00 00 00  80 00",
 		Value: &TNSPacket{
 			Header: &TNSHeader{
@@ -111,7 +111,7 @@ var validTNSData = map[string]TestCase{
 			},
 		},
 	},
-	"00.trivial": TestCase{
+	"00.trivial": {
 		Encoding: "00 10 00 00 06 00 00 00  00 01 31 32 33 34 35 36",
 		Value: &TNSPacket{
 			Header: &TNSHeader{
@@ -127,7 +127,7 @@ var validTNSData = map[string]TestCase{
 			},
 		},
 	},
-	"01.NSN.Request": TestCase{
+	"01.NSN.Request": {
 		Encoding: "00 a8 00 00 06 00 00 00  00 00 de ad be ef 00 9e " + /* ................ */
 			"0a 20 03 00 00 04 00 00  04 00 03 00 00 00 00 00 " + /* . .............. */
 			"04 00 05 0a 20 03 00 00  08 00 01 00 00 04 ec 19 " + /* .... ........... */
@@ -154,7 +154,7 @@ var validTNSData = map[string]TestCase{
 					Version: encodeReleaseVersion("10.2.0.3.0"),
 					Options: NSNOptions(0),
 					Services: []NSNService{
-						NSNService{
+						{
 							Type: 4,
 							Values: []NSNValue{
 								*NSNValueVersion("10.2.0.3.0"),
@@ -163,45 +163,45 @@ var validTNSData = map[string]TestCase{
 							},
 							Marker: 0,
 						},
-						NSNService{
+						{
 							Type: 1,
 							Values: []NSNValue{
 								*NSNValueVersion("10.2.0.3.0"),
-								NSNValue{
+								{
 									Type:  3,
 									Value: fromHex("e0 e1"),
 								},
-								NSNValue{
+								{
 									Type:  6,
 									Value: fromHex("fc ff"),
 								},
-								NSNValue{
+								{
 									Type:  2,
 									Value: fromHex("01"),
 								},
-								NSNValue{
+								{
 									Type:  0,
 									Value: []byte("NTS"),
 								},
 							},
 							Marker: 0,
 						},
-						NSNService{
+						{
 							Type: 2,
 							Values: []NSNValue{
 								*NSNValueVersion("10.2.0.3.0"),
-								NSNValue{
+								{
 									Type:  1,
 									Value: fromHex("00 11 06 10 0c 0f 0a 0b 08 02 01 03"),
 								},
 							},
 							Marker: 0,
 						},
-						NSNService{
+						{
 							Type: 3,
 							Values: []NSNValue{
 								*NSNValueVersion("10.2.0.3.0"),
-								NSNValue{
+								{
 									Type:  1,
 									Value: fromHex("00 03 01"),
 								},
@@ -215,7 +215,7 @@ var validTNSData = map[string]TestCase{
 }
 
 var validTNSConnect = map[string]TestCase{
-	"01. 013A-0139": TestCase{
+	"01. 013A-0139": {
 		Encoding: "00 ca 00 00 01 00 00 00  01 3a 01 2c 0c 41 20 00 " + /* .........:.,.A . */
 			"ff ff 7f 08 00 00 01 00  00 90 00 3a 00 00 08 00 " + /* ...........:.... */
 			"41 41 00 00 00 00 00 00  00 00 00 00 00 00 00 00 " + /* AA.............. */
@@ -232,11 +232,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00ca, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x013a,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
-				SDU:                  0x2000,
-				TDU:                  0xffff,
+				Version:                 0x013a,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
+				SDU:                     0x2000,
+				TDU:                     0xffff,
 				ProtocolCharacteristics: NTPCConfirmedRelease | NTPCTDUBasedIO | NTPCSpawnerRunning | NTPCDataTest | NTPCCallbackIO | NTPCAsyncIO | NTPCPacketIO | NTPCGenerateSIGURG, // 0x7F08
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -254,7 +254,7 @@ var validTNSConnect = map[string]TestCase{
 			},
 		},
 	},
-	"02. 138-138": TestCase{
+	"02. 138-138": {
 		Encoding: "01 00 00 00 01 04 00 00  01 38 01 2c 00 00 08 00 " + /* .........8.,.... */
 			"7f ff 86 0e 00 00 01 00  00 c6 00 3a 00 00 02 00 " + /* ...........:.... */
 			"61 61 00 00 00 00 00 00  00 00 00 00 04 10 00 00 " + /* aa.............. */
@@ -274,11 +274,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x0100, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x0138,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: 0,
-				SDU:                  0x0800,
-				TDU:                  0x7fff,
+				Version:                 0x0138,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    0,
+				SDU:                     0x0800,
+				TDU:                     0x7fff,
 				ProtocolCharacteristics: NTPCHangon | NTPCCallbackIO | NTPCAsyncIO | NTPCGenerateSIGURG | NTPCUrgentIO | NTPCFullDuplex, // 0x860e
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -296,7 +296,7 @@ var validTNSConnect = map[string]TestCase{
 			},
 		},
 	},
-	"03. 138-138": TestCase{
+	"03. 138-138": {
 		Encoding: "00 ec 00 00 01 04 00 00  01 38 01 2c 00 00 08 00 " + /* .........8.,.... */
 			"7f ff 86 0e 00 00 01 00  00 b2 00 3a 00 00 02 00 " + /* ...........:.... */
 			"61 61 00 00 00 00 00 00  00 00 00 00 10 ec 00 00 " + /* aa.............. */
@@ -315,11 +315,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00EC, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0x04, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x0138,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: 0,
-				SDU:                  0x0800,
-				TDU:                  0x7fff,
+				Version:                 0x0138,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    0,
+				SDU:                     0x0800,
+				TDU:                     0x7fff,
 				ProtocolCharacteristics: NTPCHangon | NTPCCallbackIO | NTPCAsyncIO | NTPCGenerateSIGURG | NTPCUrgentIO | NTPCFullDuplex, // 0x860e
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -337,7 +337,7 @@ var validTNSConnect = map[string]TestCase{
 			},
 		},
 	},
-	"unknown": TestCase{
+	"unknown": {
 		Encoding: "00 d7 00 00 01 00 00 00  01 3b 01 2c 0c 41 20 00 " + /* .........;.,.A . */
 			"ff ff 7f 08 00 00 01 00  00 91 00 46 00 00 08 00 " + /* ...........F.... */
 			"41 41 00 00 00 00 00 00  00 00 00 00 00 00 00 00 " + /* AA.............. */
@@ -355,11 +355,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x013b,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
-				SDU:                  0x2000,
-				TDU:                  0xffff,
+				Version:                 0x013b,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
+				SDU:                     0x2000,
+				TDU:                     0xffff,
 				ProtocolCharacteristics: NTPCConfirmedRelease | NTPCTDUBasedIO | NTPCSpawnerRunning | NTPCDataTest | NTPCCallbackIO | NTPCAsyncIO | NTPCPacketIO | NTPCGenerateSIGURG, // 0x7F08
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -377,7 +377,7 @@ var validTNSConnect = map[string]TestCase{
 			},
 		},
 	},
-	"unknown3a": TestCase{
+	"unknown3a": {
 		Encoding: "00 d7 00 00 01 00 00 00  01 3b 01 2c 0c 41 20 00 " + /* .........;.,.A . */
 			"ff ff 7f 08 00 00 01 00  00 91 00 46 00 00 08 00 " + /* ...........F.... */
 			"41 41 00 00 00 00 00 00  00 00 00 00 00 00 00 00 " + /* AA.............. */
@@ -395,11 +395,11 @@ var validTNSConnect = map[string]TestCase{
 		Value: &TNSPacket{
 			Header: &TNSHeader{Length: 0x00d7, PacketChecksum: 0, Type: PacketTypeConnect, Flags: 0, HeaderChecksum: 0},
 			Body: &TNSConnect{
-				Version:              0x013b,
-				MinVersion:           0x012c,
-				GlobalServiceOptions: SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
-				SDU:                  0x2000,
-				TDU:                  0xffff,
+				Version:                 0x013b,
+				MinVersion:              0x012c,
+				GlobalServiceOptions:    SOHeaderChecksum | SOFullDuplex | SOUnknown0040 | SOUnknown0001, // (0x0c41)
+				SDU:                     0x2000,
+				TDU:                     0xffff,
 				ProtocolCharacteristics: NTPCConfirmedRelease | NTPCTDUBasedIO | NTPCSpawnerRunning | NTPCDataTest | NTPCCallbackIO | NTPCAsyncIO | NTPCPacketIO | NTPCGenerateSIGURG, // 0x7F08
 				MaxBeforeAck:            0,
 				ByteOrder:               defaultByteOrder,
@@ -420,7 +420,7 @@ var validTNSConnect = map[string]TestCase{
 }
 
 var validTNSAccept = map[string]TestCase{
-	"01. 013A-0139": TestCase{
+	"01. 013A-0139": {
 		Encoding: "00 20 00 00 02 00 00 00  01 39 00 00 08 00 7f ff " + /* . .......9...... */
 			"01 00 00 00 00 20 61 61  00 00 00 00 00 00 00 00 ", /* ..... aa........ */
 		Value: &TNSPacket{
@@ -587,7 +587,7 @@ func TestTNSData(t *testing.T) {
 
 var descriptorValues = map[string]Descriptor{
 	//"()": Descriptor{},
-	"(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))(ERROR=(CODE=303)(EMFI=1))))": Descriptor{
+	"(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))(ERROR=(CODE=303)(EMFI=1))))": {
 		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
 		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
@@ -596,7 +596,7 @@ var descriptorValues = map[string]Descriptor{
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "303"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
 	},
-	"(DESCRIPTION=\n\t(ERR=1153)\n\t(VSNNUM=186647040)\n\t(ERROR_STACK=\n\t\t(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))\n\t\t(ERROR=(CODE=303)(EMFI=1))\n\t)\n)\n": Descriptor{
+	"(DESCRIPTION=\n\t(ERR=1153)\n\t(VSNNUM=186647040)\n\t(ERROR_STACK=\n\t\t(ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))\n\t\t(ERROR=(CODE=303)(EMFI=1))\n\t)\n)\n": {
 		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
 		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
@@ -605,7 +605,7 @@ var descriptorValues = map[string]Descriptor{
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "303"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
 	},
-	"    (DESCRIPTION=\r\n  (ERR=1153)\r\n  (VSNNUM=186647040)\r\n  (ERROR_STACK=\r\n    (ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))\r\n    (ERROR=(CODE=303)(EMFI=1))\r\n  )\r\n)    ": Descriptor{
+	"    (DESCRIPTION=\r\n  (ERR=1153)\r\n  (VSNNUM=186647040)\r\n  (ERROR_STACK=\r\n    (ERROR=(CODE=1153)(EMFI=4)(ARGS='()'))\r\n    (ERROR=(CODE=303)(EMFI=1))\r\n  )\r\n)    ": {
 		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
 		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
@@ -614,7 +614,7 @@ var descriptorValues = map[string]Descriptor{
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "303"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
 	},
-	"(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='(embedded \\'quotes\\')'))(ERROR=(CODE=  \"  (23)  \"  )(EMFI=1))))": Descriptor{
+	"(DESCRIPTION=(ERR=1153)(VSNNUM=186647040)(ERROR_STACK=(ERROR=(CODE=1153)(EMFI=4)(ARGS='(embedded \\'quotes\\')'))(ERROR=(CODE=  \"  (23)  \"  )(EMFI=1))))": {
 		DescriptorEntry{"DESCRIPTION.ERR", "1153"},
 		DescriptorEntry{"DESCRIPTION.VSNNUM", "186647040"},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "1153"},
@@ -623,7 +623,7 @@ var descriptorValues = map[string]Descriptor{
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.CODE", "\"  (23)  \""},
 		DescriptorEntry{"DESCRIPTION.ERROR_STACK.ERROR.EMFI", "1"},
 	},
-	"(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=)(CID=(PROGRAM=C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe)(HOST=win10pc)(USER=localadmin)))(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521)))": Descriptor{
+	"(DESCRIPTION=(CONNECT_DATA=(SERVICE_NAME=)(CID=(PROGRAM=C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe)(HOST=win10pc)(USER=localadmin)))(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521)))": {
 		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.SERVICE_NAME", ""},
 		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.CID.PROGRAM", "C:\\Users\\localadmin\\work\\oracle\\instantclient_11_2\\sqlplus.exe"},
 		DescriptorEntry{"DESCRIPTION.CONNECT_DATA.CID.HOST", "win10pc"},
@@ -635,20 +635,20 @@ var descriptorValues = map[string]Descriptor{
 }
 
 var descriptorGetValuesTests = map[string]map[string][]string{
-	"(A=(B=(C=ABC1)(C=ABC2)(D=ABD))(E=AE)(F=))": map[string][]string{
-		"A.B.C":          []string{"ABC1", "ABC2"},
-		"A.B.D":          []string{"ABD"},
-		"A.E":            []string{"AE"},
-		"does.not.exist": []string{},
-		"A.F":            []string{""},
+	"(A=(B=(C=ABC1)(C=ABC2)(D=ABD))(E=AE)(F=))": {
+		"A.B.C":          {"ABC1", "ABC2"},
+		"A.B.D":          {"ABD"},
+		"A.E":            {"AE"},
+		"does.not.exist": {},
+		"A.F":            {""},
 	},
-	"(A=(B=(C=ABC1)(D=ABD1))(B=(C=ABC2)(D=ABD2))(B=(E=ABE)(D=ABD3))(F=(G=(H=AFGH)))(I=)(I=iii)(I=)(I=))": map[string][]string{
-		"A.B.C":          []string{"ABC1", "ABC2"},
-		"A.B.D":          []string{"ABD1", "ABD2", "ABD3"},
-		"A.B.E":          []string{"ABE"},
-		"A.F.G.H":        []string{"AFGH"},
-		"does.not.exist": []string{},
-		"A.I":            []string{"", "iii", "", ""},
+	"(A=(B=(C=ABC1)(D=ABD1))(B=(C=ABC2)(D=ABD2))(B=(E=ABE)(D=ABD3))(F=(G=(H=AFGH)))(I=)(I=iii)(I=)(I=))": {
+		"A.B.C":          {"ABC1", "ABC2"},
+		"A.B.D":          {"ABD1", "ABD2", "ABD3"},
+		"A.B.E":          {"ABE"},
+		"A.F.G.H":        {"AFGH"},
+		"does.not.exist": {},
+		"A.I":            {"", "iii", "", ""},
 	},
 }
 
@@ -673,14 +673,14 @@ type GetValueTestResult struct {
 }
 
 var descriptorGetValueTests = map[string]map[string]GetValueTestResult{
-	"(A=(B=(C=ABC1)(C=ABC2)(D=ABD))(E=AE)(F=))": map[string]GetValueTestResult{
+	"(A=(B=(C=ABC1)(C=ABC2)(D=ABD))(E=AE)(F=))": {
 		"A.B.C":          {Value: "", Error: ErrUnexpectedResponse},
 		"A.B.D":          {Value: "ABD", Error: nil},
 		"A.E":            {Value: "AE", Error: nil},
 		"does.not.exist": {Value: "", Error: ErrUnexpectedResponse},
 		"A.F":            {Value: "", Error: nil},
 	},
-	"(A=(B=(C=ABC1)(D=ABD1))(B=(C=ABC2)(D=ABD2))(B=(E=ABE)(D=ABD3))(F=(G=(H=AFGH)))(I=)(I=))": map[string]GetValueTestResult{
+	"(A=(B=(C=ABC1)(D=ABD1))(B=(C=ABC2)(D=ABD2))(B=(E=ABE)(D=ABD3))(F=(G=(H=AFGH)))(I=)(I=))": {
 		"A.B.C":          {Value: "", Error: ErrUnexpectedResponse},
 		"A.B.D":          {Value: "", Error: ErrUnexpectedResponse},
 		"A.B.E":          {Value: "ABE", Error: nil},

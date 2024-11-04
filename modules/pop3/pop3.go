@@ -4,9 +4,9 @@
 package pop3
 
 import (
+	"io"
 	"net"
 	"regexp"
-	"io"
 
 	"github.com/zmap/zgrab2"
 )

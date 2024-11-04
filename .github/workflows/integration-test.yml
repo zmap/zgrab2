@@ -10,13 +10,21 @@ jobs:
     name: Go Test
     runs-on: ubuntu-latest
     steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
-
-      - name: Check out source
-        uses: actions/checkout@v4
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
 
       - name: Build
         run: |
@@ -31,13 +39,21 @@ jobs:
     name: Integration Test
     runs-on: ubuntu-latest
     steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
-
-      - name: Check out source
-        uses: actions/checkout@v4
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
 
       - name: Install dependencies
         run: |

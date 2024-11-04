@@ -111,7 +111,7 @@ func _write(writer io.Writer, data []byte) error {
 
 // Run the configured server. As soon as it returns, it is listening.
 // Returns a channel that receives a timeoutTestError on error, or is closed on successful completion.
-func (cfg *connTimeoutTestConfig) runServer(t *testing.T) (chan *timeoutTestError) {
+func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError {
 	errorChan := make(chan *timeoutTestError)
 	if cfg.endpoint != "" {
 		// Only listen on localhost
@@ -307,7 +307,7 @@ var connTestConfigs = []connTimeoutTestConfig{
 		serverToClientPayload: []byte("abc"),
 		clientToServerPayload: []byte("defghi"),
 
-		failStep: testStepConnect,
+		failStep:  testStepConnect,
 		failError: "i/o timeout",
 	},
 	// short session timeout, medium connect timeout, with connect to nonexistent endpoint.
@@ -326,7 +326,7 @@ var connTestConfigs = []connTimeoutTestConfig{
 		serverToClientPayload: []byte("abc"),
 		clientToServerPayload: []byte("defghi"),
 
-		failStep: testStepConnect,
+		failStep:  testStepConnect,
 		failError: "i/o timeout",
 	},
 	// Get an IO timeout on the read.

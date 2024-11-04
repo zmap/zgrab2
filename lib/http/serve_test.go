@@ -1905,7 +1905,7 @@ func TestRequestBodyTimeoutClosesConnection(t *testing.T) {
 
 func TestTimeoutHandler_h1(t *testing.T) { testTimeoutHandler(t, h1Mode) }
 
-//func TestTimeoutHandler_h2(t *testing.T) { testTimeoutHandler(t, h2Mode) }
+// func TestTimeoutHandler_h2(t *testing.T) { testTimeoutHandler(t, h2Mode) }
 func testTimeoutHandler(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -2397,7 +2397,7 @@ func TestServerWriteHijackZeroBytes(t *testing.T) {
 
 func TestServerNoDate_h1(t *testing.T) { testServerNoHeader(t, h1Mode, "Date") }
 
-//func TestServerNoDate_h2(t *testing.T)        { testServerNoHeader(t, h2Mode, "Date") }
+// func TestServerNoDate_h2(t *testing.T)        { testServerNoHeader(t, h2Mode, "Date") }
 func TestServerNoContentType_h1(t *testing.T) { testServerNoHeader(t, h1Mode, "Content-Type") }
 
 //func TestServerNoContentType_h2(t *testing.T) { testServerNoHeader(t, h2Mode, "Content-Type") }
@@ -2454,7 +2454,7 @@ func TestStripPrefix(t *testing.T) {
 
 func TestRequestLimit_h1(t *testing.T) { testRequestLimit(t, h1Mode) }
 
-//func TestRequestLimit_h2(t *testing.T) { testRequestLimit(t, h2Mode) }
+// func TestRequestLimit_h2(t *testing.T) { testRequestLimit(t, h2Mode) }
 func testRequestLimit(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -2502,7 +2502,7 @@ func (cr countReader) Read(p []byte) (n int, err error) {
 
 func TestRequestBodyLimit_h1(t *testing.T) { testRequestBodyLimit(t, h1Mode) }
 
-//func TestRequestBodyLimit_h2(t *testing.T) { testRequestBodyLimit(t, h2Mode) }
+// func TestRequestBodyLimit_h2(t *testing.T) { testRequestBodyLimit(t, h2Mode) }
 func testRequestBodyLimit(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -2645,7 +2645,7 @@ func TestServerGracefulClose(t *testing.T) {
 
 func TestCaseSensitiveMethod_h1(t *testing.T) { testCaseSensitiveMethod(t, h1Mode) }
 
-//func TestCaseSensitiveMethod_h2(t *testing.T) { testCaseSensitiveMethod(t, h2Mode) }
+// func TestCaseSensitiveMethod_h2(t *testing.T) { testCaseSensitiveMethod(t, h2Mode) }
 func testCaseSensitiveMethod(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
@@ -3323,7 +3323,7 @@ func TestHTTP10ConnectionHeader(t *testing.T) {
 // See golang.org/issue/5660
 func TestServerReaderFromOrder_h1(t *testing.T) { testServerReaderFromOrder(t, h1Mode) }
 
-//func TestServerReaderFromOrder_h2(t *testing.T) { testServerReaderFromOrder(t, h2Mode) }
+// func TestServerReaderFromOrder_h2(t *testing.T) { testServerReaderFromOrder(t, h2Mode) }
 func testServerReaderFromOrder(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -3803,7 +3803,7 @@ func TestServerKeepAlivesEnabled(t *testing.T) {
 // golang.org/issue/7856
 func TestServerEmptyBodyRace_h1(t *testing.T) { testServerEmptyBodyRace(t, h1Mode) }
 
-//func TestServerEmptyBodyRace_h2(t *testing.T) { testServerEmptyBodyRace(t, h2Mode) }
+// func TestServerEmptyBodyRace_h2(t *testing.T) { testServerEmptyBodyRace(t, h2Mode) }
 func testServerEmptyBodyRace(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)
@@ -4134,7 +4134,7 @@ func TestHandlerFinishSkipBigContentLengthRead(t *testing.T) {
 
 func TestHandlerSetsBodyNil_h1(t *testing.T) { testHandlerSetsBodyNil(t, h1Mode) }
 
-//func TestHandlerSetsBodyNil_h2(t *testing.T) { testHandlerSetsBodyNil(t, h2Mode) }
+// func TestHandlerSetsBodyNil_h2(t *testing.T) { testHandlerSetsBodyNil(t, h2Mode) }
 func testHandlerSetsBodyNil(t *testing.T, h2 bool) {
 	defer afterTest(t)
 	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
@@ -4538,10 +4538,11 @@ func benchmarkClientServerParallel(b *testing.B, parallelism int, useTLS bool) {
 // The client code runs in a subprocess.
 //
 // For use like:
-//   $ go test -c
-//   $ ./http.test -test.run=XX -test.bench=BenchmarkServer -test.benchtime=15s -test.cpuprofile=http.prof
-//   $ go tool pprof http.test http.prof
-//   (pprof) web
+//
+//	$ go test -c
+//	$ ./http.test -test.run=XX -test.bench=BenchmarkServer -test.benchtime=15s -test.cpuprofile=http.prof
+//	$ go tool pprof http.test http.prof
+//	(pprof) web
 func BenchmarkServer(b *testing.B) {
 	b.ReportAllocs()
 	// Child process mode;
@@ -5096,7 +5097,7 @@ func TestServerCloseDeadlock(t *testing.T) {
 // both HTTP/1 and HTTP/2.
 func TestServerKeepAlivesEnabled_h1(t *testing.T) { testServerKeepAlivesEnabled(t, h1Mode) }
 
-//func TestServerKeepAlivesEnabled_h2(t *testing.T) { testServerKeepAlivesEnabled(t, h2Mode) }
+// func TestServerKeepAlivesEnabled_h2(t *testing.T) { testServerKeepAlivesEnabled(t, h2Mode) }
 func testServerKeepAlivesEnabled(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)

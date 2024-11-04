@@ -43,9 +43,9 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/net/idna"
-	"golang.org/x/net/http/httpguts"
 )
 
 // ClientConnPool manages a pool of HTTP/2 client connections.
@@ -2570,10 +2570,11 @@ var (
 // name (key). See httpguts.ValidHeaderName for the base rules.
 //
 // Further, http2 says:
-//   "Just as in HTTP/1.x, header field names are strings of ASCII
-//   characters that are compared in a case-insensitive
-//   fashion. However, header field names MUST be converted to
-//   lowercase prior to their encoding in HTTP/2. "
+//
+//	"Just as in HTTP/1.x, header field names are strings of ASCII
+//	characters that are compared in a case-insensitive
+//	fashion. However, header field names MUST be converted to
+//	lowercase prior to their encoding in HTTP/2. "
 func http2validWireHeaderFieldName(v string) bool {
 	if len(v) == 0 {
 		return false
@@ -2768,8 +2769,8 @@ func (s *http2sorter) SortStrings(ss []string) {
 // validPseudoPath reports whether v is a valid :path pseudo-header
 // value. It must be either:
 //
-//     *) a non-empty string starting with '/', but not with with "//",
-//     *) the string '*', for OPTIONS requests.
+//	*) a non-empty string starting with '/', but not with with "//",
+//	*) the string '*', for OPTIONS requests.
 //
 // For now this is only used a quick check for deciding when to clean
 // up Opaque URLs before sending requests from the Transport.
@@ -4930,8 +4931,9 @@ func (rws *http2responseWriterState) writeChunk(p []byte) (n int, err error) {
 // prior to the headers being written. If the set of trailers is fixed
 // or known before the header is written, the normal Go trailers mechanism
 // is preferred:
-//    https://golang.org/pkg/net/http/#ResponseWriter
-//    https://golang.org/pkg/net/http/#example_ResponseWriter_trailers
+//
+//	https://golang.org/pkg/net/http/#ResponseWriter
+//	https://golang.org/pkg/net/http/#example_ResponseWriter_trailers
 const http2TrailerPrefix = "Trailer:"
 
 // promoteUndeclaredTrailers permits http.Handlers to set trailers

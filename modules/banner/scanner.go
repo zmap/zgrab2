@@ -53,9 +53,9 @@ type Results struct {
 	Banner string         `json:"banner,omitempty"`
 	Length int            `json:"length,omitempty"`
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
-	MD5    string `json:"md5,omitempty"`
-	SHA1   string `json:"sha1,omitempty"`
-	SHA256 string `json:"sha25,omitempty"`
+	MD5    string         `json:"md5,omitempty"`
+	SHA1   string         `json:"sha1,omitempty"`
+	SHA256 string         `json:"sha25,omitempty"`
 }
 
 var NoMatchError = errors.New("pattern did not match")
@@ -167,7 +167,6 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}
 		}
 		break
 	}
-
 
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
