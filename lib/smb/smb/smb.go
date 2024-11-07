@@ -346,6 +346,8 @@ func (s *Session) NewNegotiateReq() NegotiateReq {
 
 	dialects := []uint16{
 		uint16(DialectSmb_2_1),
+		uint16(DialectSmb_3_0),
+		uint16(DialectSmb_3_0_2),
 	}
 	return NegotiateReq{
 		Header:          header,
