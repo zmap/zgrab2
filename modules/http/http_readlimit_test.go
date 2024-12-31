@@ -358,7 +358,7 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 }
 
 // Try to get the HTTP body from a result; otherwise return the empty string.
-func getResponse(result interface{}) *http.Response {
+func getResponse(result any) *http.Response {
 	if result == nil {
 		return nil
 	}

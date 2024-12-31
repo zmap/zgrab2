@@ -43,7 +43,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a new default flags object.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -99,7 +99,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Stores raw hashes returned from parsing each protocols Hello message
 	rawhashes := []string{}
 

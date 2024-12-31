@@ -74,7 +74,7 @@ var optQuietLog = func(ts *httptest.Server) {
 	ts.Config.ErrorLog = quietLog
 }
 
-func newClientServerTest(t *testing.T, h2 bool, h Handler, opts ...interface{}) *clientServerTest {
+func newClientServerTest(t *testing.T, h2 bool, h Handler, opts ...any) *clientServerTest {
 	cst := &clientServerTest{
 		t:  t,
 		h2: h2,
@@ -1199,7 +1199,7 @@ func TestInterruptWithPanic_ErrAbortHandler_h1(t *testing.T) {
 func TestInterruptWithPanic_ErrAbortHandler_h2(t *testing.T) {
 	testInterruptWithPanic(t, h2Mode, ErrAbortHandler)
 }*/
-func testInterruptWithPanic(t *testing.T, h2 bool, panicValue interface{}) {
+func testInterruptWithPanic(t *testing.T, h2 bool, panicValue any) {
 	setParallel(t)
 	const msg = "hello"
 	defer afterTest(t)

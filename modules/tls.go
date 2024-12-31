@@ -25,7 +25,7 @@ func init() {
 	}
 }
 
-func (m *TLSModule) NewFlags() interface{} {
+func (m *TLSModule) NewFlags() any {
 	return new(TLSFlags)
 }
 
@@ -71,7 +71,7 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 // a TLS handshake. If the handshake gets past the ServerHello stage, the
 // handshake log is returned (along with any other TLS-related logs, such as
 // heartbleed, if enabled).
-func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := t.OpenTLS(&s.config.BaseFlags, &s.config.TLSFlags)
 	if conn != nil {
 		defer conn.Close()
