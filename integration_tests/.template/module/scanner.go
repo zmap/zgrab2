@@ -47,7 +47,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 

@@ -43,7 +43,7 @@ func init() {
 	cmd.FindOptionByLongName("ciphers").Default = []string{strings.Join(s.Ciphers, ",")}
 }
 
-func (m *SSHModule) NewFlags() interface{} {
+func (m *SSHModule) NewFlags() any {
 	return new(SSHFlags)
 }
 
@@ -82,7 +82,7 @@ func (s *SSHScanner) GetTrigger() string {
 	return s.config.Trigger
 }
 
-func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
 
 	var port uint

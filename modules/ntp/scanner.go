@@ -822,7 +822,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a flags instant to be populated with the command line args
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -1007,7 +1007,7 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	sock, err := t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

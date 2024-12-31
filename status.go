@@ -40,7 +40,7 @@ func (err *ScanError) Error() string {
 	return err.Err.Error()
 }
 
-func (err *ScanError) Unpack(results interface{}) (ScanStatus, interface{}, error) {
+func (err *ScanError) Unpack(results any) (ScanStatus, any, error) {
 	return err.Status, results, err.Err
 }
 

@@ -442,7 +442,7 @@ var validTNSAccept = map[string]TestCase{
 	},
 }
 
-func serialize(val interface{}) []byte {
+func serialize(val any) []byte {
 	// According to the comments in json.Marshal, JSON object keys are sorted,
 	// so this is suitable for comparison.
 	ret, err := json.Marshal(val)

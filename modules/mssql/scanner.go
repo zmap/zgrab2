@@ -60,7 +60,7 @@ type Scanner struct {
 
 // NewFlags returns a default Flags instance to be populated by the command
 // line flags.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -121,7 +121,7 @@ func (scanner *Scanner) GetTrigger() string {
 // 4. If the server encrypt mode is EncryptModeNotSupported, break.
 // 5. Perform a TLS handshake, with the packets wrapped in TDS headers.
 // 6. Decode the Version and InstanceName from the PRELOGIN response
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

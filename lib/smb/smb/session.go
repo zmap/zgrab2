@@ -338,7 +338,7 @@ func (s *Session) Close() {
 	s.Debug("Session close completed", nil)
 }
 
-func (s *Session) send(req interface{}) (res []byte, err error) {
+func (s *Session) send(req any) (res []byte, err error) {
 	buf, err := encoder.Marshal(req)
 	if err != nil {
 		s.Debug("", err)

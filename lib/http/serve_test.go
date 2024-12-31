@@ -1776,7 +1776,7 @@ func TestInvalidTrailerClosesConnection(t *testing.T) {
 // Read and Write.
 type slowTestConn struct {
 	// over multiple calls to Read, time.Durations are slept, strings are read.
-	script []interface{}
+	script []any
 	closec chan bool
 
 	mu     sync.Mutex // guards rd/wd
@@ -1868,7 +1868,7 @@ func TestRequestBodyTimeoutClosesConnection(t *testing.T) {
 	defer afterTest(t)
 	for _, handler := range testHandlerBodyConsumers {
 		conn := &slowTestConn{
-			script: []interface{}{
+			script: []any{
 				"POST /public HTTP/1.1\r\n" +
 					"Host: test\r\n" +
 					"Content-Length: 10000\r\n" +
@@ -2283,7 +2283,7 @@ func TestHandlerPanicWithHijack(t *testing.T) {
 	testHandlerPanic(t, true, h1Mode, "intentional death for testing")
 }
 
-func testHandlerPanic(t *testing.T, withHijack, h2 bool, panicValue interface{}) {
+func testHandlerPanic(t *testing.T, withHijack, h2 bool, panicValue any) {
 	defer afterTest(t)
 	// Unlike the other tests that set the log output to ioutil.Discard
 	// to quiet the output, this test uses a pipe. The pipe serves three
@@ -3439,7 +3439,7 @@ func testTransportAndServerSharedBodyRace(t *testing.T, h2 bool) {
 	// this test fails, it hangs. This helps debugging and I've
 	// added this enough times "temporarily".  It now gets added
 	// full time.
-	errorf := func(format string, args ...interface{}) {
+	errorf := func(format string, args ...any) {
 		v := fmt.Sprintf(format, args...)
 		println(v)
 		t.Error(v)
@@ -3448,10 +3448,10 @@ func testTransportAndServerSharedBodyRace(t *testing.T, h2 bool) {
 	unblockBackend := make(chan bool)
 	backend := newClientServerTest(t, h2, HandlerFunc(func(rw ResponseWriter, req *Request) {
 		gone := rw.(CloseNotifier).CloseNotify()
-		didCopy := make(chan interface{})
+		didCopy := make(chan any)
 		go func() {
 			n, err := io.CopyN(rw, req.Body, bodySize)
-			didCopy <- []interface{}{n, err}
+			didCopy <- []any{n, err}
 		}()
 		isGone := false
 	Loop:

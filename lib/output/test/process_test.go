@@ -37,12 +37,12 @@ type Strippable interface {
 }
 
 // JSON encode the value, then decode it as a map[string]interface{}.
-func toMap(v interface{}) map[string]interface{} {
+func toMap(v any) map[string]any {
 	ret, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		logrus.Fatalf("Error marshaling: %v", err)
 	}
-	theMap := new(map[string]interface{})
+	theMap := new(map[string]any)
 	err = json.Unmarshal(ret, theMap)
 	if err != nil {
 		logrus.Fatalf("Error unmarshaling: %v", err)
@@ -52,9 +52,9 @@ func toMap(v interface{}) map[string]interface{} {
 
 // Get v[key0][key1]...[keyN], or return nil, error if any values along the way
 // are nil / not present / not maps.
-func mapPath(theMap interface{}, keys ...string) (interface{}, error) {
+func mapPath(theMap any, keys ...string) (any, error) {
 	for i, key := range keys {
-		cast, ok := theMap.(map[string]interface{})
+		cast, ok := theMap.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("%s in map is not a map", strings.Join(keys[0:i], "."))
 		}
@@ -70,13 +70,13 @@ func mapPath(theMap interface{}, keys ...string) (interface{}, error) {
 
 // Set theMap[key0][key1]...[keyN] = value, or return error if any values along
 // the way are nil / not present / not maps.
-func setMapValue(theMap map[string]interface{}, value interface{}, keys ...string) error {
+func setMapValue(theMap map[string]any, value any, keys ...string) error {
 	lastIndex := len(keys) - 1
 	out, err := mapPath(theMap, keys[0:lastIndex]...)
 	if err != nil {
 		return err
 	}
-	cast, ok := out.(map[string]interface{})
+	cast, ok := out.(map[string]any)
 	if !ok {
 		return fmt.Errorf("%s in map is not a map", strings.Join(keys[0:lastIndex], "."))
 	}
@@ -86,13 +86,13 @@ func setMapValue(theMap map[string]interface{}, value interface{}, keys ...strin
 
 // delete the value at theMap[key0][key1]...[keyN], or return an error if any
 // values along the way are nil / not present / not maps.
-func delOut(theMap map[string]interface{}, keys ...string) error {
+func delOut(theMap map[string]any, keys ...string) error {
 	lastIndex := len(keys) - 1
 	out, err := mapPath(theMap, keys[0:lastIndex]...)
 	if err != nil {
 		return err
 	}
-	cast, ok := out.(map[string]interface{})
+	cast, ok := out.(map[string]any)
 	if !ok {
 		return fmt.Errorf("%s in map is not a map", strings.Join(keys[0:lastIndex], "."))
 	}
@@ -104,7 +104,7 @@ func delOut(theMap map[string]interface{}, keys ...string) error {
 // structs' keys are sorted by order in the definition, which can vary between
 // the original and "stripped" versions, the marshalled text is unmarshaled into
 // a map (whose keys are sorted alphabetically) and then re-marshaled.
-func marshal(v interface{}) string {
+func marshal(v any) string {
 	theMap := toMap(v)
 	realRet, err := json.MarshalIndent(theMap, "", "  ")
 	if err != nil {
@@ -114,7 +114,7 @@ func marshal(v interface{}) string {
 }
 
 // Get the processed copy of v using the given verbosity value.
-func process(verbose bool, v interface{}) interface{} {
+func process(verbose bool, v any) any {
 	proc := output.NewProcessor()
 	proc.Verbose = verbose
 	ret, err := proc.Process(v)
@@ -125,20 +125,20 @@ func process(verbose bool, v interface{}) interface{} {
 }
 
 // Return the marshalled  processed copy of v using the given verbosity value.
-func strip(verbose bool, v interface{}) string {
+func strip(verbose bool, v any) string {
 	theCopy := process(verbose, v)
 	return marshal(theCopy)
 }
 
 // Flat value with a wide variety of types, both debug and non-debug.
 type Flat struct {
-	StringValue    string      `json:"string_value"`
-	TrueValue      bool        `json:"true_value"`
-	FalseValue     bool        `json:"false_value"`
-	IntValue       int         `json:"int_value"`
-	BytesValue     []byte      `json:"bytes_value"`
-	ArrayValue     [5]string   `json:"array_value"`
-	InterfaceValue interface{} `json:"interface_value"`
+	StringValue    string    `json:"string_value"`
+	TrueValue      bool      `json:"true_value"`
+	FalseValue     bool      `json:"false_value"`
+	IntValue       int       `json:"int_value"`
+	BytesValue     []byte    `json:"bytes_value"`
+	ArrayValue     [5]string `json:"array_value"`
+	InterfaceValue any       `json:"interface_value"`
 
 	PtrStringValue *string    `json:"ptr_string_value"`
 	PtrTrueValue   *bool      `json:"ptr_true_value"`
@@ -147,13 +147,13 @@ type Flat struct {
 	PtrBytesValue  *[]byte    `json:"ptr_bytes_value"`
 	PtrArrayValue  *[5]string `json:"ptr_array_value"`
 
-	DebugStringValue    string      `json:"debug_string_value,omitempty" zgrab:"debug"`
-	DebugTrueValue      bool        `json:"debug_true_value,omitempty" zgrab:"debug"`
-	DebugFalseValue     bool        `json:"debug_false_value,omitempty" zgrab:"debug"`
-	DebugIntValue       int         `json:"debug_int_value,omitempty" zgrab:"debug"`
-	DebugBytesValue     []byte      `json:"debug_bytes_value,omitempty" zgrab:"debug"`
-	DebugArrayValue     [5]string   `json:"debug_array_value,omitempty" zgrab:"debug"`
-	DebugInterfaceValue interface{} `json:"debug_interface_value,omitempty" zgrab:"debug"`
+	DebugStringValue    string    `json:"debug_string_value,omitempty" zgrab:"debug"`
+	DebugTrueValue      bool      `json:"debug_true_value,omitempty" zgrab:"debug"`
+	DebugFalseValue     bool      `json:"debug_false_value,omitempty" zgrab:"debug"`
+	DebugIntValue       int       `json:"debug_int_value,omitempty" zgrab:"debug"`
+	DebugBytesValue     []byte    `json:"debug_bytes_value,omitempty" zgrab:"debug"`
+	DebugArrayValue     [5]string `json:"debug_array_value,omitempty" zgrab:"debug"`
+	DebugInterfaceValue any       `json:"debug_interface_value,omitempty" zgrab:"debug"`
 
 	DebugPtrStringValue *string    `json:"debug_ptr_string_value,omitempty" zgrab:"debug"`
 	DebugPtrTrueValue   *bool      `json:"debug_ptr_true_value,omitempty" zgrab:"debug"`
@@ -165,13 +165,13 @@ type Flat struct {
 
 type StrippedFlat struct {
 	*Flat
-	OmitDebugStringValue    string      `json:"debug_string_value,omitempty" zgrab:"debug"`
-	OmitDebugTrueValue      bool        `json:"debug_true_value,omitempty" zgrab:"debug"`
-	OmitDebugFalseValue     bool        `json:"debug_false_value,omitempty" zgrab:"debug"`
-	OmitDebugIntValue       int         `json:"debug_int_value,omitempty" zgrab:"debug"`
-	OmitDebugBytesValue     []byte      `json:"debug_bytes_value,omitempty" zgrab:"debug"`
-	OmitDebugArrayValue     [5]string   `json:"debug_array_value,omitempty" zgrab:"debug"`
-	OmitDebugInterfaceValue interface{} `json:"debug_interface_value,omitempty" zgrab:"debug"`
+	OmitDebugStringValue    string    `json:"debug_string_value,omitempty" zgrab:"debug"`
+	OmitDebugTrueValue      bool      `json:"debug_true_value,omitempty" zgrab:"debug"`
+	OmitDebugFalseValue     bool      `json:"debug_false_value,omitempty" zgrab:"debug"`
+	OmitDebugIntValue       int       `json:"debug_int_value,omitempty" zgrab:"debug"`
+	OmitDebugBytesValue     []byte    `json:"debug_bytes_value,omitempty" zgrab:"debug"`
+	OmitDebugArrayValue     [5]string `json:"debug_array_value,omitempty" zgrab:"debug"`
+	OmitDebugInterfaceValue any       `json:"debug_interface_value,omitempty" zgrab:"debug"`
 
 	OmitDebugPtrStringValue *string    `json:"debug_ptr_string_value,omitempty" zgrab:"debug"`
 	OmitDebugPtrTrueValue   *bool      `json:"debug_ptr_true_value,omitempty" zgrab:"debug"`
@@ -312,10 +312,10 @@ func getDeep(id string, depth int) *Deep {
 
 // An arbitrarily deep struct, with its children stored as interface{} fields.
 type DeepIface struct {
-	ID         string      `json:"id"`
-	DebugID    string      `json:"debug_id,omitempty" zgrab:"debug"`
-	Child      interface{} `json:"child"`
-	DebugChild interface{} `json:"debug_child,omitempty" zgrab:"debug"`
+	ID         string `json:"id"`
+	DebugID    string `json:"debug_id,omitempty" zgrab:"debug"`
+	Child      any    `json:"child"`
+	DebugChild any    `json:"debug_child,omitempty" zgrab:"debug"`
 
 	Flat    Flat  `json:"flat,omitempty"`
 	PtrFlat *Flat `json:"ptr_flat,omitempty"`
@@ -326,9 +326,9 @@ type DeepIface struct {
 
 type StrippedDeepIface struct {
 	*DeepIface
-	OmitDebugID    string      `json:"debug_id,omitempty" zgrab:"debug"`
-	OverrideChild  interface{} `json:"child"`
-	OmitDebugChild interface{} `json:"debug_child,omitempty" zgrab:"debug"`
+	OmitDebugID    string `json:"debug_id,omitempty" zgrab:"debug"`
+	OverrideChild  any    `json:"child"`
+	OmitDebugChild any    `json:"debug_child,omitempty" zgrab:"debug"`
 
 	OverrideFlat    StrippedFlat  `json:"flat,omitempty"`
 	OverridePtrFlat *StrippedFlat `json:"ptr_flat,omitempty"`
@@ -505,8 +505,8 @@ type DeepIfaceSlice struct {
 	ID      string `json:"id"`
 	DebugID string `json:"debug_id,omitempty" zgrab:"debug"`
 
-	Children      []interface{} `json:"children"`
-	DebugChildren []interface{} `json:"debug_children,omitempty" zgrab:"debug"`
+	Children      []any `json:"children"`
+	DebugChildren []any `json:"debug_children,omitempty" zgrab:"debug"`
 
 	Flat    Flat  `json:"flat,omitempty"`
 	PtrFlat *Flat `json:"ptr_flat,omitempty"`
@@ -519,8 +519,8 @@ type StrippedDeepIfaceSlice struct {
 	*DeepIfaceSlice
 	OmitDebugID string `json:"debug_id,omitempty" zgrab:"debug"`
 
-	OverrideChildren  []interface{} `json:"children"`
-	OmitDebugChildren []interface{} `json:"debug_children,omitempty" zgrab:"debug"`
+	OverrideChildren  []any `json:"children"`
+	OmitDebugChildren []any `json:"debug_children,omitempty" zgrab:"debug"`
 
 	OverrideFlat    StrippedFlat  `json:"flat,omitempty"`
 	OverridePtrFlat *StrippedFlat `json:"ptr_flat,omitempty"`
@@ -535,7 +535,7 @@ func (deep *DeepIfaceSlice) GetStripped() *StrippedDeepIfaceSlice {
 	if len(deep.Children) > 0 {
 		child0 := deep.Children[0].(DeepIfaceSlice)
 		child1 := deep.Children[1].(Flat)
-		temp.OverrideChildren = []interface{}{
+		temp.OverrideChildren = []any{
 			*(&child0).GetStripped(),
 			*(&child1).GetStripped(),
 		}
@@ -562,11 +562,11 @@ func getDeepIfaceSlice(id string, depth int) *DeepIfaceSlice {
 		DebugPtrFlat: getFlat(id + ".debug_ptr_flat"),
 	}
 	if depth > 0 {
-		ret.Children = []interface{}{
+		ret.Children = []any{
 			*getDeepIfaceSlice(ret.ID+".children[0]", depth-1),
 			*getFlat(id + ".children[1]"),
 		}
-		ret.DebugChildren = []interface{}{
+		ret.DebugChildren = []any{
 			*getDeepIfaceSlice(ret.ID+".debug_children[0]", depth-1),
 			*getFlat(ret.ID + ".debug_children[1]"),
 		}
@@ -579,8 +579,8 @@ type DeepIfaceArray struct {
 	ID      string `json:"id"`
 	DebugID string `json:"debug_id,omitempty" zgrab:"debug"`
 
-	Children      [2]interface{} `json:"children"`
-	DebugChildren [2]interface{} `json:"debug_children,omitempty" zgrab:"debug"`
+	Children      [2]any `json:"children"`
+	DebugChildren [2]any `json:"debug_children,omitempty" zgrab:"debug"`
 
 	Flat    Flat  `json:"flat,omitempty"`
 	PtrFlat *Flat `json:"ptr_flat,omitempty"`
@@ -593,8 +593,8 @@ type StrippedDeepIfaceArray struct {
 	*DeepIfaceArray
 	OmitDebugID string `json:"debug_id,omitempty" zgrab:"debug"`
 
-	OverrideChildren  [2]interface{} `json:"children"`
-	OmitDebugChildren [2]interface{} `json:"debug_children,omitempty" zgrab:"debug"`
+	OverrideChildren  [2]any `json:"children"`
+	OmitDebugChildren [2]any `json:"debug_children,omitempty" zgrab:"debug"`
 
 	OverrideFlat    StrippedFlat  `json:"flat,omitempty"`
 	OverridePtrFlat *StrippedFlat `json:"ptr_flat,omitempty"`

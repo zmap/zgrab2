@@ -85,7 +85,7 @@ func RegisterModule() {
 
 // NewFlags returns the default flags object to be filled in with the
 // command-line arguments.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -246,7 +246,7 @@ func (ftp *Connection) GetFTPSCertificates() error {
 //   - Perform ths TLS handshake / any configured TLS scans, populating
 //     results.TLSLog.
 //   - Return SCAN_SUCCESS, &results, nil
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
 	conn, err := t.Open(&s.config.BaseFlags)
 	if err != nil {

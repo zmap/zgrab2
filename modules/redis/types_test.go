@@ -163,7 +163,7 @@ func getConnection() (*Connection, *fakeIO) {
 }
 
 // strip s down to 32 chars
-func strip(s interface{}) string {
+func strip(s any) string {
 	var stringVal string
 	switch v := s.(type) {
 	case SimpleString:
