@@ -82,6 +82,7 @@ func _write(writer io.Writer, data []byte) error {
 func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 	endpoint := fmt.Sprintf("127.0.0.1:%d", cfg.port)
 	listener, err := net.Listen("tcp", endpoint)
+	t.Logf("Listening on %s, err=%v", endpoint, err)
 	if err != nil {
 		t.Fatal(err)
 	}
