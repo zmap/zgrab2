@@ -16,6 +16,7 @@ import (
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"golang.org/x/sys/unix"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
@@ -87,7 +88,7 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 		Control: func(network, address string, c syscall.RawConn) error {
 			var opErr error
 			if err := c.Control(func(fd uintptr) {
-				opErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1)
+				opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
 			}); err != nil {
 				return err
 			}
