@@ -207,8 +207,8 @@ type readLimitTestConfig struct {
 }
 
 const (
-	readLimitTestConfigHTTPBasePort  = 0x7f7f
-	readLimitTestConfigHTTPSBasePort = 0x7bbc
+	readLimitTestConfigHTTPBasePort  = 0x8f7f
+	readLimitTestConfigHTTPSBasePort = 0x8bbc
 )
 
 func adr(s string) *string { return &s }
