@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"math/big"
 	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -81,7 +83,18 @@ func _write(writer io.Writer, data []byte) error {
 // XXXX....
 func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 	endpoint := fmt.Sprintf("127.0.0.1:%d", cfg.port)
-	listener, err := net.Listen("tcp", endpoint)
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var opErr error
+			if err := c.Control(func(fd uintptr) {
+				opErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEPORT, 1)
+			}); err != nil {
+				return err
+			}
+			return opErr
+		},
+	}
+	listener, err := lc.Listen(context.Background(), "tcp", endpoint)
 	t.Logf("Listening on %s, err=%v", endpoint, err)
 	if err != nil {
 		t.Fatal(err)
