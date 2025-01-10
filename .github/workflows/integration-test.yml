@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - fix/http-test-port
   pull_request:
 
 jobs:
