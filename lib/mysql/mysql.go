@@ -215,8 +215,7 @@ func NewConnection(config *Config) *Connection {
 }
 
 // PacketInfo is the top-level interface for all packets.
-type PacketInfo interface {
-}
+type PacketInfo any
 
 // WritablePacket is a sub-interface for those packets that must be
 // sent by the client to the server, and not just read.

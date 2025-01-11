@@ -65,7 +65,7 @@ type readLimitTestConfig struct {
 // Call sendReceive(), and check that the input/output match, and that any expected errors / truncation occurs.
 func checkedSendReceive(t *testing.T, conn *TimeoutConnection, size int) (result error) {
 	// helper to report + return an error
-	tErrorf := func(format string, args ...interface{}) error {
+	tErrorf := func(format string, args ...any) error {
 		result = fmt.Errorf(format, args)
 		t.Error(result)
 		return result

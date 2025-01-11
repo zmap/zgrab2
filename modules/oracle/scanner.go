@@ -113,7 +113,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -217,7 +217,7 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //     into the results, then send a Native Security Negotiation Data packet.
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var results *ScanResults
 
 	sock, err := t.Open(&scanner.config.BaseFlags)

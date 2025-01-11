@@ -19,14 +19,14 @@ type Metadata struct {
 	Tags       *TagMap
 	Lens       map[string]uint64
 	Offsets    map[string]uint64
-	Parent     interface{}
+	Parent     any
 	ParentBuf  []byte
 	CurrOffset uint64
 	CurrField  string
 }
 
 type TagMap struct {
-	m   map[string]interface{}
+	m   map[string]any
 	has map[string]bool
 }
 
@@ -34,12 +34,12 @@ func (t TagMap) Has(key string) bool {
 	return t.has[key]
 }
 
-func (t TagMap) Set(key string, val interface{}) {
+func (t TagMap) Set(key string, val any) {
 	t.m[key] = val
 	t.has[key] = true
 }
 
-func (t TagMap) Get(key string) interface{} {
+func (t TagMap) Get(key string) any {
 	return t.m[key]
 }
 
@@ -59,7 +59,7 @@ func (t TagMap) GetString(key string) (string, error) {
 
 func parseTags(sf reflect.StructField) (*TagMap, error) {
 	ret := &TagMap{
-		m:   make(map[string]interface{}),
+		m:   make(map[string]any),
 		has: make(map[string]bool),
 	}
 	tag := sf.Tag.Get("smb")
@@ -187,11 +187,11 @@ func getFieldLengthByName(fieldName string, meta *Metadata) (uint64, error) {
 	return ret, nil
 }
 
-func Marshal(v interface{}) ([]byte, error) {
+func Marshal(v any) ([]byte, error) {
 	return marshal(v, nil)
 }
 
-func marshal(v interface{}, meta *Metadata) ([]byte, error) {
+func marshal(v any, meta *Metadata) ([]byte, error) {
 	var ret []byte
 	tf := reflect.TypeOf(v)
 	vf := reflect.ValueOf(v)
@@ -313,7 +313,7 @@ func marshal(v interface{}, meta *Metadata) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-func unmarshal(buf []byte, v interface{}, meta *Metadata) (interface{}, error) {
+func unmarshal(buf []byte, v any, meta *Metadata) (any, error) {
 	tf := reflect.TypeOf(v)
 	vf := reflect.ValueOf(v)
 
@@ -360,7 +360,7 @@ func unmarshal(buf []byte, v interface{}, meta *Metadata) (interface{}, error) {
 				return nil, err
 			}
 			m.Tags = tags
-			var data interface{}
+			var data any
 			switch tf.Field(i).Type.Kind() {
 			case reflect.Struct:
 				data, err = unmarshal(buf[m.CurrOffset:], vf.Field(i).Addr().Interface(), m)
@@ -464,7 +464,7 @@ func unmarshal(buf []byte, v interface{}, meta *Metadata) (interface{}, error) {
 
 }
 
-func Unmarshal(buf []byte, v interface{}) error {
+func Unmarshal(buf []byte, v any) error {
 	_, err := unmarshal(buf, v, nil)
 	return err
 }

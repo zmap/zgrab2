@@ -32,7 +32,7 @@ func NewIniParser() *flags.IniParser {
 
 // AddGroup exposes the parser's AddGroup function, allowing extension
 // of the global arguments.
-func AddGroup(shortDescription string, longDescription string, data interface{}) {
+func AddGroup(shortDescription string, longDescription string, data any) {
 	parser.AddGroup(shortDescription, longDescription, data)
 }
 
@@ -220,7 +220,7 @@ func IsTimeoutError(err error) bool {
 // Example:
 //
 //	defer zgrab2.LogPanic("Error decoding body '%x'", body)
-func LogPanic(format string, args ...interface{}) {
+func LogPanic(format string, args ...any) {
 	err := recover()
 	if err == nil {
 		return

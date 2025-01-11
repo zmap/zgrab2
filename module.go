@@ -21,7 +21,7 @@ type Scanner interface {
 	Protocol() string
 
 	// Scan connects to a host. The result should be JSON-serializable
-	Scan(t ScanTarget) (ScanStatus, interface{}, error)
+	Scan(t ScanTarget) (ScanStatus, any, error)
 }
 
 // ScanResponse is the result of a scan on a single host
@@ -33,9 +33,9 @@ type ScanResponse struct {
 	// the scan name.
 	Protocol string `json:"protocol"`
 
-	Result    interface{} `json:"result,omitempty"`
-	Timestamp string      `json:"timestamp,omitempty"`
-	Error     *string     `json:"error,omitempty"`
+	Result    any     `json:"result,omitempty"`
+	Timestamp string  `json:"timestamp,omitempty"`
+	Error     *string `json:"error,omitempty"`
 }
 
 // ScanModule is an interface which represents a module that the framework can
@@ -43,7 +43,7 @@ type ScanResponse struct {
 type ScanModule interface {
 	// NewFlags is called by the framework to pass to the argument parser. The parsed flags will be passed
 	// to the scanner created by NewScanner().
-	NewFlags() interface{}
+	NewFlags() any
 
 	// NewScanner is called by the framework for each time an individual scan is specified in the config or on
 	// the command-line. The framework will then call scanner.Init(name, flags).

@@ -114,7 +114,7 @@ func (m *MEIObjectID) Name() string {
 
 // MarshalJSON encodes the identifier as its friendly name.
 func (m *MEIObject) MarshalJSON() ([]byte, error) {
-	enc := make(map[string]interface{}, 1)
+	enc := make(map[string]any, 1)
 	name := m.OID.Name()
 	enc[name] = m.Value
 	return json.Marshal(enc)

@@ -172,7 +172,7 @@ func RegisterModule() {
 }
 
 // NewFlags provides an empty instance of the flags that will be filled in by the framework
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -227,8 +227,8 @@ func (scan *scan) Close() {
 	defer scan.close()
 }
 
-func getUnmarshaler(file string) (func([]byte, interface{}) error, error) {
-	var unmarshaler func([]byte, interface{}) error
+func getUnmarshaler(file string) (func([]byte, any) error, error) {
+	var unmarshaler func([]byte, any) error
 	switch ext := filepath.Ext(file); ext {
 	case ".json":
 		unmarshaler = json.Unmarshal
@@ -241,7 +241,7 @@ func getUnmarshaler(file string) (func([]byte, interface{}) error, error) {
 	return unmarshaler, nil
 }
 
-func (scanner *Scanner) getFileContents(file string, output interface{}) error {
+func (scanner *Scanner) getFileContents(file string, output any) error {
 	unmarshaler, err := getUnmarshaler(file)
 	if err != nil {
 		return err
@@ -405,7 +405,7 @@ func convToUint32(s string) uint32 {
 // 6. QUIT
 // The responses for each of these is logged, and if INFO succeeds, the version
 // is scraped from it.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// ping, info, quit
 	scan, err := scanner.StartScan(&target)
 	if err != nil {

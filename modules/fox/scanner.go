@@ -41,7 +41,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -100,7 +100,7 @@ func (scanner *Scanner) Protocol() string {
 // 3. Attempt to read the response (up to 8k + 4 bytes -- larger responses trigger an error)
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 
 	var (
 		conn    net.Conn
