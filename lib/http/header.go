@@ -194,7 +194,7 @@ func (s *headerSorter) Swap(i, j int)      { s.kvs[i], s.kvs[j] = s.kvs[j], s.kv
 func (s *headerSorter) Less(i, j int) bool { return s.kvs[i].key < s.kvs[j].key }
 
 var headerSorterPool = sync.Pool{
-	New: func() interface{} { return new(headerSorter) },
+	New: func() any { return new(headerSorter) },
 }
 
 // sortedKeyValues returns h's keys sorted in the returned kvs
@@ -338,7 +338,7 @@ func filterHeaders(h Header) {
 func (h Header) MarshalJSON() ([]byte, error) {
 	filterHeaders(h)
 
-	headerMap := make(map[string]interface{})
+	headerMap := make(map[string]any)
 	for k, v := range h {
 		// Need to special-case unknown header object, since it's not a true header (aka map[string][]string)
 		if k == "Unknown" && len(v) > 0 {
