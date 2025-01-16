@@ -10,13 +10,14 @@ import (
 	"time"
 
 	jarm "github.com/hdm/jarm-go"
+
 	"github.com/zmap/zgrab2"
 )
 
 // Flags give the command-line flags for the banner module.
 type Flags struct {
-	zgrab2.BaseFlags
-	MaxTries int `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	MaxTries         int `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
 }
 
 // Module is the implementation of the zgrab2.Module interface.

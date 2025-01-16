@@ -132,9 +132,9 @@ func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *ScanResul
 
 // Flags give the command-line flags for the MySQL module.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module is the implementation of the zgrab2.Module interface.

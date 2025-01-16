@@ -57,8 +57,8 @@ type ScanResults struct {
 // Flags holds the command-line configuration for the POP3 scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 
 	// SendHELP indicates that the client should send the HELP command.
 	SendHELP bool `long:"send-help" description:"Send the HELP command"`

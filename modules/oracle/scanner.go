@@ -41,8 +41,8 @@ type ScanResults struct {
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 
 	// Version is the client version number sent to the server in the Connect
 	// packet. TODO: Find version number mappings.

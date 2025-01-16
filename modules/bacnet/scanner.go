@@ -6,6 +6,7 @@ package bacnet
 
 import (
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -14,8 +15,8 @@ import (
 // Flags holds the command-line configuration for the bacnet scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.UDPFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.UDPFlags  `group:"UDP Options"`
 
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }

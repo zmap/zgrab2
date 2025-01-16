@@ -43,10 +43,10 @@ type ScanResults struct {
 
 // Flags defines the command-line configuration options for the module.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	EncryptMode string `long:"encrypt-mode" description:"The type of encryption to request in the pre-login step. One of ENCRYPT_ON, ENCRYPT_OFF, ENCRYPT_NOT_SUP." default:"ENCRYPT_ON"`
-	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	EncryptMode      string `long:"encrypt-mode" description:"The type of encryption to request in the pre-login step. One of ENCRYPT_ON, ENCRYPT_OFF, ENCRYPT_NOT_SUP." default:"ENCRYPT_ON"`
+	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module is the implementation of zgrab2.Module for the MSSQL protocol.

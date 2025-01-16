@@ -13,9 +13,8 @@ import (
 // Flags holds the command-line configuration for the dnp3 scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	// TODO: Support UDP?
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"` // TODO: Support UDP?
+	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.

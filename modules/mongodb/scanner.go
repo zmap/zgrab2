@@ -16,7 +16,7 @@ type Module struct {
 
 // Flags contains mongodb-specific command-line flags.
 type Flags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
 }
 
 // Scanner implements the zgrab2.Scanner interface

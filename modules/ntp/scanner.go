@@ -24,6 +24,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -793,7 +794,7 @@ type Results struct {
 
 // Flags holds the command-line flags for the scanner.
 type Flags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.UDPFlags
 	Verbose       bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	Version       uint8  `long:"version" description:"The version number to pass to the Server." default:"3"`

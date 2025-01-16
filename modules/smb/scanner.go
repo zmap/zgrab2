@@ -11,8 +11,7 @@ import (
 // Flags holds the command-line configuration for the smb scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-
+	zgrab2.BaseFlags `group:"Basic Options"`
 	// SetupSession tells the client to continue the handshake up to the point where credentials would be needed.
 	SetupSession bool `long:"setup-session" description:"After getting the response from the negotiation request, send a setup session packet."`
 

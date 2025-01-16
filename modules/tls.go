@@ -6,8 +6,8 @@ import (
 )
 
 type TLSFlags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 }
 
 type TLSModule struct {
