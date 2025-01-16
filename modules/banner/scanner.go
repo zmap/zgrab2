@@ -70,7 +70,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a new default flags object.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -142,7 +142,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
 		conn    net.Conn
 		tlsConn *zgrab2.TLSConnection

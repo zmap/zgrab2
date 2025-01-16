@@ -79,19 +79,19 @@ func startAgent(t *testing.T) (client Agent, socket string, cleanup func()) {
 	}
 }
 
-func testAgent(t *testing.T, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
+func testAgent(t *testing.T, key any, cert *ssh.Certificate, lifetimeSecs uint32) {
 	agent, _, cleanup := startAgent(t)
 	defer cleanup()
 
 	testAgentInterface(t, agent, key, cert, lifetimeSecs)
 }
 
-func testKeyring(t *testing.T, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
+func testKeyring(t *testing.T, key any, cert *ssh.Certificate, lifetimeSecs uint32) {
 	a := NewKeyring()
 	testAgentInterface(t, a, key, cert, lifetimeSecs)
 }
 
-func testAgentInterface(t *testing.T, agent Agent, key interface{}, cert *ssh.Certificate, lifetimeSecs uint32) {
+func testAgentInterface(t *testing.T, agent Agent, key any, cert *ssh.Certificate, lifetimeSecs uint32) {
 	signer, err := ssh.NewSignerFromKey(key)
 	if err != nil {
 		t.Fatalf("NewSignerFromKey(%T): %v", key, err)
