@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/ssh"
 )
 
 type SSHFlags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags  `group:"Basic Options"`
 	ClientID          string `long:"client" description:"Specify the client ID string to use" default:"SSH-2.0-Go"`
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`
@@ -43,7 +44,7 @@ func init() {
 	cmd.FindOptionByLongName("ciphers").Default = []string{strings.Join(s.Ciphers, ",")}
 }
 
-func (m *SSHModule) NewFlags() interface{} {
+func (m *SSHModule) NewFlags() any {
 	return new(SSHFlags)
 }
 
@@ -82,7 +83,7 @@ func (s *SSHScanner) GetTrigger() string {
 	return s.config.Trigger
 }
 
-func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
 
 	var port uint

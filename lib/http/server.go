@@ -773,7 +773,7 @@ var (
 )
 
 var copyBufPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		b := make([]byte, 32*1024)
 		return &b
 	},
@@ -1671,10 +1671,10 @@ func (c *conn) setState(nc net.Conn, state ConnState) {
 	}
 }
 
-// connStateInterface is an array of the interface{} versions of
+// connStateInterface is an array of the any versions of
 // ConnState values, so we can use them in atomic.Values later without
-// paying the cost of shoving their integers in an interface{}.
-var connStateInterface = [...]interface{}{
+// paying the cost of shoving their integers in an any.
+var connStateInterface = [...]any{
 	StateNew:      StateNew,
 	StateActive:   StateActive,
 	StateIdle:     StateIdle,
@@ -2747,7 +2747,7 @@ func (srv *Server) SetKeepAlivesEnabled(v bool) {
 	srv.doneChan = nil
 }
 
-func (s *Server) logf(format string, args ...interface{}) {
+func (s *Server) logf(format string, args ...any) {
 	if s.ErrorLog != nil {
 		s.ErrorLog.Printf(format, args...)
 	} else {

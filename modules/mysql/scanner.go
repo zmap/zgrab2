@@ -132,9 +132,9 @@ func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *ScanResul
 
 // Flags give the command-line flags for the MySQL module.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -156,7 +156,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a new default flags object.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -215,7 +215,7 @@ func (scanner *Scanner) GetTrigger() string {
 //  2. If the server supports SSL, send an SSLRequest packet, then
 //     perform the standard TLS actions.
 //  3. Process and return the results.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var tlsConn *zgrab2.TLSConnection
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
