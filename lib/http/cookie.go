@@ -316,9 +316,11 @@ func sanitizeCookieName(n string) string {
 // http://tools.ietf.org/html/rfc6265#section-4.1.1
 // cookie-value      = *cookie-octet / ( DQUOTE *cookie-octet DQUOTE )
 // cookie-octet      = %x21 / %x23-2B / %x2D-3A / %x3C-5B / %x5D-7E
-//           ; US-ASCII characters excluding CTLs,
-//           ; whitespace DQUOTE, comma, semicolon,
-//           ; and backslash
+//
+//	; US-ASCII characters excluding CTLs,
+//	; whitespace DQUOTE, comma, semicolon,
+//	; and backslash
+//
 // We loosen this as spaces and commas are common in cookie values
 // but we produce a quoted cookie-value in when value starts or ends
 // with a comma or space.

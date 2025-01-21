@@ -8,8 +8,8 @@ import (
 )
 
 /*
-  Malformed NTLMSSP challenge, in that the first AvPair has an invalid
-  type code, and has an absurd (0x910e) length for the field.
+Malformed NTLMSSP challenge, in that the first AvPair has an invalid
+type code, and has an absurd (0x910e) length for the field.
 */
 const problematicResponse = "" +
 	"\x4e\x54\x4c\x4d\x53\x53\x50\x00\x02\x00\x00\x00\x08\x00\x08\x00" +

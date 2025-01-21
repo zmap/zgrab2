@@ -12,8 +12,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/encoding/asn1"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
+	"github.com/zmap/zcrypto/x509/pkix"
 )
 
 // Shared code for TLS scans.
@@ -28,6 +30,8 @@ import (
 // Common flags for TLS configuration -- include this in your module's ScanFlags implementation to use the common TLS code
 // Adapted from modules/ssh.go
 type TLSFlags struct {
+	Config *tls.Config // Config is ready to use TLS configuration
+
 	Heartbleed bool `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
 
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
@@ -89,6 +93,11 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error) {
 	var err error
 
+	// Config already exists
+	if t.Config != nil {
+		return t.Config, nil
+	}
+
 	// TODO: Find standard names
 	cipherMap := map[string][]uint16{
 		"portable":        tls.PortableCiphers,
@@ -142,6 +151,10 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 			log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
 		}
 	}
+
+	asn1.AllowPermissiveParsing = true
+	pkix.LegacyNameString = true
+
 	if t.NextProtos != "" {
 		// TODO: Different format?
 		ret.NextProtos = getCSV(t.NextProtos)

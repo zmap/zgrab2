@@ -670,7 +670,7 @@ type fileHandler struct {
 // To use the operating system's file system implementation,
 // use http.Dir:
 //
-//     http.Handle("/", http.FileServer(http.Dir("/tmp")))
+//	http.Handle("/", http.FileServer(http.Dir("/tmp")))
 //
 // As a special case, the returned file server redirects any request
 // ending in "/index.html" to the same path, without the final

@@ -13,6 +13,7 @@ import (
 // Grab contains all scan responses for a single host
 type Grab struct {
 	IP     string                  `json:"ip,omitempty"`
+	Port   uint                    `json:"port,omitempty"`
 	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
 }
@@ -117,12 +118,16 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
 	var ipstr string
-
+	var port uint
 	if t.IP != nil {
 		ipstr = t.IP.String()
 	}
+	if t.Port != nil {
+		port = *t.Port
+	}
 	return &Grab{
 		IP:     ipstr,
+		Port:   port,
 		Domain: t.Domain,
 		Data:   responses,
 	}
@@ -130,7 +135,7 @@ func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse
 
 // EncodeGrab serializes a Grab to JSON, handling the debug fields if necessary.
 func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
-	var outputData interface{}
+	var outputData any
 	if includeDebug {
 		outputData = raw
 	} else {
@@ -178,7 +183,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	raw := BuildGrabFromInputResponse(&input, moduleResult)
 	result, err := EncodeGrab(raw, includeDebugOutput())
 	if err != nil {
-		log.Fatalf("unable to marshal data: %s", err)
+		log.Errorf("unable to marshal data: %s", err)
 	}
 
 	return result

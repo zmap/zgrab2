@@ -46,7 +46,7 @@ function waitFor() {
       fi
       sleep 1
     done
-    while ! (docker exec -t $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log | grep -q "STARTED; state"); do
+    while ! (docker exec $CONTAINER_NAME cat //var/lib/postgresql/data/pg_log/postgres.log | grep -q "STARTED; state"); do
       echo -n "."
       sleep 1
     done

@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
 )
@@ -41,8 +42,18 @@ var (
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
 
-	Versions          = []version{{Major: 2, Minor: 1}, {Major: 2, Minor: 0}, {Major: 1, Minor: 1}, {Major: 1, Minor: 0}}
-	AttributesCharset = []byte{0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68, 0x61, 0x72, 0x73, 0x65, 0x74}
+	Versions = []version{
+		{Major: 2, Minor: 1},
+		{Major: 2, Minor: 0},
+		{Major: 1, Minor: 1},
+		{Major: 1, Minor: 0},
+	}
+
+	AttributesCharset = []byte{
+		0x47, 0x00, 0x12, 0x61, 0x74, 0x74, 0x72, 0x69,
+		0x62, 0x75, 0x74, 0x65, 0x73, 0x2d, 0x63, 0x68,
+		0x61, 0x72, 0x73, 0x65, 0x74,
+	}
 )
 
 type scan struct {
@@ -54,7 +65,7 @@ type scan struct {
 	tls         bool
 }
 
-//TODO: Tag relevant results and exlain in comments
+// TODO: Tag relevant results and exlain in comments
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {
 	//TODO: ?Include the request sent as well??
@@ -81,9 +92,9 @@ type ScanResults struct {
 // Flags holds the command-line configuration for the ipp scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
 	//FIXME: Borrowed from http module, determine whether this is all needed
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
@@ -125,7 +136,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -236,8 +247,10 @@ func detectReadBodyError(err error) error {
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
 
-/* An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
-   https://tools.ietf.org/html/rfc8010#section-3.1.8)
+/*
+	An IPP response contains the following data (as specified in RFC 8010 Section 3.1.8
+	  https://tools.ietf.org/html/rfc8010#section-3.1.8)
+
 bytes name
 ----------------------------
 2     version-number
@@ -297,9 +310,10 @@ func readAllAttributes(body []byte, scanner *Scanner) ([]*Attribute, error) {
 			continue
 		}
 		// TODO: Implement parsing attribute collections, since they're special
-		// Read in length of attribute's name, which will be used to determine whether this attribute stands alone
-		// or provides an additonal value for the previous attribute
-		var nameLength int16
+		// Read in length of attribute's name, which will be used to determine
+		// whether this attribute stands alone or provides an additonal value
+		// for the previous attribute
+		var nameLength uint16
 		if err := binary.Read(buf, binary.BigEndian, &nameLength); err != nil {
 			return attrs, detectReadBodyError(err)
 		}
@@ -583,7 +597,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	return nil
 }
 
-//Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
+// Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
 func redirectsToLocalhost(host string) bool {
 	if i := net.ParseIP(host); i != nil {
 		return i.IsLoopback() || i.Equal(net.IPv4zero)
@@ -727,9 +741,9 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 }
 
 // Scan TODO: describe how scan operates in appropriate detail
-//1. Send a request (currently get-printer-attributes)
-//2. Take in that response & read out version numbers
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+// 1. Send a request (currently get-printer-attributes)
+// 2. Take in that response & read out version numbers
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
 	scan, err := scanner.tryGrabForVersions(&target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure)
 	if err != nil {

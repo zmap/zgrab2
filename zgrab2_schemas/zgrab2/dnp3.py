@@ -7,12 +7,17 @@ import zschema.registry
 import zcrypto_schemas.zcrypto as zcrypto
 from . import zgrab2
 
-dnp3_scan_response = SubRecord({
-    "result": SubRecord({
-        "is_dnp3": Boolean(),
-        "raw_response": Binary(),
-    })
-}, extends=zgrab2.base_scan_response)
+dnp3_scan_response = SubRecord(
+    {
+        "result": SubRecord(
+            {
+                "is_dnp3": Boolean(),
+                "raw_response": Binary(),
+            }
+        )
+    },
+    extends=zgrab2.base_scan_response,
+)
 
 zschema.registry.register_schema("zgrab2-dnp3", dnp3_scan_response)
 

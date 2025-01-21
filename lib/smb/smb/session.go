@@ -330,7 +330,7 @@ func (s *Session) TreeDisconnect(name string) error {
 
 func (s *Session) Close() {
 	s.Debug("Closing session", nil)
-	for k, _ := range s.trees {
+	for k := range s.trees {
 		s.TreeDisconnect(k)
 	}
 	s.Debug("Closing TCP connection", nil)
@@ -338,7 +338,7 @@ func (s *Session) Close() {
 	s.Debug("Session close completed", nil)
 }
 
-func (s *Session) send(req interface{}) (res []byte, err error) {
+func (s *Session) send(req any) (res []byte, err error) {
 	buf, err := encoder.Marshal(req)
 	if err != nil {
 		s.Debug("", err)

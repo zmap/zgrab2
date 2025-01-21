@@ -7,20 +7,25 @@ import zschema.registry
 import zcrypto_schemas
 from . import zgrab2
 
-bacnet_scan_response = SubRecord({
-    "result": SubRecord({
-        "is_bacnet": Boolean(),
-        "instance_number": Unsigned32BitInteger(),
-        "vendor_id": Unsigned16BitInteger(),
-        "vendor_name": String(),
-        "firmware_revision": String(),
-        "application_software_revision": String(),
-        "object_name": String(),
-        "model_name": String(),
-        "description": String(),
-        "location": String(),
-    })
-}, extends=zgrab2.base_scan_response)
+bacnet_scan_response = SubRecord(
+    {
+        "result": SubRecord(
+            {
+                "is_bacnet": Boolean(),
+                "instance_number": Unsigned32BitInteger(),
+                "vendor_id": Unsigned16BitInteger(),
+                "vendor_name": String(),
+                "firmware_revision": String(),
+                "application_software_revision": String(),
+                "object_name": String(),
+                "model_name": String(),
+                "description": String(),
+                "location": String(),
+            }
+        )
+    },
+    extends=zgrab2.base_scan_response,
+)
 
 zschema.registry.register_schema("zgrab2-bacnet", bacnet_scan_response)
 

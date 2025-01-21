@@ -17,7 +17,6 @@ type Config struct {
 	InputFileName      string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName       string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
 	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
-	LocalAddress       string          `long:"source-ip" description:"Local source IP address to use for making connections"`
 	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
 	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
 	Flush              bool            `long:"flush" description:"Flush after each line of output."`
@@ -25,6 +24,7 @@ type Config struct {
 	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	ReadLimitPerHost   int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	inputFile          *os.File
 	outputFile         *os.File
@@ -65,14 +65,6 @@ func validateFrameworkConfiguration() {
 	}
 	SetInputFunc(InputTargetsCSV)
 
-	if config.LocalAddress != "" {
-		parsed := net.ParseIP(config.LocalAddress)
-		if parsed == nil {
-			log.Fatalf("Error parsing local interface %s as IP", config.LocalAddress)
-		}
-		config.localAddr = &net.TCPAddr{parsed, 0, ""}
-	}
-
 	if config.InputFileName == "-" {
 		config.inputFile = os.Stdin
 	} else {
@@ -111,7 +103,7 @@ func validateFrameworkConfiguration() {
 	//validate/start prometheus
 	if config.Prometheus != "" {
 		go func() {
-			http.Handle("metrics", promhttp.Handler())
+			http.Handle("/metrics", promhttp.Handler())
 			if err := http.ListenAndServe(config.Prometheus, nil); err != nil {
 				log.Fatalf("could not run prometheus server: %s", err.Error())
 			}
@@ -136,6 +128,14 @@ func validateFrameworkConfiguration() {
 	// Stop even third-party libraries from performing unbounded reads on untrusted hosts
 	if config.ReadLimitPerHost > 0 {
 		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
+	}
+
+	// Validate custom DNS
+	if config.CustomDNS != "" {
+		var err error
+		if config.CustomDNS, err = addDefaultPortToDNSServerName(config.CustomDNS); err != nil {
+			log.Fatalf("invalid DNS server address: %s", err)
+		}
 	}
 }
 

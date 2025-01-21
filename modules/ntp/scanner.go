@@ -24,6 +24,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -793,7 +794,7 @@ type Results struct {
 
 // Flags holds the command-line flags for the scanner.
 type Flags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.UDPFlags
 	Verbose       bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	Version       uint8  `long:"version" description:"The version number to pass to the Server." default:"3"`
@@ -822,7 +823,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a flags instant to be populated with the command line args
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -997,16 +998,17 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 
 // Scan scans the configured server with the settings provided by the command
 // line arguments as follows:
-// 1. If SkipGetTime is not set, send a GetTime packet to the server and read
-//    the response packet into the result.
-// 2. If MonList is set, send a MONLIST packet to the server and read the
-//    response packet into the result.
+//  1. If SkipGetTime is not set, send a GetTime packet to the server and read
+//     the response packet into the result.
+//  2. If MonList is set, send a MONLIST packet to the server and read the
+//     response packet into the result.
+//
 // The presence of an NTP service at the target can be inferred by a non-nil
 // result -- if the service does not return any data or if the response is not
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	sock, err := t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
