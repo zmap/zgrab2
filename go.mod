@@ -10,7 +10,7 @@ require (
 	github.com/zmap/zcrypto v0.0.0-20230310154051-c8b263fd8300
 	github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6
 	golang.org/x/crypto v0.32.0
-	golang.org/x/net v0.26.0
+	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.29.0
 	golang.org/x/text v0.21.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
