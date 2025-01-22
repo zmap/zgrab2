@@ -247,7 +247,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	if err != amqpLib.ErrSASL && err != amqpLib.ErrCredentials && amqpConn.Config.ChannelMax > 0 {
 		result.AuthSuccess = true
 		result.Tune = &connectionTune{
-			ChannelMax: amqpConn.Config.ChannelMax,
+			ChannelMax: int(amqpConn.Config.ChannelMax),
 			FrameMax:   amqpConn.Config.FrameSize,
 			Heartbeat:  int(amqpConn.Config.Heartbeat.Seconds()),
 		}
