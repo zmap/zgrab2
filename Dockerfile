@@ -16,7 +16,7 @@ COPY . .
 RUN make all
 
 ## Runtime image ##
-FROM alpine:3.20 as run
+FROM alpine:3.21 as run
 
 COPY --from=build /usr/src/zgrab2/cmd/zgrab2/zgrab2 /usr/bin/zgrab2
 
