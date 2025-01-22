@@ -31,13 +31,12 @@ import (
 // Flags holds the command-line configuration for the modbus scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	// Protocols that support TLS should include zgrab2.TLSFlags
-	UnitID    uint8  `long:"unit-id" description:"The UnitID / Station ID to probe"`
-	ObjectID  uint8  `long:"object-id" description:"The ObjectID of the object to be read." default:"0x00"`
-	Strict    bool   `long:"strict" description:"If set, perform stricter checks on the response data to get fewer false positives"`
-	RequestID uint16 `long:"request-id" description:"Override the default request ID." default:"0x5A47"`
-	Verbose   bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"` // Protocols that support TLS should include zgrab2.TLSFlags
+	UnitID           uint8                   `long:"unit-id" description:"The UnitID / Station ID to probe"`
+	ObjectID         uint8                   `long:"object-id" description:"The ObjectID of the object to be read." default:"0x00"`
+	Strict           bool                    `long:"strict" description:"If set, perform stricter checks on the response data to get fewer false positives"`
+	RequestID        uint16                  `long:"request-id" description:"Override the default request ID." default:"0x5A47"`
+	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -59,7 +58,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -140,7 +139,7 @@ func (c *Conn) getUnderlyingConn() net.Conn {
 //
 // If the response is not a valid modbus response to this packet, then fail with a SCAN_PROTOCOL_ERROR.
 // Otherwise, return the parsed response and status (SCAN_SUCCESS or SCAN_APPLICATION_ERROR)
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

@@ -13,9 +13,8 @@ import (
 // Flags holds the command-line configuration for the dnp3 scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	// TODO: Support UDP?
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"` // TODO: Support UDP?
+	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -37,7 +36,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -92,7 +91,7 @@ func (scanner *Scanner) Protocol() string {
 
 // Scan probes for a DNP3 service.
 // Connects to the configured TCP port (default 20000) and reads the banner.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// TODO: Allow UDP?
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {

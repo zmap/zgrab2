@@ -299,7 +299,7 @@ func (processor *Processor) process(v reflect.Value) reflect.Value {
 }
 
 // Process the given value recursively using the options in this processor.
-func (processor *Processor) Process(v interface{}) (ret interface{}, err error) {
+func (processor *Processor) Process(v any) (ret any, err error) {
 	defer func() {
 		if thrown := recover(); thrown != nil {
 			cast, ok := thrown.(error)
@@ -314,6 +314,6 @@ func (processor *Processor) Process(v interface{}) (ret interface{}, err error) 
 }
 
 // Process the given value recursively using the default options.
-func Process(v interface{}) (interface{}, error) {
+func Process(v any) (any, error) {
 	return NewProcessor().Process(v)
 }

@@ -74,7 +74,7 @@ var optQuietLog = func(ts *httptest.Server) {
 	ts.Config.ErrorLog = quietLog
 }
 
-func newClientServerTest(t *testing.T, h2 bool, h Handler, opts ...interface{}) *clientServerTest {
+func newClientServerTest(t *testing.T, h2 bool, h Handler, opts ...any) *clientServerTest {
 	cst := &clientServerTest{
 		t:  t,
 		h2: h2,
@@ -185,7 +185,7 @@ type reqFunc func(c *Client, url string) (*Response, error)
 		ReqFunc            reqFunc                           // optional
 		CheckResponse      func(proto string, res *Response) // optional
 		EarlyCheckResponse func(proto string, res *Response) // optional; pre-normalize
-		Opts               []interface{}
+		Opts               []any
 	}
 
 	func (tt h12Compare) reqFunc() reqFunc {
@@ -438,7 +438,7 @@ func TestH12_AutoGzip(t *testing.T) {
 
 func TestH12_AutoGzip_Disabled(t *testing.T) {
 	h12Compare{
-		Opts: []interface{}{
+		Opts: []any{
 			func(tr *Transport) { tr.DisableCompression = true },
 		},
 		Handler: func(w ResponseWriter, r *Request) {
@@ -1199,7 +1199,7 @@ func TestInterruptWithPanic_ErrAbortHandler_h1(t *testing.T) {
 func TestInterruptWithPanic_ErrAbortHandler_h2(t *testing.T) {
 	testInterruptWithPanic(t, h2Mode, ErrAbortHandler)
 }*/
-func testInterruptWithPanic(t *testing.T, h2 bool, panicValue interface{}) {
+func testInterruptWithPanic(t *testing.T, h2 bool, panicValue any) {
 	setParallel(t)
 	const msg = "hello"
 	defer afterTest(t)

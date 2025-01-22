@@ -114,7 +114,7 @@ func ZGrab2Main() {
 	if m, ok := flag.(*zgrab2.MultipleCommand); ok {
 		iniParser := zgrab2.NewIniParser()
 		var modTypes []string
-		var flagsReturned []interface{}
+		var flagsReturned []any
 		if m.ConfigFileName == "-" {
 			modTypes, flagsReturned, err = iniParser.Parse(os.Stdin)
 		} else {

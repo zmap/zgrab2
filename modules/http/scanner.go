@@ -24,9 +24,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/html/charset"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/net/html/charset"
 )
 
 var (
@@ -44,15 +45,15 @@ var (
 //
 // TODO: Custom headers?
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	Method          string `long:"method" default:"GET" description:"Set HTTP request method type"`
-	Endpoint        string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
-	FailHTTPToHTTPS bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
-	UserAgent       string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	RetryHTTPS      bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
-	MaxSize         int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects    int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	Method           string `long:"method" default:"GET" description:"Set HTTP request method type"`
+	Endpoint         string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
+	FailHTTPToHTTPS  bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
+	UserAgent        string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS       bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
+	MaxSize          int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
+	MaxRedirects     int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
@@ -123,7 +124,7 @@ type scan struct {
 }
 
 // NewFlags returns an empty Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -618,7 +619,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS)
 	defer scan.Cleanup()
 	err := scan.Grab()
