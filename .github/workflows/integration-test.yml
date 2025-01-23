@@ -37,7 +37,7 @@ jobs:
 
   integration-test:
     name: Integration Test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -58,11 +58,9 @@ jobs:
       - name: Install dependencies
         run: |
           set -e
-          sudo wget https://github.com/jmespath/jp/releases/download/0.2.1/jp-linux-amd64 -O /usr/local/bin/jp
-          sudo chmod +x /usr/local/bin/jp
-          # Install Python 2.7
           sudo apt update
-          sudo apt install -y python3
+          # Install latest Python
+          sudo apt install -y python3 jp
           python -m ensurepip --upgrade
           # Install Python dependencies
           pip install --user zschema
