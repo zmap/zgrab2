@@ -62,12 +62,11 @@ jobs:
           sudo chmod +x /usr/local/bin/jp
           # Install Python 2.7
           sudo apt update
-          sudo apt install -y python2
-          curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
-          sudo python2 get-pip.py
+          sudo apt install -y python3
+          python -m ensurepip --upgrade
           # Install Python dependencies
-          pip2 install --user zschema
-          pip2 install --user -r requirements.txt
+          pip install --user zschema
+          pip install --user -r requirements.txt
 
       - name: Run tests
         run: |

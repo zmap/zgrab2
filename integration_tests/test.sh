@@ -71,6 +71,7 @@ fi
 status=0
 failures=""
 echo "Doing schema validation..."
+source venv/bin/activate
 
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do
@@ -78,7 +79,7 @@ for protocol in $(ls $ZGRAB_OUTPUT); do
         echo "Validating $target [{("
         cat $target
         echo ")}]:"
-        if ! python2 -m zschema validate zgrab2 $target --path . --module zgrab2_schemas.zgrab2 ; then
+        if ! python3 -m zschema validate zgrab2 $target --path . --module zgrab2_schemas.zgrab2 ; then
             echo "Schema validation failed for $protocol/$outfile"
             err="schema failure@$protocol/$outfile"
             if [[ $status -eq 0 ]]; then
