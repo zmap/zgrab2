@@ -60,11 +60,10 @@ jobs:
           set -e
           sudo apt update
           # Install latest Python
-          sudo apt install -y python3 jp
-          python -m ensurepip --upgrade
+          sudo apt install -y python3 jp python3-pip
           # Install Python dependencies
-          pip install --user zschema
-          pip install --user -r requirements.txt
+          pip3 install --user zschema
+          pip3 install --user -r requirements.txt
 
       - name: Run tests
         run: |
