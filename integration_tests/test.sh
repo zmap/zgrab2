@@ -71,7 +71,6 @@ fi
 status=0
 failures=""
 echo "Doing schema validation..."
-source venv/bin/activate
 
 for protocol in $(ls $ZGRAB_OUTPUT); do
     for outfile in $(ls $ZGRAB_OUTPUT/$protocol); do

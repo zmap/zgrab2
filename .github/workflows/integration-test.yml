@@ -61,6 +61,8 @@ jobs:
           sudo apt update
           # Install latest Python
           sudo apt install -y python3 jp python3-pip
+          python3 -m venv venv
+          source venv/bin/activate
           # Install Python dependencies
           pip3 install --user zschema
           pip3 install --user -r requirements.txt
