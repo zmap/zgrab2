@@ -41,8 +41,8 @@ type ScanResults struct {
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 
 	// Version is the client version number sent to the server in the Connect
 	// packet. TODO: Find version number mappings.
@@ -113,7 +113,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -209,7 +209,7 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //  6. If the response is...
 //     a. ...a Resend packet, then set result.DidResend and re-send the packet.
 //     b. ...a Refused packet, then set the result.RefuseReason and RefuseError,
-//        then exit.
+//     then exit.
 //     c. ...a Redirect packet, then set result.RedirectTarget and exit.
 //     d. ...an Accept packet, go to 7
 //     e. ...anything else: exit with SCAN_APPLICATION_ERROR
@@ -217,7 +217,7 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //     into the results, then send a Native Security Negotiation Data packet.
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var results *ScanResults
 
 	sock, err := t.Open(&scanner.config.BaseFlags)

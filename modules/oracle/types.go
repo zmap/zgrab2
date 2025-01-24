@@ -580,7 +580,7 @@ func startReading(reader io.Reader) *chainedReader {
 
 // read the value from the stream, unless there was a previous error on the
 // reader. Uses binary.Read() to decode the data. dest must be a pointer.
-func (reader *chainedReader) read(dest interface{}) *chainedReader {
+func (reader *chainedReader) read(dest any) *chainedReader {
 	if reader.err != nil {
 		return reader
 	}
@@ -1253,7 +1253,7 @@ func (value *NSNValue) String() string {
 func (value *NSNValue) MarshalJSON() ([]byte, error) {
 	type Aux struct {
 		Type  NSNValueType `json:"type"`
-		Value interface{}  `json:"value"`
+		Value any          `json:"value"`
 	}
 	ret := Aux{
 		Type: value.Type,

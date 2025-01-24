@@ -43,9 +43,9 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/net/idna"
-	"golang.org/x/net/http/httpguts"
 )
 
 // ClientConnPool manages a pool of HTTP/2 client connections.
@@ -763,7 +763,7 @@ func (h *http2FrameHeader) invalidate() { h.valid = false }
 // frame header bytes.
 // Used only by ReadFrameHeader.
 var http2fhBytes = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		buf := make([]byte, http2frameHeaderLen)
 		return &buf
 	},
@@ -859,8 +859,8 @@ type http2Framer struct {
 
 	debugFramer       *http2Framer // only use for logging written writes
 	debugFramerBuf    *bytes.Buffer
-	debugReadLoggerf  func(string, ...interface{})
-	debugWriteLoggerf func(string, ...interface{})
+	debugReadLoggerf  func(string, ...any)
+	debugWriteLoggerf func(string, ...any)
 }
 
 func (fr *http2Framer) maxHeaderListSize() uint32 {
@@ -2189,7 +2189,7 @@ func http2configureServer18(h1 *Server, h2 *http2Server) error {
 	return nil
 }
 
-func http2shouldLogPanic(panicValue interface{}) bool {
+func http2shouldLogPanic(panicValue any) bool {
 	return panicValue != nil && panicValue != ErrAbortHandler
 }
 
@@ -2252,7 +2252,7 @@ func http2curGoroutineID() uint64 {
 }
 
 var http2littleBuf = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		buf := make([]byte, 64)
 		return &buf
 	},
@@ -2570,10 +2570,11 @@ var (
 // name (key). See httpguts.ValidHeaderName for the base rules.
 //
 // Further, http2 says:
-//   "Just as in HTTP/1.x, header field names are strings of ASCII
-//   characters that are compared in a case-insensitive
-//   fashion. However, header field names MUST be converted to
-//   lowercase prior to their encoding in HTTP/2. "
+//
+//	"Just as in HTTP/1.x, header field names are strings of ASCII
+//	characters that are compared in a case-insensitive
+//	fashion. However, header field names MUST be converted to
+//	lowercase prior to their encoding in HTTP/2. "
 func http2validWireHeaderFieldName(v string) bool {
 	if len(v) == 0 {
 		return false
@@ -2660,7 +2661,7 @@ func http2newBufferedWriter(w io.Writer) *http2bufferedWriter {
 const http2bufWriterPoolBufferSize = 4 << 10
 
 var http2bufWriterPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return bufio.NewWriterSize(nil, http2bufWriterPoolBufferSize)
 	},
 }
@@ -2731,7 +2732,7 @@ type http2connectionStater interface {
 	ConnectionState() tls.ConnectionState
 }
 
-var http2sorterPool = sync.Pool{New: func() interface{} { return new(http2sorter) }}
+var http2sorterPool = sync.Pool{New: func() any { return new(http2sorter) }}
 
 type http2sorter struct {
 	v []string // owned by sorter
@@ -2768,8 +2769,8 @@ func (s *http2sorter) SortStrings(ss []string) {
 // validPseudoPath reports whether v is a valid :path pseudo-header
 // value. It must be either:
 //
-//     *) a non-empty string starting with '/', but not with with "//",
-//     *) the string '*', for OPTIONS requests.
+//	*) a non-empty string starting with '/', but not with with "//",
+//	*) the string '*', for OPTIONS requests.
 //
 // For now this is only used a quick check for deciding when to clean
 // up Opaque URLs before sending requests from the Transport.
@@ -2934,7 +2935,7 @@ var (
 )
 
 var http2responseWriterStatePool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		rws := &http2responseWriterState{}
 		rws.bw = bufio.NewWriterSize(http2chunkWriter{rws}, http2handlerChunkWriteSize)
 		return rws
@@ -2946,7 +2947,7 @@ var (
 	http2testHookOnConn        func()
 	http2testHookGetServerConn func(*http2serverConn)
 	http2testHookOnPanicMu     *sync.Mutex // nil except in tests
-	http2testHookOnPanic       func(sc *http2serverConn, panicVal interface{}) (rePanic bool)
+	http2testHookOnPanic       func(sc *http2serverConn, panicVal any) (rePanic bool)
 )
 
 // Server is an HTTP/2 server.
@@ -3341,13 +3342,13 @@ func (sc *http2serverConn) setConnState(state ConnState) {
 	}
 }
 
-func (sc *http2serverConn) vlogf(format string, args ...interface{}) {
+func (sc *http2serverConn) vlogf(format string, args ...any) {
 	if http2VerboseLogs {
 		sc.logf(format, args...)
 	}
 }
 
-func (sc *http2serverConn) logf(format string, args ...interface{}) {
+func (sc *http2serverConn) logf(format string, args ...any) {
 	if lg := sc.hs.ErrorLog; lg != nil {
 		lg.Printf(format, args...)
 	} else {
@@ -3392,7 +3393,7 @@ func http2isClosedConnError(err error) bool {
 	return false
 }
 
-func (sc *http2serverConn) condlogf(err error, format string, args ...interface{}) {
+func (sc *http2serverConn) condlogf(err error, format string, args ...any) {
 	if err == nil {
 		return
 	}
@@ -3618,11 +3619,11 @@ func (sc *http2serverConn) readPreface() error {
 }
 
 var http2errChanPool = sync.Pool{
-	New: func() interface{} { return make(chan error, 1) },
+	New: func() any { return make(chan error, 1) },
 }
 
 var http2writeDataPool = sync.Pool{
-	New: func() interface{} { return new(http2writeData) },
+	New: func() any { return new(http2writeData) },
 }
 
 // writeDataFromHandler writes DATA response frames from a handler on
@@ -4930,8 +4931,9 @@ func (rws *http2responseWriterState) writeChunk(p []byte) (n int, err error) {
 // prior to the headers being written. If the set of trailers is fixed
 // or known before the header is written, the normal Go trailers mechanism
 // is preferred:
-//    https://golang.org/pkg/net/http/#ResponseWriter
-//    https://golang.org/pkg/net/http/#example_ResponseWriter_trailers
+//
+//	https://golang.org/pkg/net/http/#ResponseWriter
+//	https://golang.org/pkg/net/http/#example_ResponseWriter_trailers
 const http2TrailerPrefix = "Trailer:"
 
 // promoteUndeclaredTrailers permits http.Handlers to set trailers
@@ -5358,7 +5360,7 @@ func http2h1ServerShutdownChan(hs *Server) <-chan struct{} {
 	if fn := http2testh1ServerShutdownChan; fn != nil {
 		return fn(hs)
 	}
-	var x interface{} = hs
+	var x any = hs
 	type I interface {
 		getDoneChan() <-chan struct{}
 	}
@@ -5375,7 +5377,7 @@ var http2testh1ServerShutdownChan func(hs *Server) <-chan struct{}
 // disabled. See comments on h1ServerShutdownChan above for why
 // the code is written this way.
 func http2h1ServerKeepAlivesDisabled(hs *Server) bool {
-	var x interface{} = hs
+	var x any = hs
 	type I interface {
 		doKeepAlives() bool
 	}
@@ -7231,21 +7233,21 @@ var (
 	http2errPseudoTrailers         = errors.New("http2: invalid pseudo header in trailers")
 )
 
-func (cc *http2ClientConn) logf(format string, args ...interface{}) {
+func (cc *http2ClientConn) logf(format string, args ...any) {
 	cc.t.logf(format, args...)
 }
 
-func (cc *http2ClientConn) vlogf(format string, args ...interface{}) {
+func (cc *http2ClientConn) vlogf(format string, args ...any) {
 	cc.t.vlogf(format, args...)
 }
 
-func (t *http2Transport) vlogf(format string, args ...interface{}) {
+func (t *http2Transport) vlogf(format string, args ...any) {
 	if http2VerboseLogs {
 		t.logf(format, args...)
 	}
 }
 
-func (t *http2Transport) logf(format string, args ...interface{}) {
+func (t *http2Transport) logf(format string, args ...any) {
 	log.Printf(format, args...)
 }
 

@@ -16,7 +16,7 @@ type Module struct {
 
 // Flags contains mongodb-specific command-line flags.
 type Flags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
 }
 
 // Scanner implements the zgrab2.Scanner interface
@@ -230,7 +230,7 @@ func (flags *Flags) Help() string {
 }
 
 // NewFlags provides an empty instance of the flags that will be filled in by the framework
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -313,7 +313,7 @@ func listDatabases(conn *Connection) (*ListDatabases_t, error) {
 
 // Scan connects to a host and performs a scan.
 // https://github.com/mongodb/specifications/blob/master/source/message/OP_MSG.rst
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	scan, err := scanner.StartScan(&target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

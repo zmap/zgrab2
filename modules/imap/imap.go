@@ -1,9 +1,9 @@
 package imap
 
 import (
+	"io"
 	"net"
 	"regexp"
-	"io"
 
 	"github.com/zmap/zgrab2"
 )

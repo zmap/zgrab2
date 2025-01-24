@@ -46,8 +46,8 @@ type ScanResults struct {
 // Flags are the FTP-specific command-line flags. Taken from the original zgrab.
 // (TODO: should FTPAuthTLS be on by default?).
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 
 	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	FTPAuthTLS  bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
@@ -85,7 +85,7 @@ func RegisterModule() {
 
 // NewFlags returns the default flags object to be filled in with the
 // command-line arguments.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -246,7 +246,7 @@ func (ftp *Connection) GetFTPSCertificates() error {
 //   - Perform ths TLS handshake / any configured TLS scans, populating
 //     results.TLSLog.
 //   - Return SCAN_SUCCESS, &results, nil
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
 	conn, err := t.Open(&s.config.BaseFlags)
 	if err != nil {

@@ -21,7 +21,7 @@ type Scanner interface {
 	Protocol() string
 
 	// Scan connects to a host. The result should be JSON-serializable
-	Scan(t ScanTarget) (ScanStatus, interface{}, error)
+	Scan(t ScanTarget) (ScanStatus, any, error)
 }
 
 // ScanResponse is the result of a scan on a single host
@@ -33,32 +33,29 @@ type ScanResponse struct {
 	// the scan name.
 	Protocol string `json:"protocol"`
 
-	Result    interface{} `json:"result,omitempty"`
-	Timestamp string      `json:"timestamp,omitempty"`
-	Error     *string     `json:"error,omitempty"`
+	Result    any     `json:"result,omitempty"`
+	Timestamp string  `json:"timestamp,omitempty"`
+	Error     *string `json:"error,omitempty"`
 }
 
-// ScanModule is an interface which represents a module that the framework can
-// manipulate
+// ScanModule is an interface which represents a module that the framework can manipulate
 type ScanModule interface {
 	// NewFlags is called by the framework to pass to the argument parser. The parsed flags will be passed
 	// to the scanner created by NewScanner().
-	NewFlags() interface{}
+	NewFlags() any
 
 	// NewScanner is called by the framework for each time an individual scan is specified in the config or on
 	// the command-line. The framework will then call scanner.Init(name, flags).
 	NewScanner() Scanner
 
-	// Description returns a string suitable for use as an overview of this
-	// module within usage text.
+	// Description returns a string suitable for use as an overview of this module within usage text.
 	Description() string
 }
 
 // ScanFlags is an interface which must be implemented by all types sent to
 // the flag parser
 type ScanFlags interface {
-	// Help optionally returns any additional help text, e.g. specifying what empty defaults
-	// are interpreted as.
+	// Help optionally returns any additional help text, e.g. specifying what empty defaults are interpreted as.
 	Help() string
 
 	// Validate enforces all command-line flags and positional arguments have valid values.
@@ -68,10 +65,10 @@ type ScanFlags interface {
 // BaseFlags contains the options that every flags type must embed
 type BaseFlags struct {
 	Port           uint          `short:"p" long:"port" description:"Specify port to grab on"`
+	BytesReadLimit int           `short:"m" long:"maxbytes" description:"Maximum byte read limit per scan (0 = defaults)"`
 	Name           string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
 	Timeout        time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
 	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
-	BytesReadLimit int           `short:"m" long:"maxbytes" description:"Maximum byte read limit per scan (0 = defaults)"`
 }
 
 // UDPFlags contains the common options used for all UDP scans

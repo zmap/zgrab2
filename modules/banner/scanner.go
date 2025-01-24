@@ -23,7 +23,9 @@ import (
 
 // Flags give the command-line flags for the banner module.
 type Flags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+
 	Probe     string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file."`
 	ProbeFile string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe."`
 	Pattern   string `long:"pattern" description:"Pattern to match, must be valid regexp."`
@@ -34,7 +36,6 @@ type Flags struct {
 	MD5       bool   `long:"md5" description:"Calculate MD5 hash of banner value."`
 	SHA1      bool   `long:"sha1" description:"Calculate SHA1 hash of banner value."`
 	SHA256    bool   `long:"sha256" description:"Calculate SHA256 hash of banner value."`
-	zgrab2.TLSFlags
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -53,9 +54,9 @@ type Results struct {
 	Banner string         `json:"banner,omitempty"`
 	Length int            `json:"length,omitempty"`
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
-	MD5    string `json:"md5,omitempty"`
-	SHA1   string `json:"sha1,omitempty"`
-	SHA256 string `json:"sha25,omitempty"`
+	MD5    string         `json:"md5,omitempty"`
+	SHA1   string         `json:"sha1,omitempty"`
+	SHA256 string         `json:"sha25,omitempty"`
 }
 
 var NoMatchError = errors.New("pattern did not match")
@@ -70,7 +71,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a new default flags object.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -142,7 +143,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
 		conn    net.Conn
 		tlsConn *zgrab2.TLSConnection
@@ -167,7 +168,6 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}
 		}
 		break
 	}
-
 
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
