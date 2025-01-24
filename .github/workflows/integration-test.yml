@@ -64,8 +64,8 @@ jobs:
           python3 -m venv venv
           source venv/bin/activate
           # Install Python dependencies
-          pip3 install --user zschema
-          pip3 install --user -r requirements.txt
+          pip3 install zschema
+          pip3 install -r requirements.txt
 
       - name: Run tests
         run: |
