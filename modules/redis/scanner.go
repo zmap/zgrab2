@@ -24,13 +24,14 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
 	"gopkg.in/yaml.v2"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Flags contains redis-specific command-line flags.
 type Flags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
 
 	CustomCommands   string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
 	Mappings         string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
@@ -39,7 +40,7 @@ type Flags struct {
 	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
 	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	UseTLS           bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
-	zgrab2.TLSFlags
+	zgrab2.TLSFlags  `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface
@@ -172,7 +173,7 @@ func RegisterModule() {
 }
 
 // NewFlags provides an empty instance of the flags that will be filled in by the framework
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -227,8 +228,8 @@ func (scan *scan) Close() {
 	defer scan.close()
 }
 
-func getUnmarshaler(file string) (func([]byte, interface{}) error, error) {
-	var unmarshaler func([]byte, interface{}) error
+func getUnmarshaler(file string) (func([]byte, any) error, error) {
+	var unmarshaler func([]byte, any) error
 	switch ext := filepath.Ext(file); ext {
 	case ".json":
 		unmarshaler = json.Unmarshal
@@ -241,7 +242,7 @@ func getUnmarshaler(file string) (func([]byte, interface{}) error, error) {
 	return unmarshaler, nil
 }
 
-func (scanner *Scanner) getFileContents(file string, output interface{}) error {
+func (scanner *Scanner) getFileContents(file string, output any) error {
 	unmarshaler, err := getUnmarshaler(file)
 	if err != nil {
 		return err
@@ -405,7 +406,7 @@ func convToUint32(s string) uint32 {
 // 6. QUIT
 // The responses for each of these is logged, and if INFO succeeds, the version
 // is scraped from it.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// ping, info, quit
 	scan, err := scanner.StartScan(&target)
 	if err != nil {

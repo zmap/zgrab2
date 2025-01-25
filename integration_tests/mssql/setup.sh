@@ -3,8 +3,8 @@
 echo "mssql/setup: Tests setup for mssql"
 
 CONTAINER_IMAGE="mcr.microsoft.com/mssql/server"
-CONTAINER_VERSION="2017-latest"
-CONTAINER_NAME="zgrab_mssql-2017-linux"
+CONTAINER_VERSION="2022-latest"
+CONTAINER_NAME="zgrab_mssql-2022-linux"
 
 # Supported MSSQL_PRODUCT_ID values are Developer, Express, Standard, Enterprise, EnterpriseCore
 MSSQL_PRODUCT_ID="Enterprise"
@@ -14,7 +14,7 @@ if docker ps --filter "name=$CONTAINER_NAME" | grep $CONTAINER_NAME; then
     exit 0
 fi
 
-docker run -td --rm -e "MSSQL_PID=$MSSQL_PRODUCT_ID" -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=$(openssl rand -base64 12)" --name $CONTAINER_NAME $CONTAINER_IMAGE:$CONTAINER_VERSION
+docker run -td --rm -e "MSSQL_PID=$MSSQL_PRODUCT_ID" -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=$(openssl rand -base64 12)" --platform "linux/amd64" --name $CONTAINER_NAME $CONTAINER_IMAGE:$CONTAINER_VERSION
 
 echo -n "mssql/setup: Waiting on $CONTAINER_NAME..."
 
