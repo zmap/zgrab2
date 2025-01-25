@@ -570,7 +570,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 
 	// Application-specific logic for retrying HTTP as HTTPS; if condition matches, return protocol error
-	if scan.scanner.config.FailHTTPToHTTPS && scan.results.Response.StatusCode == 400 && readLen < 1024 && readLen > 24 {
+	bodyTextLen := int64(len(bodyText))
+	if scan.scanner.config.FailHTTPToHTTPS && scan.results.Response.StatusCode == 400 && bodyTextLen < 1024 && bodyTextLen > 24 {
 		// Apache: "You're speaking plain HTTP to an SSL-enabled server port"
 		// NGINX: "The plain HTTP request was sent to HTTPS port"
 		var sliceLen int64 = 128
@@ -578,7 +579,6 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			sliceLen = readLen
 		}
 
-		bodyTextLen := int64(len(bodyText))
 		if bodyTextLen < sliceLen {
 			sliceLen = bodyTextLen
 		}
