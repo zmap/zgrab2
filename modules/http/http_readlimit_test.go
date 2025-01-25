@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
@@ -8,12 +9,14 @@ import (
 	"math/big"
 	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"golang.org/x/sys/unix"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
@@ -81,7 +84,18 @@ func _write(writer io.Writer, data []byte) error {
 // XXXX....
 func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 	endpoint := fmt.Sprintf("127.0.0.1:%d", cfg.port)
-	listener, err := net.Listen("tcp", endpoint)
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var opErr error
+			if err := c.Control(func(fd uintptr) {
+				opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+			}); err != nil {
+				return err
+			}
+			return opErr
+		},
+	}
+	listener, err := lc.Listen(context.Background(), "tcp", endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +372,7 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 }
 
 // Try to get the HTTP body from a result; otherwise return the empty string.
-func getResponse(result interface{}) *http.Response {
+func getResponse(result any) *http.Response {
 	if result == nil {
 		return nil
 	}
