@@ -4,18 +4,20 @@ package jarm
 
 import (
 	_ "fmt"
-	jarm "github.com/RumbleDiscovery/jarm-go"
-	"github.com/zmap/zgrab2"
 	"log"
 	"net"
 	"strings"
 	"time"
+
+	jarm "github.com/hdm/jarm-go"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Flags give the command-line flags for the banner module.
 type Flags struct {
-	zgrab2.BaseFlags
-	MaxTries int `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	MaxTries         int `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up."`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -42,7 +44,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a new default flags object.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -98,7 +100,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Stores raw hashes returned from parsing each protocols Hello message
 	rawhashes := []string{}
 

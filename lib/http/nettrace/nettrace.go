@@ -8,7 +8,8 @@ type TraceKey struct{}
 // specify an alternate resolver func.
 // It is not exposed to outsider users. (But see issue 12503)
 // The value should be the same type as lookupIP:
-//     func lookupIP(ctx context.Context, host string) ([]IPAddr, error)
+//
+//	func lookupIP(ctx context.Context, host string) ([]IPAddr, error)
 type LookupIPAltResolverKey struct{}
 
 // Trace contains a set of hooks for tracing events within
@@ -22,7 +23,7 @@ type Trace struct {
 	// The coalesced parameter is whether singleflight de-dupped
 	// the call. The addrs are of type net.IPAddr but can't
 	// actually be for circular dependency reasons.
-	DNSDone func(netIPs []interface{}, coalesced bool, err error)
+	DNSDone func(netIPs []any, coalesced bool, err error)
 
 	// ConnectStart is called before a Dial, excluding Dials made
 	// during DNS lookups. In the case of DualStack (Happy Eyeballs)

@@ -69,7 +69,7 @@ func (p *ServerPacket) OutputValue() string {
 		l = maxOutputSize
 	}
 	body := hex.EncodeToString(p.Body[:l])
-	if p.Length - 4 > uint32(l) {
+	if p.Length-4 > uint32(l) {
 		body = body + "..."
 	}
 	return fmt.Sprintf("%c: 0x%08x: %s", p.Type, p.Length, body)
@@ -79,11 +79,10 @@ func (p *ServerPacket) OutputValue() string {
 func (p *ServerPacket) ToError() *PostgresError {
 	return &PostgresError{
 		"severity": "unexpected",
-		"code": "unexpected error format",
-		"detail": p.OutputValue(),
+		"code":     "unexpected error format",
+		"detail":   p.OutputValue(),
 	}
 }
-
 
 // Send a client packet: a big-endian uint32 length followed by a body.
 func (c *Connection) Send(body []byte) error {
@@ -133,9 +132,9 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		}
 		if string(buf[n-2:n]) == "\x0a\x00" {
 			return &ServerPacket{
-				Type: header,
+				Type:   header,
 				Length: 0,
-				Body: append(length[:], buf[:n]...),
+				Body:   append(length[:], buf[:n]...),
 			}, nil
 		}
 		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", bodyLen, n, hex.EncodeToString(buf[:n])))
@@ -148,20 +147,20 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 	if sizeToRead < uint32Len {
 		sizeToRead = uint32Len
 	}
-	body := make([]byte, sizeToRead - uint32Len) // Length includes the length of the Length uint32
+	body := make([]byte, sizeToRead-uint32Len) // Length includes the length of the Length uint32
 	_, err = io.ReadFull(c.Connection, body)
 	if err != nil && err != io.EOF {
 		return nil, zgrab2.DetectScanError(err)
 	}
-	if sizeToRead < bodyLen && len(body) + 4 >= maxPacketSize {
+	if sizeToRead < bodyLen && len(body)+4 >= maxPacketSize {
 		// Warn if we actually truncate (as opposed getting a huge length but only a few bytes are actually available)
 		log.Warnf("Truncated postgres packet from %s: advertised size = %d bytes, read size = %d bytes", c.Target.String(), bodyLen, len(body))
 	}
 
 	return &ServerPacket{
-		Type: header,
+		Type:   header,
 		Length: bodyLen,
-		Body: body,
+		Body:   body,
 	}, nil
 }
 
@@ -312,11 +311,11 @@ func (m *connectionManager) closeConnection(c io.Closer) {
 func (m *connectionManager) cleanUp() {
 	// first in, last out: empty out the map
 	defer func() {
-		for conn, _ := range m.connections {
+		for conn := range m.connections {
 			delete(m.connections, conn)
 		}
 	}()
-	for connection, _ := range m.connections {
+	for connection := range m.connections {
 		// Close them all even if there is a panic with one
 		defer func(c io.Closer) {
 			m.closeConnection(c)

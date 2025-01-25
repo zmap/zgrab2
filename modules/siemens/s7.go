@@ -3,10 +3,20 @@ package siemens
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
 
 	"github.com/zmap/zgrab2"
 )
+
+const s7ModuleIdRecordSize = 28
+const (
+	s7ModuleIdModuleIndex   = 0x1
+	s7ModuleIdHardwareIndex = 0x6
+	s7ModuleIdFirmwareIndex = 0x7
+)
+
+const uint16Size = 2
 
 // ReconnectFunction is used to re-connect to the target to re-try the scan with a different TSAP destination.
 type ReconnectFunction func() (net.Conn, error)
@@ -59,7 +69,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	if err != nil {
 		return err
 	}
-	parseModuleIdentificatioNRequest(logStruct, &moduleIdentificationResponse)
+	parseModuleIdentificationRequest(logStruct, &moduleIdentificationResponse)
 
 	// Make Component Identification request
 	componentIdentificationResponse, err := readRequest(connection, S7_SZL_COMPONENT_IDENTIFICATION)
@@ -257,24 +267,81 @@ func parseComponentIdentificationResponse(logStruct *S7Log, s7Packet *S7Packet) 
 	return nil
 }
 
-func parseModuleIdentificatioNRequest(logStruct *S7Log, s7Packet *S7Packet) error {
+// moduleIDData represents the data structure of the system status list.
+// See https://cache.industry.siemens.com/dl/files/574/1214574/att_44504/v1/SFC_e.pdf
+// 33.5 SSL-ID W#16#xy11 - Module Identification
+type moduleIDData struct {
+	Index  uint16 // Index of an identification data record
+	MIFB   string // 20 bytes string
+	BGTyp  uint16 // Reserved, 1 word
+	Ausbg1 uint16 // Version of the module, 1 word
+	Ausbg2 uint16 // Remaining numbers of the version ID, 1 word
+}
+
+// parseModuleIDDataRecord parses a byte slice into a DataRecord.
+func parseModuleIDDataRecord(data []byte) (*moduleIDData, error) {
+	if len(data) < 28 {
+		return nil, fmt.Errorf("data slice too short to contain a valid DataRecord")
+	}
+
+	return &moduleIDData{
+		Index:  binary.BigEndian.Uint16(data[:2]),
+		MIFB:   string(data[2:22]),
+		BGTyp:  binary.BigEndian.Uint16(data[22:24]),
+		Ausbg1: binary.BigEndian.Uint16(data[24:26]),
+		Ausbg2: binary.BigEndian.Uint16(data[26:28]),
+	}, nil
+}
+
+// Constructs the version number from a moduleIDData record.
+func getVersionNumber(record *moduleIDData) string {
+	// The major, minor, and patch versions are stored in the lower 8 bits of Ausbg1,
+	// the upper 8 bits of Ausbg2, and the lower 8 bits of Ausbg2, respectively.
+	major := record.Ausbg1 & 0xFF
+	minor := record.Ausbg2 >> 8
+	patch := record.Ausbg2 & 0xFF
+
+	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
+}
+
+func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) error {
 	if len(s7Packet.Data) < S7_DATA_BYTE_OFFSET {
 		return errS7PacketTooShort
 	}
 
-	fields := bytes.FieldsFunc(s7Packet.Data[S7_DATA_BYTE_OFFSET:], func(c rune) bool {
-		return int(c) == 0
-	})
+	// Skip the first 4 bytes (return code, transport size, length)
+	// And the next 4 bytes (SSLID, INDEX)
+	offset := 8
 
-	for i := len(fields) - 1; i >= 0; i-- {
-		switch i {
-		case 0:
-			logStruct.ModuleId = string(fields[i][1:]) // exclude index byte
-		case 5:
-			logStruct.Hardware = string(fields[i][1:])
-		case 6:
-			logStruct.Firmware = string(fields[i][1:])
+	// Parse LENTHDR and N_DR from the header
+	recordLen := int(binary.BigEndian.Uint16(s7Packet.Data[offset : offset+2]))
+	offset += uint16Size
+
+	numRecords := int(binary.BigEndian.Uint16(s7Packet.Data[offset : offset+2]))
+	offset += uint16Size
+
+	// Check if the data record length and number of data records are valid
+	if recordLen != s7ModuleIdRecordSize || numRecords*recordLen > len(s7Packet.Data)-offset {
+		return fmt.Errorf("invalid data record length or number of data records")
+	}
+
+	// Now parse the data records, considering each one is 28 bytes long after the header
+	for i := 0; i < int(numRecords); i++ {
+		record, err := parseModuleIDDataRecord(s7Packet.Data[offset : offset+recordLen])
+		if err != nil {
+			return fmt.Errorf("failed parsing data record %d: %v", i, err)
 		}
+
+		switch record.Index {
+		case s7ModuleIdModuleIndex:
+			logStruct.ModuleId = record.MIFB
+		case s7ModuleIdHardwareIndex:
+			logStruct.Hardware = getVersionNumber(record)
+		case s7ModuleIdFirmwareIndex:
+			logStruct.Firmware = getVersionNumber(record)
+		}
+
+		offset += recordLen
 	}
 
 	return nil

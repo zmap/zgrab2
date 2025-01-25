@@ -24,9 +24,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/html/charset"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/net/html/charset"
 )
 
 var (
@@ -44,15 +45,15 @@ var (
 //
 // TODO: Custom headers?
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	Method          string `long:"method" default:"GET" description:"Set HTTP request method type"`
-	Endpoint        string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
-	FailHTTPToHTTPS bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
-	UserAgent       string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
-	RetryHTTPS      bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
-	MaxSize         int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects    int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	Method           string `long:"method" default:"GET" description:"Set HTTP request method type"`
+	Endpoint         string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
+	FailHTTPToHTTPS  bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
+	UserAgent        string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
+	RetryHTTPS       bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
+	MaxSize          int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
+	MaxRedirects     int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
 	// FollowLocalhostRedirects overrides the default behavior to return
 	// ErrRedirLocalhost whenever a redirect points to localhost.
@@ -69,6 +70,9 @@ type Flags struct {
 	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
 	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
 	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
+	// Set HTTP Request body
+	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
+	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -78,6 +82,9 @@ type Flags struct {
 
 	// WithBodyLength enables adding the body_size field to the Response
 	WithBodyLength bool `long:"with-body-size" description:"Enable the body_size attribute, for how many bytes actually read"`
+
+	// Extract the raw header as it is on the wire
+	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -99,6 +106,7 @@ type Module struct {
 type Scanner struct {
 	config        *Flags
 	customHeaders map[string]string
+	requestBody   string
 	decodedHashFn func([]byte) string
 }
 
@@ -116,7 +124,7 @@ type scan struct {
 }
 
 // NewFlags returns an empty Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -149,6 +157,7 @@ func (scanner *Scanner) Protocol() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
+	scanner.config.RequestBody = fl.RequestBody
 
 	// parse out custom headers at initialization so that they can be easily
 	// iterated over when constructing individual scanners
@@ -449,6 +458,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 			DisableKeepAlives:   false,
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
+			RawHeaderBuffer:     scanner.config.RawHeaders,
 		},
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
@@ -479,7 +489,18 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
-	request, err := http.NewRequest(scan.scanner.config.Method, scan.url, nil)
+	var (
+		request *http.Request
+		err     error
+	)
+	if len(scan.scanner.config.RequestBody) > 0 {
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, strings.NewReader(scan.scanner.config.RequestBody))
+	} else if len(scan.scanner.config.RequestBodyHex) > 0 {
+		reqbody, _ := hex.DecodeString(scan.scanner.config.RequestBodyHex)
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, bytes.NewReader(reqbody))
+	} else {
+		request, err = http.NewRequest(scan.scanner.config.Method, scan.url, nil)
+	}
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
@@ -598,7 +619,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS)
 	defer scan.Cleanup()
 	err := scan.Grab()
@@ -609,7 +630,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{
 			defer retry.Cleanup()
 			retryError := retry.Grab()
 			if retryError != nil {
-				return retryError.Unpack(&retry.results)
+				return err.Unpack(&scan.results)
 			}
 			return zgrab2.SCAN_SUCCESS, &retry.results, nil
 		}

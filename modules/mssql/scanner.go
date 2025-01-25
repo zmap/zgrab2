@@ -19,7 +19,7 @@ import (
 )
 
 // ScanResults contains detailed information about each step of the
-// MySQL handshake, and can be encoded to JSON.
+// MSSQL handshake, and can be encoded to JSON.
 type ScanResults struct {
 	// Version is the version returned by the server in the PRELOGIN response.
 	// Its format is "MAJOR.MINOR.BUILD_NUMBER".
@@ -43,10 +43,10 @@ type ScanResults struct {
 
 // Flags defines the command-line configuration options for the module.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
-	EncryptMode string `long:"encrypt-mode" description:"The type of encryption to request in the pre-login step. One of ENCRYPT_ON, ENCRYPT_OFF, ENCRYPT_NOT_SUP." default:"ENCRYPT_ON"`
-	Verbose     bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
+	EncryptMode      string `long:"encrypt-mode" description:"The type of encryption to request in the pre-login step. One of ENCRYPT_ON, ENCRYPT_OFF, ENCRYPT_NOT_SUP." default:"ENCRYPT_ON"`
+	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module is the implementation of zgrab2.Module for the MSSQL protocol.
@@ -60,7 +60,7 @@ type Scanner struct {
 
 // NewFlags returns a default Flags instance to be populated by the command
 // line flags.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -121,7 +121,7 @@ func (scanner *Scanner) GetTrigger() string {
 // 4. If the server encrypt mode is EncryptModeNotSupported, break.
 // 5. Perform a TLS handshake, with the packets wrapped in TDS headers.
 // 6. Decode the Version and InstanceName from the PRELOGIN response
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

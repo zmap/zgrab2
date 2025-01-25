@@ -8,7 +8,8 @@
 // ssh-agent process using the sample server.
 //
 // References:
-//  [PROTOCOL.agent]:    http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent?rev=HEAD
+//
+//	[PROTOCOL.agent]:    http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent?rev=HEAD
 package agent // import "github.com/zmap/zgrab2/lib/ssh/agent"
 
 import (
@@ -61,7 +62,7 @@ type Agent interface {
 type AddedKey struct {
 	// PrivateKey must be a *rsa.PrivateKey, *dsa.PrivateKey or
 	// *ecdsa.PrivateKey, which will be inserted into the agent.
-	PrivateKey interface{}
+	PrivateKey any
 	// Certificate, if not nil, is communicated to the agent and will be
 	// stored with the key.
 	Certificate *ssh.Certificate
@@ -243,7 +244,7 @@ func NewClient(rw io.ReadWriter) Agent {
 // call sends an RPC to the agent. On success, the reply is
 // unmarshaled into reply and replyType is set to the first byte of
 // the reply, which contains the type of the message.
-func (c *client) call(req []byte) (reply interface{}, err error) {
+func (c *client) call(req []byte) (reply any, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -371,11 +372,11 @@ func (c *client) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature, error) {
 
 // unmarshal parses an agent message in packet, returning the parsed
 // form and the message type of packet.
-func unmarshal(packet []byte) (interface{}, error) {
+func unmarshal(packet []byte) (any, error) {
 	if len(packet) < 1 {
 		return nil, errors.New("agent: empty packet")
 	}
-	var msg interface{}
+	var msg any
 	switch packet[0] {
 	case agentFailure:
 		return new(failureAgentMsg), nil
@@ -437,7 +438,7 @@ type ed25519KeyMsg struct {
 }
 
 // Insert adds a private key to the agent.
-func (c *client) insertKey(s interface{}, comment string, constraints []byte) error {
+func (c *client) insertKey(s any, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:
@@ -564,7 +565,7 @@ func (c *client) Add(key AddedKey) error {
 	}
 }
 
-func (c *client) insertCert(s interface{}, cert *ssh.Certificate, comment string, constraints []byte) error {
+func (c *client) insertCert(s any, cert *ssh.Certificate, comment string, constraints []byte) error {
 	var req []byte
 	switch k := s.(type) {
 	case *rsa.PrivateKey:

@@ -8,12 +8,18 @@ import zcrypto_schemas.zcrypto as zcrypto
 from . import zgrab2
 
 # modules/banner/scanner.go - Results
-banner_scan_response = SubRecord({
-    "result": SubRecord({
-        "banner": String(),
-        "length": Unsigned32BitInteger()
-    })
-}, extends=zgrab2.base_scan_response)
+banner_scan_response = SubRecord(
+    {
+        "result": SubRecord(
+            {
+                "banner": String(),
+                "length": Unsigned32BitInteger(),
+                "tls": zgrab2.tls_log,
+            }
+        )
+    },
+    extends=zgrab2.base_scan_response,
+)
 
 zschema.registry.register_schema("zgrab2-banner", banner_scan_response)
 

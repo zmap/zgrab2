@@ -460,8 +460,9 @@ type response struct {
 // prior to the headers being written. If the set of trailers is fixed
 // or known before the header is written, the normal Go trailers mechanism
 // is preferred:
-//    https://golang.org/pkg/net/http/#ResponseWriter
-//    https://golang.org/pkg/net/http/#example_ResponseWriter_trailers
+//
+//	https://golang.org/pkg/net/http/#ResponseWriter
+//	https://golang.org/pkg/net/http/#example_ResponseWriter_trailers
 const TrailerPrefix = "Trailer:"
 
 // finalTrailers is called after the Handler exits and returns a non-nil
@@ -772,7 +773,7 @@ var (
 )
 
 var copyBufPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		b := make([]byte, 32*1024)
 		return &b
 	},
@@ -1473,14 +1474,14 @@ func (w *response) bodyAllowed() bool {
 //
 // The Writers are wired together like:
 //
-// 1. *response (the ResponseWriter) ->
-// 2. (*response).w, a *bufio.Writer of bufferBeforeChunkingSize bytes
-// 3. chunkWriter.Writer (whose writeHeader finalizes Content-Length/Type)
-//    and which writes the chunk headers, if needed.
-// 4. conn.buf, a bufio.Writer of default (4kB) bytes, writing to ->
-// 5. checkConnErrorWriter{c}, which notes any non-nil error on Write
-//    and populates c.werr with it if so. but otherwise writes to:
-// 6. the rwc, the net.Conn.
+//  1. *response (the ResponseWriter) ->
+//  2. (*response).w, a *bufio.Writer of bufferBeforeChunkingSize bytes
+//  3. chunkWriter.Writer (whose writeHeader finalizes Content-Length/Type)
+//     and which writes the chunk headers, if needed.
+//  4. conn.buf, a bufio.Writer of default (4kB) bytes, writing to ->
+//  5. checkConnErrorWriter{c}, which notes any non-nil error on Write
+//     and populates c.werr with it if so. but otherwise writes to:
+//  6. the rwc, the net.Conn.
 //
 // TODO(bradfitz): short-circuit some of the buffering when the
 // initial header contains both a Content-Type and Content-Length.
@@ -1670,10 +1671,10 @@ func (c *conn) setState(nc net.Conn, state ConnState) {
 	}
 }
 
-// connStateInterface is an array of the interface{} versions of
+// connStateInterface is an array of the any versions of
 // ConnState values, so we can use them in atomic.Values later without
-// paying the cost of shoving their integers in an interface{}.
-var connStateInterface = [...]interface{}{
+// paying the cost of shoving their integers in an any.
+var connStateInterface = [...]any{
 	StateNew:      StateNew,
 	StateActive:   StateActive,
 	StateIdle:     StateIdle,
@@ -1959,7 +1960,7 @@ func Error(w ResponseWriter, error string, code int) {
 func NotFound(w ResponseWriter, r *Request) { Error(w, "404 page not found", StatusNotFound) }
 
 // NotFoundHandler returns a simple request handler
-// that replies to each request with a ``404 page not found'' reply.
+// that replies to each request with a “404 page not found” reply.
 func NotFoundHandler() Handler { return HandlerFunc(NotFound) }
 
 // StripPrefix returns a handler that serves HTTP requests
@@ -2191,7 +2192,7 @@ func (mux *ServeMux) match(path string) (h Handler, pattern string) {
 // the pattern that will match after following the redirect.
 //
 // If there is no registered handler that applies to the request,
-// Handler returns a ``page not found'' handler and an empty pattern.
+// Handler returns a “page not found” handler and an empty pattern.
 func (mux *ServeMux) Handler(r *Request) (h Handler, pattern string) {
 	if r.Method != "CONNECT" {
 		if p := cleanPath(r.URL.Path); p != r.URL.Path {
@@ -2746,7 +2747,7 @@ func (srv *Server) SetKeepAlivesEnabled(v bool) {
 	srv.doneChan = nil
 }
 
-func (s *Server) logf(format string, args ...interface{}) {
+func (s *Server) logf(format string, args ...any) {
 	if s.ErrorLog != nil {
 		s.ErrorLog.Printf(format, args...)
 	} else {

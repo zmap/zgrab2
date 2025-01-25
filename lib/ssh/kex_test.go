@@ -25,12 +25,12 @@ func TestKexes(t *testing.T) {
 		c := make(chan kexResultErr, 1)
 		var magics handshakeMagics
 		go func() {
-			r, e := kex.Client(a, rand.Reader, &magics)
+			r, e := kex.Client(a, rand.Reader, &magics, nil)
 			a.Close()
 			c <- kexResultErr{r, e}
 		}()
 		go func() {
-			r, e := kex.Server(b, rand.Reader, &magics, testSigners["ecdsa"])
+			r, e := kex.Server(b, rand.Reader, &magics, testSigners["ecdsa"], nil)
 			b.Close()
 			s <- kexResultErr{r, e}
 		}()
