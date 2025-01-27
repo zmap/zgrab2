@@ -63,17 +63,17 @@ func (f *SSHFlags) Help() string {
 
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	sc := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
-        f, _ := flags.(*SSHFlags)
-        s.config = f
-        if len(s.config.Ciphers) == 0 {
-                s.config.Ciphers = string(strings.Join(sc.Ciphers, ","))
-        }
-        if len(s.config.KexAlgorithms) == 0 {
-                s.config.KexAlgorithms = string(strings.Join(sc.KeyExchanges, ","))
-        }
-        if len(s.config.HostKeyAlgorithms) == 0 {
-                s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
-        }
+	f, _ := flags.(*SSHFlags)
+	s.config = f
+	if len(s.config.Ciphers) == 0 {
+		s.config.Ciphers = string(strings.Join(sc.Ciphers, ","))
+	}
+	if len(s.config.KexAlgorithms) == 0 {
+		s.config.KexAlgorithms = string(strings.Join(sc.KeyExchanges, ","))
+	}
+	if len(s.config.HostKeyAlgorithms) == 0 {
+		s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
+	}
 	return nil
 }
 
