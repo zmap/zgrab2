@@ -10,13 +10,21 @@ jobs:
     name: Go Test
     runs-on: ubuntu-latest
     steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
-
-      - name: Check out source
-        uses: actions/checkout@v4
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
 
       - name: Build
         run: |
@@ -29,30 +37,37 @@ jobs:
 
   integration-test:
     name: Integration Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.18
-
-      - name: Check out source
-        uses: actions/checkout@v4
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
 
       - name: Install dependencies
         run: |
           set -e
-          sudo wget https://github.com/jmespath/jp/releases/download/0.2.1/jp-linux-amd64 -O /usr/local/bin/jp
-          sudo chmod +x /usr/local/bin/jp
-          # Install Python 2.7
           sudo apt update
-          sudo apt install -y python2
-          curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
-          sudo python2 get-pip.py
+          # Install latest Python
+          sudo apt install -y python3 jp python3-pip
+          python3 -m venv venv
+          source venv/bin/activate
           # Install Python dependencies
-          pip2 install --user zschema
-          pip2 install --user -r requirements.txt
+          pip install zschema
+          pip install -r requirements.txt
 
       - name: Run tests
         run: |
+          source venv/bin/activate
           make integration-test

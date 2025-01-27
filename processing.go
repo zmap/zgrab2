@@ -135,7 +135,7 @@ func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse
 
 // EncodeGrab serializes a Grab to JSON, handling the debug fields if necessary.
 func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
-	var outputData interface{}
+	var outputData any
 	if includeDebug {
 		outputData = raw
 	} else {

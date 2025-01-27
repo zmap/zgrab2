@@ -13,9 +13,8 @@ import (
 // Flags holds the command-line configuration for the siemens scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	// TODO: configurable TSAP source / destination, etc
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	zgrab2.BaseFlags `group:"Basic Options"` // TODO: configurable TSAP source / destination, etc
+	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -37,7 +36,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -98,7 +97,7 @@ func (scanner *Scanner) Protocol() string {
 // 5. Request to read the module identification (and store it in the output)
 // 6. Request to read the component identification (and store it in the output)
 // 7. Return the output
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

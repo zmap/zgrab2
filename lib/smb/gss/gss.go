@@ -37,7 +37,7 @@ type NegTokenResp struct {
 // gsswrapped used to force ASN1 encoding to include explicit sequence tags
 // Type does not fulfill the BinaryMarshallable interfce and is used only as a
 // helper to marshal a NegTokenResp
-type gsswrapped struct{ G interface{} }
+type gsswrapped struct{ G any }
 
 func NewNegTokenInit() (NegTokenInit, error) {
 	oid, err := ObjectIDStrToInt(SpnegoOid)
