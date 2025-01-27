@@ -20,7 +20,7 @@ import (
 
 type dumpTest struct {
 	Req  http.Request
-	Body interface{} // optional []byte or func() io.ReadCloser to populate Req.Body
+	Body any // optional []byte or func() io.ReadCloser to populate Req.Body
 
 	WantDump    string
 	WantDumpOut string
