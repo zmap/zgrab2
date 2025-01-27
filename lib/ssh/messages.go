@@ -106,7 +106,7 @@ func (kex *kexInitMsg) MarshalJSON() ([]byte, error) {
 	return json.Marshal(temp)
 }
 
-func (kex *KexInitMsg) GenerateServerHaSSH() string {
+func (kex *kexInitMsg) GenerateServerHaSSH() string {
 	input := strings.Join(
 		[]string{
 			strings.Join(kex.KexAlgos, ","),

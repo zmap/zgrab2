@@ -207,7 +207,7 @@ func TestMarshalMultiTag(t *testing.T) {
 }
 
 func TestHaSSH(t *testing.T) {
-	ki := &KexInitMsg{}
+	ki := &kexInitMsg{}
 	randSource := rand.New(rand.NewSource(0))
 	randomBytes(ki.Cookie[:], randSource)
 	ki.KexAlgos = []string{"curve25519-sha256@libssh.org", "diffie-hellman-group-exchange-sha256", "ecdh-sha2-nistp521", "ecdh-sha2-nistp384", "ecdh-sha2-nistp256", "diffie-hellman-group-exchange-sha1", "diffie-hellman-group1-sha1", "diffie-hellman-group14-sha1", "diffie-hellman-group14-sha256", "diffie-hellman-group15-sha512", "diffie-hellman-group16-sha512", "diffie-hellman-group17-sha512", "diffie-hellman-group18-sha512", "diffie-hellman-group14-sha256@ssh.com", "diffie-hellman-group15-sha256", "diffie-hellman-group15-sha256@ssh.com", "diffie-hellman-group15-sha384@ssh.com", "diffie-hellman-group16-sha256", "diffie-hellman-group16-sha384@ssh.com", "diffie-hellman-group16-sha512@ssh.com", "diffie-hellman-group18-sha512@ssh.com"}
