@@ -178,13 +178,15 @@ The only hard requirement is that the `test.sh` script drops its output in `$ZGR
 
 #### How to Run Integration Tests
 
-To run integration tests, you must have [Docker](https://www.docker.com/) and **Python 2** on host installed. Then, you can follow the following steps to run integration tests:
+To run integration tests, you must have [Docker](https://www.docker.com/) and Python on host installed. Then, you can follow the following steps to run integration tests:
 
 ```shell
 go get github.com/jmespath/jp && go build github.com/jmespath/jp
 # or, sudo wget https://github.com/jmespath/jp/releases/download/0.2.1/jp-linux-amd64 -O /usr/local/bin/jp && sudo chmod +x /usr/local/bin/jp
-pip2 install --user zschema
-pip2 install --user -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
+pip install zschema
+pip install -r requirements.txt
 make integration-test
 ```
 
