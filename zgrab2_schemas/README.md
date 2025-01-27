@@ -15,7 +15,7 @@ you can follow these steps:
    4. Pass in the zgrab2 JSON file to validate
      * ```
        echo 127.0.0.1 | ./cmd/zgrab2/zgrab2 mysql > output.json
-       PYTHONPATH=/path/to/zschema python2 -m zschema validate zgrab2 output.json --path . --module zgrab2_schemas.zgrab2
+       PYTHONPATH=/path/to/zschema python3 -m zschema validate zgrab2 output.json --path . --module zgrab2_schemas.zgrab2
        ```
 
 ## Adding new module schemas
