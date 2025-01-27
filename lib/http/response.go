@@ -216,8 +216,8 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 	// To revert: delete next block and uncomment original tp.ReadMIMEHeader call
 
 	var headerReaderTP *textproto.Reader
-	resp.HeaderList, headerReaderTP, err = extractHeaderList(tp);
-	if (err != nil){
+	resp.HeaderList, headerReaderTP, err = extractHeaderList(tp)
+	if err != nil {
 		return resp, err
 	}
 	mimeHeader, err := headerReaderTP.ReadMIMEHeader()
@@ -246,7 +246,7 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func extractHeaderList(tp *textproto.Reader) ([]HeaderField, *textproto.Reader, error){
+func extractHeaderList(tp *textproto.Reader) ([]HeaderField, *textproto.Reader, error) {
 	// Store each header name in a list in order
 
 	// Initialize headerList to add each header value-name pair (capacity is an estimate based of new lines)
@@ -273,7 +273,7 @@ func extractHeaderList(tp *textproto.Reader) ([]HeaderField, *textproto.Reader, 
 
 		// If there was an error reading the next line, we throw an error
 		if err != nil {
-			return headerList, headerReaderTP,  err
+			return headerList, headerReaderTP, err
 		}
 
 		// Find the colon
