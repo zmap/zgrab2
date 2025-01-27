@@ -60,7 +60,7 @@ const (
 type Signature struct {
 	Format string `json:"algorithm,omitempty"`
 	Blob   []byte `json:"value,omitempty"`
-	Rest   []byte `ssh:"rest"`
+	Rest   []byte `json:"rest,omitempty" ssh:"rest"`
 }
 
 // CertTimeInfinity can be used for OpenSSHCertV01.ValidBefore to indicate that
