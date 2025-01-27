@@ -10,7 +10,7 @@ from . import zgrab2
 mqtt_scan_response = SubRecord(
     {
         "session_present": Boolean(),
-        "connect_return_code": Binary(),
+        "connect_return_code": Unsigned32BitInteger(),
         "response": String(),
         "tls": zgrab2.tls_log,
     }
