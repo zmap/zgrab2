@@ -3,9 +3,11 @@ package redis
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeIO is a simple fake Reader/Writer. Read pulls data from the output
@@ -44,6 +46,41 @@ func (fakeio *fakeIO) Provide(buf []byte) {
 	}()
 }
 
+func (fakeio *fakeIO) Close() error {
+	return nil
+}
+
+func (fakeio *fakeIO) LocalAddr() net.Addr {
+	return fakeAddr{}
+}
+
+func (fakeio *fakeIO) RemoteAddr() net.Addr {
+	return fakeAddr{}
+}
+
+func (fakeio *fakeIO) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (fakeio *fakeIO) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (fakeio *fakeIO) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
+// A fake net.Addr
+type fakeAddr struct{}
+
+func (f fakeAddr) Network() string {
+	return "tcp"
+}
+
+func (f fakeAddr) String() string {
+	return "127.0.0.1"
+}
+
 var bigSimpleString = strings.Repeat("simple,", 1024*1024)
 var bigBulkString = "--- BEGIN BULK STRING ---\r\n" + bigSimpleString + "\r\n--- END BULK STRING---\r\n"
 
@@ -78,36 +115,36 @@ var integers = map[int64]string{
 
 // redisErrors maps error strings to their encoding
 var redisErrors = map[string]string{
-	"": "-\r\n",
+	"":                         "-\r\n",
 	"ERR something went wrong": "-ERR something went wrong\r\n",
 	"singleword":               "-singleword\r\n",
 }
 
 // redisErrors maps error strings to their prefixes
 var redisErrorPrefixes = map[string]string{
-	"": "",
+	"":                         "",
 	"ERR something went wrong": "ERR",
 	"singleword":               "singleword",
 }
 
 // redisErrorMessages maps error strings to their "messages"
 var redisErrorMessages = map[string]string{
-	"": "",
+	"":                         "",
 	"ERR something went wrong": "something went wrong",
 	"singleword":               "singleword",
 }
 
 // redisArrays maps encoded array values to the corresponding array (Note: reverse key/value order from other maps)
 var redisArrays = map[string]RedisArray{
-	"*0\r\n":                                  RedisArray{},
-	"*1\r\n+\r\n":                             RedisArray{SimpleString("")},
-	"*2\r\n*1\r\n*0\r\n*1\r\n$5\r\n12345\r\n": RedisArray{RedisArray{RedisArray{}}, RedisArray{BulkString("12345")}},
+	"*0\r\n":      {},
+	"*1\r\n+\r\n": {SimpleString("")},
+	"*2\r\n*1\r\n*0\r\n*1\r\n$5\r\n12345\r\n": {RedisArray{RedisArray{}}, RedisArray{BulkString("12345")}},
 	"*5\r\n" +
 		"+simpleString\r\n" +
 		"-ERR error message\r\n" +
 		":12345\r\n" +
 		"$47\r\n*5\r\n+simpleString\r\n-ERR error message\r\n:12345\r\n\r\n" +
-		"*0\r\n": RedisArray{
+		"*0\r\n": {
 		SimpleString("simpleString"),
 		ErrorMessage("ERR error message"),
 		Integer(12345),
@@ -126,7 +163,7 @@ func getConnection() (*Connection, *fakeIO) {
 }
 
 // strip s down to 32 chars
-func strip(s interface{}) string {
+func strip(s any) string {
 	var stringVal string
 	switch v := s.(type) {
 	case SimpleString:

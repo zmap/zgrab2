@@ -46,8 +46,8 @@ type ScanResults struct {
 // Flags are the FTP-specific command-line flags. Taken from the original zgrab.
 // (TODO: should FTPAuthTLS be on by default?).
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 
 	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	FTPAuthTLS  bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
@@ -85,7 +85,7 @@ func RegisterModule() {
 
 // NewFlags returns the default flags object to be filled in with the
 // command-line arguments.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -216,14 +216,14 @@ func (ftp *Connection) GetFTPSCertificates() error {
 	ftpsReady, err := ftp.SetupFTPS()
 
 	if err != nil {
-		return err
+		return fmt.Errorf("error setting up FTPS: %w", err)
 	}
 	if !ftpsReady {
 		return nil
 	}
 	var conn *zgrab2.TLSConnection
 	if conn, err = ftp.config.TLSFlags.GetTLSConnection(ftp.conn); err != nil {
-		return err
+		return fmt.Errorf("error setting up TLS connection: %w", err)
 	}
 	ftp.results.TLSLog = conn.GetLog()
 
@@ -232,25 +232,25 @@ func (ftp *Connection) GetFTPSCertificates() error {
 		// AUTH TLS succeeds, but the handshake fails, dumping
 		// "error:1408A0C1:SSL routines:ssl3_get_client_hello:no shared cipher"
 		// to the socket.
-		return err
+		return fmt.Errorf("TLS handshake failed: %w", err)
 	}
 	ftp.conn = conn
 	return nil
 }
 
 // Scan performs the configured scan on the FTP server, as follows:
-// * Read the banner into results.Banner (if it is not a 2XX response, bail)
-// * If the FTPAuthTLS flag is not set, finish.
-// * Send the AUTH TLS command to the server. If the response is not 2XX, then
-//   send the AUTH SSL command. If the response is not 2XX, then finish.
-// * Perform ths TLS handshake / any configured TLS scans, populating
-//   results.TLSLog.
-// * Return SCAN_SUCCESS, &results, nil
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+//   - Read the banner into results.Banner (if it is not a 2XX response, bail)
+//   - If the FTPAuthTLS flag is not set, finish.
+//   - Send the AUTH TLS command to the server. If the response is not 2XX, then
+//     send the AUTH SSL command. If the response is not 2XX, then finish.
+//   - Perform ths TLS handshake / any configured TLS scans, populating
+//     results.TLSLog.
+//   - Return SCAN_SUCCESS, &results, nil
+func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
 	conn, err := t.Open(&s.config.BaseFlags)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection: %w", err)
 	}
 	cn := conn
 	defer func() {
@@ -261,13 +261,13 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	if s.config.ImplicitTLS {
 		tlsConn, err := s.config.TLSFlags.GetTLSConnection(conn)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error setting up TLS connection: %w", err)
 		}
 		results.ImplicitTLS = true
 		results.TLSLog = tlsConn.GetLog()
 		err = tlsConn.Handshake()
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("TLS handshake failed: %w", err)
 		}
 		cn = tlsConn
 	}
@@ -275,11 +275,11 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	ftp := Connection{conn: cn, config: s.config, results: results}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &ftp.results, err
+		return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error reading FTP banner: %w", err)
 	}
 	if s.config.FTPAuthTLS && is200Banner {
 		if err := ftp.GetFTPSCertificates(); err != nil {
-			return zgrab2.SCAN_APPLICATION_ERROR, &ftp.results, err
+			return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error getting FTPS certificates: %w", err)
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &ftp.results, nil

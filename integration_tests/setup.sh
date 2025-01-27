@@ -12,7 +12,7 @@ set -e
 
 # Run from root of project
 TEST_DIR=$(dirname "$0")
-ZGRAB_ROOT="$TEST_DIR/.."
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 cd "$ZGRAB_ROOT"
 
 echo "Setting up integration tests..."

@@ -3,10 +3,10 @@ package fox
 import (
 	"encoding/hex"
 	"errors"
+	"io"
 	"net"
 	"strconv"
 	"strings"
-	"io"
 
 	"github.com/zmap/zgrab2"
 )
@@ -63,7 +63,7 @@ func GetFoxBanner(logStruct *FoxLog, connection net.Conn) error {
 	}
 
 	responseString := string(data)
-	output := strings.Split(responseString, string(0x0a))
+	output := strings.Split(responseString, "\x0a")
 
 	if strings.HasPrefix(responseString, RESPONSE_PREFIX) {
 		logStruct.IsFox = true

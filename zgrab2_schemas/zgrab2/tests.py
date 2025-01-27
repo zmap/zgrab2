@@ -17,21 +17,24 @@ logger = logging.getLogger("zgrab2-schema-tests")
 import zschema
 import zschema.registry
 
+
 def get_data_dir():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'testdata')
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "testdata")
+
 
 def get_data_file(file):
     return os.path.join(get_data_dir(), file)
 
+
 def get_data_files():
     dir = get_data_dir()
     files = os.listdir(dir)
-    return [
-      file for file in files if file.endswith(".json")
-    ]
+    return [file for file in files if file.endswith(".json")]
+
 
 def get_schemas():
-    return [ item for item in zgrab2.scan_response_types ]
+    return [item for item in zgrab2.scan_response_types]
+
 
 class SchemaTests(unittest.TestCase):
 

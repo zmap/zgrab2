@@ -7,14 +7,21 @@ import zschema.registry
 import zcrypto_schemas.zcrypto as zcrypto
 from . import zgrab2
 
-imap_scan_response = SubRecord({
-    "result": SubRecord({
-        "banner": String(doc="The IMAP banner."),
-        "starttls": String(doc="The server's response to the STARTTLS command."),
-        "close": String(doc="The server's response to the CLOSE command."),
-        "tls": zgrab2.tls_log,
-    })
-}, extends=zgrab2.base_scan_response)
+imap_scan_response = SubRecord(
+    {
+        "result": SubRecord(
+            {
+                "banner": String(doc="The IMAP banner."),
+                "starttls": String(
+                    doc="The server's response to the STARTTLS command."
+                ),
+                "close": String(doc="The server's response to the CLOSE command."),
+                "tls": zgrab2.tls_log,
+            }
+        )
+    },
+    extends=zgrab2.base_scan_response,
+)
 
 zschema.registry.register_schema("zgrab2-imap", imap_scan_response)
 

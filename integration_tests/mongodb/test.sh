@@ -5,7 +5,7 @@ set -e
 versions="3.2.20 3.6.6 4.0.1 4.1.2"
 
 MODULE_DIR=$(dirname $0)
-ZGRAB_ROOT=$MODULE_DIR/../..
+ZGRAB_ROOT=$(git rev-parse --show-toplevel)
 ZGRAB_OUTPUT=$ZGRAB_ROOT/zgrab-output
 
 mkdir -p $ZGRAB_OUTPUT/mongodb

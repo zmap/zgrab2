@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	testPrivateKeys map[string]interface{}
+	testPrivateKeys map[string]any
 	testSigners     map[string]ssh.Signer
 	testPublicKeys  map[string]ssh.PublicKey
 )
@@ -26,7 +26,7 @@ func init() {
 	var err error
 
 	n := len(testdata.PEMBytes)
-	testPrivateKeys = make(map[string]interface{}, n)
+	testPrivateKeys = make(map[string]any, n)
 	testSigners = make(map[string]ssh.Signer, n)
 	testPublicKeys = make(map[string]ssh.PublicKey, n)
 	for t, k := range testdata.PEMBytes {
@@ -46,7 +46,7 @@ func init() {
 		Nonce:           []byte{},                       // To pass reflect.DeepEqual after marshal & parse, this must be non-nil
 		ValidPrincipals: []string{"gopher1", "gopher2"}, // increases test coverage
 		ValidAfter:      0,                              // unix epoch
-		ValidBefore:     ssh.CertTimeInfinity,          // The end of currently representable time.
+		ValidBefore:     ssh.CertTimeInfinity,           // The end of currently representable time.
 		Reserved:        []byte{},                       // To pass reflect.DeepEqual after marshal & parse, this must be non-nil
 		Key:             testPublicKeys["ecdsa"],
 		SignatureKey:    testPublicKeys["rsa"],

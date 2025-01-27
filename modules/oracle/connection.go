@@ -152,11 +152,11 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 
 	// TODO: Variable fields in the connect descriptor (e.g. host?)
 	connectPacket := &TNSConnect{
-		Version:              conn.scanner.config.Version,
-		MinVersion:           conn.scanner.config.MinVersion,
-		GlobalServiceOptions: ServiceOptions(u16Flag(conn.scanner.config.GlobalServiceOptions)),
-		SDU:                  u16Flag(conn.scanner.config.SDU),
-		TDU:                  u16Flag(conn.scanner.config.TDU),
+		Version:                 conn.scanner.config.Version,
+		MinVersion:              conn.scanner.config.MinVersion,
+		GlobalServiceOptions:    ServiceOptions(u16Flag(conn.scanner.config.GlobalServiceOptions)),
+		SDU:                     u16Flag(conn.scanner.config.SDU),
+		TDU:                     u16Flag(conn.scanner.config.TDU),
 		ProtocolCharacteristics: NTProtocolCharacteristics(u16Flag(conn.scanner.config.ProtocolCharacterisics)),
 		MaxBeforeAck:            0,
 		ByteOrder:               defaultByteOrder,
@@ -250,7 +250,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		Version: encodeReleaseVersion(conn.scanner.config.ReleaseVersion),
 		Options: NSNOptions(0),
 		Services: []NSNService{
-			NSNService{
+			{
 				Type: NSNServiceSupervisor,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
@@ -259,7 +259,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 				},
 				Marker: 0,
 			},
-			NSNService{
+			{
 				Type: NSNServiceAuthentication,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
@@ -270,7 +270,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 				},
 				Marker: 0,
 			},
-			NSNService{
+			{
 				Type: NSNServiceEncryption,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),
@@ -278,7 +278,7 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 				},
 				Marker: 0,
 			},
-			NSNService{
+			{
 				Type: NSNServiceDataIntegrity,
 				Values: []NSNValue{
 					*NSNValueVersion(conn.scanner.config.ReleaseVersion),

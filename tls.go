@@ -12,8 +12,10 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/encoding/asn1"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
+	"github.com/zmap/zcrypto/x509/pkix"
 )
 
 // Shared code for TLS scans.
@@ -149,6 +151,10 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 			log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
 		}
 	}
+
+	asn1.AllowPermissiveParsing = true
+	pkix.LegacyNameString = true
+
 	if t.NextProtos != "" {
 		// TODO: Different format?
 		ret.NextProtos = getCSV(t.NextProtos)
