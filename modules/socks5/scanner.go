@@ -214,7 +214,7 @@ func (conn *Connection) PerformConnectionRequest() error {
 	conn.results.ConnectionResponse = fmt.Sprintf("%x", resp)
 	conn.results.ConnectionResponseExplanation = explainResponse(resp)
 
-	if resp[1] != 0x00 {
+	if resp[1] > 0x80 {
 		return fmt.Errorf("connection request failed with response: %x", resp)
 	}
 
