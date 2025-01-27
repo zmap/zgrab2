@@ -26,9 +26,6 @@ const (
 	msgUnimplemented = 3
 	msgDebug         = 4
 	msgNewKeys       = 21
-
-	// Standard authentication messages
-	msgUserAuthSuccess = 52
 )
 
 // SSH messages:
@@ -56,7 +53,7 @@ func (d *disconnectMsg) Error() string {
 // See RFC 4253, section 7.1.
 const msgKexInit = 20
 
-type KexInitMsg struct {
+type kexInitMsg struct {
 	Cookie                  [16]byte `sshtype:"20"`
 	KexAlgos                []string
 	ServerHostKeyAlgos      []string
@@ -89,7 +86,7 @@ type JsonKexInitMsg struct {
 	ServerHaSSH             string   `json:"serverHaSSH"`
 }
 
-func (kex *KexInitMsg) MarshalJSON() ([]byte, error) {
+func (kex *kexInitMsg) MarshalJSON() ([]byte, error) {
 	temp := JsonKexInitMsg{
 		Cookie:                  kex.Cookie[:],
 		KexAlgos:                kex.KexAlgos,
@@ -109,7 +106,7 @@ func (kex *KexInitMsg) MarshalJSON() ([]byte, error) {
 	return json.Marshal(temp)
 }
 
-func (kex *KexInitMsg) GenerateServerHaSSH() string {
+func (kex *kexInitMsg) GenerateServerHaSSH() string {
 	input := strings.Join(
 		[]string{
 			strings.Join(kex.KexAlgos, ","),
@@ -123,7 +120,7 @@ func (kex *KexInitMsg) GenerateServerHaSSH() string {
 
 // See RFC 4253, section 8.
 
-// Diffie-Helman
+// Diffie-Hellman
 const msgKexDHInit = 30
 
 type kexDHInitMsg struct {
@@ -152,6 +149,36 @@ type kexDHReplyMsg struct {
 	Signature []byte
 }
 
+// See RFC 4419, section 5.
+const msgKexDHGexGroup = 31
+
+type kexDHGexGroupMsg struct {
+	P *big.Int `sshtype:"31"`
+	G *big.Int
+}
+
+const msgKexDHGexInit = 32
+
+type kexDHGexInitMsg struct {
+	X *big.Int `sshtype:"32"`
+}
+
+const msgKexDHGexReply = 33
+
+type kexDHGexReplyMsg struct {
+	HostKey   []byte `sshtype:"33"`
+	Y         *big.Int
+	Signature []byte
+}
+
+const msgKexDHGexRequest = 34
+
+type kexDHGexRequestMsg struct {
+	MinBits      uint32 `sshtype:"34"`
+	PreferedBits uint32
+	MaxBits      uint32
+}
+
 // See RFC 4253, section 10.
 const msgServiceRequest = 5
 
@@ -164,6 +191,14 @@ const msgServiceAccept = 6
 
 type serviceAcceptMsg struct {
 	Service string `sshtype:"6"`
+}
+
+// See RFC 8308, section 2.3
+const msgExtInfo = 7
+
+type extInfoMsg struct {
+	NumExtensions uint32 `sshtype:"7"`
+	Payload       []byte `ssh:"rest"`
 }
 
 // See RFC 4252, section 5.
@@ -188,6 +223,9 @@ type userAuthFailureMsg struct {
 	PartialSuccess bool
 }
 
+// See RFC 4252, section 5.1
+const msgUserAuthSuccess = 52
+
 // See RFC 4252, section 5.4
 const msgUserAuthBanner = 53
 
@@ -202,11 +240,11 @@ const msgUserAuthInfoRequest = 60
 const msgUserAuthInfoResponse = 61
 
 type userAuthInfoRequestMsg struct {
-	User               string `sshtype:"60"`
-	Instruction        string
-	DeprecatedLanguage string
-	NumPrompts         uint32
-	Prompts            []byte `ssh:"rest"`
+	Name        string `sshtype:"60"`
+	Instruction string
+	Language    string
+	NumPrompts  uint32
+	Prompts     []byte `ssh:"rest"`
 }
 
 // See RFC 4254, section 5.1.
@@ -214,7 +252,7 @@ const msgChannelOpen = 90
 
 type channelOpenMsg struct {
 	ChanType         string `sshtype:"90"`
-	PeersId          uint32
+	PeersID          uint32
 	PeersWindow      uint32
 	MaxPacketSize    uint32
 	TypeSpecificData []byte `ssh:"rest"`
@@ -225,7 +263,7 @@ const msgChannelData = 94
 
 // Used for debug print outs of packets.
 type channelDataMsg struct {
-	PeersId uint32 `sshtype:"94"`
+	PeersID uint32 `sshtype:"94"`
 	Length  uint32
 	Rest    []byte `ssh:"rest"`
 }
@@ -234,8 +272,8 @@ type channelDataMsg struct {
 const msgChannelOpenConfirm = 91
 
 type channelOpenConfirmMsg struct {
-	PeersId          uint32 `sshtype:"91"`
-	MyId             uint32
+	PeersID          uint32 `sshtype:"91"`
+	MyID             uint32
 	MyWindow         uint32
 	MaxPacketSize    uint32
 	TypeSpecificData []byte `ssh:"rest"`
@@ -245,7 +283,7 @@ type channelOpenConfirmMsg struct {
 const msgChannelOpenFailure = 92
 
 type channelOpenFailureMsg struct {
-	PeersId  uint32 `sshtype:"92"`
+	PeersID  uint32 `sshtype:"92"`
 	Reason   RejectionReason
 	Message  string
 	Language string
@@ -254,7 +292,7 @@ type channelOpenFailureMsg struct {
 const msgChannelRequest = 98
 
 type channelRequestMsg struct {
-	PeersId             uint32 `sshtype:"98"`
+	PeersID             uint32 `sshtype:"98"`
 	Request             string
 	WantReply           bool
 	RequestSpecificData []byte `ssh:"rest"`
@@ -264,28 +302,28 @@ type channelRequestMsg struct {
 const msgChannelSuccess = 99
 
 type channelRequestSuccessMsg struct {
-	PeersId uint32 `sshtype:"99"`
+	PeersID uint32 `sshtype:"99"`
 }
 
 // See RFC 4254, section 5.4.
 const msgChannelFailure = 100
 
 type channelRequestFailureMsg struct {
-	PeersId uint32 `sshtype:"100"`
+	PeersID uint32 `sshtype:"100"`
 }
 
 // See RFC 4254, section 5.3
 const msgChannelClose = 97
 
 type channelCloseMsg struct {
-	PeersId uint32 `sshtype:"97"`
+	PeersID uint32 `sshtype:"97"`
 }
 
 // See RFC 4254, section 5.3
 const msgChannelEOF = 96
 
 type channelEOFMsg struct {
-	PeersId uint32 `sshtype:"96"`
+	PeersID uint32 `sshtype:"96"`
 }
 
 // See RFC 4254, section 4
@@ -315,7 +353,7 @@ type globalRequestFailureMsg struct {
 const msgChannelWindowAdjust = 93
 
 type windowAdjustMsg struct {
-	PeersId         uint32 `sshtype:"93"`
+	PeersID         uint32 `sshtype:"93"`
 	AdditionalBytes uint32
 }
 
@@ -325,6 +363,42 @@ const msgUserAuthPubKeyOk = 60
 type userAuthPubKeyOkMsg struct {
 	Algo   string `sshtype:"60"`
 	PubKey []byte
+}
+
+// See RFC 4462, section 3
+const msgUserAuthGSSAPIResponse = 60
+
+type userAuthGSSAPIResponse struct {
+	SupportMech []byte `sshtype:"60"`
+}
+
+const msgUserAuthGSSAPIToken = 61
+
+type userAuthGSSAPIToken struct {
+	Token []byte `sshtype:"61"`
+}
+
+const msgUserAuthGSSAPIMIC = 66
+
+type userAuthGSSAPIMIC struct {
+	MIC []byte `sshtype:"66"`
+}
+
+// See RFC 4462, section 3.9
+const msgUserAuthGSSAPIErrTok = 64
+
+type userAuthGSSAPIErrTok struct {
+	ErrorToken []byte `sshtype:"64"`
+}
+
+// See RFC 4462, section 3.8
+const msgUserAuthGSSAPIError = 65
+
+type userAuthGSSAPIError struct {
+	MajorStatus uint32 `sshtype:"65"`
+	MinorStatus uint32
+	Message     string
+	LanguageTag string
 }
 
 // typeTags returns the possible type bytes for the given reflect.Type, which
@@ -768,8 +842,10 @@ func decode(packet []byte) (any, error) {
 		msg = new(serviceRequestMsg)
 	case msgServiceAccept:
 		msg = new(serviceAcceptMsg)
+	case msgExtInfo:
+		msg = new(extInfoMsg)
 	case msgKexInit:
-		msg = new(KexInitMsg)
+		msg = new(kexInitMsg)
 	case msgKexDHInit:
 		msg = new(kexDHInitMsg)
 	case msgKexDHReply:
@@ -808,6 +884,14 @@ func decode(packet []byte) (any, error) {
 		msg = new(channelRequestSuccessMsg)
 	case msgChannelFailure:
 		msg = new(channelRequestFailureMsg)
+	case msgUserAuthGSSAPIToken:
+		msg = new(userAuthGSSAPIToken)
+	case msgUserAuthGSSAPIMIC:
+		msg = new(userAuthGSSAPIMIC)
+	case msgUserAuthGSSAPIErrTok:
+		msg = new(userAuthGSSAPIErrTok)
+	case msgUserAuthGSSAPIError:
+		msg = new(userAuthGSSAPIError)
 	default:
 		return nil, unexpectedMessageError(0, packet[0])
 	}
@@ -815,4 +899,31 @@ func decode(packet []byte) (any, error) {
 		return nil, err
 	}
 	return msg, nil
+}
+
+var packetTypeNames = map[byte]string{
+	msgDisconnect:          "disconnectMsg",
+	msgServiceRequest:      "serviceRequestMsg",
+	msgServiceAccept:       "serviceAcceptMsg",
+	msgExtInfo:             "extInfoMsg",
+	msgKexInit:             "kexInitMsg",
+	msgKexDHInit:           "kexDHInitMsg",
+	msgKexDHReply:          "kexDHReplyMsg",
+	msgUserAuthRequest:     "userAuthRequestMsg",
+	msgUserAuthSuccess:     "userAuthSuccessMsg",
+	msgUserAuthFailure:     "userAuthFailureMsg",
+	msgUserAuthPubKeyOk:    "userAuthPubKeyOkMsg",
+	msgGlobalRequest:       "globalRequestMsg",
+	msgRequestSuccess:      "globalRequestSuccessMsg",
+	msgRequestFailure:      "globalRequestFailureMsg",
+	msgChannelOpen:         "channelOpenMsg",
+	msgChannelData:         "channelDataMsg",
+	msgChannelOpenConfirm:  "channelOpenConfirmMsg",
+	msgChannelOpenFailure:  "channelOpenFailureMsg",
+	msgChannelWindowAdjust: "windowAdjustMsg",
+	msgChannelEOF:          "channelEOFMsg",
+	msgChannelClose:        "channelCloseMsg",
+	msgChannelRequest:      "channelRequestMsg",
+	msgChannelSuccess:      "channelRequestSuccessMsg",
+	msgChannelFailure:      "channelRequestFailureMsg",
 }
