@@ -30,6 +30,7 @@ fox_scan_response = SubRecord(
                 "brand_id": String(),
                 "sys_info": String(),
                 "agent_auth_type": String(),
+                "tls": zgrab2.tls_log,
             }
         )
     },

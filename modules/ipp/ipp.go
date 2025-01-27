@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
-	"strings"
 	"net/url"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -14,15 +14,17 @@ import (
 // Writes an "attribute-with-one-value" with the provided "value-tag", "name", and "value" to provided buffer
 // attribute-with-one-value encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.4
 // Example (runnable from ipp_test.go):
-//   Input: 0x47, "attributes-charset", "us-ascii"
-//   Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
+//
+//	Input: 0x47, "attributes-charset", "us-ascii"
+//	Output: [71 0 18 97 116 116 114 105 98 117 116 101 115 45 99 104 97 114 115 101 116 0 8 117 115 45 97 115 99 105 105]
+//
 // TODO: Switch output and Example function to use hex.Dump()
 // TODO: Should return an error when fed an invalid valueTag
 func AttributeByteString(valueTag byte, name string, value string, target *bytes.Buffer) error {
 	//special byte denoting value syntax
 	binary.Write(target, binary.BigEndian, valueTag)
 
-	if len(name) <= math.MaxInt16 && len(name) >= 0  {
+	if len(name) <= math.MaxInt16 && len(name) >= 0 {
 		//append 16-bit signed int denoting name length
 		binary.Write(target, binary.BigEndian, int16(len(name)))
 
@@ -55,7 +57,7 @@ func ConvertURIToIPP(uriString string, tls bool) string {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err,
-			"url": uriString,
+			"url":   uriString,
 		}).Debug("Failed to parse URL from string")
 	}
 	// TODO: Create a better condition than uri.Scheme == "" b/c url.Parse doesn't know whether there's a scheme

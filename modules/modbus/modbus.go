@@ -17,10 +17,10 @@ package modbus
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
-	"errors"
 )
 
 // MEIResponse is the parsed data field from the 0x2B/0x0E response.
@@ -114,7 +114,7 @@ func (m *MEIObjectID) Name() string {
 
 // MarshalJSON encodes the identifier as its friendly name.
 func (m *MEIObject) MarshalJSON() ([]byte, error) {
-	enc := make(map[string]interface{}, 1)
+	enc := make(map[string]any, 1)
 	name := m.OID.Name()
 	enc[name] = m.Value
 	return json.Marshal(enc)

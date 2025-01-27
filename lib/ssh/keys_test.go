@@ -25,7 +25,7 @@ import (
 	"golang.org/x/crypto/ed25519"
 )
 
-func rawKey(pub PublicKey) interface{} {
+func rawKey(pub PublicKey) any {
 	switch k := pub.(type) {
 	case *rsaPublicKey:
 		return (*rsa.PublicKey)(k)

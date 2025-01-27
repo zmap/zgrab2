@@ -76,7 +76,7 @@ func (jOptions *JsonCriticalOptions) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	temp := make(map[string]interface{})
+	temp := make(map[string]any)
 	if len(knownOpt) > 0 {
 		temp["known"] = knownOpt
 	}
@@ -112,7 +112,7 @@ func (ext *JsonExtensions) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	temp := make(map[string]interface{})
+	temp := make(map[string]any)
 	if len(knownExt) > 0 {
 		temp["known"] = knownExt
 	}

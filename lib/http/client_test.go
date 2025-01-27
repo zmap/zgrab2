@@ -769,7 +769,7 @@ func (j *RecordingJar) Cookies(u *url.URL) []*Cookie {
 	return nil
 }
 
-func (j *RecordingJar) logf(format string, args ...interface{}) {
+func (j *RecordingJar) logf(format string, args ...any) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	fmt.Fprintf(&j.log, format, args...)
@@ -1067,9 +1067,9 @@ func TestClientHeadContentLength_h1(t *testing.T) {
 }
 
 /*
-func TestClientHeadContentLength_h2(t *testing.T) {
-	testClientHeadContentLength(t, h2Mode)
-}
+	func TestClientHeadContentLength_h2(t *testing.T) {
+		testClientHeadContentLength(t, h2Mode)
+	}
 */
 func testClientHeadContentLength(t *testing.T, h2 bool) {
 	defer afterTest(t)
@@ -1379,7 +1379,7 @@ func TestClientTimeoutCancel(t *testing.T) {
 
 func TestClientRedirectEatsBody_h1(t *testing.T) { testClientRedirectEatsBody(t, h1Mode) }
 
-//func TestClientRedirectEatsBody_h2(t *testing.T) { testClientRedirectEatsBody(t, h2Mode) }
+// func TestClientRedirectEatsBody_h2(t *testing.T) { testClientRedirectEatsBody(t, h2Mode) }
 func testClientRedirectEatsBody(t *testing.T, h2 bool) {
 	setParallel(t)
 	defer afterTest(t)

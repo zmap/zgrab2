@@ -107,15 +107,15 @@ func (kex *kexInitMsg) MarshalJSON() ([]byte, error) {
 }
 
 func (kex *KexInitMsg) GenerateServerHaSSH() string {
-  input := strings.Join(
-    []string {
-      strings.Join(kex.KexAlgos, ","),
-      strings.Join(kex.CiphersServerClient, ","),
-      strings.Join(kex.MACsServerClient, ","),
-      strings.Join(kex.CompressionServerClient, ","),
-    }, ";")
-  md5 := md5.Sum([]byte(input))
-  return hex.EncodeToString(md5[:])
+	input := strings.Join(
+		[]string{
+			strings.Join(kex.KexAlgos, ","),
+			strings.Join(kex.CiphersServerClient, ","),
+			strings.Join(kex.MACsServerClient, ","),
+			strings.Join(kex.CompressionServerClient, ","),
+		}, ";")
+	md5 := md5.Sum([]byte(input))
+	return hex.EncodeToString(md5[:])
 }
 
 // See RFC 4253, section 8.
@@ -431,7 +431,7 @@ var errShortRead = errors.New("ssh: short read")
 // in decimal, the packet must start with one of those numbers. In
 // case of error, Unmarshal returns a ParseError or
 // UnexpectedMessageError.
-func Unmarshal(data []byte, out interface{}) error {
+func Unmarshal(data []byte, out any) error {
 	v := reflect.ValueOf(out).Elem()
 	structType := v.Type()
 	expectedTypes := typeTags(structType)
@@ -554,12 +554,12 @@ func Unmarshal(data []byte, out interface{}) error {
 // member has the "sshtype" tag set to a number in decimal, that
 // number is prepended to the result. If the last of member has the
 // "ssh" tag set to "rest", its contents are appended to the output.
-func Marshal(msg interface{}) []byte {
+func Marshal(msg any) []byte {
 	out := make([]byte, 0, 64)
 	return marshalStruct(out, msg)
 }
 
-func marshalStruct(out []byte, msg interface{}) []byte {
+func marshalStruct(out []byte, msg any) []byte {
 	v := reflect.Indirect(reflect.ValueOf(msg))
 	msgTypes := typeTags(v.Type())
 	if len(msgTypes) > 0 {
@@ -833,8 +833,8 @@ func marshalString(to []byte, s []byte) []byte {
 var bigIntType = reflect.TypeOf((*big.Int)(nil))
 
 // Decode a packet into its corresponding message.
-func decode(packet []byte) (interface{}, error) {
-	var msg interface{}
+func decode(packet []byte) (any, error) {
+	var msg any
 	switch packet[0] {
 	case msgDisconnect:
 		msg = new(disconnectMsg)

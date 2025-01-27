@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
@@ -8,11 +9,14 @@ import (
 	"math/big"
 	"net"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/http"
+	"golang.org/x/sys/unix"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
@@ -80,7 +84,18 @@ func _write(writer io.Writer, data []byte) error {
 // XXXX....
 func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 	endpoint := fmt.Sprintf("127.0.0.1:%d", cfg.port)
-	listener, err := net.Listen("tcp", endpoint)
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var opErr error
+			if err := c.Control(func(fd uintptr) {
+				opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+			}); err != nil {
+				return err
+			}
+			return opErr
+		},
+	}
+	listener, err := lc.Listen(context.Background(), "tcp", endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +122,13 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 		}
 
 		head := "HTTP/1.0 200 OK\r\nBogus-Header: X"
+		if cfg.customHeader != nil {
+			head = *cfg.customHeader
+		}
 		headSuffix := fmt.Sprintf("\r\nContent-Length: %d\r\n\r\n", cfg.bodySize)
+		if cfg.customSuffix != nil {
+			headSuffix = *cfg.customSuffix
+		}
 		size := cfg.headerSize - len(head) - len(headSuffix)
 		if size < 0 {
 			t.Fatalf("Header size %d too small: must be at least %d bytes", cfg.headerSize, len(head)+len(headSuffix))
@@ -191,12 +212,19 @@ type readLimitTestConfig struct {
 
 	// If set, the error returned by the scan must contain this.
 	expectedError string
+
+	// If set, return a custom header
+	customHeader *string
+
+	customSuffix *string
 }
 
 const (
 	readLimitTestConfigHTTPBasePort  = 0x7f7f
 	readLimitTestConfigHTTPSBasePort = 0x7bbc
 )
+
+func adr(s string) *string { return &s }
 
 var readLimitTestConfigs = map[string]*readLimitTestConfig{
 	// The socket truncates the connection while reading the body. To the client it looks as if the
@@ -237,8 +265,8 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 
-	// The socket truncates the connection while reading the headers. The result isn't a valid HTTP
-	// response, so the library returns an unexpected EOF error.
+	// The socket truncates the connection while reading the headers. The result isn't a completely valid HTTP
+	// response, but we capture the output regardless
 	// headerSize > maxReadSize
 	"truncate_read_header": {
 		tls:            false,
@@ -246,9 +274,8 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 		maxBodySize:    1024,
 		maxReadSize:    2048,
 		headerSize:     3072,
-		bodySize:       8,
-		expectedError:  "unexpected EOF",
-		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
+		bodySize:       0,
+		expectedStatus: zgrab2.SCAN_SUCCESS,
 	},
 	"tls_truncate_read_header": {
 		tls:            true,
@@ -256,8 +283,69 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 		maxBodySize:    1024,
 		maxReadSize:    2048,
 		headerSize:     3072,
-		bodySize:       8,
-		expectedError:  "unexpected EOF",
+		bodySize:       0,
+		expectedStatus: zgrab2.SCAN_SUCCESS,
+	},
+
+	// The socket truncates the connection while reading the status code. The result isn't a valid HTTP
+	// response
+	// headerSize > maxReadSize
+	"invalid_status_code": {
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr("HTTP/1.0 200"),
+		expectedError:  "malformed HTTP status code",
+		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
+	},
+	"tls_invalid_status_code": {
+		tls:            true,
+		port:           readLimitTestConfigHTTPSBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr("HTTP/1.0 200"),
+		expectedError:  "malformed HTTP status code",
+		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
+	},
+
+	"invalid_no_status": {
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr(""),
+		customSuffix:   adr(""),
+		expectedError:  "malformed HTTP response",
+		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
+	},
+
+	"invalid_response": {
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    8192,
+		headerSize:     1024,
+		bodySize:       1024,
+		customHeader:   adr(""),
+		expectedError:  "malformed HTTP response",
+		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
+	},
+
+	"invalid_low_read_limit": {
+		tls:            false,
+		port:           readLimitTestConfigHTTPBasePort + 2,
+		maxBodySize:    8192,
+		maxReadSize:    1,
+		headerSize:     1024,
+		bodySize:       1024,
+		expectedError:  "malformed HTTP response",
 		expectedStatus: zgrab2.SCAN_UNKNOWN_ERROR,
 	},
 
@@ -284,19 +372,15 @@ var readLimitTestConfigs = map[string]*readLimitTestConfig{
 }
 
 // Try to get the HTTP body from a result; otherwise return the empty string.
-func getBody(result interface{}) string {
+func getResponse(result any) *http.Response {
 	if result == nil {
-		return ""
+		return nil
 	}
 	httpResult, ok := result.(*Results)
 	if !ok {
-		return ""
+		return nil
 	}
-	response := httpResult.Response
-	if response == nil {
-		return ""
-	}
-	return response.BodyText
+	return httpResult.Response
 }
 
 // Run a single test with the given configuration.
@@ -307,21 +391,33 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 		IP: net.ParseIP("127.0.0.1"),
 	}
 	status, ret, err := scanner.Scan(target)
+	response := getResponse(ret)
 
 	if status != cfg.expectedStatus {
-		t.Errorf("Wrong status: expected %s, got %s", cfg.expectedStatus, status)
+		t.Errorf("Wrong status: expected %s, got %s with %+v", cfg.expectedStatus, status, response)
 	}
 	if err != nil {
 		if !strings.Contains(err.Error(), cfg.expectedError) {
-			t.Errorf("Wrong error: expected %s, got %s", err.Error(), cfg.expectedError)
+			t.Errorf("Wrong error: expected %s, got %s", cfg.expectedError, err.Error())
 		}
 	} else if len(cfg.expectedError) > 0 {
 		t.Errorf("Expected error '%s' but got none", cfg.expectedError)
 	}
 	if cfg.expectedStatus == zgrab2.SCAN_SUCCESS {
-		body := getBody(ret)
+		if response == nil {
+			t.Errorf("Expected response, but got none")
+		}
+
+		statusCode := response.Status
+		if statusCode != "200 OK" {
+			t.Errorf("Expected status %s, but got %s", "200 OK", statusCode)
+		}
+
+		body := response.BodyText
 		if body == "" {
-			t.Errorf("Expected success, but got no body")
+			if cfg.bodySize != 0 {
+				t.Errorf("Expected success, but got no body")
+			}
 		} else {
 			if len(body) > cfg.maxBodySize || len(body) > cfg.maxReadSize {
 				t.Errorf("Body exceeds max size: len(body)=%d; maxBodySize=%d, maxReadSize=%d", len(body), cfg.maxBodySize, cfg.maxReadSize)

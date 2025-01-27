@@ -11,8 +11,7 @@ import (
 // Flags holds the command-line configuration for the smb scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-
+	zgrab2.BaseFlags `group:"Basic Options"`
 	// SetupSession tells the client to continue the handshake up to the point where credentials would be needed.
 	SetupSession bool `long:"setup-session" description:"After getting the response from the negotiation request, send a setup session packet."`
 
@@ -39,7 +38,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -93,18 +92,18 @@ func (scanner *Scanner) Protocol() string {
 }
 
 // Scan performs the following:
-// 1. Connect to the TCP port (default 445).
-// 2. Send a negotiation packet with the default values:
-//      Dialects = { DialectSmb_2_1 },
-//      SecurityMode = SecurityModeSigningEnabled
-// 3. Read response from server; on failure, exit with log = nil.
-//      If the server returns a protocol ID indicating support for version 1, set smbv1_support = true
-//      Pull out the relevant information from the response packet
-// 4. If --setup-session is not set, exit with success.
-// 5. Send a setup session packet to the server with appropriate values
-// 6. Read the response from the server; on failure, exit with the log so far.
-// 7. Return the log.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+//  1. Connect to the TCP port (default 445).
+//  2. Send a negotiation packet with the default values:
+//     Dialects = { DialectSmb_2_1 },
+//     SecurityMode = SecurityModeSigningEnabled
+//  3. Read response from server; on failure, exit with log = nil.
+//     If the server returns a protocol ID indicating support for version 1, set smbv1_support = true
+//     Pull out the relevant information from the response packet
+//  4. If --setup-session is not set, exit with success.
+//  5. Send a setup session packet to the server with appropriate values
+//  6. Read the response from the server; on failure, exit with the log so far.
+//  7. Return the log.
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

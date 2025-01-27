@@ -6,6 +6,7 @@ package bacnet
 
 import (
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -14,8 +15,8 @@ import (
 // Flags holds the command-line configuration for the bacnet scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.UDPFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.UDPFlags  `group:"UDP Options"`
 
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
@@ -39,7 +40,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -107,7 +108,7 @@ func (scanner *Scanner) Protocol() string {
 // 8. Description
 // 9. Location
 // The result is a bacnet.Log, and contains any of the above.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := target.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

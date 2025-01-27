@@ -29,7 +29,6 @@ var respExcludeHeader = map[string]bool{
 type PageFingerprint []byte
 
 // Response represents the response from an HTTP request.
-//
 type Response struct {
 	Status     string   `json:"status_line,omitempty"` // e.g. "200 OK"
 	StatusCode int      `json:"status_code,omitempty"` // e.g. 200
@@ -238,8 +237,11 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 }
 
 // RFC 2616: Should treat
+//
 //	Pragma: no-cache
+//
 // like
+//
 //	Cache-Control: no-cache
 func fixPragmaCacheControl(header Header) {
 	if hp, ok := header["Pragma"]; ok && len(hp) > 0 && hp[0] == "no-cache" {
@@ -261,15 +263,15 @@ func (r *Response) ProtoAtLeast(major, minor int) bool {
 //
 // This method consults the following fields of the response r:
 //
-//  StatusCode
-//  ProtoMajor
-//  ProtoMinor
-//  Request.Method
-//  TransferEncoding
-//  Trailer
-//  Body
-//  ContentLength
-//  Header, values for non-canonical keys will have unpredictable behavior
+//	StatusCode
+//	ProtoMajor
+//	ProtoMinor
+//	Request.Method
+//	TransferEncoding
+//	Trailer
+//	Body
+//	ContentLength
+//	Header, values for non-canonical keys will have unpredictable behavior
 //
 // The Response Body is closed after it is sent.
 func (r *Response) Write(w io.Writer) error {

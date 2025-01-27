@@ -69,8 +69,8 @@ type ScanResults struct {
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 
 	// SendEHLO indicates that the EHLO command should be set.
 	SendEHLO bool `long:"send-ehlo" description:"Send the EHLO command; use --ehlo-domain to set a domain."`
@@ -119,7 +119,7 @@ func RegisterModule() {
 }
 
 // NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
+func (module *Module) NewFlags() any {
 	return new(Flags)
 }
 
@@ -214,12 +214,12 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 	case err == nil && (code < 200 || code >= 300):
 		return zgrab2.SCAN_APPLICATION_ERROR, code
 	case err == nil,
-	     strings.Contains(banner, "SMTP"),
-	     strings.Contains(lowerBanner, "blacklist"),
-	     strings.Contains(lowerBanner, "abuse"),
-	     strings.Contains(lowerBanner, "rbl"),
-	     strings.Contains(lowerBanner, "spamhaus"),
-	     strings.Contains(lowerBanner, "relay"):
+		strings.Contains(banner, "SMTP"),
+		strings.Contains(lowerBanner, "blacklist"),
+		strings.Contains(lowerBanner, "abuse"),
+		strings.Contains(lowerBanner, "rbl"),
+		strings.Contains(lowerBanner, "spamhaus"),
+		strings.Contains(lowerBanner, "relay"):
 		return zgrab2.SCAN_SUCCESS, 0
 	default:
 		return zgrab2.SCAN_PROTOCOL_ERROR, 0
@@ -227,17 +227,17 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 }
 
 // Scan performs the SMTP scan.
-// 1. Open a TCP connection to the target port (default 25).
-// 2. If --smtps is set, perform a TLS handshake.
-// 3. Read the banner.
-// 4. If --send-ehlo or --send-helo is sent, send the corresponding EHLO
-//    or HELO command.
-// 5. If --send-help is sent, send HELP, read the result.
-// 6. If --starttls is sent, send STARTTLS, read the result, negotiate a
-//    TLS connection.
-// 7. If --send-quit is sent, send QUIT and read the result.
-// 8. Close the connection.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+//  1. Open a TCP connection to the target port (default 25).
+//  2. If --smtps is set, perform a TLS handshake.
+//  3. Read the banner.
+//  4. If --send-ehlo or --send-helo is sent, send the corresponding EHLO
+//     or HELO command.
+//  5. If --send-help is sent, send HELP, read the result.
+//  6. If --starttls is sent, send STARTTLS, read the result, negotiate a
+//     TLS connection.
+//  7. If --send-quit is sent, send QUIT and read the result.
+//  8. Close the connection.
+func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	c, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err

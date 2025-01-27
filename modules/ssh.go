@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/ssh"
 )
 
 type SSHFlags struct {
-	zgrab2.BaseFlags
+	zgrab2.BaseFlags  `group:"Basic Options"`
 	ClientID          string `long:"client" description:"Specify the client ID string to use" default:"SSH-2.0-Go"`
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`
@@ -34,17 +35,13 @@ type SSHScanner struct {
 
 func init() {
 	var sshModule SSHModule
-	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
+	_, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
-	cmd.FindOptionByLongName("host-key-algorithms").Default = []string{strings.Join(s.HostKeyAlgorithms, ",")}
-	cmd.FindOptionByLongName("kex-algorithms").Default = []string{strings.Join(s.KeyExchanges, ",")}
-	cmd.FindOptionByLongName("ciphers").Default = []string{strings.Join(s.Ciphers, ",")}
 }
 
-func (m *SSHModule) NewFlags() interface{} {
+func (m *SSHModule) NewFlags() any {
 	return new(SSHFlags)
 }
 
@@ -66,8 +63,18 @@ func (f *SSHFlags) Help() string {
 }
 
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
+	sc := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
 	f, _ := flags.(*SSHFlags)
 	s.config = f
+	if len(s.config.Ciphers) == 0 {
+		s.config.Ciphers = string(strings.Join(sc.Ciphers, ","))
+	}
+	if len(s.config.KexAlgorithms) == 0 {
+		s.config.KexAlgorithms = string(strings.Join(sc.KeyExchanges, ","))
+	}
+	if len(s.config.HostKeyAlgorithms) == 0 {
+		s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
+	}
 	return nil
 }
 
@@ -83,7 +90,7 @@ func (s *SSHScanner) GetTrigger() string {
 	return s.config.Trigger
 }
 
-func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, interface{}, error) {
+func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
 
 	var port uint
