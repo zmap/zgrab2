@@ -17,6 +17,7 @@ type SSHFlags struct {
 	KexAlgorithms     string `long:"kex-algorithms" description:"Set SSH Key Exchange Algorithms"`
 	HostKeyAlgorithms string `long:"host-key-algorithms" description:"Set SSH Host Key Algorithms"`
 	Ciphers           string `long:"ciphers" description:"A comma-separated list of which ciphers to offer."`
+	CollectExtensions bool   `long:"extensions" description:"Complete the SSH transport layer protocol to collect SSH extensions as per RFC 8308 (if any)."`
 	CollectUserAuth   bool   `long:"userauth" description:"Use the 'none' authentication request to see what userauth methods are allowed"`
 	GexMinBits        uint   `long:"gex-min-bits" description:"The minimum number of bits for the DH GEX prime." default:"1024"`
 	GexMaxBits        uint   `long:"gex-max-bits" description:"The maximum number of bits for the DH GEX prime." default:"8192"`
@@ -117,7 +118,9 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 		log.Fatal(err)
 	}
 	sshConfig.Verbose = s.config.Verbose
-	sshConfig.DontAuthenticate = s.config.CollectUserAuth
+	sshConfig.CollectExtensions = s.config.CollectExtensions
+	sshConfig.CollectUserAuth = s.config.CollectUserAuth
+	sshConfig.DontAuthenticate = true // Ethical scanning only, never try to authenticate
 	sshConfig.GexMinBits = s.config.GexMinBits
 	sshConfig.GexMaxBits = s.config.GexMaxBits
 	sshConfig.GexPreferredBits = s.config.GexPreferredBits
@@ -125,6 +128,7 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 		data.Banner = strings.TrimSpace(banner)
 		return nil
 	}
+	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	_, err := ssh.Dial("tcp", rhost, sshConfig)
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
