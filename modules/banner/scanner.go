@@ -17,6 +17,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/zmap/zgrab2"
 )
@@ -26,16 +27,19 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
 
-	Probe     string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file."`
-	ProbeFile string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe."`
-	Pattern   string `long:"pattern" description:"Pattern to match, must be valid regexp."`
-	UseTLS    bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options."`
-	MaxTries  int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
-	Hex       bool   `long:"hex" description:"Store banner value in hex. Mutually exclusive with --base64."`
-	Base64    bool   `long:"base64" description:"Store banner value in base64. Mutually exclusive with --hex."`
-	MD5       bool   `long:"md5" description:"Calculate MD5 hash of banner value."`
-	SHA1      bool   `long:"sha1" description:"Calculate SHA1 hash of banner value."`
-	SHA256    bool   `long:"sha256" description:"Calculate SHA256 hash of banner value."`
+	ReadTimeout int    `long:"read-timeout" default:"10" description:"Read timeout in milliseconds"`
+	BufferSize  int    `long:"buffer-size" default:"8209" description:"Read buffer size in bytes"`
+	MaxReadSize int    `long:"max-read-size" default:"512" description:"Maximum amount of data to read in KiB (1024 bytes)"`
+	Probe       string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file."`
+	ProbeFile   string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe."`
+	Pattern     string `long:"pattern" description:"Pattern to match, must be valid regexp."`
+	UseTLS      bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options."`
+	MaxTries    int    `long:"max-tries" default:"1" description:"Number of tries for timeouts and connection errors before giving up. Includes making TLS connection if enabled."`
+	Hex         bool   `long:"hex" description:"Store banner value in hex. Mutually exclusive with --base64."`
+	Base64      bool   `long:"base64" description:"Store banner value in base64. Mutually exclusive with --hex."`
+	MD5         bool   `long:"md5" description:"Calculate MD5 hash of banner value."`
+	SHA1        bool   `long:"sha1" description:"Calculate SHA1 hash of banner value."`
+	SHA256      bool   `long:"sha256" description:"Calculate SHA256 hash of banner value."`
 }
 
 // Module is the implementation of the zgrab2.Module interface.
@@ -178,7 +182,11 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error)
 
 	for try := 0; try < s.config.MaxTries; try++ {
 		_, err = conn.Write(s.probe)
-		data, readErr = zgrab2.ReadAvailable(conn)
+		data, readErr = zgrab2.ReadAvailableWithOptions(conn,
+			s.config.BufferSize,
+			time.Duration(s.config.ReadTimeout)*time.Millisecond,
+			0,
+			s.config.MaxReadSize*1024)
 		if err != nil {
 			continue
 		}
