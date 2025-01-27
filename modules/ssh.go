@@ -34,14 +34,10 @@ type SSHScanner struct {
 
 func init() {
 	var sshModule SSHModule
-	cmd, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
+	_, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
-	cmd.FindOptionByLongName("host-key-algorithms").Default = []string{strings.Join(s.HostKeyAlgorithms, ",")}
-	cmd.FindOptionByLongName("kex-algorithms").Default = []string{strings.Join(s.KeyExchanges, ",")}
-	cmd.FindOptionByLongName("ciphers").Default = []string{strings.Join(s.Ciphers, ",")}
 }
 
 func (m *SSHModule) NewFlags() any {
@@ -66,8 +62,18 @@ func (f *SSHFlags) Help() string {
 }
 
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
+	sc := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
 	f, _ := flags.(*SSHFlags)
 	s.config = f
+	if len(s.config.Ciphers) == 0 {
+		s.config.Ciphers = string(strings.Join(sc.Ciphers, ","))
+	}
+	if len(s.config.KexAlgorithms) == 0 {
+		s.config.KexAlgorithms = string(strings.Join(sc.KeyExchanges, ","))
+	}
+	if len(s.config.HostKeyAlgorithms) == 0 {
+		s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
+	}
 	return nil
 }
 
