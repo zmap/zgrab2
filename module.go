@@ -58,8 +58,8 @@ type ScanFlags interface {
 	// Help optionally returns any additional help text, e.g. specifying what empty defaults are interpreted as.
 	Help() string
 
-	// Validate enforces all command-line flags and positional arguments have valid values.
-	Validate(args []string) error
+	// Validate enforces all flags have valid values.
+	Validate() error
 }
 
 // BaseFlags contains the options that every flags type must embed
