@@ -560,21 +560,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		request.Header.Set("Accept", "*/*")
 	}
 
-	//// TODO - handle TLS handshake if needed
-	//var resp *http.Response
-	//if conn != nil {
-	//	// If we have an existing connection, use it
-	//	err = request.Write(*conn)
-	//	if err != nil {
-	//		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
-	//	}
-	//	resp, err = http.ReadResponse(bufio.NewReader(*conn), request)
-	//	if err != nil {
-	//		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
-	//	}
-	//} else {
 	resp, err := scan.client.Do(request)
-	//}
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
