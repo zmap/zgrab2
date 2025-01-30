@@ -1,6 +1,9 @@
 package zgrab2
 
-import "time"
+import (
+	"net"
+	"time"
+)
 
 // Scanner is an interface that represents all functions necessary to run a scan
 type Scanner interface {
@@ -20,8 +23,9 @@ type Scanner interface {
 	// Protocol returns the protocol identifier for the scan.
 	Protocol() string
 
-	// Scan connects to a host. The result should be JSON-serializable
-	Scan(t ScanTarget) (ScanStatus, any, error)
+	// Scan connects to a scan target, using an existing L4 connection if non-nil.
+	// The result should be JSON-serializable
+	Scan(target ScanTarget, existingConn *net.Conn) (status ScanStatus, result any, err error)
 }
 
 // ScanResponse is the result of a scan on a single host

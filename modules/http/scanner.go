@@ -113,7 +113,7 @@ type Scanner struct {
 // scan holds the state for a single scan. This may entail multiple connections.
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
-	connections    []net.Conn
+	conns          []net.Conn // connections to be cleaned up on scan completion
 	scanner        *Scanner
 	target         *zgrab2.ScanTarget
 	transport      *http.Transport
@@ -253,14 +253,14 @@ func (scanner *Scanner) GetTrigger() string {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS)
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn *net.Conn) (zgrab2.ScanStatus, any, error) {
+	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS, existingConn)
 	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
 		if scanner.config.RetryHTTPS && !scanner.config.UseHTTPS {
 			scan.Cleanup()
-			retry := scanner.newHTTPScan(&t, true)
+			retry := scanner.newHTTPScan(&t, true, existingConn)
 			defer retry.Cleanup()
 			retryError := retry.Grab()
 			if retryError != nil {
@@ -274,7 +274,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
+func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexistingConn *net.Conn) *scan {
 	ret := scan{
 		scanner: scanner,
 		target:  t,
@@ -288,7 +288,7 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
-	ret.transport.DialTLS = ret.getTLSDialer(t)
+	ret.transport.DialTLS = ret.getTLSDialer(t, preexistingConn)
 	ret.transport.DialContext = ret.dialContext
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
@@ -313,11 +313,14 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 
 // Cleanup closes any connections that have been opened during the scan
 func (scan *scan) Cleanup() {
-	if scan.connections != nil {
-		for _, conn := range scan.connections {
-			defer conn.Close()
+	if scan.conns != nil {
+		for _, conn := range scan.conns {
+			err := conn.Close()
+			if err != nil {
+				log.Errorf("http/scanner.go Cleanup: error closing connection: %s", err)
+			}
 		}
-		scan.connections = nil
+		scan.conns = nil
 	}
 }
 
@@ -371,18 +374,29 @@ func (scan *scan) dialContext(ctx context.Context, network string, addr string) 
 	if err != nil {
 		return nil, err
 	}
-	scan.connections = append(scan.connections, conn)
+	scan.conns = append(scan.conns, conn)
 	return conn, nil
 }
 
 // getTLSDialer returns a Dial function that connects using the
 // zgrab2.GetTLSConnection()
-func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget) func(network, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, preexistingConn *net.Conn) func(network, addr string) (net.Conn, error) {
 	return func(network, addr string) (net.Conn, error) {
-		outer, err := scan.dialContext(context.Background(), network, addr)
-		if err != nil {
-			return nil, err
+		var (
+			outer net.Conn
+			err   error
+		)
+		if preexistingConn != nil && (*preexistingConn).RemoteAddr().String() == addr {
+			// if the pre-existing connection is to the address we want, use it
+			outer = *preexistingConn
+		} else {
+			// otherwise, dial a new connection
+			outer, err = scan.dialContext(context.Background(), network, addr)
+			if err != nil {
+				return nil, err
+			}
 		}
+		// Now we have a L4 connection
 		cfg, err := scan.scanner.config.TLSFlags.GetTLSConfigForTarget(t)
 		if err != nil {
 			return nil, err
@@ -510,6 +524,9 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
+// TODO - trying handling conns outside, remove these comments
+// If conn is non-nil, it is used for the first connection.
+// TODO - Phillip - describe what happens with HTTP redirects
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
 	var (
@@ -541,7 +558,21 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		request.Header.Set("Accept", "*/*")
 	}
 
+	//// TODO - handle TLS handshake if needed
+	//var resp *http.Response
+	//if conn != nil {
+	//	// If we have an existing connection, use it
+	//	err = request.Write(*conn)
+	//	if err != nil {
+	//		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
+	//	}
+	//	resp, err = http.ReadResponse(bufio.NewReader(*conn), request)
+	//	if err != nil {
+	//		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, err)
+	//	}
+	//} else {
 	resp, err := scan.client.Do(request)
+	//}
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
