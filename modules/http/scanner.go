@@ -386,7 +386,9 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, preexistingConn *net.Conn) 
 			outer net.Conn
 			err   error
 		)
-		if preexistingConn != nil && (*preexistingConn).RemoteAddr().String() == addr {
+		log.Warn("Remote Addr is ", (*preexistingConn).RemoteAddr().String())
+		log.Warn("Target IP is ", t.IP.String())
+		if preexistingConn != nil && (*preexistingConn).RemoteAddr().String() == t.IP.String()+":"+strconv.Itoa(int(*t.Port)) {
 			// if the pre-existing connection is to the address we want, use it
 			outer = *preexistingConn
 		} else {

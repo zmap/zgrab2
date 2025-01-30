@@ -36,7 +36,7 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 		target.Port = new(uint)
 		*target.Port = 443
 	}
-	conn, connErr := net.Dial("tcp", "172.67.173.251"+":"+strconv.Itoa(int(*target.Port)))
+	conn, connErr := net.Dial("tcp", "104.21.96.65"+":"+strconv.Itoa(int(*target.Port)))
 	if connErr != nil {
 		log.Fatalf("could not create pre-existing connection error: %v", connErr)
 	}
