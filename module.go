@@ -25,7 +25,7 @@ type Scanner interface {
 
 	// Scan connects to a scan target, using an existing L4 connection if non-nil.
 	// The result should be JSON-serializable
-	Scan(target ScanTarget, existingConn *net.Conn) (status ScanStatus, result any, err error)
+	Scan(target ScanTarget, existingConn net.Conn) (status ScanStatus, result any, err error)
 }
 
 // ScanResponse is the result of a scan on a single host

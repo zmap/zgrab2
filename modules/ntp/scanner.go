@@ -1008,12 +1008,32 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn *net.Conn) (zgrab2.ScanStatus, any, error) {
-	sock, err := t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
-	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2.ScanStatus, any, error) {
+	var (
+		sock net.Conn
+		err  error
+	)
+	if t.Port == nil {
+		// use the default port from scan flags
+		t.Port = new(uint)
+		*t.Port = scanner.config.BaseFlags.Port
 	}
-	defer sock.Close()
+
+	if existingConn != nil && t.IP.String()+":"+strconv.Itoa(int(*t.Port)) == existingConn.RemoteAddr().String() {
+		// we have an existing connection, use it
+		sock = existingConn
+	} else { // If we don't have an existing connection, open a new one
+		sock, err = t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, err
+		}
+		defer func(sock net.Conn) {
+			err := sock.Close()
+			if err != nil {
+				log.Errorf("UDP: Error closing connection: %v", err)
+			}
+		}(sock)
+	}
 	result := &Results{}
 	if !scanner.config.SkipGetTime {
 		inPacket, err := scanner.GetTime(sock)

@@ -253,7 +253,7 @@ func (scanner *Scanner) GetTrigger() string {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn *net.Conn) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2.ScanStatus, any, error) {
 	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS, existingConn)
 	defer scan.Cleanup()
 	err := scan.Grab()
@@ -274,7 +274,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn *net.Conn) (zgrab
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexistingConn *net.Conn) *scan {
+func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexistingConn net.Conn) *scan {
 	ret := scan{
 		scanner: scanner,
 		target:  t,
@@ -380,17 +380,20 @@ func (scan *scan) dialContext(ctx context.Context, network string, addr string) 
 
 // getTLSDialer returns a Dial function that connects using the
 // zgrab2.GetTLSConnection()
-func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, preexistingConn *net.Conn) func(network, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, preexistingConn net.Conn) func(network, addr string) (net.Conn, error) {
 	return func(network, addr string) (net.Conn, error) {
 		var (
 			outer net.Conn
 			err   error
 		)
-		log.Warn("Remote Addr is ", (*preexistingConn).RemoteAddr().String())
-		log.Warn("Target IP is ", t.IP.String())
-		if preexistingConn != nil && (*preexistingConn).RemoteAddr().String() == t.IP.String()+":"+strconv.Itoa(int(*t.Port)) {
+		if t.Port == nil {
+			// use the default port from scan flags. Don't want an issue when we de-reference t.Port
+			t.Port = new(uint)
+			*t.Port = scan.scanner.config.BaseFlags.Port
+		}
+		if preexistingConn != nil && preexistingConn.RemoteAddr().String() == t.IP.String()+":"+strconv.Itoa(int(*t.Port)) {
 			// if the pre-existing connection is to the address we want, use it
-			outer = *preexistingConn
+			outer = preexistingConn
 		} else {
 			// otherwise, dial a new connection
 			outer, err = scan.dialContext(context.Background(), network, addr)
