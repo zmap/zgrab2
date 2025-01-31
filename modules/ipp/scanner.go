@@ -704,7 +704,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool, existing
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
 	if target.Port == nil {
-		// port must be non-nil in getTLSDialer
+		// port must be non-nil in getTLSDialer and below in getHTTPURL
 		target.Port = new(uint)
 		*target.Port = scanner.config.BaseFlags.Port
 	}
@@ -722,14 +722,8 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool, existing
 		host = target.IP.String()
 	}
 	// Scanner Target port overrides config flag port
-	var port uint16
-	if target.Port != nil {
-		port = uint16(*target.Port)
-	} else {
-		port = uint16(scanner.config.BaseFlags.Port)
-	}
 	// FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
-	newScan.url = getHTTPURL(tls, host, port, "/ipp")
+	newScan.url = getHTTPURL(tls, host, uint16(*target.Port), "/ipp")
 	return &newScan
 }
 
