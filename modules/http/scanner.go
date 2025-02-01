@@ -108,6 +108,7 @@ type Scanner struct {
 	customHeaders map[string]string
 	requestBody   string
 	decodedHashFn func([]byte) string
+	dialContext   func(ctx context.Context, network string, addr string) (net.Conn, error) // User-provided custom dialer
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -273,6 +274,10 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
 
+func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
+	scanner.dialContext = dialer
+}
+
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexistingConn net.Conn) *scan {
 	ret := scan{
@@ -289,7 +294,9 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexis
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
 	ret.transport.DialTLS = ret.getTLSDialer(t, preexistingConn)
-	ret.transport.DialContext = ret.dialContext
+	if scanner.dialContext != nil {
+		ret.transport.DialContext = scanner.dialContext
+	}
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
@@ -394,8 +401,11 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, preexistingConn net.Conn) f
 		if preexistingConn != nil && preexistingConn.RemoteAddr().String() == t.IP.String()+":"+strconv.Itoa(int(*t.Port)) {
 			// if the pre-existing connection is to the address we want, use it
 			outer = preexistingConn
+		} else if scan.scanner.dialContext != nil {
+			// custom dialer set by user, use it
+			outer, err = scan.scanner.dialContext(context.Background(), network, addr)
 		} else {
-			// otherwise, dial a new connection
+			// no pre-existing connection, no custom dialer, use the default
 			outer, err = scan.dialContext(context.Background(), network, addr)
 			if err != nil {
 				return nil, err

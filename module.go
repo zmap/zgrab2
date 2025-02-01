@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"net"
 	"time"
 )
@@ -24,8 +25,12 @@ type Scanner interface {
 	Protocol() string
 
 	// Scan connects to a scan target, using an existing L4 connection if non-nil.
+	// If existingConn is nil, the scanner should open a new connection to the target.
 	// The result should be JSON-serializable
 	Scan(target ScanTarget, existingConn net.Conn) (status ScanStatus, result any, err error)
+
+	// WithDialContext allows a module user to specify a custom dialer to be used for the scan.
+	WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error))
 }
 
 // ScanResponse is the result of a scan on a single host
