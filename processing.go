@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -85,7 +86,7 @@ func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TL
 
 // OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
 // Note that the UDP "connection" does not have an associated timeout.
-func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
+func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags, dialer func(ctx context.Context, network, addr string) (net.Conn, error)) (net.Conn, error) {
 	var port uint
 	// If the port is supplied in ScanTarget, let that override the cmdline option
 	if target.Port != nil {
@@ -94,6 +95,13 @@ func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, er
 		port = flags.Port
 	}
 	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
+	if dialer != nil {
+		// If dialer provided, use it
+		ctx, cancel := context.WithTimeout(context.Background(), flags.Timeout)
+		defer cancel()
+		return dialer(ctx, "udp", address)
+	}
+	// Otherwise, use the default dialer
 	var local *net.UDPAddr
 	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 		local = &net.UDPAddr{}
