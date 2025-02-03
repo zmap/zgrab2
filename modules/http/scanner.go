@@ -293,10 +293,14 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexis
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
-	ret.transport.DialTLS = ret.getTLSDialer(t, preexistingConn)
 	if scanner.dialContext != nil {
+		// If a custom dialer is set, use it
 		ret.transport.DialContext = scanner.dialContext
+	} else {
+		// If no custom dialer is set, use the default
+		ret.transport.DialContext = ret.dialContext
 	}
+	ret.transport.DialTLS = ret.getTLSDialer(t, preexistingConn)
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
