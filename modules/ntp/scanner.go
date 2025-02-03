@@ -13,6 +13,7 @@
 package ntp
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -811,6 +812,9 @@ type Module struct {
 // Scanner holds the state for a single scan
 type Scanner struct {
 	config *Flags
+	// User-provided custom dialer. Note: if user provides this, they are responsible for setting local address/port,
+	// the UDP Flags won't be honored. Context set with Timeout.
+	dialContext func(ctx context.Context, network string, addr string) (net.Conn, error)
 }
 
 // RegisterModule registers the module with zgrab2
@@ -872,6 +876,13 @@ func (scanner *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
+}
+
+// WithDialContext allows a custom dialer to be set that will be used when connecting to the target
+// If the scan target has an IP, it'll be passed into 'addr' as 'ip:port'
+// If the scan target has a hostname only, 'addr' will be passed in as 'hostname:port'
+func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
+	scanner.dialContext = dialer
 }
 
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
@@ -1018,21 +1029,22 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 		t.Port = new(uint)
 		*t.Port = scanner.config.BaseFlags.Port
 	}
+	closeSock := func() {
+		err = sock.Close()
+		if err != nil {
+			log.Errorf("UDP: Error closing connection: %v", err)
+		}
+	}
 
 	if existingConn != nil && t.IP.String()+":"+strconv.Itoa(int(*t.Port)) == existingConn.RemoteAddr().String() {
 		// we have an existing connection, use it
 		sock = existingConn
 	} else { // If we don't have an existing connection, open a new one
-		sock, err = t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
+		sock, err = t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags, scanner.dialContext)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
-		defer func(sock net.Conn) {
-			err := sock.Close()
-			if err != nil {
-				log.Errorf("UDP: Error closing connection: %v", err)
-			}
-		}(sock)
+		defer closeSock()
 	}
 	result := &Results{}
 	if !scanner.config.SkipGetTime {
