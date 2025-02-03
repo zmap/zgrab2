@@ -13,7 +13,6 @@
 package ntp
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -814,7 +813,7 @@ type Scanner struct {
 	config *Flags
 	// User-provided custom dialer. Note: if user provides this, they are responsible for setting local address/port,
 	// the UDP Flags won't be honored. Context set with Timeout.
-	dialContext func(ctx context.Context, network string, addr string) (net.Conn, error)
+	dialContext zgrab2.ContextDialer
 }
 
 // RegisterModule registers the module with zgrab2
@@ -879,7 +878,7 @@ func (scanner *Scanner) GetTrigger() string {
 }
 
 // WithDialContext allows a custom dialer to be set that will be used when connecting to the target
-func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
+func (scanner *Scanner) WithDialContext(dialer zgrab2.ContextDialer) {
 	scanner.dialContext = dialer
 }
 

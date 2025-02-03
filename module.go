@@ -30,8 +30,10 @@ type Scanner interface {
 	Scan(target ScanTarget, existingConn net.Conn) (status ScanStatus, result any, err error)
 
 	// WithDialContext allows a module user to specify a custom dialer to be used for the scan.
-	WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error))
+	WithDialContext(dialer ContextDialer)
 }
+
+type ContextDialer func(ctx context.Context, network string, addr string) (net.Conn, error)
 
 // ScanResponse is the result of a scan on a single host
 type ScanResponse struct {

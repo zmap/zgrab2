@@ -534,7 +534,7 @@ func isIPP(resp *http.Response) bool {
 }
 
 // WithDialContext allows a custom dialer to be set that will be used when connecting to the target
-func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
+func (scanner *Scanner) WithDialContext(dialer zgrab2.ContextDialer) {
 	scanner.dialContext = dialer
 }
 
@@ -694,7 +694,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // getDialContext selects between an existing connection or a new one based on the target and any existing connection
-func getDialContext(timeout time.Duration, target *zgrab2.ScanTarget, existingConn net.Conn) func(ctx context.Context, network string, addr string) (net.Conn, error) {
+func getDialContext(timeout time.Duration, target *zgrab2.ScanTarget, existingConn net.Conn) zgrab2.ContextDialer {
 	// if we have an existing connection, and it's endpoint matches the target, use it
 	if existingConn != nil && target.Port != nil && existingConn.RemoteAddr().String() == target.IP.String()+":"+strconv.Itoa(int(*target.Port)) {
 		return func(ctx context.Context, network, addr string) (net.Conn, error) {

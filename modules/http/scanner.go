@@ -108,7 +108,7 @@ type Scanner struct {
 	customHeaders map[string]string
 	requestBody   string
 	decodedHashFn func([]byte) string
-	dialContext   func(ctx context.Context, network string, addr string) (net.Conn, error) // User-provided custom dialer
+	dialContext   zgrab2.ContextDialer // User-provided custom dialer
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -274,7 +274,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
 
-func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
+func (scanner *Scanner) WithDialContext(dialer zgrab2.ContextDialer) {
 	scanner.dialContext = dialer
 }
 
