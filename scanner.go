@@ -3,8 +3,6 @@ package zgrab2
 import (
 	"fmt"
 	"log"
-	"net"
-	"strconv"
 	"time"
 )
 
@@ -31,16 +29,7 @@ func PrintScanners() {
 // RunScanner runs a single scan on a target and returns the resulting data
 func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	// TODO Phillip this is testign the preexisting connection logic
-	if target.Port == nil {
-		target.Port = new(uint)
-		*target.Port = 443
-	}
-	conn, connErr := net.Dial("tcp", "104.21.96.65"+":"+strconv.Itoa(int(*target.Port)))
-	if connErr != nil {
-		log.Fatalf("could not create pre-existing connection error: %v", connErr)
-	}
-	status, res, e := s.Scan(target, &conn)
+	status, res, e := s.Scan(target, nil)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}

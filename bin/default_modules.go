@@ -2,6 +2,9 @@ package bin
 
 import (
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/ipp"
+	"github.com/zmap/zgrab2/modules/ntp"
+
 	// TODO Phillip - commenting these out for testing, will uncomment later
 	//"github.com/zmap/zgrab2/modules/bacnet"
 	//"github.com/zmap/zgrab2/modules/banner"
@@ -9,13 +12,6 @@ import (
 	//"github.com/zmap/zgrab2/modules/fox"
 	//"github.com/zmap/zgrab2/modules/ftp"
 	"github.com/zmap/zgrab2/modules/http"
-	//"github.com/zmap/zgrab2/modules/imap"
-	"github.com/zmap/zgrab2/modules/ipp"
-	//"github.com/zmap/zgrab2/modules/modbus"
-	//"github.com/zmap/zgrab2/modules/mongodb"
-	//"github.com/zmap/zgrab2/modules/mssql"
-	//"github.com/zmap/zgrab2/modules/mysql"
-	"github.com/zmap/zgrab2/modules/ntp"
 	//"github.com/zmap/zgrab2/modules/oracle"
 	//"github.com/zmap/zgrab2/modules/pop3"
 	//"github.com/zmap/zgrab2/modules/postgres"
