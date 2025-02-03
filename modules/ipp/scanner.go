@@ -124,7 +124,8 @@ type version struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config      *Flags
+	dialContext func(context.Context, string, string) (net.Conn, error)
 	// TODO: Add scan state if any is necessary
 }
 
@@ -532,6 +533,11 @@ func isIPP(resp *http.Response) bool {
 	return resp.StatusCode == 200 && (hasIPP || bytes.Contains(body, AttributesCharset))
 }
 
+// WithDialContext allows a custom dialer to be set that will be used when connecting to the target
+func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
+	scanner.dialContext = dialer
+}
+
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
 	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
@@ -644,9 +650,17 @@ func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, scanner *Scanner, preexisti
 			outer net.Conn
 			err   error
 		)
+		if t.Port == nil {
+			// use the default port from scan flags. Don't want an issue when we de-reference t.Port
+			t.Port = new(uint)
+			*t.Port = scanner.config.BaseFlags.Port
+		}
 		if preexistingConn != nil && t.Port != nil && preexistingConn.RemoteAddr().String() == t.IP.String()+":"+strconv.Itoa(int(*t.Port)) {
 			// if the pre-existing connection is to the address we want, use it
 			outer = preexistingConn
+		} else if scanner.dialContext != nil {
+			// custom dialer set by user, use it
+			outer, err = scanner.dialContext(context.Background(), network, addr)
 		} else {
 			// otherwise, dial a new connection
 			outer, err = zgrab2.DialTimeoutConnection(network, addr, scanner.config.BaseFlags.Timeout, 0)
@@ -708,8 +722,13 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool, existing
 		target.Port = new(uint)
 		*target.Port = scanner.config.BaseFlags.Port
 	}
+
 	transport.DialTLS = newScan.getTLSDialer(target, scanner, existingConn)
-	transport.DialContext = getDialContext(scanner.config.BaseFlags.Timeout, target, existingConn)
+	if scanner.dialContext != nil {
+		transport.DialContext = scanner.dialContext
+	} else {
+		transport.DialContext = getDialContext(scanner.config.BaseFlags.Timeout, target, existingConn)
+	}
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport
