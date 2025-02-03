@@ -543,9 +543,6 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // Grab performs the HTTP scan -- implementation taken from zgrab/zlib/grabber.go
-// TODO - trying handling conns outside, remove these comments
-// If conn is non-nil, it is used for the first connection.
-// TODO - Phillip - describe what happens with HTTP redirects
 func (scan *scan) Grab() *zgrab2.ScanError {
 	// TODO: Allow body?
 	var (
