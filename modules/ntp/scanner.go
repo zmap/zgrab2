@@ -879,8 +879,6 @@ func (scanner *Scanner) GetTrigger() string {
 }
 
 // WithDialContext allows a custom dialer to be set that will be used when connecting to the target
-// If the scan target has an IP, it'll be passed into 'addr' as 'ip:port'
-// If the scan target has a hostname only, 'addr' will be passed in as 'hostname:port'
 func (scanner *Scanner) WithDialContext(dialer func(ctx context.Context, network string, addr string) (net.Conn, error)) {
 	scanner.dialContext = dialer
 }
