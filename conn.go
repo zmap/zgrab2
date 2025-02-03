@@ -236,6 +236,13 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
 	var conn net.Conn
 	var err error
+	dialer := &net.Dialer{
+		Timeout: dialTimeout,
+	}
+	if config.localAddr != nil {
+		dialer.LocalAddr = config.localAddr
+	}
+	conn, err = dialer.Dial(proto, target)
 	if dialTimeout > 0 {
 		conn, err = net.DialTimeout(proto, target, dialTimeout)
 	} else {
@@ -300,7 +307,9 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	d.Dialer.KeepAlive = d.Timeout
 
 	// Copy over the source IP if set, or nil
-	d.Dialer.LocalAddr = config.localAddr
+	if config.localAddr != nil {
+		d.Dialer.LocalAddr = config.localAddr
+	}
 
 	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
 	defer cancelDial()
