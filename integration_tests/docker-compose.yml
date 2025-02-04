@@ -1,0 +1,34 @@
+# docker com
+services:
+# AMQP/RabbitMQ
+  amqp091-3.12.14:
+    image: "rabbitmq:3.12.14"
+    container_name: "zgrab_amqp091-3.12.14"
+    networks:
+      - amqp091-3.12.14-network
+    hostname: "target"
+  amqp091-3.13.2:
+    image: "rabbitmq:3.13.2"
+    container_name: "zgrab_amqp091-3.13.2"
+    networks:
+      - amqp091-3.13.2-network
+    hostname: "target"
+# End Module
+#  scanner: # ZGrab Runner
+#    build:
+#      context: ../
+#    container_name: "zgrab-runner"
+#    networks:
+#      - amqp091-3.12.14-network
+#      - amqp091-3.13.2-network
+#    volumes:
+#      - ../zgrab-output:/output
+#    depends_on:
+#      - amqp091-3.12.14
+#      - amqp091-3.13.2
+
+networks:
+  amqp091-3.12.14-network:
+    driver: bridge
+  amqp091-3.13.2-network:
+    driver: bridge

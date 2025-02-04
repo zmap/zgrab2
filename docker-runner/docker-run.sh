@@ -7,4 +7,4 @@
 : "${CONTAINER_NAME:?}"
 
 set -e
-echo 'target' | docker run --rm -i --link $CONTAINER_NAME:target zgrab2_runner $@
+echo 'target' | docker run --rm -i --network container:$CONTAINER_NAME zgrab2_runner $@
