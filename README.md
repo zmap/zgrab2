@@ -25,31 +25,28 @@ Replace `/path/to/your/config.ini` with the path to your configuration file on t
 
 ### Building from Source
 
-For Go 1.17 and later you must build from source:
+ZGrab2 requires Go 1.23 or later to build from source.
 
 ```shell
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
 make
-./zgrab2
+./zgrab2 http --help # to see the http module's help message
 ```
 
+Starting in Go 1.21, Go added [support](https://go.dev/doc/toolchain) for auto-downloading the appropriate toolchain for building a given module.
 
-For Go 1.16 and below you can install via go get:
-
-You will need to have a valid `$GOPATH` set up, for more information about `$GOPATH`, see https://golang.org/doc/code.html.
-
-Once you have a working `$GOPATH`, run:
+This will let you build ZGrab2 using Go 1.21.X or 1.22.X without needing to manually install another version.
 
 ```shell
-go get github.com/zmap/zgrab2
-```
+go version
+$ go version go1.21.13 linux/arm64
 
-This will install zgrab under `$GOPATH/src/github.com/zmap/zgrab2`
-
-```shell
-cd $GOPATH/src/github.com/zmap/zgrab2
-make
+export GOTOOLCHAIN=auto
+git clone https://github.com/zmap/zgrab2.git
+cd zgrab2
+make # Go will download the required 1.23 toolchain automatically
+./zgrab2 http --help # to see the http module's help message
 ```
 
 ## Single Module Usage 
