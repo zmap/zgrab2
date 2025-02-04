@@ -13,6 +13,13 @@ services:
     networks:
       - amqp091-3.13.2-network
     hostname: "target"
+  ftp:
+    build:
+      context: ./ftp/container
+    container_name: "zgrab_ftp"
+    networks:
+      - ftp-network
+    hostname: "target"
 # End Module
 #  scanner: # ZGrab Runner
 #    build:
@@ -31,4 +38,6 @@ networks:
   amqp091-3.12.14-network:
     driver: bridge
   amqp091-3.13.2-network:
+    driver: bridge
+  ftp-network:
     driver: bridge
