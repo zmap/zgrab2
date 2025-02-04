@@ -40,8 +40,8 @@ func (err *ScanError) Error() string {
 	return err.Err.Error()
 }
 
-func (err *ScanError) Unpack(results any) (ScanStatus, any, error) {
-	return err.Status, results, err.Err
+func (err *ScanError) Unpack(results any) (any, ScanStatus, error) {
+	return results, err.Status, err.Err
 }
 
 // NewScanError returns a ScanError with the given status and error.

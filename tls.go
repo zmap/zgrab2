@@ -323,8 +323,8 @@ func (conn *TLSConnection) Close() error {
 // Connect opens the TCP connection to the target using the given configuration,
 // and then returns the configured wrapped TLS connection. The caller must still
 // call Handshake().
-func (t *TLSFlags) Connect(target *ScanTarget, flags *BaseFlags) (*TLSConnection, error) {
-	tcpConn, err := target.Open(flags)
+func (t *TLSFlags) Connect(target *ScanTarget, flags *BaseFlags, ctxDialer ContextDialer) (*TLSConnection, error) {
+	tcpConn, err := target.Open(flags, ctxDialer)
 	if err != nil {
 		return nil, err
 	}

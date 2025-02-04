@@ -252,3 +252,15 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 
 	return net.JoinHostPort(ip.String(), port), nil
 }
+
+// IsExistingConnValidForTarget checks if the existing connection is valid for the target
+func IsExistingConnValidForTarget(existingConn net.Conn, target *ScanTarget) bool {
+	if existingConn == nil || target == nil {
+		return false
+	}
+	targetHostPort := net.JoinHostPort(target.IP.String(), strconv.Itoa(int(*target.Port)))
+	if targetHostPort == existingConn.RemoteAddr().String() {
+		return true
+	}
+	return false
+}

@@ -24,12 +24,15 @@ type Scanner interface {
 	// Protocol returns the protocol identifier for the scan.
 	Protocol() string
 
-	// Scan connects to a scan target, using an existing L4 connection if non-nil.
-	// If existingConn is nil, the scanner should open a new connection to the target.
+	// Scan connects to a scan target
+	// If existingConn is non-nil, the scanner should use this connection. The connection will *not* be closed by the scanner.
+	// If existingConn is nil, the scanner should open a new connection to the target. The scanner is responsible for closing the connection.
 	// The result should be JSON-serializable
-	Scan(target ScanTarget, existingConn net.Conn) (status ScanStatus, result any, err error)
+	Scan(target ScanTarget, existingConn net.Conn) (result any, status ScanStatus, err error)
 
 	// WithDialContext allows a module user to specify a custom dialer to be used for the scan.
+	// This custom dialer should be used by the scanner whenever an existingConn is *nil*.
+	// The scanner should ignore any SourceIP or SourcePort when using the custom dialer, setting SourceIP/Port becomes the responsibility of the custom dialer.
 	WithDialContext(dialer ContextDialer)
 }
 
@@ -37,16 +40,18 @@ type ContextDialer func(ctx context.Context, network string, addr string) (net.C
 
 // ScanResponse is the result of a scan on a single host
 type ScanResponse struct {
+	IsSuccess bool    `json:"success"`
+	Error     *string `json:"error,omitempty"`
 	// Status is required for all responses.
 	Status ScanStatus `json:"status"`
 
+	ScannerName string `json:"module_name,omitempty"`
 	// Protocol is the identifier if the protocol that did the scan. In the case of a complex scan, this may differ from
 	// the scan name.
-	Protocol string `json:"protocol"`
+	Protocol string `json:"protocol,omitempty"`
 
-	Result    any     `json:"result,omitempty"`
-	Timestamp string  `json:"timestamp,omitempty"`
-	Error     *string `json:"error,omitempty"`
+	Result    any    `json:"result,omitempty"`
+	Timestamp string `json:"timestamp,omitempty"`
 }
 
 // ScanModule is an interface which represents a module that the framework can manipulate

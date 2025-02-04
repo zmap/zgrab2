@@ -254,7 +254,7 @@ func (scanner *Scanner) GetTrigger() string {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (any, zgrab2.ScanStatus, error) {
 	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS, existingConn)
 	defer scan.Cleanup()
 	err := scan.Grab()
@@ -267,11 +267,11 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 			if retryError != nil {
 				return err.Unpack(&scan.results)
 			}
-			return zgrab2.SCAN_SUCCESS, &retry.results, nil
+			return &scan.results, zgrab2.SCAN_SUCCESS, nil
 		}
 		return err.Unpack(&scan.results)
 	}
-	return zgrab2.SCAN_SUCCESS, &scan.results, nil
+	return &scan.results, zgrab2.SCAN_SUCCESS, nil
 }
 
 func (scanner *Scanner) WithDialContext(dialer zgrab2.ContextDialer) {
@@ -293,7 +293,11 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexis
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
-	if scanner.dialContext != nil {
+	if zgrab2.IsExistingConnValidForTarget(preexistingConn, t) {
+		scanner.dialContext = func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return preexistingConn, nil
+		}
+	} else if scanner.dialContext != nil {
 		// If a custom dialer is set, use it
 		ret.transport.DialContext = scanner.dialContext
 	} else {
@@ -306,18 +310,13 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool, preexis
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	ret.client.Timeout = scanner.config.Timeout
-	host := t.Domain
-	if host == "" {
-		host = t.IP.String()
-	}
-	// Scanner Target port overrides config flag port
 	var port uint16
 	if t.Port != nil {
 		port = uint16(*t.Port)
 	} else {
 		port = uint16(scanner.config.BaseFlags.Port)
 	}
-	ret.url = getHTTPURL(useHTTPS, host, port, scanner.config.Endpoint)
+	ret.url = getHTTPURL(useHTTPS, t.Host(), port, scanner.config.Endpoint)
 
 	return &ret
 }
@@ -393,26 +392,20 @@ func (scan *scan) dialContext(ctx context.Context, network string, addr string) 
 // zgrab2.GetTLSConnection()
 func (scan *scan) getTLSDialer(t *zgrab2.ScanTarget, preexistingConn net.Conn) func(network, addr string) (net.Conn, error) {
 	return func(network, addr string) (net.Conn, error) {
-		var (
-			outer net.Conn
-			err   error
-		)
+		var outer net.Conn
+		var err error
 		if t.Port == nil {
 			// use the default port from scan flags. Don't want an issue when we de-reference t.Port
 			t.Port = new(uint)
 			*t.Port = scan.scanner.config.BaseFlags.Port
 		}
-		if preexistingConn != nil && preexistingConn.RemoteAddr().String() == t.IP.String()+":"+strconv.Itoa(int(*t.Port)) {
+		if zgrab2.IsExistingConnValidForTarget(preexistingConn, t) {
 			// if the pre-existing connection is to the address we want, use it
 			outer = preexistingConn
-		} else if scan.scanner.dialContext != nil {
-			// custom dialer set by user, use it
-			outer, err = scan.scanner.dialContext(context.Background(), network, addr)
 		} else {
-			// no pre-existing connection, no custom dialer, use the default
-			outer, err = scan.dialContext(context.Background(), network, addr)
+			outer, err = t.Open(&scan.scanner.config.BaseFlags, scan.dialContext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error dialing TCP connection: %s", err)
 			}
 		}
 		// Now we have a L4 connection

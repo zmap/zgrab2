@@ -837,7 +837,7 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 
 // Description returns an overview of this module.
 func (module *Module) Description() string {
-	return "Scan for NTP"
+	return "Scan for Network Time Protocol"
 }
 
 // Validate checks that the flags are valid
@@ -1016,11 +1016,9 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2.ScanStatus, any, error) {
-	var (
-		sock net.Conn
-		err  error
-	)
+func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (any, zgrab2.ScanStatus, error) {
+	var sock net.Conn
+	var err error
 	if t.Port == nil {
 		// use the default port from scan flags
 		t.Port = new(uint)
@@ -1039,7 +1037,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 	} else { // If we don't have an existing connection, open a new one
 		sock, err = t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags, scanner.dialContext)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return nil, zgrab2.TryGetScanStatus(err), err
 		}
 		defer closeSock()
 	}
@@ -1048,7 +1046,7 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 		inPacket, err := scanner.GetTime(sock)
 		if err != nil {
 			// even if an inPacket is returned, it failed the syntax check, so indicate a failed detection via result == nil.
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return nil, zgrab2.TryGetScanStatus(err), err
 		}
 		temp := inPacket.ReceiveTimestamp.GetTime()
 		result.TimeResponse = inPacket
@@ -1062,11 +1060,10 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget, existingConn net.Conn) (zgrab2
 				// TODO: Currently, returning a non-nil result means that the service was positively detected.
 				// It may be safer to add an explicit flag for this (status == success is not sufficient, since e.g. you can get a timeout after positively identifying the service)
 				// This also means that partial TLS handshakes cannot be returned
-				return status, nil, err
+				return nil, status, err
 			}
-			return status, result, err
+			return result, status, err
 		}
 	}
-
-	return zgrab2.SCAN_SUCCESS, result, nil
+	return result, zgrab2.SCAN_SUCCESS, nil
 }

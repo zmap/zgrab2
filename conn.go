@@ -3,6 +3,7 @@ package zgrab2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -167,7 +168,7 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 // GetTimeoutDialFunc returns a DialFunc that dials with the given timeout
 func GetTimeoutDialFunc(timeout time.Duration) func(string, string) (net.Conn, error) {
 	return func(proto, target string) (net.Conn, error) {
-		return DialTimeoutConnection(proto, target, timeout, 0)
+		return DialTimeoutConnection(proto, target, nil, timeout, 0)
 	}
 }
 
@@ -232,27 +233,66 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 	return ret
 }
 
+func GetLocalAddr(proto string, srcIP net.IP, srcPort uint) (net.Addr, error) {
+	if srcIP == nil {
+		return nil, errors.New("source IP must be set")
+	}
+	if srcPort == 0 {
+		return nil, errors.New("source port must be positive")
+	} else if srcPort > MaxPort {
+		return nil, errors.New("source port must be less than 65536")
+	}
+	// validation complete
+	switch proto {
+	case "tcp", "tcp4", "tcp6":
+		return &net.TCPAddr{IP: srcIP, Port: int(srcPort)}, nil
+	case "udp", "udp4", "udp6":
+		return &net.UDPAddr{IP: srcIP, Port: int(srcPort)}, nil
+	default:
+		return nil, fmt.Errorf("unsupported network type: %s", proto)
+	}
+}
+
 // DialTimeoutConnectionEx dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	var conn net.Conn
-	var err error
+func DialTimeoutConnectionEx(proto, target string, localAddr net.Addr, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
+	var (
+		conn    net.Conn
+		err     error
+		timeout time.Duration
+	)
 	if dialTimeout > 0 {
-		conn, err = net.DialTimeout(proto, target, dialTimeout)
+		timeout = dialTimeout
 	} else {
-		conn, err = net.DialTimeout(proto, target, sessionTimeout)
+		timeout = sessionTimeout
 	}
-	if err != nil {
-		if conn != nil {
-			conn.Close()
+	// attempt to get the local address
+	if localAddr != nil {
+		// dial with the local address
+		dialer := &net.Dialer{
+			Timeout:   timeout,
+			LocalAddr: localAddr,
 		}
-		return nil, err
+		conn, err = dialer.Dial(proto, target)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial remote address (%s) with local address (%s): %w", target, localAddr.String(), err)
+		}
+	} else {
+		// dial without the local address
+		conn, err = net.DialTimeout(proto, target, timeout)
+		if err != nil {
+			if conn != nil {
+				conn.Close()
+			}
+			return nil, fmt.Errorf("failed to dial remote address (%s): %w", target, err)
+		}
 	}
+
 	return NewTimeoutConnection(context.Background(), conn, sessionTimeout, readTimeout, writeTimeout, bytesReadLimit), nil
 }
 
 // DialTimeoutConnection dials the target and returns a net.Conn that uses the configured single timeout for all operations.
-func DialTimeoutConnection(proto string, target string, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, timeout, timeout, timeout, timeout, bytesReadLimit)
+func DialTimeoutConnection(proto, target string, localAddr net.Addr, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
+	return DialTimeoutConnectionEx(proto, target, localAddr, timeout, timeout, timeout, timeout, bytesReadLimit)
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
@@ -316,7 +356,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 // Dial returns a connection with the configured timeout.
 func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, d.ConnectTimeout, d.Timeout, d.ReadTimeout, d.WriteTimeout, 0)
+	var localAddr net.Addr
+	if d.Dialer != nil && d.Dialer.LocalAddr != nil {
+		localAddr = d.Dialer.LocalAddr
+	}
+	return DialTimeoutConnectionEx(proto, target, localAddr, d.ConnectTimeout, d.Timeout, d.ReadTimeout, d.WriteTimeout, 0)
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
