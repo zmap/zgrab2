@@ -34,7 +34,7 @@ integration-test: docker-runner
 
 integration-test-clean:
 	rm -rf zgrab-output
-	docker compose -f integration_tests/docker-compose.yml down
+	docker compose -p zgrab -f integration_tests/docker-compose.yml down
 	make -C docker-runner clean
 
 clean:
