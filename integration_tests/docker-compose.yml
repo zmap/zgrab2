@@ -1,18 +1,34 @@
 # docker com
 services:
-# AMQP/RabbitMQ
+  service_base:
+    build:
+      context: ../docker-runner
+      dockerfile: "service-base.Dockerfile"
+    image: "zgrab2_service_base:latest"
+  # Start Module Intermediate Build Images
+  ipp_service_base:
+      build:
+        context: ./ipp
+      image: "zgrab2_ipp_service_base:latest"
+      depends_on:
+        - service_base
+# Modules Start
   amqp091-3.12.14:
     image: "rabbitmq:3.12.14"
     container_name: "zgrab_amqp091-3.12.14"
     networks:
       - amqp091-3.12.14-network
     hostname: "target"
+    depends_on:
+      - service_base
   amqp091-3.13.2:
     image: "rabbitmq:3.13.2"
     container_name: "zgrab_amqp091-3.13.2"
     networks:
       - amqp091-3.13.2-network
     hostname: "target"
+    depends_on:
+      - service_base
   ftp:
     build:
       context: ./ftp/container
@@ -20,24 +36,45 @@ services:
     networks:
       - ftp-network
     hostname: "target"
-# End Module
-#  scanner: # ZGrab Runner
-#    build:
-#      context: ../
-#    container_name: "zgrab-runner"
-#    networks:
-#      - amqp091-3.12.14-network
-#      - amqp091-3.13.2-network
-#    volumes:
-#      - ../zgrab-output:/output
-#    depends_on:
-#      - amqp091-3.12.14
-#      - amqp091-3.13.2
-
+    depends_on:
+      - service_base
+  http:
+    build:
+      context: ./http/container
+    container_name: "zgrab_http"
+    networks:
+      - http-network
+    hostname: "target"
+    depends_on:
+      - service_base
+  ipp-cups:
+    build:
+      context: ./ipp/container-cups
+    container_name: "zgrab_ipp_cups"
+    networks:
+      - ipp-cups-network
+    hostname: "target"
+    depends_on:
+      - ipp_service_base
+  ipp-cups-tls:
+    build:
+      context: ./ipp/container-cups-tls
+    container_name: "zgrab_ipp_cups-tls"
+    networks:
+      - ipp-cups-tls-network
+    hostname: "target"
+    depends_on:
+      - ipp_service_base
 networks:
   amqp091-3.12.14-network:
     driver: bridge
   amqp091-3.13.2-network:
     driver: bridge
   ftp-network:
+    driver: bridge
+  http-network:
+    driver: bridge
+  ipp-cups-network:
+    driver: bridge
+  ipp-cups-tls-network:
     driver: bridge

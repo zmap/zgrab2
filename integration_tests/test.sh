@@ -52,13 +52,13 @@ for mod in $(ls); do
             # Given test.x.sh, find setup.x.sh and cleanup.x.sh
             setup=${test/test/setup}
             cleanup=${test/test/cleanup}
-            if [ -z $NOSETUP ] && [ -f $setup ]; then
-                ./$setup
-            fi
+#            if [ -z $NOSETUP ] && [ -f $setup ]; then
+#                ./$setup
+#            fi
             ./$test
-            if [ -z $NOSETUP ] && [ -f $cleanup ]; then
-                ./$cleanup
-            fi
+#            if [ -z $NOSETUP ] && [ -f $cleanup ]; then
+#                ./$cleanup
+#            fi
         done
         popd
     fi

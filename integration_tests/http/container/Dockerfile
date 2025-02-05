@@ -1,5 +1,5 @@
 FROM zgrab2_service_base:latest
-RUN apt-get update && apt-get install -y openssl lighttpd
+RUN apt-get install -y openssl lighttpd
 
 WORKDIR /etc/lighttpd
 COPY lighttpd.conf .
