@@ -65,6 +65,134 @@ services:
     hostname: "target"
     depends_on:
       - ipp_service_base
+  mongodb-3.2.20:
+    image: "mongo:3.2.20"
+    container_name: "zgrab_mongodb-3.2.20"
+    networks:
+        - mongodb-3.2.20-network
+    hostname: "target"
+    platform: linux/amd64 # Not available for arm64
+  mongodb-3.6.6:
+    image: "mongo:3.6.6"
+    container_name: "zgrab_mongodb-3.6.6"
+    networks:
+        - mongodb-3.6.6-network
+    hostname: "target"
+#    platform: linux/amd64 # Not available for arm64
+  mongodb-4.0.1:
+    image: "mongo:4.0.1"
+    container_name: "zgrab_mongodb-4.0.1"
+    networks:
+        - mongodb-4.0.1-network
+    hostname: "target"
+#    platform: linux/amd64 # Not available for arm64
+  mongodb-4.1.2:
+    image: "mongo:4.1.2"
+    container_name: "zgrab_mongodb-4.1.2"
+    networks:
+        - mongodb-4.1.2-network
+    hostname: "target"
+#    platform: linux/amd64 # Not available for arm64
+  mongodb-8.0:
+    image: "mongo:8.0"
+    container_name: "zgrab_mongodb-8.0"
+    networks:
+      - mongodb-8.0-network
+    hostname: "target"
+  #    platform: linux/amd64 # Not available for arm64
+  mqtt:
+    image: eclipse-mosquitto
+    container_name: zgrab_mqtt
+    restart: unless-stopped
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mqtt/server.pem:/mosquitto/server.pem
+      - ./mqtt/server.key:/mosquitto/server.key
+    networks:
+      - mqtt-network
+    hostname: "target"
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: zgrab_mssql-2022-linux
+    environment:
+      MSSQL_PID: Enterprise
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Passw0rd"
+    platform: linux/amd64 # Not available for arm64
+    restart: unless-stopped
+    networks:
+      - mssql-network
+    hostname: "target"
+  mysql-5.5:
+    image: mysql:5.5
+    container_name: zgrab_mysql-5.5
+    networks:
+      - mysql-5.5-network
+    hostname: "target"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+      MYSQL_LOG_CONSOLE: "true"
+    platform: linux/amd64 # Not available for arm64
+  mysql-5.6:
+    image: mysql:5.6
+    container_name: zgrab_mysql-5.6
+    networks:
+      - mysql-5.6-network
+    hostname: "target"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+      MYSQL_LOG_CONSOLE: "true"
+    platform: linux/amd64 # Not available for arm64
+  mysql-5.7:
+    image: mysql:5.7
+    container_name: zgrab_mysql-5.7
+    networks:
+      - mysql-5.7-network
+    hostname: "target"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+      MYSQL_LOG_CONSOLE: "true"
+    platform: linux/amd64 # Not available for arm64
+  mysql-8.0:
+    image: mysql:8.0
+    container_name: zgrab_mysql-8.0
+    networks:
+      - mysql-8.0-network
+    hostname: "target"
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+      MYSQL_LOG_CONSOLE: "true"
+  ntp-4.2.6:
+    container_name: "zgrab_ntp_4.2.6"
+    networks:
+      - ntp-4.2.6-network
+    hostname: "target"
+    privileged: true
+    platform: linux/amd64
+    build:
+      context: ./ntp/container-4.2.6
+  ntp-openntp:
+    container_name: "zgrab_ntp_openntp"
+    networks:
+      - ntp-openntp-network
+    hostname: "target"
+    privileged: true
+    build:
+      context: ./ntp/container-openntp
+    depends_on:
+      - service_base
+  pop3:
+    container_name: "zgrab_pop3"
+    networks:
+      - pop3-network
+    hostname: "target"
+    build:
+      context: ./pop3/container
+    tty: true # pop3 expects a terminal
+    depends_on:
+      - service_base
+
+
 networks:
   amqp091-3.12.14-network:
     driver: bridge
@@ -77,4 +205,32 @@ networks:
   ipp-cups-network:
     driver: bridge
   ipp-cups-tls-network:
+    driver: bridge
+  mongodb-3.2.20-network:
+    driver: bridge
+  mongodb-3.6.6-network:
+    driver: bridge
+  mongodb-4.0.1-network:
+    driver: bridge
+  mongodb-4.1.2-network:
+    driver: bridge
+  mongodb-8.0-network:
+    driver: bridge
+  mqtt-network:
+    driver: bridge
+  mssql-network:
+    driver: bridge
+  mysql-5.5-network:
+    driver: bridge
+  mysql-5.6-network:
+    driver: bridge
+  mysql-5.7-network:
+    driver: bridge
+  mysql-8.0-network:
+    driver: bridge
+  ntp-4.2.6-network:
+    driver: bridge
+  ntp-openntp-network:
+    driver: bridge
+  pop3-network:
     driver: bridge
