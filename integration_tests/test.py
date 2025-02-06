@@ -6,9 +6,11 @@ import json
 import shutil
 
 def run_command(command, cwd=None, check=True):
-    result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
+    result = subprocess.run(command, shell=True, cwd=cwd, text=True, capture_output=True)
+    print(result.stdout, end="")
+    print(result.stderr, end="", file=sys.stderr)
     if result.returncode != 0 and check:
-        print(f"Command failed: {command}\n{result.stdout}\n{result.stderr}")
+        print(f"Command failed: {command}")
         sys.exit(result.returncode)
     return result.stdout.strip()
 
@@ -50,7 +52,7 @@ def main():
         if mod.is_dir() and mod.name != ".template" and (not test_modules or mod.name in test_modules):
             for test in mod.glob("test*.sh"):
                 print(f"Running {test}...")
-                run_command(f"./{test.name}", cwd=mod)
+                subprocess.run(f"./{test.name}", cwd=mod, shell=True)
 
                 if no_schema:
                     continue

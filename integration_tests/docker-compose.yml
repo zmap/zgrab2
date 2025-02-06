@@ -337,6 +337,7 @@ services:
     volumes:
       - ./pptp/chap-secrets:/etc/ppp/chap-secrets
     privileged: true
+    hostname: "target"
 
   redis_default:
     <<: *redis-template
