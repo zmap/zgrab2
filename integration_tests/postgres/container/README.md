@@ -21,3 +21,6 @@ See `Dockerfile.9.3` for an example. The only difference there is it uses the 9.
  3. The Dockerfile drops the `setup_[type].sh` and `postgresql.conf.[nossl].partial` into the image
  4. `../setup.sh` starts the containers, binding them to ports 3543x (ssl) and 4543x (nonssl).
  5. During startup, the `setup_[type].sh` script is run on the image, setting up logging (and, on SSL images, generating self-signed SSL certificates)
+
+TODO This needs to be updated 
+TODO Phillip
