@@ -31,12 +31,13 @@ docker-runner: clean
 integration-test: docker-runner
 	rm -rf zgrab-output
 	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d
+	sleep 5 # Wait for services to start
 	TEST_MODULES=$(TEST_MODULES) ./integration_tests/test.sh
 
 integration-test-clean:
 	rm -rf zgrab-output
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
-	make -C docker-runner clean
+	make -C docker-runner clean-all
 
 clean:
 	cd cmd/zgrab2 && go clean
