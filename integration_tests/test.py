@@ -5,8 +5,11 @@ from pathlib import Path
 import json
 import shutil
 
+
 def run_command(command, cwd=None, check=True):
-    result = subprocess.run(command, shell=True, cwd=cwd, text=True, capture_output=True)
+    result = subprocess.run(
+        command, shell=True, cwd=cwd, text=True, capture_output=True
+    )
     print(result.stdout, end="")
     print(result.stderr, end="", file=sys.stderr)
     if result.returncode != 0 and check:
@@ -14,11 +17,14 @@ def run_command(command, cwd=None, check=True):
         sys.exit(result.returncode)
     return result.stdout.strip()
 
+
 def validate_json_schema(protocol, filepath):
     print(f"Validating {filepath}...")
     result = subprocess.run(
         f"python3 -m zschema validate zgrab2 {filepath} --path . --module zgrab2_schemas.zgrab2",
-        shell=True, capture_output=True, text=True
+        shell=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         print(f"Schema validation failed for {protocol}/{filepath}:\n{result.stderr}")
@@ -32,6 +38,7 @@ def validate_json_schema(protocol, filepath):
         print(f"Scan failure: Expected success, got '{status}' in {filepath}")
         sys.exit(1)
 
+
 def main():
     zgrab_root = run_command("git rev-parse --show-toplevel")
     os.chdir(zgrab_root)
@@ -43,12 +50,18 @@ def main():
         print("Please install jp")
         sys.exit(1)
 
-    test_modules = os.getenv("TEST_MODULES", "").split() if os.getenv("TEST_MODULES") else None
+    test_modules = (
+        os.getenv("TEST_MODULES", "").split() if os.getenv("TEST_MODULES") else None
+    )
     no_schema = os.getenv("NOSCHEMA")
 
     integration_tests = Path("integration_tests")
     for mod in integration_tests.iterdir():
-        if mod.is_dir() and mod.name != ".template" and (not test_modules or mod.name in test_modules):
+        if (
+            mod.is_dir()
+            and mod.name != ".template"
+            and (not test_modules or mod.name in test_modules)
+        ):
             for test in mod.glob("test*.sh"):
                 print(f"Running {test}...")
                 subprocess.run(f"./{test.name}", cwd=mod, shell=True)
@@ -63,6 +76,7 @@ def main():
 
     print("All tests and schema validations passed!")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
