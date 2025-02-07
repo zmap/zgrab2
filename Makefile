@@ -19,6 +19,7 @@ test:
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
+	black .
 
 zgrab2: $(GO_FILES)
 	cd cmd/zgrab2 && go build && cd ../..
