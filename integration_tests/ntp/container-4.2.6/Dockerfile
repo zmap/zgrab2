@@ -1,5 +1,5 @@
 # Must use amd64 image so this builds on Mac.
-# Unfortunately, the ./configure script below doens't have ARM support
+# Unfortunately, the ./configure script below doesn't have ARM support
 FROM --platform=linux/amd64 ubuntu:24.04
 RUN apt-get update
 
