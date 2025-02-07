@@ -192,6 +192,13 @@ echo $?
 0
 ```
 
+To just run a single/few module's integration tests, you can use the `TEST_MODULES` env. var.:
+
+```shell
+make integration-test-clean; TEST_MODULES="http" make integration-test
+make integration-test-clean; TEST_MODULES="http ssh" make integration-test
+```
+
 Refer to our [Github Actions workflow](.github/workflows/integration-test.yml) for an example of how to prepare environment for integration tests.
 
 ## License
