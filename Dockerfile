@@ -1,6 +1,6 @@
 ## Build image ##
 ARG GO_VERSION=1.23
-FROM golang:${GO_VERSION}-alpine3.21 as build
+FROM golang:${GO_VERSION}-alpine3.21 AS build
 
 # System dependencies
 RUN apk add --no-cache make
@@ -16,7 +16,7 @@ COPY . .
 RUN make all
 
 ## Runtime image ##
-FROM alpine:3.21 as run
+FROM alpine:3.21 AS run
 
 COPY --from=build /usr/src/zgrab2/cmd/zgrab2/zgrab2 /usr/bin/zgrab2
 
