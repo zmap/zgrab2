@@ -43,22 +43,12 @@ fi
 
 pushd integration_tests
 # start up dockerized services
-#docker compose -p "zgrab" -f docker-compose.yml up -d
 for mod in $(ls); do
     if [ ".template" != "$mod" ] && [ -d "$mod" ] && ( [ -z $TEST_MODULES ] || [ $mod = *"$TEST_MODULES"* ]); then
         pushd $mod
         for test in $(ls test*.sh); do
             echo "Running integration_tests/$mod/$test"
-            # Given test.x.sh, find setup.x.sh and cleanup.x.sh
-#            setup=${test/test/setup}
-#            cleanup=${test/test/cleanup}
-#            if [ -z $NOSETUP ] && [ -f $setup ]; then
-#                ./$setup
-#            fi
             ./$test
-#            if [ -z $NOSETUP ] && [ -f $cleanup ]; then
-#                ./$cleanup
-#            fi
         done
         popd
     fi
