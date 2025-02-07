@@ -168,21 +168,25 @@ To add a schema for the new module, add a module under schemas, and update [`zgr
 See [zgrab2_schemas/README.md](zgrab2_schemas/README.md) for details.
 
 ### Integration tests
-To add integration tests for the new module, run `integration_tests/new.sh [your_new_protocol_name]`.
-This will add stub shell scripts in `integration_tests/your_new_protocol_name`; update these as needed.
+To add integration tests for the new module, you'll need to add a test service to scan against to `integration_tests/docker-compose.yml` and a `test.sh` in a folder named after your module.
+Follow the examples in `integration_tests/.template` to create the necessary files.
 See [integration_tests/mysql/*](integration_tests/mysql) for an example.
 The only hard requirement is that the `test.sh` script drops its output in `$ZGRAB_OUTPUT/[your-module]/*.json`, so that it can be validated against the schema.
 
 #### How to Run Integration Tests
 
-To run integration tests, you must have [Docker](https://www.docker.com/) and **Python 2** on host installed. Then, you can follow the following steps to run integration tests:
+To run integration tests, you must have [Docker](https://www.docker.com/) and **Python 3** on host installed. Then, you can follow the following steps to run integration tests:
 
 ```shell
-go get github.com/jmespath/jp && go build github.com/jmespath/jp
-# or, sudo wget https://github.com/jmespath/jp/releases/download/0.2.1/jp-linux-amd64 -O /usr/local/bin/jp && sudo chmod +x /usr/local/bin/jp
-pip2 install --user zschema
-pip2 install --user -r requirements.txt
-make integration-test
+# Install Python dependencies
+sudo apt update
+sudo apt install -y python3 jp python3-pip
+python3 -m venv venv
+source venv/bin/activate
+# Install Python dependencies
+pip install zschema
+pip install -r requirements.txt
+make integration-test-clean; make integration-test
 ```
 
 Running the integration tests will generate quite a bit of debug output. To ensure that tests completed successfully, you can check for a successful exit code after the tests complete:

@@ -27,7 +27,7 @@ zgrab2: $(GO_FILES)
 
 integration-test:
 	rm -rf zgrab-output
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache runner service_base
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base # ensure the apt cache is up to date
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build $(TEST_MODULES)
 	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $(TEST_MODULES)
 	sleep 10 # Wait for services to start
@@ -38,7 +38,6 @@ integration-test:
 integration-test-clean:
 	rm -rf zgrab-output
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
-	make -C docker-runner clean-all
 
 clean:
 	cd cmd/zgrab2 && go clean
