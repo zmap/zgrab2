@@ -6,7 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-
 jobs:
   go-test:
     name: Go Test
