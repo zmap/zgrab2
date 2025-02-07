@@ -36,7 +36,7 @@ services:
       depends_on:
         - service_base
 
-# Modules Start
+  # Modules Start
   amqp091-3.12.14:
     image: "rabbitmq:3.12.14"
     container_name: "zgrab_amqp091-3.12.14"
@@ -195,10 +195,7 @@ services:
     hostname: "target"
     privileged: true
     image: "phil927/zgrab-ntp-4.2.6"
-#    build:
-#      context: ./ntp/container-4.2.6
-#      platforms:
-#        - linux/amd64
+
   ntp-openntp:
     container_name: "zgrab_ntp_openntp"
     networks:
