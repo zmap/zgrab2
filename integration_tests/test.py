@@ -44,7 +44,6 @@ def main():
         sys.exit(1)
 
     test_modules = os.getenv("TEST_MODULES", "").split() if os.getenv("TEST_MODULES") else None
-    no_setup = os.getenv("NOSETUP")
     no_schema = os.getenv("NOSCHEMA")
 
     integration_tests = Path("integration_tests")
