@@ -1,4 +1,4 @@
-FROM zgrab2_ipp_service_base:latest
+FROM phil927/zgrab_ipp_service_base:latest
 
 WORKDIR /etc/cups
 COPY cupsd.conf cupsd.conf
