@@ -18,6 +18,10 @@ x-postgres-template: &postgres-template
     hostname: "target"
 
 services:
+  runner:
+    build:
+      context: ../
+    image: "zgrab2_runner:latest"
   service_base:
     build:
       context: ../docker-runner

@@ -28,11 +28,15 @@ zgrab2: $(GO_FILES)
 docker-runner: clean
 	make -C docker-runner
 
-integration-test: docker-runner
+integration-test:
 	rm -rf zgrab-output
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache runner service_base
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build
 	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d
 	sleep 10 # Wait for services to start
 	TEST_MODULES=$(TEST_MODULES) python3 integration_tests/test.py
+	# Shut off the services
+	docker compose -p zgrab -f integration_tests/docker-compose.yml down
 
 integration-test-clean:
 	rm -rf zgrab-output
