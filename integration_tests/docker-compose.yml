@@ -1,0 +1,598 @@
+x-mysql-template: &mysql-template
+  hostname: "target"
+  environment:
+    MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+    MYSQL_LOG_CONSOLE: "true"
+  platform: linux/amd64 # Not available for arm64
+
+x-postgres-template: &postgres-template
+  hostname: "target"
+  environment:
+    POSTGRES_PASSWORD: password
+  restart: unless-stopped
+
+  x-redis-template: &redis-template
+    build:
+      context: ./redis/container
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    hostname: "target"
+
+services:
+  runner:
+    build:
+      context: ../
+    image: "zgrab2_runner:latest"
+  service_base:
+    build:
+      context: ../docker-runner
+      dockerfile: "service-base.Dockerfile"
+    image: "zgrab2_service_base:latest"
+
+  # Start Module Intermediate Build Images
+  ipp_service_base:
+      build:
+        context: ./ipp
+      image: "zgrab2_ipp_service_base:latest"
+      depends_on:
+        - service_base
+
+  # Modules Start
+  amqp091-3.12.14:
+    image: "rabbitmq:3.12.14"
+    container_name: "zgrab_amqp091-3.12.14"
+    networks:
+      - amqp091-3.12.14-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+  amqp091-3.13.2:
+    image: "rabbitmq:3.13.2"
+    container_name: "zgrab_amqp091-3.13.2"
+    networks:
+      - amqp091-3.13.2-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+  ftp:
+    build:
+      context: ./ftp/container
+    container_name: "zgrab_ftp"
+    networks:
+      - ftp-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+  http:
+    build:
+      context: ./http/container
+    container_name: "zgrab_http"
+    networks:
+      - http-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+  ipp-cups:
+    build:
+      context: ./ipp/container-cups
+    container_name: "zgrab_ipp_cups"
+    networks:
+      - ipp-cups-network
+    hostname: "target"
+    depends_on:
+      - ipp_service_base
+
+  ipp-cups-tls:
+    build:
+      context: ./ipp/container-cups-tls
+    container_name: "zgrab_ipp_cups-tls"
+    networks:
+      - ipp-cups-tls-network
+    hostname: "target"
+    depends_on:
+      - ipp_service_base
+
+  mongodb-3.2.20:
+    image: "mongo:3.2.20"
+    container_name: "zgrab_mongodb-3.2.20"
+    networks:
+        - mongodb-3.2.20-network
+    hostname: "target"
+    platform: linux/amd64 # Not available for arm64
+
+  mongodb-3.6.6:
+    image: "mongo:3.6.6"
+    container_name: "zgrab_mongodb-3.6.6"
+    networks:
+        - mongodb-3.6.6-network
+    hostname: "target"
+    platform: linux/amd64 # Not available for arm64
+
+  mongodb-4.0.1:
+    image: "mongo:4.0.1"
+    container_name: "zgrab_mongodb-4.0.1"
+    networks:
+        - mongodb-4.0.1-network
+    hostname: "target"
+
+  mongodb-4.1.2:
+    image: "mongo:4.1.2"
+    container_name: "zgrab_mongodb-4.1.2"
+    networks:
+        - mongodb-4.1.2-network
+    hostname: "target"
+
+  mongodb-8.0:
+    image: "mongo:8.0"
+    container_name: "zgrab_mongodb-8.0"
+    networks:
+      - mongodb-8.0-network
+    hostname: "target"
+
+  mqtt:
+    image: eclipse-mosquitto
+    container_name: zgrab_mqtt
+    restart: unless-stopped
+    volumes:
+      - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mqtt/server.pem:/mosquitto/server.pem
+      - ./mqtt/server.key:/mosquitto/server.key
+    networks:
+      - mqtt-network
+    hostname: "target"
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: zgrab_mssql-2022-linux
+    environment:
+      MSSQL_PID: Enterprise
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Passw0rd"
+    platform: linux/amd64 # Not available for arm64
+    restart: unless-stopped
+    networks:
+      - mssql-network
+    hostname: "target"
+
+  mysql-5.5:
+    <<: *mysql-template
+    image: mysql:5.5
+    container_name: zgrab_mysql-5.5
+    platform: linux/amd64 # Not available for arm64
+    networks:
+      - mysql-5.5-network
+
+  mysql-5.6:
+    <<: *mysql-template
+    image: mysql:5.6
+    container_name: zgrab_mysql-5.6
+    platform: linux/amd64 # Not available for arm64
+    networks:
+      - mysql-5.6-network
+
+  mysql-5.7:
+    <<: *mysql-template
+    image: mysql:5.7
+    container_name: zgrab_mysql-5.7
+    platform: linux/amd64 # Not available for arm64
+    networks:
+      - mysql-5.7-network
+
+  mysql-8.0:
+    <<: *mysql-template
+    image: mysql:8.0
+    container_name: zgrab_mysql-8.0
+    networks:
+      - mysql-8.0-network
+
+  ntp-4.2.6:
+    container_name: "zgrab_ntp_4.2.6"
+    networks:
+      - ntp-4.2.6-network
+    hostname: "target"
+    privileged: true
+    image: "phil927/zgrab-ntp-4.2.6"
+
+  ntp-openntp:
+    container_name: "zgrab_ntp_openntp"
+    networks:
+      - ntp-openntp-network
+    hostname: "target"
+    privileged: true
+    build:
+      context: ./ntp/container-openntp
+    depends_on:
+      - service_base
+
+  pop3:
+    container_name: "zgrab_pop3"
+    networks:
+      - pop3-network
+    hostname: "target"
+    build:
+      context: ./pop3/container
+    tty: true # pop3 expects a terminal
+    depends_on:
+      - service_base
+
+  postgres_9.3_ssl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.3-ssl
+    build:
+      context: ./postgres/container
+      dockerfile: "Dockerfile.9.3"
+      args:
+        POSTGRES_VERSION: "9.3"
+        IMAGE_TYPE: "ssl"
+    networks:
+        - postgres-9.3-ssl-network
+
+  postgres_9.3_nossl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.3-nossl
+    build:
+      context: ./postgres/container
+      dockerfile: "Dockerfile.9.3"
+      args:
+        POSTGRES_VERSION: "9.3"
+        IMAGE_TYPE: "nossl"
+    networks:
+        - postgres-9.3-nossl-network
+
+  postgres_9.4_ssl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.4-ssl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "9.4"
+        IMAGE_TYPE: "ssl"
+    networks:
+        - postgres-9.4-ssl-network
+
+  postgres_9.4_nossl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.4-nossl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "9.4"
+        IMAGE_TYPE: "nossl"
+    networks:
+        - postgres-9.4-nossl-network
+
+  postgres_9.5_ssl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.5-ssl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "9.5"
+        TYPE: "ssl"
+    networks:
+        - postgres-9.5-ssl-network
+
+  postgres_9.5_nossl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.5-nossl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "9.5"
+        TYPE: "nossl"
+    networks:
+        - postgres-9.5-nossl-network
+
+  postgres_9.6_ssl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.6-ssl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "9.6"
+        TYPE: "ssl"
+    networks:
+        - postgres-9.6-ssl-network
+
+  postgres_9.6_nossl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_9.6-nossl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "9.6"
+        TYPE: "nossl"
+    networks:
+        - postgres-9.6-nossl-network
+
+  postgres_10.1_ssl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_10.1-ssl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_POSTGRES_VERSION: "10.1"
+        TYPE: "ssl"
+    networks:
+        - postgres-10.1-ssl-network
+
+  postgres_10.1_nossl:
+    <<: *postgres-template
+    container_name: zgrab_postgres_10.1-nossl
+    build:
+      context: ./postgres/container
+      args:
+        POSTGRES_VERSION: "10.1"
+        TYPE: "nossl"
+    networks:
+        - postgres-10.1-nossl-network
+
+  pptp:
+    container_name: zgrab_pptp
+    image: "mobtitude/vpn-pptp"
+    networks:
+      - pptp-network
+    volumes:
+      - ./pptp/chap-secrets:/etc/ppp/chap-secrets
+    privileged: true
+    hostname: "target"
+
+  redis_default:
+    <<: *redis-template
+    networks:
+        - redis-default-network
+    container_name: zgrab_redis_default
+    command: [ "redis-server", "/usr/local/etc/redis/default.conf" ]
+
+  redis_password:
+    <<: *redis-template
+    container_name: zgrab_redis_password
+    networks:
+        - redis-password-network
+    command: [ "redis-server", "/usr/local/etc/redis/password.conf" ]
+
+  redis_renamed:
+    <<: *redis-template
+    container_name: zgrab_redis_renamed
+    networks:
+        - redis-renamed-network
+    command: [ "redis-server", "/usr/local/etc/redis/renamed.conf" ]
+
+  smtp:
+    build:
+      context: ./smtp/container
+    container_name: "zgrab_smtp"
+    networks:
+      - smtp-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+  socks5:
+    image: 3proxy/3proxy
+    container_name: "zgrab_socks5"
+    restart: unless-stopped
+    environment:
+      PROXY_USER: user
+      PROXY_PASS: password
+    volumes:
+      - ./socks5/3proxy.cfg:/etc/3proxy/3proxy.cfg
+    networks:
+      - socks5-network
+    hostname: "target"
+
+  ssh:
+    container_name: "zgrab_ssh"
+    build:
+      context: ./ssh/container
+    networks:
+      - ssh-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+  telnet:
+    container_name: "zgrab_telnet"
+    build:
+      context: ./telnet/container
+    networks:
+        - telnet-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
+
+networks:
+  amqp091-3.12.14-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.0/30
+  amqp091-3.13.2-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.4/30
+  ftp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.8/30
+  http-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.12/30
+  ipp-cups-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.16/30
+  ipp-cups-tls-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.20/30
+  mongodb-3.2.20-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.24/30
+  mongodb-3.6.6-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.28/30
+  mongodb-4.0.1-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.32/30
+  mongodb-4.1.2-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.36/30
+  mongodb-8.0-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.40/30
+  mqtt-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.44/30
+  mssql-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.48/30
+  mysql-5.5-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.52/30
+  mysql-5.6-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.56/30
+  mysql-5.7-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.60/30
+  mysql-8.0-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.64/30
+  ntp-4.2.6-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.68/30
+  ntp-openntp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.72/30
+  pop3-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.76/30
+  postgres-9.3-ssl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.80/30
+  postgres-9.3-nossl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.84/30
+  postgres-9.4-ssl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.88/30
+  postgres-9.4-nossl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.92/30
+  postgres-9.5-ssl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.96/30
+  postgres-9.5-nossl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.100/30
+  postgres-9.6-ssl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.104/30
+  postgres-9.6-nossl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.108/30
+  postgres-10.1-ssl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.112/30
+  postgres-10.1-nossl-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.116/30
+  pptp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.120/30
+  redis-default-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.124/30
+  redis-password-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.128/30
+  redis-renamed-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.132/30
+  smtp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.136/30
+  socks5-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.140/30
+  ssh-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.144/30
+  telnet-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.148/30

@@ -1,4 +1,6 @@
-FROM postgres:#{POSTGRES_VERSION}
+# default Dockerfile for >9.3
+ARG POSTGRES_VERSION=10.1
+FROM postgres:${POSTGRES_VERSION}
 
 # Our custom postgres image -- based on the standard images (https://hub.docker.com/_/postgres/)
 # On top of the base, we enable logging and (if IMAGE_TYPE == ssl) server-side SSL (with a self-signed certificate)
