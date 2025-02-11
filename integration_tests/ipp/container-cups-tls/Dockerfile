@@ -1,8 +1,5 @@
-FROM zgrab2_service_base:latest
+FROM zgrab2_ipp_service_base:latest
 
-RUN apt-get update && apt-get install -y \
-  cups \
-  cups-pdf
 WORKDIR /etc/cups
 COPY cupsssl.conf cupsd.conf
 
