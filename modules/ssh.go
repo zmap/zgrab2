@@ -54,7 +54,7 @@ func (m *SSHModule) Description() string {
 	return "Fetch an SSH server banner and collect key exchange information"
 }
 
-func (f *SSHFlags) Validate(args []string) error {
+func (f *SSHFlags) Validate() error {
 	return nil
 }
 

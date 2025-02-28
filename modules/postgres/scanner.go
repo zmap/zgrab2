@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -286,7 +287,7 @@ func (m *Module) Description() string {
 }
 
 // Validate checks the arguments; on success, returns nil.
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate() error {
 	return nil
 }
 

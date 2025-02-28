@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -75,7 +76,7 @@ func (module *Module) Description() string {
 }
 
 // Validate does nothing in this module.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 

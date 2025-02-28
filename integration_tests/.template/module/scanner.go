@@ -1,6 +1,9 @@
 // Package #{MODULE_NAME} provides a zgrab2 module that scans for #{MODULE_NAME}.
 // TODO: Describe module, the flags, the probe, the output, etc.
-package #{MODULE_NAME}
+package
+
+import "github.com/zmap/zgrab2"
+#{MODULE_NAME}
 
 import (
 	log "github.com/sirupsen/logrus"
@@ -59,7 +62,7 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 

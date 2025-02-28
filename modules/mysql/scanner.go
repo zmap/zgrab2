@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
 )
@@ -171,7 +172,7 @@ func (m *Module) Description() string {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate() error {
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"net"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -71,7 +72,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate() error {
 	return nil
 }
 

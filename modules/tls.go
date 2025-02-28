@@ -2,6 +2,7 @@ package modules
 
 import (
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -38,7 +39,7 @@ func (m *TLSModule) Description() string {
 	return "Perform a TLS handshake"
 }
 
-func (f *TLSFlags) Validate(args []string) error {
+func (f *TLSFlags) Validate() error {
 	return nil
 }
 

@@ -6,8 +6,9 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
 	"gopkg.in/mgo.v2/bson"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Module implements the zgrab2.Module interface
@@ -220,7 +221,7 @@ func (scanner *Scanner) GetTrigger() string {
 }
 
 // Validate checks that the flags are valid
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 

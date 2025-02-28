@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -100,7 +101,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate(args []string) (err error) {
+func (f *Flags) Validate() (err error) {
 	if f.FTPAuthTLS && f.ImplicitTLS {
 		err = fmt.Errorf("Cannot specify both '--authtls' and '--implicit-tls' together")
 	}
