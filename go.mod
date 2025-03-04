@@ -1,8 +1,8 @@
 module github.com/zmap/zgrab2
 
-go 1.23
+go 1.23.0
 
-toolchain go1.23.0
+toolchain go1.23.5
 
 require (
 	github.com/hdm/jarm-go v0.0.7
@@ -11,7 +11,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/zmap/zcrypto v0.0.0-20250122162432-7a1cf5fc45e3
 	github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.35.0
 	golang.org/x/net v0.35.0
 	golang.org/x/sys v0.30.0
 	golang.org/x/text v0.22.0
