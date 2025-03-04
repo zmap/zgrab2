@@ -6,6 +6,7 @@
 package fox
 
 import (
+	"context"
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -18,8 +19,8 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	//UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	zgrab2.TLSFlags `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -100,35 +101,20 @@ func (scanner *Scanner) Protocol() string {
 // 3. Attempt to read the response (up to 8k + 4 bytes -- larger responses trigger an error)
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-
-	var (
-		conn    net.Conn
-		tlsConn *zgrab2.TLSConnection
-		err     error
-	)
-
-	conn, err = target.Open(&scanner.config.BaseFlags)
-	if scanner.config.UseTLS {
-		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-		conn = tlsConn
-	} else {
-		conn, err = target.Open(&scanner.config.BaseFlags)
-	}
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialer *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialer.defaultDialer(ctx, target)
 
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Errorf("error closing connection: %v", closeErr)
+		}
+	}(conn)
 	result := new(FoxLog)
-	if tlsConn != nil {
+	// Attempt to read TLS Log from connection. If it's not a TLS connection then the log will just be empty.
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		result.TLSLog = tlsConn.GetLog()
 	}
 

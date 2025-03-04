@@ -20,9 +20,11 @@ const (
 	SCAN_CONNECTION_REFUSED = ScanStatus("connection-refused") // TCP connection was actively rejected
 	SCAN_CONNECTION_TIMEOUT = ScanStatus("connection-timeout") // No response to TCP connection request
 	SCAN_CONNECTION_CLOSED  = ScanStatus("connection-closed")  // The TCP connection was unexpectedly closed
+	SCAN_HANDSHAKE_ERROR    = ScanStatus("handshake-error")    // The security (TLS, etc) handshake failed
 	SCAN_IO_TIMEOUT         = ScanStatus("io-timeout")         // Timed out waiting on data
 	SCAN_PROTOCOL_ERROR     = ScanStatus("protocol-error")     // Received data incompatible with the target protocol
 	SCAN_APPLICATION_ERROR  = ScanStatus("application-error")  // The application reported an error
+	SCAN_INVALID_INPUTS     = ScanStatus("invalid-inputs")     // The inputs to the scan were invalid
 	SCAN_UNKNOWN_ERROR      = ScanStatus("unknown-error")      // Catch-all for unrecognized errors
 )
 

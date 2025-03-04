@@ -26,8 +26,10 @@
 package smtp
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -238,27 +240,37 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 //     TLS connection.
 //  7. If --send-quit is sent, send QUIT and read the result.
 //  8. Close the connection.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	c, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialer *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	if dialer.GetL4Dialer() == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4 dialer found. SMTP requires a TCP dialer")
+	}
+	conn, err := dialer.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(target.IP.String(), strconv.FormatUint(uint64(target.Port), 10)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	defer c.Close()
+	defer func(conn net.Conn) {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("error closing tcp connection: %v", err)
+		}
+	}(conn)
 	result := &ScanResults{}
 	if scanner.config.SMTPSecure {
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(c)
+		tlsWrapper := dialer.GetTLSWrapper()
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found. SMTP with SMTPSecure requires a TLS wrapper")
+		}
+		var tlsConn *zgrab2.TLSConnection
+		tlsConn, err = tlsWrapper(ctx, target, conn)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.SCAN_HANDSHAKE_ERROR, nil, fmt.Errorf("could not initiate a TLS connection to target %v: %v", target, err)
 		}
 		result.TLSLog = tlsConn.GetLog()
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
-		}
-		c = tlsConn
 		result.ImplicitTLS = true
+		conn = tlsConn
 	}
-	conn := Connection{Conn: c}
-	banner, err := conn.ReadResponse()
+	smtpConn := Connection{Conn: conn}
+	banner, err := smtpConn.ReadResponse()
 	if err != nil {
 		if !scanner.config.SMTPSecure {
 			result = nil
@@ -269,32 +281,32 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	// OR save response to return later
 	sr, bannerResponseCode := VerifySMTPContents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, errors.New("Invalid response for SMTP")
+		return sr, nil, errors.New("invalid response for SMTP")
 	}
 	result.Banner = banner
 	if scanner.config.SendHELO {
-		ret, err := conn.SendCommand(getCommand("HELO", scanner.config.HELODomain))
+		ret, err := smtpConn.SendCommand(getCommand("HELO", scanner.config.HELODomain))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.HELO = ret
 	}
 	if scanner.config.SendEHLO {
-		ret, err := conn.SendCommand(getCommand("EHLO", scanner.config.EHLODomain))
+		ret, err := smtpConn.SendCommand(getCommand("EHLO", scanner.config.EHLODomain))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.EHLO = ret
 	}
 	if scanner.config.SendHELP {
-		ret, err := conn.SendCommand("HELP")
+		ret, err := smtpConn.SendCommand("HELP")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.HELP = ret
 	}
 	if scanner.config.StartTLS {
-		ret, err := conn.SendCommand("STARTTLS")
+		ret, err := smtpConn.SendCommand("STARTTLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
@@ -306,7 +318,11 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		if code < 200 || code >= 300 {
 			return zgrab2.SCAN_APPLICATION_ERROR, result, fmt.Errorf("SMTP error code %d returned from STARTTLS command (%s)", code, strings.TrimSpace(ret))
 		}
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(conn.Conn)
+		tlsWrapper := dialer.GetTLSWrapper()
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found. SMTP with SMTPSecure requires a TLS wrapper")
+		}
+		tlsConn, err := tlsWrapper(ctx, target, smtpConn.Conn)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
@@ -314,14 +330,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		if err := tlsConn.Handshake(); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
-		conn.Conn = tlsConn
+		smtpConn.Conn = tlsConn
 	}
 	if scanner.config.SendQUIT {
-		ret, err := conn.SendCommand("QUIT")
+		ret, err := smtpConn.SendCommand("QUIT")
 		if err != nil {
-			if err != nil {
-				return zgrab2.TryGetScanStatus(err), nil, err
-			}
+			return zgrab2.TryGetScanStatus(err), nil, err
 		}
 		result.QUIT = ret
 	}

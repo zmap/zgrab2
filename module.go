@@ -1,6 +1,11 @@
 package zgrab2
 
-import "time"
+import (
+	"context"
+	"fmt"
+	"net"
+	"time"
+)
 
 // Scanner is an interface that represents all functions necessary to run a scan
 type Scanner interface {
@@ -21,7 +26,47 @@ type Scanner interface {
 	Protocol() string
 
 	// Scan connects to a host. The result should be JSON-serializable
-	Scan(t ScanTarget) (ScanStatus, any, error)
+	Scan(ctx context.Context, t *ScanTarget, dialer *DialerGroup) (ScanStatus, any, error)
+}
+
+type DialerGroup struct {
+	// defaultDialer should be used by most modules that do not need control over the transport layer.
+	// It abstracts the underlying transport protocol so a module can  deal with just the L7 logic. Any protocol that
+	// doesn't need to know about the underlying transport should use this.
+	// If the transport is a TLS connection, the dialer should provide a zgrab2.TLSConnection so the underlying log can be
+	// accessed.
+	defaultDialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)
+	// l4Dialer will be used by any module that needs to have a TCP/UDP connection. Think of following a redirect to an
+	// http:// server, or a module that needs to start with a TCP connection and then upgrade to TLS as part of the protocol.
+	l4Dialer func(ctx context.Context, network, address string) (net.Conn, error)
+	// tlsWrapper is a function that takes an existing net.Conn and upgrades it to a TLS connection. This is useful for
+	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
+	tlsWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+}
+
+// Dial is used to access the default dialer
+func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+	return d.defaultDialer(ctx, target)
+}
+
+func (d *DialerGroup) GetL4Dialer() func(ctx context.Context, network, address string) (net.Conn, error) {
+	return d.l4Dialer
+}
+
+func (d *DialerGroup) GetTLSWrapper() func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error) {
+	return d.tlsWrapper
+}
+
+// GetTLSDialer returns a function that can be used as a standalone TLS dialer. This is useful for modules like HTTP that
+// require this for handling redirects to https://
+func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*TLSConnection, error) {
+	return func(network, addr string) (*TLSConnection, error) {
+		conn, err := d.l4Dialer(ctx, network, addr)
+		if err != nil {
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+		}
+		return d.tlsWrapper(ctx, t, conn)
+	}
 }
 
 // ScanResponse is the result of a scan on a single host

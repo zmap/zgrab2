@@ -23,7 +23,7 @@ type ScanTarget struct {
 	IP     net.IP
 	Domain string
 	Tag    string
-	Port   *uint
+	Port   uint
 }
 
 func (target ScanTarget) String() string {
