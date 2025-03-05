@@ -1087,7 +1087,6 @@ func TestMySQL(t *testing.T) {
 			Version:           0x302,
 		},
 	}
-	results.TLSLog.HeartbleedLog = &tls.Heartbleed{}
 	mapVal := toMap(results)
 	mapVal["auth_plugin_data"] = nil
 	mapVal["connection_id"] = 0
