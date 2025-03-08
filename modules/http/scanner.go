@@ -449,7 +449,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
+func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
 	ret := scan{
 		scanner: scanner,
 		target:  t,
@@ -463,25 +463,22 @@ func (scanner *Scanner) newHTTPScan(t *zgrab2.ScanTarget, useHTTPS bool) *scan {
 		client:         http.MakeNewClient(),
 		globalDeadline: time.Now().Add(scanner.config.Timeout),
 	}
-	ret.transport.DialTLS = ret.getTLSDialer(t)
-	ret.transport.DialContext = ret.dialContext
+	ret.transport.DialTLS = dialerGroup.GetEncryptedDialer()
+	ret.transport.DialContext = dialerGroup.GetL4Dialer()
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	ret.client.Timeout = scanner.config.Timeout
+	if deadline, ok := ctx.Deadline(); ok {
+		ret.client.Timeout = min(ret.client.Timeout, deadline.Sub(time.Now()))
+	}
+
 	host := t.Domain
 	if host == "" {
 		host = t.IP.String()
 	}
-	// Scanner Target port overrides config flag port
-	var port uint16
-	if t.Port != nil {
-		port = uint16(*t.Port)
-	} else {
-		port = uint16(scanner.config.BaseFlags.Port)
-	}
-	ret.url = getHTTPURL(useHTTPS, host, port, scanner.config.Endpoint)
+	ret.url = getHTTPURL(useHTTPS, host, uint16(t.Port), scanner.config.Endpoint)
 
 	return &ret
 }
@@ -619,8 +616,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	scan := scanner.newHTTPScan(&t, scanner.config.UseHTTPS)
+func (scanner *Scanner) Scan(ctx context.Context, t zgrab2.ScanTarget, dialerGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	scan := scanner.newHTTPScan(ctx, &t, scanner.config.UseHTTPS, dialerGroup)
 	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
