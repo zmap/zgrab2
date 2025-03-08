@@ -811,7 +811,8 @@ type Module struct {
 
 // Scanner holds the state for a single scan
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the module with zgrab2
@@ -852,6 +853,9 @@ func (cfg *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
+		DefaultDialer: zgrab2.GetDefaultUDPDialer(&scanner.config.BaseFlags, &scanner.config.UDPFlags),
+	}
 	return nil
 }
 
@@ -1041,4 +1045,8 @@ func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGrou
 	}
 
 	return zgrab2.SCAN_SUCCESS, result, nil
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
