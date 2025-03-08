@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -27,9 +28,10 @@ func PrintScanners() {
 }
 
 // RunScanner runs a single scan on a target and returns the resulting data
-func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
+func RunScanner(s Scanner, mon *Monitor, target *ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	status, res, e := s.Scan(target)
+	dialerGroup := s.GetDefaultDialerGroup()
+	status, res, e := s.Scan(context.Background(), target, dialerGroup)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}

@@ -1,8 +1,11 @@
 package zgrab2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/zmap/zcrypto/tls"
+
 	"net"
 	"sync"
 
@@ -56,78 +59,86 @@ func (target *ScanTarget) Host() string {
 	panic("unreachable")
 }
 
-//// Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-//func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-//	var port uint
-//	// If the port is supplied in ScanTarget, let that override the cmdline option
-//	if target.Port != nil {
-//		port = *target.Port
-//	} else {
-//		port = flags.Port
-//	}
-//
-//	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-//	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
-//}
-//
-//// OpenTLS connects to the ScanTarget using the configured flags, then performs
-//// the TLS handshake. On success error is nil, but the connection can be non-nil
-//// even if there is an error (this allows fetching the handshake log).
-//func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TLSConnection, error) {
-//	conn, err := tlsFlags.Connect(target, baseFlags)
-//	if err != nil {
-//		return conn, err
-//	}
-//	err = conn.Handshake()
-//	return conn, err
-//}
-//
-//// OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-//// Note that the UDP "connection" does not have an associated timeout.
-//func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-//	var port uint
-//	// If the port is supplied in ScanTarget, let that override the cmdline option
-//	if target.Port != nil {
-//		port = *target.Port
-//	} else {
-//		port = flags.Port
-//	}
-//	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-//	var local *net.UDPAddr
-//	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
-//		local = &net.UDPAddr{}
-//		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
-//			local.IP = net.ParseIP(udp.LocalAddress)
-//		}
-//		if udp.LocalPort != 0 {
-//			local.Port = int(udp.LocalPort)
-//		}
-//	}
-//	remote, err := net.ResolveUDPAddr("udp", address)
-//	if err != nil {
-//		return nil, err
-//	}
-//	conn, err := net.DialUDP("udp", local, remote)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
-//}
+// GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
+func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+		var port uint
+		// If the port is supplied in ScanTarget, let that override the cmdline option
+		if t.Port != 0 {
+			port = t.Port
+		} else {
+			port = flags.Port
+		}
+
+		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
+		return DialTimeoutConnection(ctx, "tcp", address, flags.Timeout, flags.BytesReadLimit)
+	}
+}
+
+// GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
+func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+		config, err := tlsFlags.GetTLSConfigForTarget(t)
+		if err != nil {
+			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
+		}
+		tlsConn := TLSConnection{
+			Conn:  *(tls.Client(conn, config)),
+			flags: tlsFlags,
+		}
+		err = tlsConn.Handshake()
+		if err != nil {
+			return nil, fmt.Errorf("could not perform tls handshake for target %s: %w", t.String(), err)
+		}
+		return &tlsConn, err
+	}
+}
+
+// GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
+func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+		var port uint
+		// If the port is supplied in ScanTarget, let that override the cmdline option
+		if t.Port != 0 {
+			port = t.Port
+		} else {
+			port = flags.Port
+		}
+
+		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
+		var local *net.UDPAddr
+		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
+			local = &net.UDPAddr{}
+			if udp.LocalAddress != "" && udp.LocalAddress != "*" {
+				local.IP = net.ParseIP(udp.LocalAddress)
+			}
+			if udp.LocalPort != 0 {
+				local.Port = int(udp.LocalPort)
+			}
+		}
+		remote, err := net.ResolveUDPAddr("udp", address)
+		if err != nil {
+			return nil, err
+		}
+		conn, err := net.DialUDP("udp", local, remote)
+		if err != nil {
+			return nil, err
+		}
+		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
+		//return DialTimeoutConnection("tcp", address, timeout, flags.BytesReadLimit)
+	}
+}
 
 // BuildGrabFromInputResponse constructs a Grab object for a target, given the
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
 	var ipstr string
-	var port uint
 	if t.IP != nil {
 		ipstr = t.IP.String()
 	}
-	if t.Port != nil {
-		port = *t.Port
-	}
 	return &Grab{
 		IP:     ipstr,
-		Port:   port,
+		Port:   t.Port,
 		Domain: t.Domain,
 		Data:   responses,
 	}
@@ -170,7 +181,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 				panic(e)
 			}
 		}(scannerName)
-		name, res := RunScanner(*scanner, m, input)
+		name, res := RunScanner(*scanner, m, &input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
