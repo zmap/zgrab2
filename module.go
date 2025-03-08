@@ -29,6 +29,8 @@ type Scanner interface {
 	Scan(ctx context.Context, t *ScanTarget, dialer *DialerGroup) (ScanStatus, any, error)
 }
 
+type TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+
 type DialerGroup struct {
 	// defaultDialer should be used by most modules that do not need control over the transport layer.
 	// It abstracts the underlying transport protocol so a module can  deal with just the L7 logic. Any protocol that
@@ -42,6 +44,7 @@ type DialerGroup struct {
 	// tlsWrapper is a function that takes an existing net.Conn and upgrades it to a TLS connection. This is useful for
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
 	tlsWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+	// TODO handle QUIC
 }
 
 // Dial is used to access the default dialer
@@ -68,6 +71,9 @@ func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(netw
 		return d.tlsWrapper(ctx, t, conn)
 	}
 }
+
+// TODO some handling of the TLS/QUIC Dialer for http module
+//func (d *DialerGroup) GetEncryptedDialer
 
 // ScanResponse is the result of a scan on a single host
 type ScanResponse struct {

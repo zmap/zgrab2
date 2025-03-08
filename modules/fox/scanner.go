@@ -8,8 +8,10 @@ package fox
 import (
 	"context"
 	"errors"
-	log "github.com/sirupsen/logrus"
+	"fmt"
 	"net"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -102,15 +104,13 @@ func (scanner *Scanner) Protocol() string {
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialer *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialer.defaultDialer(ctx, target)
-
+	conn, err := dialer.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
 	defer func(conn net.Conn) {
-		if closeErr := conn.Close(); closeErr != nil {
-			log.Errorf("error closing connection: %v", closeErr)
-		}
+		// cleanup conn
+		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
 	result := new(FoxLog)
 	// Attempt to read TLS Log from connection. If it's not a TLS connection then the log will just be empty.

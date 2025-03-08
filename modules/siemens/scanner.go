@@ -4,6 +4,8 @@
 package siemens
 
 import (
+	"context"
+	"fmt"
 	"net"
 
 	log "github.com/sirupsen/logrus"
@@ -98,15 +100,15 @@ func (scanner *Scanner) Protocol() string {
 // 5. Request to read the module identification (and store it in the output)
 // 6. Request to read the component identification (and store it in the output)
 // 7. Return the output
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to target %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 	result := new(S7Log)
 
-	err = GetS7Banner(result, conn, func() (net.Conn, error) { return target.Open(&scanner.config.BaseFlags) })
+	err = GetS7Banner(result, conn, func() (net.Conn, error) { return dialGroup.Dial(ctx, target) })
 	if !result.IsS7 {
 		result = nil
 	}

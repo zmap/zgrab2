@@ -26,6 +26,7 @@
 package pop3
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -196,23 +197,15 @@ func VerifyPOP3Contents(banner string) zgrab2.ScanStatus {
 //     TLS connection using the command-line flags.
 //  7. If --send-quit is sent, send QUIT and read the result.
 //  8. Close the connection.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	c, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	c, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", target.String(), err)
 	}
-	defer c.Close()
+	defer zgrab2.CloseConnAndHandleError(c)
 	result := &ScanResults{}
-	if scanner.config.POP3Secure {
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(c)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
+	if tlsConn, ok := c.(*zgrab2.TLSConnection); ok {
 		result.TLSLog = tlsConn.GetLog()
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
-		}
-		c = tlsConn
 	}
 	conn := Connection{Conn: c}
 	banner, err := conn.ReadResponse()

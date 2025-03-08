@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -320,34 +319,34 @@ func (conn *TLSConnection) Close() error {
 	return conn.Conn.Close()
 }
 
-// Connect opens the TCP connection to the target using the given configuration,
-// and then returns the configured wrapped TLS connection. The caller must still
-// call Handshake().
-func (t *TLSFlags) Connect(target *ScanTarget, flags *BaseFlags) (*TLSConnection, error) {
-	tcpConn, err := target.Open(flags)
-	if err != nil {
-		return nil, err
-	}
-	return t.GetTLSConnectionForTarget(tcpConn, target)
-}
-
-func (t *TLSFlags) GetTLSConnection(conn net.Conn) (*TLSConnection, error) {
-	return t.GetTLSConnectionForTarget(conn, nil)
-}
-
-func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) (*TLSConnection, error) {
-	cfg, err := t.GetTLSConfigForTarget(target)
-	if err != nil {
-		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
-	}
-	return t.GetWrappedConnection(conn, cfg), nil
-}
-
-func (t *TLSFlags) GetWrappedConnection(conn net.Conn, cfg *tls.Config) *TLSConnection {
-	tlsClient := tls.Client(conn, cfg)
-	wrappedClient := TLSConnection{
-		Conn:  *tlsClient,
-		flags: t,
-	}
-	return &wrappedClient
-}
+//// Connect opens the TCP connection to the target using the given configuration,
+//// and then returns the configured wrapped TLS connection. The caller must still
+//// call Handshake().
+//func (t *TLSFlags) Connect(target *ScanTarget, flags *BaseFlags) (*TLSConnection, error) {
+//	tcpConn, err := target.Open(flags)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return t.GetTLSConnectionForTarget(tcpConn, target)
+//}
+//
+//func (t *TLSFlags) GetTLSConnection(conn net.Conn) (*TLSConnection, error) {
+//	return t.GetTLSConnectionForTarget(conn, nil)
+//}
+//
+//func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) (*TLSConnection, error) {
+//	cfg, err := t.GetTLSConfigForTarget(target)
+//	if err != nil {
+//		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
+//	}
+//	return t.GetWrappedConnection(conn, cfg), nil
+//}
+//
+//func (t *TLSFlags) GetWrappedConnection(conn net.Conn, cfg *tls.Config) *TLSConnection {
+//	tlsClient := tls.Client(conn, cfg)
+//	wrappedClient := TLSConnection{
+//		Conn:  *tlsClient,
+//		flags: t,
+//	}
+//	return &wrappedClient
+//}

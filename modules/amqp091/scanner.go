@@ -1,6 +1,8 @@
 package amqp091
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"encoding/json"
@@ -165,38 +167,22 @@ func (scanner *Scanner) Protocol() string {
 	return "amqp091"
 }
 
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%v): %w", target.String(), err)
 	}
 
 	// Setup result and connection cleanup
 	result := &Result{
 		AuthSuccess: false,
 	}
-	var tlsConn *zgrab2.TLSConnection
 	defer func() {
-		conn.Close()
-
-		if tlsConn != nil {
+		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 			result.TLSLog = tlsConn.GetLog()
 		}
+		zgrab2.CloseConnAndHandleError(conn)
 	}()
-
-	// If we're using TLS, wrap the connection
-	if scanner.config.UseTLS {
-		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-
-		conn = tlsConn
-	}
 
 	// Prepare AMQP connection config
 	config := amqpLib.Config{
@@ -221,6 +207,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	if err != nil {
 		result.Failure = err.Error()
 	}
+	if amqpConn == nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, result, fmt.Errorf("unable to open AMQP connection, returned conn is nil to target %v", target.String())
+	}
 	defer amqpConn.Close()
 
 	// If there's an error and we haven't even received START frame from the server, consider it a failure
@@ -244,7 +233,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 
 	// Heuristic to see if we're authenticated.
 	// These values are expected to be non-zero if and only if a tune is received and we're authenticated.
-	if err != amqpLib.ErrSASL && err != amqpLib.ErrCredentials && amqpConn.Config.ChannelMax > 0 {
+	if !errors.Is(err, amqpLib.ErrSASL) && !errors.Is(err, amqpLib.ErrCredentials) && amqpConn.Config.ChannelMax > 0 {
 		result.AuthSuccess = true
 		result.Tune = &connectionTune{
 			ChannelMax: int(amqpConn.Config.ChannelMax),

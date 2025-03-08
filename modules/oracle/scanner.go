@@ -21,6 +21,7 @@
 package oracle
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -218,32 +219,21 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //     into the results, then send a Native Security Negotiation Data packet.
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	var results *ScanResults
 
-	sock, err := t.Open(&scanner.config.BaseFlags)
+	sock, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
 	}
-	if scanner.config.TCPS {
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(sock)
-		if err != nil {
-			// GetTLSConnection can only fail if the input flags are bad
-			panic(err)
-		}
-		results = new(ScanResults)
+	if tlsConn, ok := sock.(*zgrab2.TLSConnection); ok {
 		results.TLSLog = tlsConn.GetLog()
-		err = tlsConn.Handshake()
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-		sock = tlsConn
 	}
 
 	conn := Connection{
 		conn:      sock,
 		scanner:   scanner,
-		target:    &t,
+		target:    t,
 		tnsDriver: scanner.getTNSDriver(),
 	}
 	connectDescriptor := scanner.config.ConnectDescriptor

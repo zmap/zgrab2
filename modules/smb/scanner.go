@@ -3,7 +3,10 @@
 package smb
 
 import (
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"net"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/smb/smb"
@@ -104,25 +107,26 @@ func (scanner *Scanner) Protocol() string {
 //  5. Send a setup session packet to the server with appropriate values
 //  6. Read the response from the server; on failure, exit with the log so far.
 //  7. Return the log.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to SMB server %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 	var result *smb.SMBLog
 	setupSession := scanner.config.SetupSession
 	verbose := scanner.config.Verbose
 	result, err = smb.GetSMBLog(conn, setupSession, false, verbose)
 	if err != nil {
 		if result == nil {
-			conn.Close()
-			conn, err = target.Open(&scanner.config.BaseFlags)
+			zgrab2.CloseConnAndHandleError(conn)
+			var newConn net.Conn
+			newConn, err = dialGroup.Dial(ctx, target)
 			if err != nil {
-				return zgrab2.TryGetScanStatus(err), nil, err
+				return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to SMB server %s on 2nd attempt: %w", target.String(), err)
 			}
-			defer conn.Close()
-			result, err = smb.GetSMBLog(conn, setupSession, true, verbose)
+			defer zgrab2.CloseConnAndHandleError(newConn)
+			result, err = smb.GetSMBLog(newConn, setupSession, true, verbose)
 			if err != nil {
 				return zgrab2.TryGetScanStatus(err), result, err
 			}

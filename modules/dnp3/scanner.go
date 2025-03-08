@@ -6,7 +6,10 @@
 package dnp3
 
 import (
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"net"
 
 	"github.com/zmap/zgrab2"
 )
@@ -92,16 +95,18 @@ func (scanner *Scanner) Protocol() string {
 
 // Scan probes for a DNP3 service.
 // Connects to the configured TCP port (default 20000) and reads the banner.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	// TODO: Allow UDP?
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not dial target %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		// cleanup connection
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
 	ret := new(DNP3Log)
-	if err := GetDNP3Banner(ret, conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+	if err = GetDNP3Banner(ret, conn); err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not get DNP3 banner for target %s: %w", target.String(), err)
 	}
 	return zgrab2.SCAN_SUCCESS, ret, nil
 }

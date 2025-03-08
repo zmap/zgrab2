@@ -3,13 +3,15 @@
 package jarm
 
 import (
+	"context"
+	"fmt"
 	_ "fmt"
-	"log"
 	"net"
 	"strings"
 	"time"
 
 	jarm "github.com/hdm/jarm-go"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -100,7 +102,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	// Stores raw hashes returned from parsing each protocols Hello message
 	rawhashes := []string{}
 
@@ -111,15 +113,15 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 			err  error
 			ret  []byte
 		)
-		conn, err = target.Open(&scanner.config.BaseFlags)
+		conn, err = dialGroup.Dial(ctx, target)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not dial target %s: %w", target.String(), err)
 		}
 
 		_, err = conn.Write(jarm.BuildProbe(probe))
 		if err != nil {
 			rawhashes = append(rawhashes, "")
-			conn.Close()
+			zgrab2.CloseConnAndHandleError(conn)
 			continue
 		}
 
@@ -128,12 +130,12 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		ans, err := jarm.ParseServerHello(ret, probe)
 		if err != nil {
 			rawhashes = append(rawhashes, "")
-			conn.Close()
+			zgrab2.CloseConnAndHandleError(conn)
 			continue
 		}
 
 		rawhashes = append(rawhashes, ans)
-		conn.Close()
+		zgrab2.CloseConnAndHandleError(conn)
 	}
 
 	return zgrab2.SCAN_SUCCESS, &Results{

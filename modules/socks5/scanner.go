@@ -2,6 +2,7 @@
 package socks5
 
 import (
+	"context"
 	"fmt"
 	"net"
 
@@ -223,20 +224,16 @@ func (conn *Connection) PerformConnectionRequest() error {
 }
 
 // Scan performs the configured scan on the SOCKS5 server.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	var err error
+func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var have_auth bool
-	conn, err := t.Open(&s.config.BaseFlags)
+	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection: %w", err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to %s: %w", t.String(), err)
 	}
-	cn := conn
-	defer func() {
-		cn.Close()
-	}()
+	defer zgrab2.CloseConnAndHandleError(conn)
 
 	results := ScanResults{}
-	socks5Conn := Connection{conn: cn, config: s.config, results: results}
+	socks5Conn := Connection{conn: conn, config: s.config, results: results}
 
 	have_auth, err = socks5Conn.PerformHandshake()
 	if err != nil {

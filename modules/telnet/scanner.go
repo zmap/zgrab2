@@ -12,6 +12,8 @@
 package telnet
 
 import (
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
@@ -99,12 +101,12 @@ func (scanner *Scanner) Protocol() string {
 }
 
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to telnet server %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 	result := new(TelnetLog)
 	if err := GetTelnetBanner(result, conn, scanner.config.MaxReadSize); err != nil {
 		if scanner.config.Banner && len(result.Banner) > 0 {

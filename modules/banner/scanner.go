@@ -4,6 +4,7 @@
 package banner
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -13,11 +14,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"regexp"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -147,36 +149,32 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (s *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	var (
 		conn    net.Conn
-		tlsConn *zgrab2.TLSConnection
 		err     error
 		readErr error
+		results Results
 	)
 
 	for try := 0; try < s.config.MaxTries; try++ {
-		conn, err = target.Open(&s.config.BaseFlags)
+		conn, err = dialGroup.Dial(ctx, target)
 		if err != nil {
-			continue
-		}
-		if s.config.UseTLS {
-			tlsConn, err = s.config.TLSFlags.GetTLSConnection(conn)
-			if err != nil {
-				continue
-			}
-			if err = tlsConn.Handshake(); err != nil {
-				continue
-			}
-			conn = tlsConn
+			continue // try again
 		}
 		break
 	}
-
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to connect to %v: %v", target.String(), err)
 	}
-	defer conn.Close()
+	defer func() {
+		// attempt to collect TLS Log
+		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+			results.TLSLog = tlsConn.GetLog()
+		}
+		// cleanup our connection
+		zgrab2.CloseConnAndHandleError(conn)
+	}()
 
 	var data []byte
 
@@ -202,8 +200,6 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error)
 		return zgrab2.TryGetScanStatus(readErr), nil, readErr
 	}
 
-	var results Results
-
 	if s.config.Hex {
 		results.Banner = hex.EncodeToString(data)
 	} else if s.config.Base64 {
@@ -226,9 +222,6 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error)
 			digest := sha256.Sum256(data)
 			results.SHA256 = hex.EncodeToString(digest[:])
 		}
-	}
-	if tlsConn != nil {
-		results.TLSLog = tlsConn.GetLog()
 	}
 	if s.regex == nil {
 		return zgrab2.SCAN_SUCCESS, &results, nil

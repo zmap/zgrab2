@@ -5,6 +5,9 @@
 package mysql
 
 import (
+	"context"
+	"fmt"
+	"net"
 	"reflect"
 
 	log "github.com/sirupsen/logrus"
@@ -216,40 +219,33 @@ func (scanner *Scanner) GetTrigger() string {
 //  2. If the server supports SSL, send an SSLRequest packet, then
 //     perform the standard TLS actions.
 //  3. Process and return the results.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var tlsConn *zgrab2.TLSConnection
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
-		recovered := recover()
-		if recovered != nil {
-			thrown = recovered.(error)
-			status = zgrab2.TryGetScanStatus(thrown)
-			// TODO FIXME: do more to distinguish errors
-		}
 		result = readResultsFromConnectionLog(&sql.ConnectionLog)
-		if tlsConn != nil {
-			result.(*ScanResults).TLSLog = tlsConn.GetLog()
+		err := sql.Disconnect()
+		if err != nil {
+			log.Errorf("error disconnecting from target %s: %v", t.String(), err)
 		}
 	}()
-	defer sql.Disconnect()
 	var err error
-	conn, err := t.Open(&s.config.BaseFlags)
+
+	conn, err := dialGroup.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(t.String(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
-		panic(err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", t.String(), err)
 	}
 	if err = sql.Connect(conn); err != nil {
-		panic(err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %v", t.String(), err)
 	}
 	if sql.SupportsTLS() {
 		if err = sql.NegotiateTLS(); err != nil {
-			panic(err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %v", t.String(), err)
 		}
-		if tlsConn, err = s.config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
-			panic(err)
+		if tlsConn, err = dialGroup.GetTLSWrapper()(ctx, t, conn); err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %v", t.String(), err)
 		}
-		if err = tlsConn.Handshake(); err != nil {
-			panic(err)
-		}
+		result.(*ScanResults).TLSLog = tlsConn.GetLog()
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		sql.Connection = tlsConn
 	}

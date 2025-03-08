@@ -12,6 +12,10 @@
 package mssql
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -122,16 +126,21 @@ func (scanner *Scanner) GetTrigger() string {
 // 4. If the server encrypt mode is EncryptModeNotSupported, break.
 // 5. Perform a TLS handshake, with the packets wrapped in TDS headers.
 // 6. Decode the Version and InstanceName from the PRELOGIN response
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", target.String(), err)
 	}
 	sql := NewConnection(conn)
-	defer sql.Close()
+	defer func(sql *Connection) {
+		err = sql.Close()
+		if err != nil {
+			log.Errorf("error closing connection to target %s: %v", target.String(), err)
+		}
+	}(sql)
 	result := &ScanResults{}
 
-	encryptMode, handshakeErr := sql.Handshake(scanner.config)
+	encryptMode, handshakeErr := sql.Handshake(ctx, target, scanner.config.EncryptMode, dialGroup.GetTLSWrapper())
 
 	result.EncryptMode = &encryptMode
 
@@ -164,10 +173,10 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 			// nil.
 			result = nil
 		}
-		switch handshakeErr {
-		case ErrNoServerEncryption:
+		switch {
+		case errors.Is(handshakeErr, ErrNoServerEncryption):
 			return zgrab2.SCAN_APPLICATION_ERROR, result, handshakeErr
-		case ErrServerRequiresEncryption:
+		case errors.Is(handshakeErr, ErrServerRequiresEncryption):
 			return zgrab2.SCAN_APPLICATION_ERROR, result, handshakeErr
 		default:
 			return zgrab2.TryGetScanStatus(handshakeErr), result, handshakeErr

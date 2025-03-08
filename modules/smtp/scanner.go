@@ -248,12 +248,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	defer func(conn net.Conn) {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("error closing tcp connection: %v", err)
-		}
-	}(conn)
+	defer zgrab2.CloseConnAndHandleError(conn)
 	result := &ScanResults{}
 	if scanner.config.SMTPSecure {
 		tlsWrapper := dialer.GetTLSWrapper()
@@ -275,7 +270,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		if !scanner.config.SMTPSecure {
 			result = nil
 		}
-		return zgrab2.TryGetScanStatus(err), result, err
+		return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not read response from %s: %v", target.String(), err)
 	}
 	// Quit early if we didn't get a valid response
 	// OR save response to return later
@@ -287,36 +282,36 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 	if scanner.config.SendHELO {
 		ret, err := smtpConn.SendCommand(getCommand("HELO", scanner.config.HELODomain))
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send HELO command to target %s: %v", target.String(), err)
 		}
 		result.HELO = ret
 	}
 	if scanner.config.SendEHLO {
 		ret, err := smtpConn.SendCommand(getCommand("EHLO", scanner.config.EHLODomain))
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send EHLO command to target %s: %v", target.String(), err)
 		}
 		result.EHLO = ret
 	}
 	if scanner.config.SendHELP {
 		ret, err := smtpConn.SendCommand("HELP")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send HELP command to target %s: %v", target.String(), err)
 		}
 		result.HELP = ret
 	}
 	if scanner.config.StartTLS {
 		ret, err := smtpConn.SendCommand("STARTTLS")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send STARTTLS request to %s: %v", target.String(), err)
 		}
 		result.StartTLS = ret
 		code, err := getSMTPCode(ret)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not get SMTP STARTTLS code for %s: %v", target.String(), err)
 		}
 		if code < 200 || code >= 300 {
-			return zgrab2.SCAN_APPLICATION_ERROR, result, fmt.Errorf("SMTP error code %d returned from STARTTLS command (%s)", code, strings.TrimSpace(ret))
+			return zgrab2.SCAN_APPLICATION_ERROR, result, fmt.Errorf("SMTP error code %d returned from STARTTLS command (%s) for target %s", code, strings.TrimSpace(ret), target.String())
 		}
 		tlsWrapper := dialer.GetTLSWrapper()
 		if tlsWrapper == nil {
@@ -324,23 +319,20 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		}
 		tlsConn, err := tlsWrapper(ctx, target, smtpConn.Conn)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not initiate a TLS connection to target %s: %v", target.String(), err)
 		}
 		result.TLSLog = tlsConn.GetLog()
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
-		}
 		smtpConn.Conn = tlsConn
 	}
 	if scanner.config.SendQUIT {
 		ret, err := smtpConn.SendCommand("QUIT")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to send QUIT command for SMTP %s: %v", target.String(), err)
 		}
 		result.QUIT = ret
 	}
 	if sr == zgrab2.SCAN_APPLICATION_ERROR {
-		return sr, result, fmt.Errorf("SMTP error code %d returned in banner grab", bannerResponseCode)
+		return sr, result, fmt.Errorf("SMTP error code %d returned in banner grab for target %s", bannerResponseCode, target.String())
 	}
 	return sr, result, nil
 }

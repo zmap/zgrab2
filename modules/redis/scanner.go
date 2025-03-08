@@ -13,11 +13,11 @@
 package redis
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -318,35 +318,10 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it
-func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
-	var (
-		conn    net.Conn
-		tlsConn *zgrab2.TLSConnection
-		err     error
-	)
-
-	isSSL := false
-	conn, err = target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return nil, err
-	}
-
-	if scanner.config.UseTLS {
-		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return nil, err
-		}
-		if err := tlsConn.Handshake(); err != nil {
-			return nil, err
-		}
-		conn = tlsConn
-		isSSL = true
-	} else {
-		conn, err = target.Open(&scanner.config.BaseFlags)
-	}
-
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not establish connection to %s: %w", target.String(), err)
 	}
 
 	return &scan{
@@ -355,10 +330,9 @@ func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 		result:  &Result{},
 		conn: &Connection{
 			scanner: scanner,
-			isSSL:   isSSL,
 			conn:    conn,
 		},
-		close: func() { conn.Close() },
+		close: func() { zgrab2.CloseConnAndHandleError(conn) },
 	}, nil
 }
 
@@ -406,9 +380,9 @@ func convToUint32(s string) uint32 {
 // 6. QUIT
 // The responses for each of these is logged, and if INFO succeeds, the version
 // is scraped from it.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	// ping, info, quit
-	scan, err := scanner.StartScan(&target)
+	scan, err := scanner.StartScan(ctx, target, dialGroup)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}

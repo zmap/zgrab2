@@ -10,6 +10,7 @@
 package postgres
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -129,7 +130,8 @@ type Flags struct {
 
 // Scanner is the zgrab2 scanner type for the postgres protocol
 type Scanner struct {
-	Config *Flags
+	Config    *Flags
+	DialGroup *zgrab2.DialerGroup
 }
 
 // Module is the zgrab2 module for the postgres protocol
@@ -327,14 +329,11 @@ func (s *Scanner) GetTrigger() string {
 }
 
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
-func (s *Scanner) DoSSL(sql *Connection) error {
+func (s *Scanner) DoSSL(ctx context.Context, sql *Connection) error {
 	var conn *zgrab2.TLSConnection
 	var err error
-	if conn, err = s.Config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
-		return err
-	}
-	if err = conn.Handshake(); err != nil {
-		return err
+	if conn, err = s.DialGroup.GetTLSWrapper()(ctx, sql.Target, sql.Connection); err != nil {
+		return fmt.Errorf("could not wrap connection in TLS to %s: %w", sql.Target.String(), err)
 	}
 	// Replace sql.Connection to allow future calls to go over the secure connection
 	sql.Connection = conn
@@ -342,12 +341,12 @@ func (s *Scanner) DoSSL(sql *Connection) error {
 }
 
 // newConnection opens up a new connection to the ScanTarget, and if necessary, attempts to update the connection to SSL
-func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool) (*Connection, *zgrab2.ScanError) {
+func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool) (*Connection, *zgrab2.ScanError) {
 	var conn net.Conn
 	var err error
 	// Open a managed connection to the ScanTarget, register it for automatic cleanup
-	if conn, err = t.Open(&s.Config.BaseFlags); err != nil {
-		return nil, zgrab2.DetectScanError(err)
+	if conn, err = s.DialGroup.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))); err != nil {
+		return nil, zgrab2.DetectScanError(fmt.Errorf("could not establish connection to %s: %w", t.String(), err))
 	}
 	mgr.addConnection(conn)
 	sql := Connection{Target: t, Connection: conn, Config: s.Config}
@@ -358,7 +357,7 @@ func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, no
 			return nil, sslError
 		}
 		if hasSSL {
-			if err = s.DoSSL(&sql); err != nil {
+			if err = s.DoSSL(ctx, &sql); err != nil {
 				return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 			}
 			sql.IsSSL = true
@@ -397,16 +396,17 @@ func (s *Scanner) getDefaultKVPs() map[string]string {
 //
 //     - NOTE: TLS is only used for the first connection, and then only if
 //     both client and server support it.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var results Results
 
 	mgr := newConnectionManager()
 	defer mgr.cleanUp()
+	s.DialGroup = dialGroup
 
 	// Send too-low protocol version (0.0) StartupMessage to get a simple supported-protocols error string
 	// Also do TLS handshake, if configured / supported
 	{
-		sql, connectErr := s.newConnection(&t, mgr, false)
+		sql, connectErr := s.newConnection(ctx, t, mgr, false)
 		if connectErr != nil {
 			return connectErr.Unpack(nil)
 		}
@@ -446,7 +446,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result an
 
 	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
 	{
-		sql, connectErr := s.newConnection(&t, mgr, true)
+		sql, connectErr := s.newConnection(ctx, t, mgr, true)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
@@ -480,7 +480,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result an
 		var err error
 		var response *ServerPacket
 		var readErr *zgrab2.ScanError
-		sql, connectErr := s.newConnection(&t, mgr, true)
+		sql, connectErr := s.newConnection(ctx, t, mgr, true)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
@@ -509,7 +509,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result an
 
 	// If user / database / application_name are provided, do a final scan with those
 	if s.Config.User != "" || s.Config.Database != "" || s.Config.ApplicationName != "" {
-		sql, connectErr := s.newConnection(&t, mgr, false)
+		sql, connectErr := s.newConnection(ctx, t, mgr, false)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}

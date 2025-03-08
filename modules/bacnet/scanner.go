@@ -5,7 +5,10 @@
 package bacnet
 
 import (
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"net"
 
 	"github.com/zmap/zgrab2"
 )
@@ -108,41 +111,43 @@ func (scanner *Scanner) Protocol() string {
 // 8. Description
 // 9. Location
 // The result is a bacnet.Log, and contains any of the above.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
+func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing a connection to target %v: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
 	ret := new(Log)
 	// TODO: if one fails, try others?
 	// TODO: distinguish protocol vs app errors
 	if err := ret.QueryDeviceID(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error querying device id for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryVendorNumber(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying vendor number for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryVendorName(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying vendor name for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryFirmwareRevision(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying firmware revision for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryApplicationSoftwareRevision(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying application software revision for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryObjectName(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying object name for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryModelName(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying model name for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryDescription(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying description for target %v: %w", target.String(), err)
 	}
 	if err := ret.QueryLocation(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), ret, nil
+		return zgrab2.TryGetScanStatus(err), ret, fmt.Errorf("error querying location for target %v: %w", target.String(), err)
 	}
 
 	return zgrab2.SCAN_SUCCESS, ret, nil

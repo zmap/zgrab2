@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -281,31 +282,22 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 }
 
 // Scan performs the configured scan on the MQTT server.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	conn, err := t.Open(&s.config.BaseFlags)
+func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection: %w", err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", t.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 
 	mqtt := Connection{conn: conn, config: s.config}
 
-	if s.config.UseTLS {
-		tlsConn, err := s.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error getting TLS connection: %w", err)
-		}
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		// if the passed in connection is a TLS connection, try to grab the log
 		mqtt.results.TLSLog = tlsConn.GetLog()
-
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), &mqtt.results, fmt.Errorf("error during TLS handshake: %w", err)
-		}
-
-		mqtt.conn = tlsConn
 	}
 
 	if err := mqtt.SendMQTTConnectPacket(s.config.V5); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CONNECT packet: %w", err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CONNECT packet to target %s: %w", t.String(), err)
 	}
 
 	if s.config.V5 {
@@ -315,7 +307,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result in
 	}
 
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &mqtt.results, fmt.Errorf("error reading CONNACK packet: %w", err)
+		return zgrab2.TryGetScanStatus(err), &mqtt.results, fmt.Errorf("error reading CONNACK packet to target %s: %w", t.String(), err)
 	}
 
 	return zgrab2.SCAN_SUCCESS, &mqtt.results, nil
