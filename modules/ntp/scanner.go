@@ -865,7 +865,7 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "ntp"
 }
 
@@ -1049,4 +1049,12 @@ func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGrou
 
 func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
+}
+
+func (scanner *Scanner) SupportsTLS() bool {
+	return false
+}
+
+func (scanner *Scanner) GetDefaultTransportProtocol() zgrab2.TransportProtocol {
+	return zgrab2.TransportUDP
 }

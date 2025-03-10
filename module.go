@@ -3,6 +3,8 @@ package zgrab2
 import (
 	"context"
 	"fmt"
+	"github.com/quic-go/quic-go"
+	"github.com/zmap/zcrypto/tls"
 	"net"
 	"time"
 )
@@ -28,8 +30,23 @@ type Scanner interface {
 	// Scan connects to a host. The result should be JSON-serializable
 	Scan(ctx context.Context, t *ScanTarget, dialer *DialerGroup) (ScanStatus, any, error)
 
+	// GetDefaultDialerGroup returns the default dialer group for this scanner. A module should set the dialers it needs
+	// in init for the framework to use.
 	GetDefaultDialerGroup() *DialerGroup
+
+	// SupportsTLS whether a module supports TLS by default
+	SupportsTLS() bool
+
+	// GetDefaultTransportProtocol returns the default l4 transport protocol for this scanner
+	GetDefaultTransportProtocol() TransportProtocol
 }
+
+type TransportProtocol uint
+
+const (
+	TransportTCP TransportProtocol = iota
+	TransportUDP
+)
 
 type TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
 
@@ -45,7 +62,16 @@ type DialerGroup struct {
 	L4Dialer func(ctx context.Context, network, address string) (net.Conn, error)
 	// TLSWrapper is a function that takes an existing net.Conn and upgrades it to a TLS connection. This is useful for
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
+	// Cannot be used for QUIC connections, as QUIC connections are not "upgraded" from a L4 connection
 	TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+
+	// Below are to support QUIC, we need the following: https://quic-go.net/docs/http3/client/
+	// https://pkg.go.dev/github.com/quic-go/quic-go/http3#Transport Needed for full control over this
+	TLSConfig  *tls.Config
+	QUICConfig *quic.Config
+	// We'll likely need to impose our own type on quic.EarlyConnection to get the same log info we have in TLS logs
+	// TODO Phillip update below when we have QUIC support
+	QUICDialer func(ctx context.Context, target *ScanTarget, tlsConf *tls.Config, quicConf *quic.Config) (quic.EarlyConnection, error)
 }
 
 // Dial is used to access the default dialer

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2/lib/output"
 )
 
@@ -125,7 +126,6 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 			return nil, err
 		}
 		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
-		//return DialTimeoutConnection("tcp", address, timeout, flags.BytesReadLimit)
 	}
 }
 
