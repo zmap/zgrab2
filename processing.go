@@ -76,6 +76,17 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 	}
 }
 
+// GetDefaultTLSDialer returns a TLS-over-TCP dialer suitable for modules with default TLS behavior
+func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t)
+		if err != nil {
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+		}
+		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
+	}
+}
+
 // GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
 func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
 	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {

@@ -2,10 +2,9 @@ package amqp091
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-
-	"encoding/json"
 
 	amqpLib "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
@@ -31,7 +30,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 type connectionTune struct {
@@ -144,6 +144,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.config = f
+	var defaultDialerGroup *zgrab2.DialerGroup
+	if f.UseTLS {
+		defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+	} else {
+		defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+	}
 	return nil
 }
 
@@ -165,6 +171,18 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "amqp091"
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
+}
+
+func (scanner *Scanner) SupportsTLS() bool {
+	return true
+}
+
+func (scanner *Scanner) GetDefaultTransportProtocol() zgrab2.TransportProtocol {
+	return zgrab2.TransportTCP
 }
 
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
