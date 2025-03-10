@@ -67,6 +67,7 @@ type DialerGroup struct {
 
 	// Below are to support QUIC, we need the following: https://quic-go.net/docs/http3/client/
 	// https://pkg.go.dev/github.com/quic-go/quic-go/http3#Transport Needed for full control over this
+	// TLSConfig is used for QUIC connections and if TLSWrapper is nil for TLS connections
 	TLSConfig  *tls.Config
 	QUICConfig *quic.Config
 	// We'll likely need to impose our own type on quic.EarlyConnection to get the same log info we have in TLS logs
@@ -95,11 +96,24 @@ func (d *DialerGroup) GetTLSWrapper() func(ctx context.Context, target *ScanTarg
 // require this for handling redirects to https://
 func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*TLSConnection, error) {
 	return func(network, addr string) (*TLSConnection, error) {
-		conn, err := d.L4Dialer(ctx, network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+		if d.TLSWrapper != nil {
+			conn, err := d.L4Dialer(ctx, network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+			}
+			return d.TLSWrapper(ctx, t, conn)
 		}
-		return d.TLSWrapper(ctx, t, conn)
+		conn, err := tls.Dial(network, addr, d.TLSConfig)
+		if err != nil {
+			return nil, fmt.Errorf("could not initiate a TLS connection with TLS dialer: %v", err)
+		}
+		return &TLSConnection{
+			Conn: *conn,
+			log: &TLSLog{
+				HandshakeLog:  conn.GetHandshakeLog(),
+				HeartbleedLog: conn.GetHeartbleedLog(),
+			},
+		}, nil
 	}
 }
 
