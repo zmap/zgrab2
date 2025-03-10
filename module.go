@@ -33,12 +33,6 @@ type Scanner interface {
 	// GetDefaultDialerGroup returns the default dialer group for this scanner. A module should set the dialers it needs
 	// in init for the framework to use.
 	GetDefaultDialerGroup() *DialerGroup
-
-	// SupportsTLS whether a module supports TLS by default
-	SupportsTLS() bool
-
-	// GetDefaultTransportProtocol returns the default l4 transport protocol for this scanner
-	GetDefaultTransportProtocol() TransportProtocol
 }
 
 type TransportProtocol uint

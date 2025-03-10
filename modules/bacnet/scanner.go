@@ -33,6 +33,11 @@ type Scanner struct {
 	config *Flags
 }
 
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	//TODO implement me
+	panic("implement me")
+}
+
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module

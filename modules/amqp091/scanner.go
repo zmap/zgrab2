@@ -177,14 +177,6 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
-func (scanner *Scanner) SupportsTLS() bool {
-	return true
-}
-
-func (scanner *Scanner) GetDefaultTransportProtocol() zgrab2.TransportProtocol {
-	return zgrab2.TransportTCP
-}
-
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
