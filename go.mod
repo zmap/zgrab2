@@ -1,9 +1,6 @@
 module github.com/zmap/zgrab2
 
 go 1.23
-
-toolchain go1.23.0
-
 require (
 	github.com/hdm/jarm-go v0.0.7
 	github.com/prometheus/client_golang v1.21.0
@@ -14,7 +11,7 @@ require (
 	golang.org/x/crypto v0.33.0
 	golang.org/x/net v0.35.0
 	golang.org/x/sys v0.30.0
-	golang.org/x/text v0.22.0
+	golang.org/x/text v0.23.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v2 v2.4.0
