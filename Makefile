@@ -31,7 +31,7 @@ integration-test:
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base runner # ensure the apt cache is up to date and we've built the runner fresh
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build $(TEST_MODULES)
 	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $(TEST_MODULES)
-	sleep 10 # Wait for services to start
+	sleep 15 # Wait for services to start
 	TEST_MODULES="$(TEST_MODULES)" python3 integration_tests/test.py
 	# Shut off the services
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
