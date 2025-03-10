@@ -6,7 +6,7 @@ toolchain go1.23.0
 
 require (
 	github.com/hdm/jarm-go v0.0.7
-	github.com/prometheus/client_golang v1.21.0
+	github.com/prometheus/client_golang v1.21.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/zmap/zcrypto v0.0.0-20250122162432-7a1cf5fc45e3
