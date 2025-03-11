@@ -238,7 +238,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
-		L4Dialer:   scanner.getDefaultDialContext(),
+		L4Dialer:   scanner.getDefaultDialContext,
 		TLSWrapper: scanner.getTLSWrapper(),
 	}
 
@@ -283,41 +283,39 @@ func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
 
 // Dial a connection using the configured timeouts, as well as the global deadline, and on success,
 // add the connection to the list of connections to be cleaned up.
-func (scanner *Scanner) getDefaultDialContext() func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
-	return func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
-		return func(ctx context.Context, network, target string) (net.Conn, error) {
-			dialer := new(zgrab2.Dialer)
-			dialer = dialer.SetDefaults()
+func (scanner *Scanner) getDefaultDialContext(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
+	return func(ctx context.Context, network, target string) (net.Conn, error) {
+		dialer := new(zgrab2.Dialer)
+		dialer = dialer.SetDefaults()
 
-			switch network {
-			case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
-				// If the scan is for a specific IP, and a domain name is provided, we
-				// don't want to just let the http library resolve the domain.  Create
-				// a fake resolver that we will use, that always returns the IP we are
-				// given to scan.
-				if scanTarget.IP != nil && scanTarget.Domain != "" {
-					host := scanTarget.Domain
-					// In the case of redirects, we don't want to blindly use the
-					// IP we were given to scan, however.  Only use the fake
-					// resolver if the domain originally specified for the scan
-					// target matches the current address being looked up in this
-					// DialContext.
-					if host == scanTarget.Domain {
-						resolver, err := zgrab2.NewFakeResolver(scanTarget.IP.String())
-						if err != nil {
-							return nil, err
-						}
-						dialer.Dialer.Resolver = resolver
+		switch network {
+		case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
+			// If the scan is for a specific IP, and a domain name is provided, we
+			// don't want to just let the http library resolve the domain.  Create
+			// a fake resolver that we will use, that always returns the IP we are
+			// given to scan.
+			if scanTarget.IP != nil && scanTarget.Domain != "" {
+				host := scanTarget.Domain
+				// In the case of redirects, we don't want to blindly use the
+				// IP we were given to scan, however.  Only use the fake
+				// resolver if the domain originally specified for the scan
+				// target matches the current address being looked up in this
+				// DialContext.
+				if host == scanTarget.Domain {
+					resolver, err := zgrab2.NewFakeResolver(scanTarget.IP.String())
+					if err != nil {
+						return nil, err
 					}
+					dialer.Dialer.Resolver = resolver
 				}
 			}
-
-			conn, err := dialer.DialContext(ctx, network, target)
-			if err != nil {
-				return nil, err
-			}
-			return conn, nil
 		}
+
+		conn, err := dialer.DialContext(ctx, network, target)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
 }
 
