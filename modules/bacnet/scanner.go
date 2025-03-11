@@ -30,12 +30,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
-}
-
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	//TODO implement me
-	panic("implement me")
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -78,6 +74,8 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	scanner.defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultUDPDialer(&f.BaseFlags, &f.UDPFlags)
 	return nil
 }
 
@@ -156,4 +154,8 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 	}
 
 	return zgrab2.SCAN_SUCCESS, ret, nil
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }

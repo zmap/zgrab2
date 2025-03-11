@@ -1,5 +1,7 @@
 package modules
 
-//func init() {
-//	dnp3.RegisterModule()
-//}
+import "github.com/zmap/zgrab2/modules/dnp3"
+
+func init() {
+	dnp3.RegisterModule()
+}

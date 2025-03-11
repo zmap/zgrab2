@@ -50,9 +50,14 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
-	regex  *regexp.Regexp
-	probe  []byte
+	config             *Flags
+	regex              *regexp.Regexp
+	probe              []byte
+	defaultDialerGroup *zgrab2.DialerGroup
+}
+
+func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return s.defaultDialerGroup
 }
 
 // ScanResults instances are returned by the module's Scan function.
@@ -145,6 +150,12 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 			panic("Probe error")
 		}
 		s.probe = []byte(strProbe)
+	}
+	s.defaultDialerGroup = new(zgrab2.DialerGroup)
+	if f.UseTLS {
+		s.defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+	} else {
+		s.defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
 	}
 	return nil
 }
