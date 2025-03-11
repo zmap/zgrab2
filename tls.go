@@ -276,6 +276,13 @@ type TLSConnection struct {
 	log   *TLSLog
 }
 
+func CreateTLSConnection(conn *tls.Conn, flags *TLSFlags) *TLSConnection {
+	return &TLSConnection{
+		Conn:  *conn,
+		flags: flags,
+	}
+}
+
 type TLSLog struct {
 	// TODO include TLSFlags?
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`

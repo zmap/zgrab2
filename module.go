@@ -53,7 +53,9 @@ type DialerGroup struct {
 	DefaultDialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)
 	// L4Dialer will be used by any module that needs to have a TCP/UDP connection. Think of following a redirect to an
 	// http:// server, or a module that needs to start with a TCP connection and then upgrade to TLS as part of the protocol.
-	L4Dialer func(ctx context.Context, network, address string) (net.Conn, error)
+	// The layered function is needed since we set DialerGroups at Scanner.Init, but modules like HTTP will modify the
+	// Dialer based on the target.
+	L4Dialer func(target *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error)
 	// TLSWrapper is a function that takes an existing net.Conn and upgrades it to a TLS connection. This is useful for
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
 	// Cannot be used for QUIC connections, as QUIC connections are not "upgraded" from a L4 connection
@@ -78,7 +80,7 @@ func (d *DialerGroup) SetDefaultDialer(dialer func(ctx context.Context, target *
 	d.DefaultDialer = dialer
 }
 
-func (d *DialerGroup) GetL4Dialer() func(ctx context.Context, network, address string) (net.Conn, error) {
+func (d *DialerGroup) GetL4Dialer() func(target *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return d.L4Dialer
 }
 
@@ -91,7 +93,7 @@ func (d *DialerGroup) GetTLSWrapper() func(ctx context.Context, target *ScanTarg
 func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*TLSConnection, error) {
 	return func(network, addr string) (*TLSConnection, error) {
 		if d.TLSWrapper != nil {
-			conn, err := d.L4Dialer(ctx, network, addr)
+			conn, err := d.L4Dialer(t)(ctx, network, addr)
 			if err != nil {
 				return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
 			}
