@@ -72,7 +72,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
-		DefaultDialer: zgrab2.GetDefaultTCPDialer(&f.BaseFlags),
+		TransportAgnosticDialer: zgrab2.GetDefaultTCPDialer(&f.BaseFlags),
 	}
 	return nil
 }

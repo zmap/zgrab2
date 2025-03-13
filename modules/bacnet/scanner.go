@@ -75,7 +75,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
-	scanner.defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultUDPDialer(&f.BaseFlags, &f.UDPFlags)
+	scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultUDPDialer(&f.BaseFlags, &f.UDPFlags)
 	return nil
 }
 

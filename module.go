@@ -27,8 +27,9 @@ type Scanner interface {
 	// Protocol returns the protocol identifier for the scan.
 	Protocol() string
 
-	// Scan connects to a host. The result should be JSON-serializable
-	Scan(ctx context.Context, t *ScanTarget, dialer *DialerGroup) (ScanStatus, any, error)
+	// Scan connects to a host. The result should be JSON-serializable. If a scan requires a dialer that isn't set in
+	// the dialer group, an error will return.
+	Scan(ctx context.Context, t *ScanTarget, dialerGroup *DialerGroup) (ScanStatus, any, error)
 
 	// GetDefaultDialerGroup returns the default dialer group for this scanner. A module should set the dialers it needs
 	// in init for the framework to use.
@@ -45,12 +46,12 @@ const (
 type TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
 
 type DialerGroup struct {
-	// DefaultDialer should be used by most modules that do not need control over the transport layer.
+	// TransportAgnosticDialer should be used by most modules that do not need control over the transport layer.
 	// It abstracts the underlying transport protocol so a module can  deal with just the L7 logic. Any protocol that
 	// doesn't need to know about the underlying transport should use this.
 	// If the transport is a TLS connection, the dialer should provide a zgrab2.TLSConnection so the underlying log can be
 	// accessed.
-	DefaultDialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)
+	TransportAgnosticDialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)
 	// L4Dialer will be used by any module that needs to have a TCP/UDP connection. Think of following a redirect to an
 	// http:// server, or a module that needs to start with a TCP connection and then upgrade to TLS as part of the protocol.
 	// The layered function is needed since we set DialerGroups at Scanner.Init, but modules like HTTP will modify the
@@ -73,11 +74,11 @@ type DialerGroup struct {
 
 // Dial is used to access the default dialer
 func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, error) {
-	return d.DefaultDialer(ctx, target)
+	return d.TransportAgnosticDialer(ctx, target)
 }
 
 func (d *DialerGroup) SetDefaultDialer(dialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)) {
-	d.DefaultDialer = dialer
+	d.TransportAgnosticDialer = dialer
 }
 
 func (d *DialerGroup) GetL4Dialer() func(target *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {

@@ -133,9 +133,9 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	s.defaultDialerGroup = new(zgrab2.DialerGroup)
 	if f.ImplicitTLS {
 		// user wants to connect via TLS
-		s.defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
 	} else {
-		s.defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
 	}
 	return nil
 }

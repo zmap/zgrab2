@@ -146,9 +146,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.config = f
 	var defaultDialerGroup *zgrab2.DialerGroup
 	if f.UseTLS {
-		defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+		defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
 	} else {
-		defaultDialerGroup.DefaultDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+		defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
 	}
 	return nil
 }
