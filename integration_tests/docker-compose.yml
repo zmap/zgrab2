@@ -136,10 +136,25 @@ services:
     image: eclipse-mosquitto
     container_name: zgrab_mqtt
     restart: unless-stopped
+    command: >
+      sh -c "
+        apk add --no-cache openssl &&
+        mkdir -p /mosquitto/certs &&
+        # Generate CA
+        openssl genrsa -out /mosquitto/certs/ca.key 2048 &&
+        openssl req -new -x509 -days 365 -key /mosquitto/certs/ca.key -out /mosquitto/certs/ca.crt -subj '/CN=MQTT CA' &&
+
+        # Generate server certificate
+        openssl genrsa -out /mosquitto/certs/server.key 2048 &&
+        openssl req -new -key /mosquitto/certs/server.key -out /mosquitto/certs/server.csr -subj '/CN=mqtt-server' &&
+        openssl x509 -req -in /mosquitto/certs/server.csr -CA /mosquitto/certs/ca.crt -CAkey /mosquitto/certs/ca.key -CAcreateserial -out /mosquitto/certs/server.crt -days 365 &&
+
+        # Set permissions
+        chmod -R 0755 /mosquitto/certs &&
+        mosquitto -c /mosquitto/config/mosquitto.conf -v
+      "
     volumes:
       - ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf
-      - ./mqtt/server.pem:/mosquitto/server.pem
-      - ./mqtt/server.key:/mosquitto/server.key
     networks:
       - mqtt-network
     hostname: "target"
@@ -403,7 +418,6 @@ services:
     hostname: "target"
     depends_on:
       - service_base
-
 
 networks:
   amqp091-3.12.14-network:
