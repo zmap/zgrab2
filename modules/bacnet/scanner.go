@@ -99,6 +99,14 @@ func (scanner *Scanner) Protocol() string {
 	return "bacnet"
 }
 
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
+}
+
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Scan probes for a BACNet service.
 // Behavior taken from original zgrab.
 // Connects to the configured port over UDP (default 47808/0xBAC0).
@@ -154,8 +162,4 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 	}
 
 	return zgrab2.SCAN_SUCCESS, ret, nil
-}
-
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
 }

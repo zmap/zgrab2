@@ -99,6 +99,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Scan probes for Siemens S7 services.
 // 1. Connect to TCP port 102
 // 2. Send a COTP connection packet with destination TSAP 0x0102, source TSAP 0x0100

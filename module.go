@@ -35,6 +35,9 @@ type Scanner interface {
 	// in init for the framework to use.
 	GetDefaultDialerGroup() *DialerGroup
 
+	// GetDefaultPort returns the default L4 port this scanner uses. If the ScanTarget.Port is 0, this port will be used.
+	GetDefaultPort() uint
+
 	// TODO Phillip consider adding a fn to validate dialer groups. This will force module authors to consider what dialers they need and we can enforce they're valid for each module
 }
 

@@ -194,6 +194,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 func getSMTPCode(response string) (int, error) {
 	if len(response) < 5 {
 		return 0, ErrInvalidResponse

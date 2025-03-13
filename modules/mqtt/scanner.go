@@ -88,8 +88,12 @@ func (s *Scanner) Protocol() string {
 	return "mqtt"
 }
 
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
+func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return s.defaultDialerGroup
+}
+
+func (s *Scanner) GetDefaultPort() uint {
+	return s.config.Port
 }
 
 // Init initializes the Scanner instance with the flags from the command line.
@@ -116,8 +120,8 @@ func (s *Scanner) GetName() string {
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
+func (s *Scanner) GetTrigger() string {
+	return s.config.Trigger
 }
 
 // SendMQTTConnectPacket constructs and sends an MQTT CONNECT packet to the server.

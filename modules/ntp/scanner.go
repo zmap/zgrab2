@@ -879,6 +879,14 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
+}
+
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
 func (scanner *Scanner) SendAndReceive(impl ImplNumber, req RequestCode, body []byte, sock net.Conn) (*PrivatePacketHeader, []byte, error) {
 	outHeader, err := (&PrivatePacketHeader{
@@ -1045,8 +1053,4 @@ func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGrou
 	}
 
 	return zgrab2.SCAN_SUCCESS, result, nil
-}
-
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
 }

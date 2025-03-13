@@ -75,27 +75,27 @@ func (f *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifier for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "pptp"
 }
 
 // Init initializes the Scanner instance with the flags from the command line.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
-	s.config = f
-	s.defaultDialerGroup = new(zgrab2.DialerGroup)
-	s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+	scanner.config = f
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
 	return nil
 }
 
 // InitPerSender does nothing in this module.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
 // GetName returns the configured name for the Scanner.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
@@ -105,6 +105,10 @@ func (scanner *Scanner) GetTrigger() string {
 
 func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
+}
+
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
 }
 
 // PPTP Start-Control-Connection-Request message constants
@@ -152,7 +156,7 @@ func (pptp *Connection) readResponse() (string, error) {
 }
 
 // Scan performs the configured scan on the PPTP server
-func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
 	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
@@ -162,7 +166,7 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 
 	results := ScanResults{}
 
-	pptp := Connection{conn: conn, config: s.config, results: results}
+	pptp := Connection{conn: conn, config: scanner.config, results: results}
 
 	// Send Start-Control-Connection-Request message
 	request := createSCCRMessage()

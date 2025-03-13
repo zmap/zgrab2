@@ -170,6 +170,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 func getPOP3Error(response string) error {
 	if !strings.HasPrefix(response, "-") {
 		return nil

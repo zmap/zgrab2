@@ -339,6 +339,10 @@ func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return s.defaultDialerGroup
 }
 
+func (s *Scanner) GetDefaultPort() uint {
+	return s.Config.Port
+}
+
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
 func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.DialerGroup) error {
 	var conn *zgrab2.TLSConnection

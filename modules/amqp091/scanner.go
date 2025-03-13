@@ -177,6 +177,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {

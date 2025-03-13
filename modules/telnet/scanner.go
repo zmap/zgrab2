@@ -108,6 +108,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)

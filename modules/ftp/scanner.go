@@ -117,7 +117,7 @@ func (f *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "ftp"
 }
 
@@ -125,29 +125,33 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Init initializes the Scanner instance with the flags from the command
 // line.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
-	s.config = f
-	s.defaultDialerGroup = new(zgrab2.DialerGroup)
+	scanner.config = f
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
 	if f.ImplicitTLS {
 		// user wants to connect via TLS
-		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
 	} else {
-		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
 	}
 	return nil
 }
 
 // InitPerSender does nothing in this module.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
 // GetName returns the configured name for the Scanner.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
@@ -254,14 +258,14 @@ func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.S
 //   - Perform ths TLS handshake / any configured TLS scans, populating
 //     results.TLSLog.
 //   - Return SCAN_SUCCESS, &results, nil
-func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
 	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %v: %w", t.String(), err)
 	}
 	results := ScanResults{
-		ImplicitTLS: s.config.ImplicitTLS,
+		ImplicitTLS: scanner.config.ImplicitTLS,
 	}
 	defer func() {
 		// Check if we have a TLS conn and grab the log
@@ -271,12 +275,12 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 		// cleanup conn
 		zgrab2.CloseConnAndHandleError(conn)
 	}()
-	ftp := Connection{conn: conn, config: s.config, results: results}
+	ftp := Connection{conn: conn, config: scanner.config, results: results}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error reading FTP banner for target %s: %w", t.String(), err)
 	}
-	if s.config.FTPAuthTLS && is200Banner {
+	if scanner.config.FTPAuthTLS && is200Banner {
 		if err := ftp.GetFTPSCertificates(ctx, t, dialGroup.GetTLSWrapper()); err != nil {
 			return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error getting FTPS certificates for target %s: %w", t.String(), err)
 		}

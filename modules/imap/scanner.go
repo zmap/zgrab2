@@ -157,6 +157,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 func getIMAPError(response string) error {
 	if strings.HasPrefix(response, "a001 OK") {
 		return nil
@@ -197,12 +201,7 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 //  7. If --send-close is sent, send a001 CLOSE and read the result.
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	port := target.Port
-	if port == 0 {
-		// use default if target port is not set
-		port = scanner.config.Port
-	}
-	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", port))
+	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", target.Port))
 	l4Dialer := dialGroup.GetL4Dialer()
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4Dialer set")

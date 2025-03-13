@@ -113,6 +113,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // readResponse reads a response from the SOCKS5 server.
 func (conn *Connection) readResponse(expectedLength int) ([]byte, error) {
 	resp := make([]byte, expectedLength)

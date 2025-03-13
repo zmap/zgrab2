@@ -201,6 +201,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 func (scanner *Scanner) getTNSDriver() *TNSDriver {
 	mode := TNSModeOld
 	if scanner.config.NewTNS {

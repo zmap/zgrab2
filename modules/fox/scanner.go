@@ -105,6 +105,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Scan probes for a Tridium Fox service.
 // 1. Opens a TCP connection to the configured port (default 1911)
 // 2. Sends a static query

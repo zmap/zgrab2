@@ -100,17 +100,13 @@ func (s *SSHScanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return s.defaultDialerGroup
 }
 
+func (s *SSHScanner) GetDefaultPort() uint {
+	return s.config.Port
+}
+
 func (s *SSHScanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
-
-	var port uint
-	// If the port is supplied in ScanTarget, let that override the cmdline option
-	if t.Port != 0 {
-		port = t.Port
-	} else {
-		port = s.config.Port
-	}
-	portStr := strconv.FormatUint(uint64(port), 10)
+	portStr := strconv.FormatUint(uint64(t.Port), 10)
 	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()

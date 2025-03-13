@@ -56,10 +56,6 @@ type Scanner struct {
 	defaultDialerGroup *zgrab2.DialerGroup
 }
 
-func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
 // ScanResults instances are returned by the module's Scan function.
 type Results struct {
 	Banner string         `json:"banner,omitempty"`
@@ -104,6 +100,14 @@ func (s *Scanner) Protocol() string {
 // InitPerSender initializes the scanner for a given sender.
 func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
+}
+
+func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return s.defaultDialerGroup
+}
+
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
 }
 
 // NewScanner returns a new Scanner object.

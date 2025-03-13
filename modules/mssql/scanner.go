@@ -113,7 +113,7 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "mssql"
 }
 
@@ -129,6 +129,10 @@ func (scanner *Scanner) GetTrigger() string {
 
 func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
+}
+
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
 }
 
 // Scan performs the MSSQL scan.

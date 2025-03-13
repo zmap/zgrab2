@@ -221,6 +221,10 @@ func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return s.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // GetTrigger returns the Trigger defined in the Flags.
 func (s *Scanner) GetTrigger() string {
 	return s.config.Trigger

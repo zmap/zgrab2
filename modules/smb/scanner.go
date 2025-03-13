@@ -102,6 +102,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Scan performs the following:
 //  1. Connect to the TCP port (default 445).
 //  2. Send a negotiation packet with the default values:

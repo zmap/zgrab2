@@ -127,6 +127,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // Conn wraps the connection state (more importantly, it provides the interface used by the old zgrab code, so that it
 // could be taken over as-is).
 type Conn struct {

@@ -28,10 +28,14 @@ func PrintScanners() {
 }
 
 // RunScanner runs a single scan on a target and returns the resulting data
-func RunScanner(s Scanner, mon *Monitor, target *ScanTarget) (string, ScanResponse) {
+func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
+	// if target's port isn't set, use default. Won't affect the caller's ScanTarget since it's passed by value
+	if target.Port == 0 {
+		target.Port = s.GetDefaultPort()
+	}
 	dialerGroup := s.GetDefaultDialerGroup()
-	status, res, e := s.Scan(context.Background(), target, dialerGroup)
+	status, res, e := s.Scan(context.Background(), &target, dialerGroup)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}

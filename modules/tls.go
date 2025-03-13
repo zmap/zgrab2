@@ -74,6 +74,10 @@ func (s *TLSScanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return s.defaultDialerGroup
 }
 
+func (s *TLSScanner) GetDefaultPort() uint {
+	return s.config.Port
+}
+
 func (s *TLSScanner) InitPerSender(senderID int) error {
 	return nil
 }

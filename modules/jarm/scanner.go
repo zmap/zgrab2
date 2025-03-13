@@ -80,6 +80,10 @@ func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
 	return scanner.defaultDialerGroup
 }
 
+func (scanner *Scanner) GetDefaultPort() uint {
+	return scanner.config.Port
+}
+
 // InitPerSender initializes the scanner for a given sender.
 func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
