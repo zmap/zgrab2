@@ -35,7 +35,8 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the pptp zgrab2 module.
@@ -82,6 +83,8 @@ func (s *Scanner) Protocol() string {
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
+	s.defaultDialerGroup = new(zgrab2.DialerGroup)
+	s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
 	return nil
 }
 
@@ -98,6 +101,10 @@ func (s *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 // PPTP Start-Control-Connection-Request message constants

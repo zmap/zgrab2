@@ -147,7 +147,8 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule is called by modules/mysql.go to register the scanner.
@@ -191,6 +192,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	s.defaultDialerGroup = new(zgrab2.DialerGroup)
+	s.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
+		return func(ctx context.Context, network, address string) (net.Conn, error) {
+			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
+		}
+	}
+	s.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -209,9 +217,13 @@ func (s *Scanner) GetName() string {
 	return s.config.Name
 }
 
+func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return s.defaultDialerGroup
+}
+
 // GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
+func (s *Scanner) GetTrigger() string {
+	return s.config.Trigger
 }
 
 // Scan probles the target for a MySQL server.
@@ -220,6 +232,11 @@ func (scanner *Scanner) GetTrigger() string {
 //     perform the standard TLS actions.
 //  3. Process and return the results.
 func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+	// check for necessary dialers
+	l4Dialer := dialGroup.GetL4Dialer()
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
+	}
 	var tlsConn *zgrab2.TLSConnection
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
@@ -231,7 +248,7 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 	}()
 	var err error
 
-	conn, err := dialGroup.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(t.String(), fmt.Sprintf("%d", t.Port)))
+	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.String(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", t.String(), err)
 	}
@@ -242,7 +259,11 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 		if err = sql.NegotiateTLS(); err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %v", t.String(), err)
 		}
-		if tlsConn, err = dialGroup.GetTLSWrapper()(ctx, t, conn); err != nil {
+		tlsWrapper := dialGroup.GetTLSWrapper()
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("TLS wrapper required for mysql")
+		}
+		if tlsConn, err = tlsWrapper(ctx, t, conn); err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %v", t.String(), err)
 		}
 		result.(*ScanResults).TLSLog = tlsConn.GetLog()

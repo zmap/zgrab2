@@ -74,7 +74,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -121,6 +122,14 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	// configure the dialer group
+	scanner.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
+		return func(ctx context.Context, network, address string) (net.Conn, error) {
+			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
+		}
+	}
+	scanner.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -142,6 +151,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "imap"
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 func getIMAPError(response string) error {
@@ -184,15 +197,28 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 //  7. If --send-close is sent, send a001 CLOSE and read the result.
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", target.Port))
-	c, err := dialGroup.GetL4Dialer()(ctx, "tcp", addr)
+	port := target.Port
+	if port == 0 {
+		// use default if target port is not set
+		port = scanner.config.Port
+	}
+	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", port))
+	l4Dialer := dialGroup.GetL4Dialer()
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4Dialer set")
+	}
+	c, err := dialGroup.GetL4Dialer()(target)(ctx, "tcp", addr)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer zgrab2.CloseConnAndHandleError(c)
 	result := &ScanResults{}
 	if scanner.config.IMAPSecure {
-		tlsConn, err := dialGroup.GetTLSWrapper()(ctx, target, c)
+		tlsWrapper := dialGroup.GetTLSWrapper()
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLSWrapper set")
+		}
+		tlsConn, err := tlsWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %v", target.String(), err)
 		}
@@ -220,7 +246,11 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		if err := getIMAPError(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %v", target.String(), err)
 		}
-		tlsConn, err := dialGroup.GetTLSWrapper()(ctx, target, c)
+		tlsWrapper := dialGroup.GetTLSWrapper()
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLSWrapper set")
+		}
+		tlsConn, err := tlsWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %v", target.String(), err)
 		}

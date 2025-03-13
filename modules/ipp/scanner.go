@@ -2,15 +2,14 @@
 // TODO: Describe module, the flags, the probe, the output, etc.
 package ipp
 
-
 import (
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 
-	//"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -124,7 +123,8 @@ type version struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 	// TODO: Add scan state if any is necessary
 }
 
@@ -173,6 +173,15 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	// configure the dialer group
+	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
+		L4Dialer: func(_ *zgrab2.ScanTarget) func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			return func(ctx context.Context, network, address string) (net.Conn, error) {
+				return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
+			}
+		},
+		TLSWrapper: zgrab2.GetDefaultTLSWrapper(&f.TLSFlags),
+	}
 	return nil
 }
 
@@ -194,6 +203,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "ipp"
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
@@ -638,11 +651,14 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 }
 
 // Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
-func (scan *scan) getTLSDialer(scanner *Scanner, dialGroup *zgrab2.DialerGroup) func(net, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		tlsConn, err := dialGroup.GetTLSDialer(ctx, )
+		tlsConn, err := dialGroup.GetTLSDialer(ctx, target)("tcp", addr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to establish TLS connection to %s: %v", addr, err)
+		}
 		scan.results.TLSLog = tlsConn.GetLog()
-		return tlsConn, err
+		return tlsConn, nil
 	}
 }
 
@@ -682,7 +698,7 @@ func (scanner *Scanner) tryGrabForVersions(ctx context.Context, target *zgrab2.S
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
-	transport.DialTLS = newScan.getTLSDialer(scanner)
+	transport.DialTLS = newScan.getTLSDialer(ctx, target, dialGroup)
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.Timeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
@@ -726,7 +742,7 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 // 2. Take in that response & read out version numbers
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
-	scan, err := scanner.tryGrabForVersions(ctx context.Context, target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure, dialGroup)
+	scan, err := scanner.tryGrabForVersions(ctx, target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure, dialGroup)
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
@@ -734,7 +750,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.TLSRetry && !scanner.config.IPPSecure {
-			retry, retryErr := scanner.tryGrabForVersions(&target, Versions, false)
+			retry, retryErr := scanner.tryGrabForVersions(ctx, target, Versions, false, dialGroup)
 			if retryErr != nil {
 				if retry.shouldReportResult(scanner) {
 					return retryErr.Unpack(&retry.results)

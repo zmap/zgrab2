@@ -109,7 +109,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -189,6 +190,10 @@ func (scanner *Scanner) Protocol() string {
 	return "smtp"
 }
 
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
+}
+
 func getSMTPCode(response string) (int, error) {
 	if len(response) < 5 {
 		return 0, ErrInvalidResponse
@@ -241,10 +246,11 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 //  7. If --send-quit is sent, send QUIT and read the result.
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialer *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	if dialer.GetL4Dialer() == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4 dialer found. SMTP requires a TCP dialer")
+	l4Dialer := dialer.GetL4Dialer()
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4 dialer found. SMTP requires a L4 dialer")
 	}
-	conn, err := dialer.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(target.IP.String(), strconv.FormatUint(uint64(target.Port), 10)))
+	conn, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.IP.String(), strconv.FormatUint(uint64(target.Port), 10)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}

@@ -962,6 +962,9 @@ func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.Scan
 	if mode == EncryptModeNotSupported {
 		return mode, nil
 	}
+	if tlsWrapper == nil {
+		return mode, fmt.Errorf("encrypt_mode=%s but no TLS wrapper provided", mode)
+	}
 	// do handshake: the raw TLS frames are wrapped in a TDS packet:
 	// tls.Conn.Handshake() ->
 	// -> tdsConnection.Write(clientHello) ->

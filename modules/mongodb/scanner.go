@@ -28,6 +28,7 @@ type Scanner struct {
 	buildInfoCommandMsg []byte
 	buildInfoOpMsg      []byte
 	listDatabasesMsg    []byte
+	defaultDialerGroup  *zgrab2.DialerGroup
 }
 
 // scan holds the state for the scan of an individual target
@@ -198,6 +199,9 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.buildInfoCommandMsg = getBuildInfoQuery()
 	scanner.buildInfoOpMsg = getBuildInfoOpMsg()
 	scanner.listDatabasesMsg = getListDatabasesMsg()
+	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
+		TransportAgnosticDialer: zgrab2.GetDefaultTCPDialer(&f.BaseFlags),
+	}
 	return nil
 }
 
@@ -214,6 +218,10 @@ func (scanner *Scanner) GetName() string {
 // Protocol returns the protocol identifer for the scanner.
 func (s *Scanner) Protocol() string {
 	return "mongodb"
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 // GetTrigger returns the Trigger defined in the Flags.

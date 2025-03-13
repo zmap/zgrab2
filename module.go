@@ -34,6 +34,8 @@ type Scanner interface {
 	// GetDefaultDialerGroup returns the default dialer group for this scanner. A module should set the dialers it needs
 	// in init for the framework to use.
 	GetDefaultDialerGroup() *DialerGroup
+
+	// TODO Phillip consider adding a fn to validate dialer groups. This will force module authors to consider what dialers they need and we can enforce they're valid for each module
 }
 
 type TransportProtocol uint
@@ -55,7 +57,7 @@ type DialerGroup struct {
 	// L4Dialer will be used by any module that needs to have a TCP/UDP connection. Think of following a redirect to an
 	// http:// server, or a module that needs to start with a TCP connection and then upgrade to TLS as part of the protocol.
 	// The layered function is needed since we set DialerGroups at Scanner.Init, but modules like HTTP will modify the
-	// Dialer based on the target.
+	// Dialer based on the target, for example to use a fake DNS resolver based on the domain name.
 	L4Dialer func(target *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error)
 	// TLSWrapper is a function that takes an existing net.Conn and upgrades it to a TLS connection. This is useful for
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
@@ -74,6 +76,9 @@ type DialerGroup struct {
 
 // Dial is used to access the default dialer
 func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+	if d.TransportAgnosticDialer == nil {
+		return nil, fmt.Errorf("no transport agnostic dialer set")
+	}
 	return d.TransportAgnosticDialer(ctx, target)
 }
 
@@ -93,24 +98,17 @@ func (d *DialerGroup) GetTLSWrapper() func(ctx context.Context, target *ScanTarg
 // require this for handling redirects to https://
 func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*TLSConnection, error) {
 	return func(network, addr string) (*TLSConnection, error) {
-		if d.TLSWrapper != nil {
-			conn, err := d.L4Dialer(t)(ctx, network, addr)
-			if err != nil {
-				return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
-			}
-			return d.TLSWrapper(ctx, t, conn)
+		if d.TLSWrapper == nil {
+			return nil, fmt.Errorf("no TLS wrapper set")
 		}
-		conn, err := tls.Dial(network, addr, d.TLSConfig)
+		if d.L4Dialer == nil {
+			return nil, fmt.Errorf("no L4 dialer set")
+		}
+		conn, err := d.L4Dialer(t)(ctx, network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("could not initiate a TLS connection with TLS dialer: %v", err)
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
 		}
-		return &TLSConnection{
-			Conn: *conn,
-			log: &TLSLog{
-				HandshakeLog:  conn.GetHandshakeLog(),
-				HeartbleedLog: conn.GetHeartbleedLog(),
-			},
-		}, nil
+		return d.TLSWrapper(ctx, t, conn)
 	}
 }
 

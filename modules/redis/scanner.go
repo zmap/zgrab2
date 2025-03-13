@@ -49,9 +49,10 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	config          *Flags
-	commandMappings map[string]string
-	customCommands  []string
+	config             *Flags
+	commandMappings    map[string]string
+	customCommands     []string
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // scan holds the state for the scan of an individual target
@@ -205,6 +206,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if err != nil {
 		log.Fatal(err)
 	}
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	if f.UseTLS {
+		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+	} else {
+		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+	}
 	return nil
 }
 
@@ -221,6 +228,10 @@ func (scanner *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 // Close cleans up the scanner.

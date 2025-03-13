@@ -28,6 +28,7 @@ package pop3
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -87,7 +88,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -134,6 +136,13 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	scanner.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
+		return func(ctx context.Context, network, address string) (net.Conn, error) {
+			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
+		}
+	}
+	scanner.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -155,6 +164,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "pop3"
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 func getPOP3Error(response string) error {
@@ -198,14 +211,35 @@ func VerifyPOP3Contents(banner string) zgrab2.ScanStatus {
 //  7. If --send-quit is sent, send QUIT and read the result.
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	c, err := dialGroup.Dial(ctx, target)
+	// check for necessary dialers
+	l4Dialer := dialGroup.GetL4Dialer()
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
+	}
+	tlsWrapper := dialGroup.GetTLSWrapper()
+	if tlsWrapper == nil && (scanner.config.StartTLS || scanner.config.POP3Secure) {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("TLS wrapper is required for mysql with --starttls or --pop3s")
+	}
+	port := target.Port
+	if port == 0 {
+		// If no port is specified, use the default from config
+		port = scanner.config.Port
+	}
+	c, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(c)
 	result := &ScanResults{}
-	if tlsConn, ok := c.(*zgrab2.TLSConnection); ok {
+	if scanner.config.POP3Secure {
+		// Perform a TLS handshake immediately
+		var tlsConn *zgrab2.TLSConnection
+		tlsConn, err = tlsWrapper(ctx, target, c)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		}
 		result.TLSLog = tlsConn.GetLog()
+		c = tlsConn
 	}
 	conn := Connection{Conn: c}
 	banner, err := conn.ReadResponse()
@@ -242,22 +276,18 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		if err := getPOP3Error(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(conn.Conn)
+		var tlsConn *zgrab2.TLSConnection
+		tlsConn, err = tlsWrapper(ctx, target, c)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
 		}
 		result.TLSLog = tlsConn.GetLog()
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
-		}
-		conn.Conn = tlsConn
+		c = tlsConn
 	}
 	if scanner.config.SendQUIT {
 		ret, err := conn.SendCommand("QUIT")
 		if err != nil {
-			if err != nil {
-				return zgrab2.TryGetScanStatus(err), nil, err
-			}
+			return zgrab2.TryGetScanStatus(err), nil, err
 		}
 		result.QUIT = ret
 	}

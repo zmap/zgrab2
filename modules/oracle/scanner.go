@@ -102,7 +102,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -167,6 +168,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	if f.TCPS {
+		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
+	} else {
+		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+	}
 	return nil
 }
 
@@ -188,6 +195,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "oracle"
+}
+
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
 }
 
 func (scanner *Scanner) getTNSDriver() *TNSDriver {

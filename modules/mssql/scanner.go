@@ -60,7 +60,8 @@ type Module struct {
 
 // Scanner is the implementation of zgrab2.Scanner for the MSSQL protocol.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 // NewFlags returns a default Flags instance to be populated by the command
@@ -96,6 +97,13 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	scanner.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
+		return func(ctx context.Context, network, address string) (net.Conn, error) {
+			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
+		}
+	}
+	scanner.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -119,6 +127,10 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
+}
+
 // Scan performs the MSSQL scan.
 // 1. Open a TCP connection to the target port (default 1433).
 // 2. Send a PRELOGIN packet to the server.
@@ -127,7 +139,11 @@ func (scanner *Scanner) GetTrigger() string {
 // 5. Perform a TLS handshake, with the packets wrapped in TDS headers.
 // 6. Decode the Version and InstanceName from the PRELOGIN response
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.GetL4Dialer()(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
+	l4Dialer := dialGroup.GetL4Dialer()
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mssql")
+	}
+	conn, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", target.String(), err)
 	}

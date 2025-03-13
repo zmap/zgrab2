@@ -28,7 +28,8 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config             *Flags
+	defaultDialerGroup *zgrab2.DialerGroup
 }
 
 type Results struct {
@@ -75,6 +76,10 @@ func (scanner *Scanner) Protocol() string {
 	return "jarm"
 }
 
+func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
+	return scanner.defaultDialerGroup
+}
+
 // InitPerSender initializes the scanner for a given sender.
 func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
@@ -99,6 +104,9 @@ func (f *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
+		TransportAgnosticDialer: zgrab2.GetDefaultTCPDialer(&f.BaseFlags),
+	}
 	return nil
 }
 
