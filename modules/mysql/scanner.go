@@ -241,16 +241,22 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
 	}
-	var tlsConn *zgrab2.TLSConnection
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
 		result = readResultsFromConnectionLog(&sql.ConnectionLog)
+		// attempt to capture TLS log
+		if tlsConn, ok := sql.Connection.(*zgrab2.TLSConnection); ok {
+			if scanResults, ok := result.(*ScanResults); ok {
+				scanResults.TLSLog = tlsConn.GetLog()
+			}
+		}
 		err := sql.Disconnect()
 		if err != nil {
 			log.Errorf("error disconnecting from target %s: %v", t.String(), err)
 		}
 	}()
 	var err error
+	var tlsConn *zgrab2.TLSConnection
 
 	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.String(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
@@ -270,7 +276,6 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 		if tlsConn, err = tlsWrapper(ctx, t, conn); err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %v", t.String(), err)
 		}
-		result.(*ScanResults).TLSLog = tlsConn.GetLog()
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		sql.Connection = tlsConn
 	}

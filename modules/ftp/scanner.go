@@ -135,12 +135,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
-	if f.ImplicitTLS {
-		// user wants to connect via TLS
-		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
-	} else {
-		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+	scanner.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
+		return func(ctx context.Context, network, address string) (net.Conn, error) {
+			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
+		}
 	}
+	scanner.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -260,9 +260,22 @@ func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.S
 //   - Return SCAN_SUCCESS, &results, nil
 func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
-	conn, err := dialGroup.Dial(ctx, t)
+	if dialGroup.L4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for FTP")
+	}
+	if (scanner.config.FTPAuthTLS || scanner.config.ImplicitTLS) && dialGroup.TLSWrapper == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("must specify a TLS wrapper for FTPS")
+	}
+	conn, err := dialGroup.L4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %v: %w", t.String(), err)
+	}
+	if scanner.config.ImplicitTLS {
+		tlsWrapper := dialGroup.GetTLSWrapper()
+		conn, err = tlsWrapper(ctx, t, conn)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", t.String(), err)
+		}
 	}
 	results := ScanResults{
 		ImplicitTLS: scanner.config.ImplicitTLS,
@@ -281,7 +294,11 @@ func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGrou
 		return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error reading FTP banner for target %s: %w", t.String(), err)
 	}
 	if scanner.config.FTPAuthTLS && is200Banner {
-		if err := ftp.GetFTPSCertificates(ctx, t, dialGroup.GetTLSWrapper()); err != nil {
+		tlsWrapper := dialGroup.GetTLSWrapper()
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("TLS wrapper is required for FTPS")
+		}
+		if err := ftp.GetFTPSCertificates(ctx, t, tlsWrapper); err != nil {
 			return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error getting FTPS certificates for target %s: %w", t.String(), err)
 		}
 	}
