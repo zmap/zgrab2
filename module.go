@@ -91,7 +91,7 @@ func (config *DialerGroupConfig) Validate() error {
 	return nil
 }
 
-func (config *DialerGroupConfig) getDefaultDialerGroupFromConfig() (*DialerGroup, error) {
+func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup, error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("config did not pass validation: %w", err)
 	}

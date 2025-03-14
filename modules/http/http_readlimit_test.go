@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/sys/unix"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/sys/unix"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
@@ -390,7 +391,23 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 	target := zgrab2.ScanTarget{
 		IP: net.ParseIP("127.0.0.1"),
 	}
-	status, ret, err := scanner.Scan(target)
+	baseFlags := &zgrab2.BaseFlags{
+		Port:    80,
+		Timeout: time.Second * 10,
+	}
+	tlsFlags := &zgrab2.TLSFlags{}
+	dialerGroupConfig := zgrab2.DialerGroupConfig{
+		L4TransportProtocol:  zgrab2.TransportTCP,
+		BaseFlags:            baseFlags,
+		TLSFlags:             tlsFlags,
+		TLSEnabled:           true,
+		NeedSeparateL4Dialer: true,
+	}
+	dialerGroup, err := dialerGroupConfig.GetDefaultDialerGroupFromConfig()
+	if err != nil {
+		t.Fatalf("Error getting default dialer group: %v", err)
+	}
+	status, ret, err := scanner.Scan(context.Background(), dialerGroup, &target)
 	response := getResponse(ret)
 
 	if status != cfg.expectedStatus {

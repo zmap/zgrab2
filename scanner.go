@@ -27,7 +27,7 @@ func RegisterScan(name string, s Scanner) {
 		log.Fatalf("error validating dialer config for %s: %v", name, err)
 	}
 	defaultDialerGroupConfigToScanners[name] = dialerConfig
-	dialerGroup, err := dialerConfig.getDefaultDialerGroupFromConfig()
+	dialerGroup, err := dialerConfig.GetDefaultDialerGroupFromConfig()
 	if err != nil {
 		log.Fatalf("error getting default dialer group for %s: %v", name, err)
 	}
