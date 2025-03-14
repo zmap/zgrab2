@@ -210,7 +210,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 	if scanner.config.IMAPSecure {
 		tlsWrapper := dialGroup.GetTLSWrapper()
 		if tlsWrapper == nil {
-			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLSWrapper set")
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no tlsWrapper set")
 		}
 		tlsConn, err := tlsWrapper(ctx, target, c)
 		if err != nil {
@@ -242,7 +242,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		}
 		tlsWrapper := dialGroup.GetTLSWrapper()
 		if tlsWrapper == nil {
-			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLSWrapper set")
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no tlsWrapper set")
 		}
 		tlsConn, err := tlsWrapper(ctx, target, c)
 		if err != nil {

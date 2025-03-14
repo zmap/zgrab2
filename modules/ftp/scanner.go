@@ -255,13 +255,13 @@ func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.S
 //   - Return SCAN_SUCCESS, &results, nil
 func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	var err error
-	if dialGroup.L4Dialer == nil {
+	if dialGroup.GetL4Dialer() == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for FTP")
 	}
-	if (scanner.config.FTPAuthTLS || scanner.config.ImplicitTLS) && dialGroup.TLSWrapper == nil {
+	if (scanner.config.FTPAuthTLS || scanner.config.ImplicitTLS) && dialGroup.GetTLSWrapper() == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("must specify a TLS wrapper for FTPS")
 	}
-	conn, err := dialGroup.L4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port)))
+	conn, err := dialGroup.GetL4Dialer()(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %v: %w", t.String(), err)
 	}

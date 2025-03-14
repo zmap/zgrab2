@@ -149,35 +149,14 @@ type DialerGroup struct {
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
 	// Cannot be used for QUIC connections, as QUIC connections are not "upgraded" from a L4 connection
 	TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
-
-	// Below are to support QUIC, we need the following: https://quic-go.net/docs/http3/client/
-	// https://pkg.go.dev/github.com/quic-go/quic-go/http3#Transport Needed for full control over this
-	// TLSConfig is used for QUIC connections and if TLSWrapper is nil for TLS connections
-	//TLSConfig  *tls.Config
-	//QUICConfig *quic.Config
-	//// We'll likely need to impose our own type on quic.EarlyConnection to get the same log info we have in TLS logs
-	//// TODO Phillip update below when we have QUIC support
-	//QUICDialer func(ctx context.Context, target *ScanTarget, tlsConf *tls.Config, quicConf *quic.Config) (quic.EarlyConnection, error)
 }
 
-// Dial is used to access the default dialer
+// Dial is used to access the transport agnostic dialer
 func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 	if d.TransportAgnosticDialer == nil {
 		return nil, fmt.Errorf("no transport agnostic dialer set")
 	}
 	return d.TransportAgnosticDialer(ctx, target)
-}
-
-func (d *DialerGroup) SetDefaultDialer(dialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)) {
-	d.TransportAgnosticDialer = dialer
-}
-
-func (d *DialerGroup) GetL4Dialer() func(target *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
-	return d.L4Dialer
-}
-
-func (d *DialerGroup) GetTLSWrapper() func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error) {
-	return d.TLSWrapper
 }
 
 // GetTLSDialer returns a function that can be used as a standalone TLS dialer. This is useful for modules like HTTP that
