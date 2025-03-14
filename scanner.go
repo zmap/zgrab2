@@ -65,4 +65,5 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 
 func init() {
 	scanners = make(map[string]*Scanner)
+	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
 }
