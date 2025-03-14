@@ -9,14 +9,24 @@ import (
 
 var scanners map[string]*Scanner
 var orderedScanners []string
+var defaultDialerGroupToScanners map[string]*DialerGroup
 
 // RegisterScan registers each individual scanner to be ran by the framework
 func RegisterScan(name string, s Scanner) {
 	//add to list and map
-	if scanners[name] != nil {
+	if scanners[name] != nil || defaultDialerGroupToScanners[name] != nil {
 		log.Fatalf("name: %s already used", name)
 	}
 	orderedScanners = append(orderedScanners, name)
+	dialerConfig := s.GetDialerConfig()
+	if dialerConfig == nil {
+		log.Fatalf("no dialer config for %s", name)
+	}
+	dialerGroup, err := dialerConfig.getDefaultDialerGroupFromConfig()
+	if err != nil {
+		log.Fatalf("error getting default dialer group for %s: %v", name, err)
+	}
+	defaultDialerGroupToScanners[name] = dialerGroup
 	scanners[name] = &s
 }
 
@@ -34,7 +44,11 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 	if target.Port == 0 {
 		target.Port = s.GetDefaultPort()
 	}
-	dialerGroup := s.GetDefaultDialerGroup()
+
+	dialerGroup, ok := defaultDialerGroupToScanners[s.GetName()]
+	if !ok {
+		log.Fatalf("no default dialer group for %s", s.GetName())
+	}
 	status, res, e := s.Scan(context.Background(), &target, dialerGroup)
 	var err *string
 	if e == nil {

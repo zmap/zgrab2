@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zmap/zcrypto/tls"
+	"time"
 
 	"net"
 	"sync"
@@ -73,6 +74,53 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 
 		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
 		return DialTimeoutConnection(ctx, "tcp", address, flags.Timeout, flags.BytesReadLimit)
+	}
+}
+
+func getPerTargetDefaultTCPDialer(flags *BaseFlags) func(scanTarget *ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
+	return func(scanTarget *ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
+		return func(ctx context.Context, network, addr string) (net.Conn, error) {
+
+			dialer := new(Dialer)
+			dialer = dialer.SetDefaults()
+			dialer.Timeout = flags.Timeout
+			if deadline, ok := ctx.Deadline(); ok {
+				dialer.Timeout = min(dialer.Timeout, deadline.Sub(time.Now()))
+			}
+
+			switch network {
+			case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
+				// If the scan is for a specific IP, and a domain name is provided, we
+				// don't want to just let the http library resolve the domain.  Create
+				// a fake resolver that we will use, that always returns the IP we are
+				// given to scan.
+				if scanTarget.IP != nil && scanTarget.Domain != "" {
+					host, _, err := net.SplitHostPort(addr)
+					if err != nil {
+						log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
+						log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
+					} else {
+						// In the case of redirects, we don't want to blindly use the
+						// IP we were given to scan, however.  Only use the fake
+						// resolver if the domain originally specified for the scan
+						// target matches the current address being looked up in this
+						// DialContext.
+						if host == scanTarget.Domain {
+							resolver, err := NewFakeResolver(scanTarget.IP.String())
+							if err != nil {
+								return nil, err
+							}
+							dialer.Dialer.Resolver = resolver
+						}
+					}
+				}
+			}
+			conn, err := dialer.DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			return conn, nil
+		}
 	}
 }
 

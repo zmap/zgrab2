@@ -3,8 +3,6 @@ package zgrab2
 import (
 	"context"
 	"fmt"
-	"github.com/quic-go/quic-go"
-	"github.com/zmap/zcrypto/tls"
 	"net"
 	"time"
 )
@@ -31,11 +29,11 @@ type Scanner interface {
 	// the dialer group, an error will return.
 	Scan(ctx context.Context, t *ScanTarget, dialerGroup *DialerGroup) (ScanStatus, any, error)
 
-	// GetDefaultDialerGroup returns the default dialer group for this scanner. A module should set the dialers it needs
-	// in init for the framework to use.
-	GetDefaultDialerGroup() *DialerGroup
+	// TODO Phillip comment
+	GetDialerConfig() *DialerGroupConfig
 
 	// GetDefaultPort returns the default L4 port this scanner uses. If the ScanTarget.Port is 0, this port will be used.
+	// Used by the scanner to set the port if it's not specified in the ScanTarget itself.
 	GetDefaultPort() uint
 
 	// TODO Phillip consider adding a fn to validate dialer groups. This will force module authors to consider what dialers they need and we can enforce they're valid for each module
@@ -44,11 +42,96 @@ type Scanner interface {
 type TransportProtocol uint
 
 const (
-	TransportTCP TransportProtocol = iota
+	reservedTransportProtocol TransportProtocol = iota // 0 is reserved so we can ensure the caller set this explicitly
+	TransportTCP
 	TransportUDP
 )
 
 type TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+
+// DialerGroupConfig lets modules communicate what they'd need in a dialer group and the framework will set it up
+type DialerGroupConfig struct {
+	// TransportProtocol is the L4 transport the module needs.
+	L4TransportProtocol TransportProtocol
+	// NeedSeparateL4Dialer indicates whether the module needs a dedicated L4 dialer in its DialerGroup.
+	// Some modules' protocols need to send some command (STARTTLS) after L4 connection and before TLS handshake.
+	// Others like http need to follow redirects to https:// and http:// servers, which requires both a TLS and L4 (TCP) conn.
+	// If this is true, the framework will ensure dialerGroup.L4Dialer is set.
+	// If false, the framework will set the TransportAgnosticDialer
+	NeedSeparateL4Dialer bool
+	BaseFlags            *BaseFlags
+	// TLSEnabled indicates whether the module needs a TLS connection. The behavior depends on if NeedsL4Dialer is true.
+	// If NeedsL4Dialer is true, the framework will set up a TLSWrapper in the DialerGroup so a module can access both.
+	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module has indicated it only needs a TLS connection.
+	TLSEnabled bool
+	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
+	UDPFlags   *UDPFlags // must be non-nil if L4TransportProtocol is TransportUDP
+}
+
+func (config *DialerGroupConfig) Validate() error {
+	switch config.L4TransportProtocol {
+	case reservedTransportProtocol:
+		return fmt.Errorf("L4TransportProtocol must be set")
+	case TransportUDP:
+		if config.UDPFlags == nil {
+			return fmt.Errorf("UDP flags must be set if L4TransportProtocol is UDP")
+		}
+		if config.TLSEnabled {
+			return fmt.Errorf("TLS-over-UDP (DTLS) is not currently supported")
+		}
+	case TransportTCP:
+		// no-op
+	default:
+		return fmt.Errorf("invalid L4TransportProtocol: %d", config.L4TransportProtocol)
+	}
+	if config.TLSEnabled && config.TLSFlags == nil {
+		return fmt.Errorf("TLS flags must be set if TLSEnabled is true")
+	}
+	return nil
+}
+
+func (config *DialerGroupConfig) getDefaultDialerGroupFromConfig() (*DialerGroup, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("config did not pass validation: %w", err)
+	}
+	dialerGroup := new(DialerGroup)
+	// Handle TLS
+	if config.TLSEnabled {
+		if config.NeedSeparateL4Dialer {
+			// will need both an L4 dialer and TLS wrapper
+			dialerGroup.L4Dialer = getPerTargetDefaultTCPDialer(config.BaseFlags)
+			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(config.TLSFlags)
+		} else {
+			// module only needs a TLS connection
+			dialerGroup.TransportAgnosticDialer = GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)
+		}
+		return dialerGroup, nil
+	}
+	// Handle non-TLS, Transport-Agnostic Cases
+	if !config.NeedSeparateL4Dialer {
+		if config.L4TransportProtocol == TransportUDP {
+			dialerGroup.TransportAgnosticDialer = GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)
+		} else {
+			dialerGroup.TransportAgnosticDialer = GetDefaultTCPDialer(config.BaseFlags)
+		}
+	} else {
+		// Non-TLS, but module requested a separate L4 dialer
+		if config.L4TransportProtocol == TransportUDP {
+			dialerGroup.L4Dialer = func(scanTarget *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, scanTarget)
+				}
+			}
+		} else {
+			dialerGroup.L4Dialer = func(scanTarget *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget)
+				}
+			}
+		}
+	}
+	return dialerGroup, nil
+}
 
 type DialerGroup struct {
 	// TransportAgnosticDialer should be used by most modules that do not need control over the transport layer.
@@ -70,11 +153,11 @@ type DialerGroup struct {
 	// Below are to support QUIC, we need the following: https://quic-go.net/docs/http3/client/
 	// https://pkg.go.dev/github.com/quic-go/quic-go/http3#Transport Needed for full control over this
 	// TLSConfig is used for QUIC connections and if TLSWrapper is nil for TLS connections
-	TLSConfig  *tls.Config
-	QUICConfig *quic.Config
-	// We'll likely need to impose our own type on quic.EarlyConnection to get the same log info we have in TLS logs
-	// TODO Phillip update below when we have QUIC support
-	QUICDialer func(ctx context.Context, target *ScanTarget, tlsConf *tls.Config, quicConf *quic.Config) (quic.EarlyConnection, error)
+	//TLSConfig  *tls.Config
+	//QUICConfig *quic.Config
+	//// We'll likely need to impose our own type on quic.EarlyConnection to get the same log info we have in TLS logs
+	//// TODO Phillip update below when we have QUIC support
+	//QUICDialer func(ctx context.Context, target *ScanTarget, tlsConf *tls.Config, quicConf *quic.Config) (quic.EarlyConnection, error)
 }
 
 // Dial is used to access the default dialer

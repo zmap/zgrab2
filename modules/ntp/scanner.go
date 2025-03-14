@@ -811,8 +811,8 @@ type Module struct {
 
 // Scanner holds the state for a single scan
 type Scanner struct {
-	config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config       *Flags
+	dialerConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the module with zgrab2
@@ -853,8 +853,11 @@ func (cfg *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
-		TransportAgnosticDialer: zgrab2.GetDefaultUDPDialer(&scanner.config.BaseFlags, &scanner.config.UDPFlags),
+	scanner.dialerConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol:  zgrab2.TransportUDP,
+		NeedSeparateL4Dialer: false,
+		BaseFlags:            &f.BaseFlags,
+		UDPFlags:             &f.UDPFlags,
 	}
 	return nil
 }
@@ -879,8 +882,8 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerConfig
 }
 
 func (scanner *Scanner) GetDefaultPort() uint {
