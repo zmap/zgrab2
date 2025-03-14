@@ -5,8 +5,9 @@ import (
 	"crypto/md5"
 	"strings"
 
-	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
 	"golang.org/x/crypto/md4"
+
+	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
 )
 
 func Ntowfv1(pass string) []byte {

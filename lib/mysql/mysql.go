@@ -22,10 +22,12 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
 	"io"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/zmap/zgrab2"
 )
 
 const (

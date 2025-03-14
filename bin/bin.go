@@ -13,6 +13,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
+
 	"github.com/zmap/zgrab2"
 )
 

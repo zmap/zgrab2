@@ -7,6 +7,7 @@ package dnp3
 
 import (
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 

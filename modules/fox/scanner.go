@@ -7,9 +7,11 @@ package fox
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
 	"net"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Flags holds the command-line configuration for the fox scan module.

@@ -3,8 +3,9 @@ package mongodb
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/zmap/zgrab2"
 	"io"
+
+	"github.com/zmap/zgrab2"
 )
 
 const (

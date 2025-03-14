@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/sys/unix"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/sys/unix"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server

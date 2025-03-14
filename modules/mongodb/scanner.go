@@ -6,8 +6,9 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
 	"gopkg.in/mgo.v2/bson"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Module implements the zgrab2.Module interface

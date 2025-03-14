@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2/lib/output"
 )
 
