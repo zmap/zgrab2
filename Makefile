@@ -20,6 +20,9 @@ test:
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
 	black .
+	# exclude .template/ directory
+	find . -name '*.go' ! -path './integration_tests/.template/*' -print0 | xargs -0 goimports -w -local "github.com/zmap/zgrab2"
+	golangci-lint run
 
 zgrab2: $(GO_FILES)
 	cd cmd/zgrab2 && go build && cd ../..
