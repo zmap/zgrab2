@@ -37,8 +37,8 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // Connection holds the state for a single connection to the MQTT server.
@@ -88,23 +88,21 @@ func (s *Scanner) Protocol() string {
 	return "mqtt"
 }
 
-func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
-func (s *Scanner) GetDefaultPort() uint {
-	return s.config.Port
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // Init initializes the Scanner instance with the flags from the command line.
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
-	s.defaultDialerGroup = new(zgrab2.DialerGroup)
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol: zgrab2.TransportTCP,
+		BaseFlags:           &f.BaseFlags,
+	}
 	if f.UseTLS {
-		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
-	} else {
-		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+		s.dialerGroupConfig.TLSEnabled = true
+		s.dialerGroupConfig.TLSFlags = &f.TLSFlags
 	}
 	return nil
 }

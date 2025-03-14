@@ -17,8 +17,8 @@ type TLSModule struct {
 }
 
 type TLSScanner struct {
-	config             *TLSFlags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *TLSFlags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 func init() {
@@ -56,8 +56,11 @@ func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
 		return zgrab2.ErrMismatchedFlags
 	}
 	s.config = f
-	s.defaultDialerGroup = &zgrab2.DialerGroup{
-		TransportAgnosticDialer: zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags),
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol: zgrab2.TransportTCP,
+		BaseFlags:           &f.BaseFlags,
+		TLSEnabled:          true,
+		TLSFlags:            &f.TLSFlags,
 	}
 	return nil
 }
@@ -68,14 +71,6 @@ func (s *TLSScanner) GetName() string {
 
 func (s *TLSScanner) GetTrigger() string {
 	return s.config.Trigger
-}
-
-func (s *TLSScanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
-func (s *TLSScanner) GetDefaultPort() uint {
-	return s.config.Port
 }
 
 func (s *TLSScanner) InitPerSender(senderID int) error {
@@ -114,4 +109,8 @@ func (s *TLSScanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialerGroup
 // Protocol returns the protocol identifer for the scanner.
 func (s *TLSScanner) Protocol() string {
 	return "tls"
+}
+
+func (s *TLSScanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return s.dialerGroupConfig
 }

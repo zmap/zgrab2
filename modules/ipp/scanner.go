@@ -123,8 +123,8 @@ type version struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 	// TODO: Add scan state if any is necessary
 }
 
@@ -173,14 +173,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	// configure the dialer group
-	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
-		L4Dialer: func(_ *zgrab2.ScanTarget) func(ctx context.Context, network string, addr string) (net.Conn, error) {
-			return func(ctx context.Context, network, address string) (net.Conn, error) {
-				return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
-			}
-		},
-		TLSWrapper: zgrab2.GetDefaultTLSWrapper(&f.TLSFlags),
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol:  zgrab2.TransportTCP,
+		NeedSeparateL4Dialer: true,
+		BaseFlags:            &f.BaseFlags,
+		TLSEnabled:           true,
+		TLSFlags:             &f.TLSFlags,
 	}
 	return nil
 }
@@ -205,12 +203,8 @@ func (scanner *Scanner) Protocol() string {
 	return "ipp"
 }
 
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get

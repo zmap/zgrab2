@@ -67,6 +67,8 @@ type TLSFlags struct {
 	ClientRandom string `long:"client-random" description:"Set an explicit Client Random (base64 encoded)"`
 	// TODO: format?
 	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
+
+	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 }
 
 func getCSV(arg string) []string {

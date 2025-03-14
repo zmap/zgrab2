@@ -34,8 +34,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -78,8 +78,9 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
-		TransportAgnosticDialer: zgrab2.GetDefaultTCPDialer(&f.BaseFlags),
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol: zgrab2.TransportTCP,
+		BaseFlags:           &f.BaseFlags,
 	}
 	return nil
 }
@@ -104,12 +105,8 @@ func (scanner *Scanner) Protocol() string {
 	return "telnet"
 }
 
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.

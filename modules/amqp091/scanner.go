@@ -30,8 +30,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 type connectionTune struct {
@@ -144,11 +144,13 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.config = f
-	scanner.defaultDialerGroup = new(zgrab2.DialerGroup)
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol: zgrab2.TransportTCP,
+		BaseFlags:           &f.BaseFlags,
+	}
 	if f.UseTLS {
-		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
-	} else {
-		scanner.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+		scanner.dialerGroupConfig.TLSFlags = &f.TLSFlags
+		scanner.dialerGroupConfig.TLSEnabled = true
 	}
 	return nil
 }
@@ -173,12 +175,8 @@ func (scanner *Scanner) Protocol() string {
 	return "amqp091"
 }
 
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {

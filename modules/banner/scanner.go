@@ -50,10 +50,10 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config             *Flags
-	regex              *regexp.Regexp
-	probe              []byte
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	regex             *regexp.Regexp
+	probe             []byte
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // ScanResults instances are returned by the module's Scan function.
@@ -97,17 +97,13 @@ func (s *Scanner) Protocol() string {
 	return "banner"
 }
 
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // InitPerSender initializes the scanner for a given sender.
 func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
-}
-
-func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
 }
 
 // NewScanner returns a new Scanner object.
@@ -155,11 +151,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		}
 		s.probe = []byte(strProbe)
 	}
-	s.defaultDialerGroup = new(zgrab2.DialerGroup)
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol: zgrab2.TransportTCP,
+		BaseFlags:           &f.BaseFlags,
+		TLSEnabled:          f.UseTLS,
+	}
 	if f.UseTLS {
-		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTLSDialer(&f.BaseFlags, &f.TLSFlags)
-	} else {
-		s.defaultDialerGroup.TransportAgnosticDialer = zgrab2.GetDefaultTCPDialer(&f.BaseFlags)
+		s.dialerGroupConfig.TLSFlags = &f.TLSFlags
 	}
 	return nil
 }

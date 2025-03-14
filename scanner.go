@@ -10,6 +10,7 @@ import (
 var scanners map[string]*Scanner
 var orderedScanners []string
 var defaultDialerGroupToScanners map[string]*DialerGroup
+var defaultDialerGroupConfigToScanners map[string]*DialerGroupConfig
 
 // RegisterScan registers each individual scanner to be ran by the framework
 func RegisterScan(name string, s Scanner) {
@@ -22,6 +23,10 @@ func RegisterScan(name string, s Scanner) {
 	if dialerConfig == nil {
 		log.Fatalf("no dialer config for %s", name)
 	}
+	if err := dialerConfig.Validate(); err != nil {
+		log.Fatalf("error validating dialer config for %s: %v", name, err)
+	}
+	defaultDialerGroupConfigToScanners[name] = dialerConfig
 	dialerGroup, err := dialerConfig.getDefaultDialerGroupFromConfig()
 	if err != nil {
 		log.Fatalf("error getting default dialer group for %s: %v", name, err)
@@ -40,15 +45,19 @@ func PrintScanners() {
 // RunScanner runs a single scan on a target and returns the resulting data
 func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	// if target's port isn't set, use default. Won't affect the caller's ScanTarget since it's passed by value
-	if target.Port == 0 {
-		target.Port = s.GetDefaultPort()
+	dialerGroupConfig, ok := defaultDialerGroupConfigToScanners[s.GetName()]
+	if !ok {
+		log.Fatalf("no default dialer group config for %s", s.GetName())
 	}
-
 	dialerGroup, ok := defaultDialerGroupToScanners[s.GetName()]
 	if !ok {
 		log.Fatalf("no default dialer group for %s", s.GetName())
 	}
+	// if target's port isn't set, use default. Won't affect the caller's ScanTarget since it's passed by value
+	if target.Port == 0 {
+		target.Port = dialerGroupConfig.BaseFlags.Port
+	}
+
 	status, res, e := s.Scan(context.Background(), &target, dialerGroup)
 	var err *string
 	if e == nil {
@@ -66,4 +75,5 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 func init() {
 	scanners = make(map[string]*Scanner)
 	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
+	defaultDialerGroupConfigToScanners = make(map[string]*DialerGroupConfig)
 }

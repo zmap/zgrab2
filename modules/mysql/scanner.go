@@ -147,8 +147,8 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule is called by modules/mysql.go to register the scanner.
@@ -192,13 +192,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	s.defaultDialerGroup = new(zgrab2.DialerGroup)
-	s.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
-		return func(ctx context.Context, network, address string) (net.Conn, error) {
-			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
-		}
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol:  zgrab2.TransportTCP,
+		NeedSeparateL4Dialer: true,
+		BaseFlags:            &f.BaseFlags,
+		TLSEnabled:           true,
+		TLSFlags:             &f.TLSFlags,
 	}
-	s.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -212,17 +212,13 @@ func (s *Scanner) Protocol() string {
 	return "mysql"
 }
 
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // GetName returns the name from the command line flags.
 func (s *Scanner) GetName() string {
 	return s.config.Name
-}
-
-func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
 }
 
 // GetTrigger returns the Trigger defined in the Flags.

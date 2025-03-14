@@ -811,8 +811,8 @@ type Module struct {
 
 // Scanner holds the state for a single scan
 type Scanner struct {
-	config       *Flags
-	dialerConfig *zgrab2.DialerGroupConfig
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the module with zgrab2
@@ -853,7 +853,7 @@ func (cfg *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerConfig = &zgrab2.DialerGroupConfig{
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		L4TransportProtocol:  zgrab2.TransportUDP,
 		NeedSeparateL4Dialer: false,
 		BaseFlags:            &f.BaseFlags,
@@ -883,11 +883,7 @@ func (scanner *Scanner) GetTrigger() string {
 }
 
 func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerConfig
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
+	return scanner.dialerGroupConfig
 }
 
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response

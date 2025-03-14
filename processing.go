@@ -138,12 +138,38 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 // GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
 func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
 	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
-		config, err := tlsFlags.GetTLSConfigForTarget(t)
+		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
 		if err != nil {
 			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
 		}
+		// Set SNI server name on redirects unless --server-name was used (issue #300)
+		//  - t.Domain is always set to the *original* Host so it's not useful for setting SNI
+		//  - host is the current target of the request in this context; this is true for the
+		//    initial request as well as subsequent requests caused by redirects
+		//  - scan.scanner.config.ServerName is the value from --server-name if one was specified
+
+		// If SNI is enabled and --server-name is not set, use the target host for the SNI server name
+		if !tlsFlags.NoSNI && tlsFlags.ServerName == "" {
+			host := t.Domain
+			// RFC4366: Literal IPv4 and IPv6 addresses are not permitted in "HostName"
+			if i := net.ParseIP(host); i == nil {
+				tlsConfig.ServerName = host
+			}
+		}
+
+		if tlsFlags.OverrideSH {
+			tlsConfig.SignatureAndHashes = []tls.SigAndHash{
+				{0x01, 0x04}, // rsa, sha256
+				{0x03, 0x04}, // ecdsa, sha256
+				{0x01, 0x02}, // rsa, sha1
+				{0x03, 0x02}, // ecdsa, sha1
+				{0x01, 0x04}, // rsa, sha256
+				{0x01, 0x05}, // rsa, sha384
+				{0x01, 0x06}, // rsa, sha512
+			}
+		}
 		tlsConn := TLSConnection{
-			Conn:  *(tls.Client(conn, config)),
+			Conn:  *(tls.Client(conn, tlsConfig)),
 			flags: tlsFlags,
 		}
 		err = tlsConn.Handshake()

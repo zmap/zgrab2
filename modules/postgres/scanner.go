@@ -130,8 +130,8 @@ type Flags struct {
 
 // Scanner is the zgrab2 scanner type for the postgres protocol
 type Scanner struct {
-	Config             *Flags
-	defaultDialerGroup *zgrab2.DialerGroup
+	Config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // Module is the zgrab2 module for the postgres protocol
@@ -305,13 +305,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	s.defaultDialerGroup = new(zgrab2.DialerGroup)
-	s.defaultDialerGroup.L4Dialer = func(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, address string) (net.Conn, error) {
-		return func(ctx context.Context, network, address string) (net.Conn, error) {
-			return zgrab2.DialTimeoutConnection(ctx, network, address, f.BaseFlags.Timeout, f.BaseFlags.BytesReadLimit)
-		}
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol:  zgrab2.TransportTCP,
+		NeedSeparateL4Dialer: true,
+		BaseFlags:            &f.BaseFlags,
+		TLSEnabled:           true,
+		TLSFlags:             &f.TLSFlags,
 	}
-	s.defaultDialerGroup.TLSWrapper = zgrab2.GetDefaultTLSWrapper(&f.TLSFlags)
 	return nil
 }
 
@@ -325,6 +325,10 @@ func (s *Scanner) Protocol() string {
 	return "postgres"
 }
 
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // GetName returns the name from the parameters.
 func (s *Scanner) GetName() string {
 	return s.Config.Name
@@ -333,14 +337,6 @@ func (s *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (s *Scanner) GetTrigger() string {
 	return s.Config.Trigger
-}
-
-func (s *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
-func (s *Scanner) GetDefaultPort() uint {
-	return s.Config.Port
 }
 
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.

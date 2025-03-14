@@ -32,8 +32,8 @@ type SSHModule struct {
 }
 
 type SSHScanner struct {
-	config             *SSHFlags
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *SSHFlags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 func init() {
@@ -78,8 +78,9 @@ func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	if len(s.config.HostKeyAlgorithms) == 0 {
 		s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
 	}
-	s.defaultDialerGroup = &zgrab2.DialerGroup{
-		TransportAgnosticDialer: zgrab2.GetDefaultTCPDialer(&f.BaseFlags),
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol: zgrab2.TransportTCP,
+		BaseFlags:           &f.BaseFlags,
 	}
 	return nil
 }
@@ -94,14 +95,6 @@ func (s *SSHScanner) GetName() string {
 
 func (s *SSHScanner) GetTrigger() string {
 	return s.config.Trigger
-}
-
-func (s *SSHScanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return s.defaultDialerGroup
-}
-
-func (s *SSHScanner) GetDefaultPort() uint {
-	return s.config.Port
 }
 
 func (s *SSHScanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
@@ -167,4 +160,8 @@ func (s *SSHScanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *
 // Protocol returns the protocol identifer for the scanner.
 func (s *SSHScanner) Protocol() string {
 	return "ssh"
+}
+
+func (s *SSHScanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return s.dialerGroupConfig
 }

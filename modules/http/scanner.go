@@ -23,7 +23,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zcrypto/tls"
 	"golang.org/x/net/html/charset"
 
 	"github.com/zmap/zgrab2"
@@ -74,8 +73,6 @@ type Flags struct {
 	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
 	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
 
-	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
-
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
 	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
@@ -104,11 +101,11 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config             *Flags
-	customHeaders      map[string]string
-	requestBody        string
-	decodedHashFn      func([]byte) string
-	defaultDialerGroup *zgrab2.DialerGroup
+	config            *Flags
+	customHeaders     map[string]string
+	requestBody       string
+	decodedHashFn     func([]byte) string
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -154,12 +151,8 @@ func (scanner *Scanner) Protocol() string {
 	return "http"
 }
 
-func (scanner *Scanner) GetDefaultDialerGroup() *zgrab2.DialerGroup {
-	return scanner.defaultDialerGroup
-}
-
-func (scanner *Scanner) GetDefaultPort() uint {
-	return scanner.config.Port
+func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // Init initializes the scanner with the given flags
@@ -241,9 +234,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
-	scanner.defaultDialerGroup = &zgrab2.DialerGroup{
-		L4Dialer:   scanner.getDefaultDialContext,
-		TLSWrapper: scanner.getTLSWrapper(),
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		L4TransportProtocol:  zgrab2.TransportTCP,
+		NeedSeparateL4Dialer: true,
+		BaseFlags:            &scanner.config.BaseFlags,
+		TLSEnabled:           true,
+		TLSFlags:             &scanner.config.TLSFlags,
 	}
 
 	return nil
@@ -283,88 +279,6 @@ func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
 		return ret
 	}
 	return ctx
-}
-
-// Dial a connection using the configured timeouts, as well as the global deadline, and on success,
-// add the connection to the list of connections to be cleaned up.
-func (scanner *Scanner) getDefaultDialContext(scanTarget *zgrab2.ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
-	return func(ctx context.Context, network, target string) (net.Conn, error) {
-		dialer := new(zgrab2.Dialer)
-		dialer = dialer.SetDefaults()
-
-		switch network {
-		case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
-			// If the scan is for a specific IP, and a domain name is provided, we
-			// don't want to just let the http library resolve the domain.  Create
-			// a fake resolver that we will use, that always returns the IP we are
-			// given to scan.
-			if scanTarget.IP != nil && scanTarget.Domain != "" {
-				host := scanTarget.Domain
-				// In the case of redirects, we don't want to blindly use the
-				// IP we were given to scan, however.  Only use the fake
-				// resolver if the domain originally specified for the scan
-				// target matches the current address being looked up in this
-				// DialContext.
-				if host == scanTarget.Domain {
-					resolver, err := zgrab2.NewFakeResolver(scanTarget.IP.String())
-					if err != nil {
-						return nil, err
-					}
-					dialer.Dialer.Resolver = resolver
-				}
-			}
-		}
-
-		conn, err := dialer.DialContext(ctx, network, target)
-		if err != nil {
-			return nil, err
-		}
-		return conn, nil
-	}
-}
-
-// getTLSDialer returns a Dial function that connects using the
-// zgrab2.GetTLSConnection()
-func (scanner *Scanner) getTLSWrapper() func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error) {
-	return func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error) {
-		cfg, err := scanner.config.TLSFlags.GetTLSConfigForTarget(target)
-		if err != nil {
-			return nil, err
-		}
-
-		// Set SNI server name on redirects unless --server-name was used (issue #300)
-		//  - t.Domain is always set to the *original* Host so it's not useful for setting SNI
-		//  - host is the current target of the request in this context; this is true for the
-		//    initial request as well as subsequent requests caused by redirects
-		//  - scan.scanner.config.ServerName is the value from --server-name if one was specified
-
-		// If SNI is enabled and --server-name is not set, use the target host for the SNI server name
-		if !scanner.config.NoSNI && scanner.config.ServerName == "" {
-			host := target.Domain
-			// RFC4366: Literal IPv4 and IPv6 addresses are not permitted in "HostName"
-			if i := net.ParseIP(host); i == nil {
-				cfg.ServerName = host
-			}
-		}
-
-		if scanner.config.OverrideSH {
-			cfg.SignatureAndHashes = []tls.SigAndHash{
-				{0x01, 0x04}, // rsa, sha256
-				{0x03, 0x04}, // ecdsa, sha256
-				{0x01, 0x02}, // rsa, sha1
-				{0x03, 0x02}, // ecdsa, sha1
-				{0x01, 0x04}, // rsa, sha256
-				{0x01, 0x05}, // rsa, sha384
-				{0x01, 0x06}, // rsa, sha512
-			}
-		}
-
-		tlsConn := zgrab2.CreateTLSConnection(tls.Client(l4Conn, cfg), &scanner.config.TLSFlags)
-
-		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
-		err = tlsConn.Handshake()
-		return tlsConn, err
-	}
 }
 
 // Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
