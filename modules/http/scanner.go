@@ -391,7 +391,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	}
 	ret.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		ctx = ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.l4Dialer(t)(ctx, network, addr)
+		conn, err := dialerGroup.L4Dialer(t)(ctx, network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
 		}
@@ -558,6 +558,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialerGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+	if dialerGroup == nil || dialerGroup.L4Dialer == nil || dialerGroup.TLSWrapper == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("must specify a dialer group with L4 dialer and TLS wrapper")
+	}
 	scan := scanner.newHTTPScan(ctx, t, scanner.config.UseHTTPS, dialerGroup)
 	defer scan.Cleanup()
 	err := scan.Grab()

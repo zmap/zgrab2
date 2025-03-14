@@ -197,18 +197,18 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", target.Port))
-	l4Dialer := dialGroup.GetL4Dialer()
+	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4Dialer set")
 	}
-	c, err := dialGroup.GetL4Dialer()(target)(ctx, "tcp", addr)
+	c, err := l4Dialer(target)(ctx, "tcp", addr)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer zgrab2.CloseConnAndHandleError(c)
 	result := &ScanResults{}
 	if scanner.config.IMAPSecure {
-		tlsWrapper := dialGroup.GetTLSWrapper()
+		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no tlsWrapper set")
 		}
@@ -240,7 +240,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		if err := getIMAPError(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %v", target.String(), err)
 		}
-		tlsWrapper := dialGroup.GetTLSWrapper()
+		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no tlsWrapper set")
 		}

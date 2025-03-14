@@ -212,11 +212,11 @@ func VerifyPOP3Contents(banner string) zgrab2.ScanStatus {
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
 	// check for necessary dialers
-	l4Dialer := dialGroup.GetL4Dialer()
+	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
 	}
-	tlsWrapper := dialGroup.GetTLSWrapper()
+	tlsWrapper := dialGroup.TLSWrapper
 	if tlsWrapper == nil && (scanner.config.StartTLS || scanner.config.POP3Secure) {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("TLS wrapper is required for mysql with --starttls or --pop3s")
 	}

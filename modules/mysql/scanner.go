@@ -233,7 +233,7 @@ func (s *Scanner) GetTrigger() string {
 //  3. Process and return the results.
 func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
 	// check for necessary dialers
-	l4Dialer := dialGroup.GetL4Dialer()
+	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
 	}
@@ -265,7 +265,7 @@ func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgr
 		if err = sql.NegotiateTLS(); err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %v", t.String(), err)
 		}
-		tlsWrapper := dialGroup.GetTLSWrapper()
+		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("TLS wrapper required for mysql")
 		}

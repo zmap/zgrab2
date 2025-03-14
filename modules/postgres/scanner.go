@@ -343,7 +343,7 @@ func (s *Scanner) GetTrigger() string {
 func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.DialerGroup) error {
 	var conn *zgrab2.TLSConnection
 	var err error
-	tlsWrapper := dialGroup.GetTLSWrapper()
+	tlsWrapper := dialGroup.TLSWrapper
 	if tlsWrapper == nil {
 		return fmt.Errorf("dial group does not have a TLS wrapper")
 	}
@@ -359,7 +359,7 @@ func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.
 func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool, dialGroup *zgrab2.DialerGroup) (*Connection, *zgrab2.ScanError) {
 	var conn net.Conn
 	var err error
-	l4Dialer := dialGroup.GetL4Dialer()
+	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return nil, zgrab2.DetectScanError(fmt.Errorf("l4 dialer is required for postgres"))
 	}

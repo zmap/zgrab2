@@ -29,16 +29,12 @@ type Scanner interface {
 	// the dialer group, an error will return.
 	Scan(ctx context.Context, t *ScanTarget, dialerGroup *DialerGroup) (ScanStatus, any, error)
 
-	// TODO Phillip comment
+	// GetDialerConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
+	// desired dialer configuration.
 	GetDialerConfig() *DialerGroupConfig
-
-	// GetDefaultPort returns the default L4 port this scanner uses. If the ScanTarget.Port is 0, this port will be used.
-	// Used by the scanner to set the port if it's not specified in the ScanTarget itself.
-	GetDefaultPort() uint
-
-	// TODO Phillip consider adding a fn to validate dialer groups. This will force module authors to consider what dialers they need and we can enforce they're valid for each module
 }
 
+// TransportProtocol is an enum for the transport layer protocol of a module
 type TransportProtocol uint
 
 const (
@@ -47,9 +43,7 @@ const (
 	TransportUDP
 )
 
-type TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
-
-// DialerGroupConfig lets modules communicate what they'd need in a dialer group and the framework will set it up
+// DialerGroupConfig lets modules communicate what they'd need in a dialer group
 type DialerGroupConfig struct {
 	// TransportProtocol is the L4 transport the module needs.
 	L4TransportProtocol TransportProtocol
@@ -68,7 +62,11 @@ type DialerGroupConfig struct {
 	UDPFlags   *UDPFlags // must be non-nil if L4TransportProtocol is TransportUDP
 }
 
+// Validate checks for various incompatibilities in the DialerGroupConfig
 func (config *DialerGroupConfig) Validate() error {
+	if config.BaseFlags == nil {
+		return fmt.Errorf("BaseFlags must be set")
+	}
 	switch config.L4TransportProtocol {
 	case reservedTransportProtocol:
 		return fmt.Errorf("L4TransportProtocol must be set")
@@ -86,6 +84,9 @@ func (config *DialerGroupConfig) Validate() error {
 	}
 	if config.TLSEnabled && config.TLSFlags == nil {
 		return fmt.Errorf("TLS flags must be set if TLSEnabled is true")
+	}
+	if config.TLSFlags != nil && !config.TLSEnabled {
+		return fmt.Errorf("TLS flags must be nil if TLSEnabled is false")
 	}
 	return nil
 }
@@ -133,6 +134,8 @@ func (config *DialerGroupConfig) getDefaultDialerGroupFromConfig() (*DialerGroup
 	return dialerGroup, nil
 }
 
+// DialerGroup wraps various dialer functions for a module to use. A module will usually only use a subset of these,
+// and will indicate which ones it needs in the DialerGroupConfig.
 type DialerGroup struct {
 	// TransportAgnosticDialer should be used by most modules that do not need control over the transport layer.
 	// It abstracts the underlying transport protocol so a module can  deal with just the L7 logic. Any protocol that

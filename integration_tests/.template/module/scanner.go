@@ -36,6 +36,7 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
+dialerGroupConfig *zgrab2.DialerGroupConfig
 	// TODO: Add scan state
 }
 
@@ -75,6 +76,8 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	// FIXME set DialerGroupConfig Settings
+	scanner.dialerConfig = new(zgrab2.DialerGroupConfig)
 	return nil
 }
 
