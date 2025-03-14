@@ -111,6 +111,6 @@ func (s *TLSScanner) Protocol() string {
 	return "tls"
 }
 
-func (s *TLSScanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+func (s *TLSScanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return s.dialerGroupConfig
 }

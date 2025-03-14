@@ -212,7 +212,7 @@ func (s *Scanner) Protocol() string {
 	return "mysql"
 }
 
-func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 

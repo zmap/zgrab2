@@ -162,6 +162,6 @@ func (s *SSHScanner) Protocol() string {
 	return "ssh"
 }
 
-func (s *SSHScanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+func (s *SSHScanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return s.dialerGroupConfig
 }

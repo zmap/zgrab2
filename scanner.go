@@ -19,7 +19,7 @@ func RegisterScan(name string, s Scanner) {
 		log.Fatalf("name: %s already used", name)
 	}
 	orderedScanners = append(orderedScanners, name)
-	dialerConfig := s.GetDialerConfig()
+	dialerConfig := s.GetDialerGroupConfig()
 	if dialerConfig == nil {
 		log.Fatalf("no dialer config for %s", name)
 	}

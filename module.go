@@ -29,9 +29,9 @@ type Scanner interface {
 	// the dialer group, an error will return.
 	Scan(ctx context.Context, dialerGroup *DialerGroup, t *ScanTarget) (ScanStatus, any, error)
 
-	// GetDialerConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
+	// GetDialerGroupConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
 	// desired dialer configuration.
-	GetDialerConfig() *DialerGroupConfig
+	GetDialerGroupConfig() *DialerGroupConfig
 }
 
 // TransportProtocol is an enum for the transport layer protocol of a module

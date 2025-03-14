@@ -124,7 +124,7 @@ func (scanner *Scanner) Protocol() string {
 	return "modbus"
 }
 
-func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 

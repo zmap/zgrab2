@@ -152,7 +152,7 @@ func (scanner *Scanner) Protocol() string {
 	return "imap"
 }
 
-func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
