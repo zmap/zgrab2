@@ -232,7 +232,7 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //     into the results, then send a Native Security Negotiation Data packet.
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
-func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var results *ScanResults
 
 	sock, err := dialGroup.Dial(ctx, t)

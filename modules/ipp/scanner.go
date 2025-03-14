@@ -738,7 +738,7 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 // Scan TODO: describe how scan operates in appropriate detail
 // 1. Send a request (currently get-printer-attributes)
 // 2. Take in that response & read out version numbers
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
 	scan, err := scanner.tryGrabForVersions(ctx, target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure, dialGroup)
 	if err != nil {

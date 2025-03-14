@@ -393,7 +393,7 @@ func convToUint32(s string) uint32 {
 // 6. QUIT
 // The responses for each of these is logged, and if INFO succeeds, the version
 // is scraped from it.
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// ping, info, quit
 	scan, err := scanner.StartScan(ctx, target, dialGroup)
 	if err != nil {

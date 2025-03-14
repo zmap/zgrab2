@@ -109,7 +109,7 @@ func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
 // 5. Request to read the module identification (and store it in the output)
 // 6. Request to read the component identification (and store it in the output)
 // 7. Return the output
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to target %s: %w", target.String(), err)

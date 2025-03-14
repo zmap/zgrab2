@@ -179,7 +179,7 @@ func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%v): %w", target.String(), err)

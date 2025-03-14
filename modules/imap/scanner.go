@@ -195,7 +195,7 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 //     TLS connection using the command-line flags.
 //  7. If --send-close is sent, send a001 CLOSE and read the result.
 //  8. Close the connection.
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", target.Port))
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {

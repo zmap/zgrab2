@@ -111,7 +111,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Stores raw hashes returned from parsing each protocols Hello message
 	rawhashes := []string{}
 

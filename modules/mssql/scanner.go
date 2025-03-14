@@ -138,7 +138,7 @@ func (scanner *Scanner) GetTrigger() string {
 // 4. If the server encrypt mode is EncryptModeNotSupported, break.
 // 5. Perform a TLS handshake, with the packets wrapped in TDS headers.
 // 6. Decode the Version and InstanceName from the PRELOGIN response
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mssql")

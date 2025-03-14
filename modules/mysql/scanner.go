@@ -231,7 +231,7 @@ func (s *Scanner) GetTrigger() string {
 //  2. If the server supports SSL, send an SSLRequest packet, then
 //     perform the standard TLS actions.
 //  3. Process and return the results.
-func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	// check for necessary dialers
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {

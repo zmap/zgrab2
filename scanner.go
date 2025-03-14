@@ -58,7 +58,7 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 		target.Port = dialerGroupConfig.BaseFlags.Port
 	}
 
-	status, res, e := s.Scan(context.Background(), &target, dialerGroup)
+	status, res, e := s.Scan(context.Background(), dialerGroup, &target)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}

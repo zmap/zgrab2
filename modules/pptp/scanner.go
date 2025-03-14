@@ -154,7 +154,7 @@ func (pptp *Connection) readResponse() (string, error) {
 }
 
 // Scan performs the configured scan on the PPTP server
-func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var err error
 	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {

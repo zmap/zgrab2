@@ -210,7 +210,7 @@ func VerifyPOP3Contents(banner string) zgrab2.ScanStatus {
 //     TLS connection using the command-line flags.
 //  7. If --send-quit is sent, send QUIT and read the result.
 //  8. Close the connection.
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// check for necessary dialers
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {

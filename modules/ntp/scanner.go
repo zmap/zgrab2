@@ -1020,7 +1020,7 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	sock, err := dialGroup.Dial(ctx, t)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)

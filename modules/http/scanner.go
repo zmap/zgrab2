@@ -557,17 +557,17 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
-func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialerGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	if dialerGroup == nil || dialerGroup.L4Dialer == nil || dialerGroup.TLSWrapper == nil {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	if dialGroup == nil || dialGroup.L4Dialer == nil || dialGroup.TLSWrapper == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("must specify a dialer group with L4 dialer and TLS wrapper")
 	}
-	scan := scanner.newHTTPScan(ctx, t, scanner.config.UseHTTPS, dialerGroup)
+	scan := scanner.newHTTPScan(ctx, target, scanner.config.UseHTTPS, dialGroup)
 	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
 		if scanner.config.RetryHTTPS && !scanner.config.UseHTTPS {
 			scan.Cleanup()
-			retry := scanner.newHTTPScan(ctx, t, true, dialerGroup)
+			retry := scanner.newHTTPScan(ctx, target, true, dialGroup)
 			defer retry.Cleanup()
 			retryError := retry.Grab()
 			if retryError != nil {

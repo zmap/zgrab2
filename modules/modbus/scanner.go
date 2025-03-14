@@ -150,7 +150,7 @@ func (c *Conn) getUnderlyingConn() net.Conn {
 //
 // If the response is not a valid modbus response to this packet, then fail with a SCAN_PROTOCOL_ERROR.
 // Otherwise, return the parsed response and status (SCAN_SUCCESS or SCAN_APPLICATION_ERROR)
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not dial target %s: %w", target.String(), err)

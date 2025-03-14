@@ -114,8 +114,8 @@ func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
 // 3. Attempt to read the response (up to 8k + 4 bytes -- larger responses trigger an error)
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialer *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialer.Dial(ctx, target)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}

@@ -27,7 +27,7 @@ type Scanner interface {
 
 	// Scan connects to a host. The result should be JSON-serializable. If a scan requires a dialer that isn't set in
 	// the dialer group, an error will return.
-	Scan(ctx context.Context, t *ScanTarget, dialerGroup *DialerGroup) (ScanStatus, any, error)
+	Scan(ctx context.Context, dialerGroup *DialerGroup, t *ScanTarget) (ScanStatus, any, error)
 
 	// GetDialerConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
 	// desired dialer configuration.

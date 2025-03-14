@@ -116,7 +116,7 @@ func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
 //  5. Send a setup session packet to the server with appropriate values
 //  6. Read the response from the server; on failure, exit with the log so far.
 //  7. Return the log.
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to SMB server %s: %w", target.String(), err)

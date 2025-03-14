@@ -252,8 +252,8 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 //     TLS connection.
 //  7. If --send-quit is sent, send QUIT and read the result.
 //  8. Close the connection.
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialer *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
-	l4Dialer := dialer.L4Dialer
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4 dialer found. SMTP requires a L4 dialer")
 	}
@@ -264,7 +264,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 	defer zgrab2.CloseConnAndHandleError(conn)
 	result := &ScanResults{}
 	if scanner.config.SMTPSecure {
-		tlsWrapper := dialer.TLSWrapper
+		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found. SMTP with SMTPSecure requires a TLS wrapper")
 		}
@@ -326,7 +326,7 @@ func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dia
 		if code < 200 || code >= 300 {
 			return zgrab2.SCAN_APPLICATION_ERROR, result, fmt.Errorf("SMTP error code %d returned from STARTTLS command (%s) for target %s", code, strings.TrimSpace(ret), target.String())
 		}
-		tlsWrapper := dialer.TLSWrapper
+		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found. SMTP with SMTPSecure requires a TLS wrapper")
 		}

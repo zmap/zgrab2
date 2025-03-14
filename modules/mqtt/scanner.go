@@ -295,7 +295,7 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 }
 
 // Scan performs the configured scan on the MQTT server.
-func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", t.String(), err)

@@ -252,7 +252,7 @@ func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.S
 //   - Perform ths TLS handshake / any configured TLS scans, populating
 //     results.TLSLog.
 //   - Return SCAN_SUCCESS, &results, nil
-func (scanner *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var err error
 	if dialGroup.L4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for FTP")

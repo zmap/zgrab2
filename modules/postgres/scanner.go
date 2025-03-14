@@ -415,7 +415,7 @@ func (s *Scanner) getDefaultKVPs() map[string]string {
 //
 //     - NOTE: TLS is only used for the first connection, and then only if
 //     both client and server support it.
-func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var results Results
 
 	mgr := newConnectionManager()

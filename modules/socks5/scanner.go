@@ -233,7 +233,7 @@ func (conn *Connection) PerformConnectionRequest() error {
 }
 
 // Scan performs the configured scan on the SOCKS5 server.
-func (s *Scanner) Scan(ctx context.Context, t *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var have_auth bool
 	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {

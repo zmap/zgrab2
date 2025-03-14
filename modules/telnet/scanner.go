@@ -110,7 +110,7 @@ func (scanner *Scanner) GetDialerConfig() *zgrab2.DialerGroupConfig {
 }
 
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to telnet server %s: %w", target.String(), err)

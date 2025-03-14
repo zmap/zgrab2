@@ -326,7 +326,7 @@ func listDatabases(conn *Connection) (*ListDatabases_t, error) {
 
 // Scan connects to a host and performs a scan.
 // https://github.com/mongodb/specifications/blob/master/source/message/OP_MSG.rst
-func (scanner *Scanner) Scan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	scan, err := scanner.StartScan(ctx, target, dialGroup)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
