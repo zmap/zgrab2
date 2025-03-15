@@ -28,9 +28,10 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/http/httpguts"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
-	"golang.org/x/net/http/httpguts"
 )
 
 // DefaultTransport is the default implementation of Transport and is

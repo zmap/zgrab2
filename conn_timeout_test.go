@@ -180,7 +180,7 @@ func (cfg *connTimeoutTestConfig) dialerDial() (*TimeoutConnection, error) {
 
 // Dial a connection to the configured endpoint using a DialTimeoutConnectionEx
 func (cfg *connTimeoutTestConfig) directDial() (*TimeoutConnection, error) {
-	ret, err := DialTimeoutConnectionEx("tcp", cfg.getEndpoint(), cfg.connectTimeout, cfg.timeout, cfg.readTimeout, cfg.writeTimeout, 0)
+	ret, err := DialTimeoutConnectionEx(context.Background(), "tcp", cfg.getEndpoint(), cfg.connectTimeout, cfg.timeout, cfg.readTimeout, cfg.writeTimeout, 0)
 	if err != nil {
 		return nil, err
 	}

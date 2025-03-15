@@ -13,7 +13,7 @@ RUN go mod download && go mod verify
 
 # Build the actual app
 COPY . .
-RUN make all
+RUN make clean; make all
 
 ## Runtime image ##
 FROM alpine:3.21 AS run

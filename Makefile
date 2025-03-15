@@ -9,7 +9,7 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean gofmt test
+.PHONY: all clean integration-test integration-test-clean gofmt test integration-test-run-tests integration-test-start-containers
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
@@ -35,6 +35,16 @@ integration-test:
 	TEST_MODULES="$(TEST_MODULES)" python3 integration_tests/test.py
 	# Shut off the services
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
+
+integration-test-start-containers:
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base runner # ensure the apt cache is up to date and we've built the runner fresh
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build $(TEST_MODULES)
+	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $(TEST_MODULES)
+
+integration-test-run-tests:
+	rm -rf zgrab-output
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache runner # ensure the apt cache is up to date and we've built the runner fresh
+	TEST_MODULES="$(TEST_MODULES)" python3 integration_tests/test.py
 
 integration-test-clean:
 	rm -rf zgrab-output

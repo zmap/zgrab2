@@ -130,7 +130,7 @@ func GetTargetsCSV(source io.Reader, ch chan<- ScanTarget) error {
 					if port == "" {
 						ch <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag}
 					} else {
-						ch <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag, Port: &port_uint}
+						ch <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag, Port: port_uint}
 					}
 				}
 				continue
@@ -141,7 +141,7 @@ func GetTargetsCSV(source io.Reader, ch chan<- ScanTarget) error {
 		if port == "" {
 			ch <- ScanTarget{IP: ip, Domain: domain, Tag: tag}
 		} else {
-			ch <- ScanTarget{IP: ip, Domain: domain, Tag: tag, Port: &port_uint}
+			ch <- ScanTarget{IP: ip, Domain: domain, Tag: tag, Port: port_uint}
 		}
 	}
 	return nil

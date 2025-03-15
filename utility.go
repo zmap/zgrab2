@@ -252,3 +252,11 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 
 	return net.JoinHostPort(ip.String(), port), nil
 }
+
+// CloseConnAndHandleError closes the connection and logs an error if it fails. Convenience function for code-reuse.
+func CloseConnAndHandleError(conn net.Conn) {
+	err := conn.Close()
+	if err != nil {
+		logrus.Errorf("could not close connection to %v: %v", conn.RemoteAddr(), err)
+	}
+}
