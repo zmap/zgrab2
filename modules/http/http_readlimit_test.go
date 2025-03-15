@@ -389,7 +389,8 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 	scanner := cfg.getScanner(t)
 	cfg.runFakeHTTPServer(t)
 	target := zgrab2.ScanTarget{
-		IP: net.ParseIP("127.0.0.1"),
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: uint(cfg.port),
 	}
 	baseFlags := &zgrab2.BaseFlags{
 		Port:    80,
