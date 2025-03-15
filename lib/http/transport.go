@@ -4,7 +4,7 @@
 
 // HTTP client implementation. See RFC 2616.
 //
-// This is the low-level TransportProtocol implementation of RoundTripper.
+// This is the low-level Transport implementation of RoundTripper.
 // The high-level interface is in client.go.
 
 package http
@@ -214,7 +214,7 @@ func (t *Transport) onceSetNextProtoDefaults() {
 	}
 	if t.TLSNextProto != nil {
 		// This is the documented way to disable http2 on a
-		// TransportProtocol.
+		// Transport.
 		return
 	}
 	if t.TLSClientConfig != nil || t.Dial != nil || t.DialTLS != nil {
@@ -227,16 +227,16 @@ func (t *Transport) onceSetNextProtoDefaults() {
 	}
 	t2, err := http2configureTransport(t)
 	if err != nil {
-		log.Printf("Error enabling TransportProtocol HTTP/2 support: %v", err)
+		log.Printf("Error enabling Transport HTTP/2 support: %v", err)
 		return
 	}
 	t.h2transport = t2
 
-	// Auto-configure the http2.TransportProtocol's MaxHeaderListSize from
-	// the http.TransportProtocol's MaxResponseHeaderBytes. They don't
+	// Auto-configure the http2.Transport's MaxHeaderListSize from
+	// the http.Transport's MaxResponseHeaderBytes. They don't
 	// exactly mean the same thing, but they're close.
 	//
-	// TODO: also add this to x/net/http2.Configure TransportProtocol, behind
+	// TODO: also add this to x/net/http2.Configure Transport, behind
 	// a +build go1.7 build tag:
 	if limit1 := t.MaxResponseHeaderBytes; limit1 != 0 && t2.MaxHeaderListSize == 0 {
 		const h2max = 1<<32 - 1
@@ -633,7 +633,7 @@ var (
 	errNotCachingH2Conn   = errors.New("http: not caching alternate protocol's connections")
 )
 
-// transportReadFromServerError is used by TransportProtocol.readLoop when the
+// transportReadFromServerError is used by Transport.readLoop when the
 // 1 byte peek read fails and we're actually anticipating a response.
 // Usually this is just due to the inherent keep-alive shut down race,
 // where the server closed the connection at the same time the client
@@ -646,7 +646,7 @@ type transportReadFromServerError struct {
 }
 
 func (e transportReadFromServerError) Error() string {
-	return fmt.Sprintf("net/http: TransportProtocol failed to read from server: %v", e.err)
+	return fmt.Sprintf("net/http: Transport failed to read from server: %v", e.err)
 }
 
 func (t *Transport) putOrCloseIdleConn(pconn *persistConn) {
@@ -777,7 +777,7 @@ func (t *Transport) getIdleConn(cm connectMethod) (pconn *persistConn, idleSince
 			// There is a tiny window where this is
 			// possible, between the connecting dying and
 			// the persistConn readLoop calling
-			// TransportProtocol.removeIdleConn. Just skip it and
+			// Transport.removeIdleConn. Just skip it and
 			// carry on.
 			continue
 		}
@@ -868,7 +868,7 @@ func (t *Transport) dial(ctx context.Context, network, addr string) (net.Conn, e
 	if t.Dial != nil {
 		c, err := t.Dial(network, addr)
 		if c == nil && err == nil {
-			err = errors.New("net/http: TransportProtocol.Dial hook returned (nil, nil)")
+			err = errors.New("net/http: Transport.Dial hook returned (nil, nil)")
 		}
 		return c, err
 	}
@@ -1000,7 +1000,7 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (*persistCon
 			return nil, err
 		}
 		if pconn.conn == nil {
-			return nil, errors.New("net/http: TransportProtocol.DialTLS returned (nil, nil)")
+			return nil, errors.New("net/http: Transport.DialTLS returned (nil, nil)")
 		}
 		if tc, ok := pconn.conn.(*tls.Conn); ok {
 			// Handshake here, in case DialTLS didn't. TLSNextProto below
@@ -1562,7 +1562,7 @@ func (pc *persistConn) readLoop() {
 			// roundTrip goroutine), mark it as done now.
 			// BEFORE the send on rc.ch, as the client might re-use the
 			// same *Request pointer, and we don't want to set call
-			// t.setReqCanceler from this persistConn while the TransportProtocol
+			// t.setReqCanceler from this persistConn while the Transport
 			// potentially spins up a different persistConn for the
 			// caller's subsequent request.
 			if !pc.shouldRetryRequest(rc.req, err) {

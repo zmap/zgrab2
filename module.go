@@ -180,9 +180,6 @@ func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(netw
 	}
 }
 
-// TODO some handling of the TLS/QUIC Dialer for http module
-//func (d *DialerGroup) GetEncryptedDialer
-
 // ScanResponse is the result of a scan on a single host
 type ScanResponse struct {
 	// Status is required for all responses.

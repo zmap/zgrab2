@@ -5,12 +5,11 @@ package jarm
 import (
 	"context"
 	"fmt"
-	_ "fmt"
 	"net"
 	"strings"
 	"time"
 
-	jarm "github.com/hdm/jarm-go"
+	"github.com/hdm/jarm-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"

@@ -156,18 +156,6 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 				tlsConfig.ServerName = host
 			}
 		}
-
-		if tlsFlags.OverrideSH {
-			tlsConfig.SignatureAndHashes = []tls.SigAndHash{
-				{0x01, 0x04}, // rsa, sha256
-				{0x03, 0x04}, // ecdsa, sha256
-				{0x01, 0x02}, // rsa, sha1
-				{0x03, 0x02}, // ecdsa, sha1
-				{0x01, 0x04}, // rsa, sha256
-				{0x01, 0x05}, // rsa, sha384
-				{0x01, 0x06}, // rsa, sha512
-			}
-		}
 		tlsConn := TLSConnection{
 			Conn:  *(tls.Client(conn, tlsConfig)),
 			flags: tlsFlags,
@@ -183,15 +171,7 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
 	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-		var port uint
-		// If the port is supplied in ScanTarget, let that override the cmdline option
-		if t.Port != 0 {
-			port = t.Port
-		} else {
-			port = flags.Port
-		}
-
-		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
+		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))
 		var local *net.UDPAddr
 		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 			local = &net.UDPAddr{}
