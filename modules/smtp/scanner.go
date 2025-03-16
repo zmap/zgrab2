@@ -84,12 +84,6 @@ type Flags struct {
 	// SendQUIT indicates that the QUIT command should be set.
 	SendQUIT bool `long:"send-quit" description:"Send the QUIT command before closing."`
 
-	// HELODomain is the domain the client should send in the HELO command.
-	HELODomain string `long:"helo-domain" description:"Set the domain to use with the HELO command. Implies --send-helo."`
-
-	// EHLODomain is the domain the client should send in the EHLO command.
-	EHLODomain string `long:"ehlo-domain" description:"Set the domain to use with the EHLO command. Implies --send-ehlo."`
-
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
 
@@ -140,12 +134,6 @@ func (flags *Flags) Validate(args []string) error {
 	if flags.StartTLS && flags.SMTPSecure {
 		log.Errorln("Cannot specify both --smtps and --starttls")
 		return zgrab2.ErrInvalidArguments
-	}
-	if flags.EHLODomain != "" {
-		flags.SendEHLO = true
-	}
-	if flags.HELODomain != "" {
-		flags.SendHELO = true
 	}
 	if flags.SendHELO && flags.SendEHLO {
 		log.Errorln("Cannot provide both EHLO and HELO")
@@ -268,18 +256,18 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	// OR save response to return later
 	sr, bannerResponseCode := VerifySMTPContents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, errors.New("Invalid response for SMTP")
+		return sr, nil, errors.New("invalid response for SMTP")
 	}
 	result.Banner = banner
 	if scanner.config.SendHELO {
-		ret, err := conn.SendCommand(getCommand("HELO", scanner.config.HELODomain))
+		ret, err := conn.SendCommand(getCommand("HELO", target.Domain))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.HELO = ret
 	}
 	if scanner.config.SendEHLO {
-		ret, err := conn.SendCommand(getCommand("EHLO", scanner.config.EHLODomain))
+		ret, err := conn.SendCommand(getCommand("EHLO", target.Domain))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
