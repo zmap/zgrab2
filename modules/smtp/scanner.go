@@ -62,7 +62,7 @@ type ScanResults struct {
 	// to using StartTls
 	ImplicitTLS bool `json:"implicit_tls,omitempty"`
 
-	// TLSLog is the standard TLS log, if STARTTLS is sent.
+	// TLSLog is the standard TLS log, if STARTTLS is sent or if --SMTPS is used
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
@@ -72,12 +72,6 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
 
-	// SendEHLO indicates that the EHLO command should be set.
-	SendEHLO bool `long:"send-ehlo" description:"Send the EHLO command; use --ehlo-domain to set a domain."`
-
-	// SendHELO indicates that the HELO command should be set.
-	SendHELO bool `long:"send-helo" description:"Send the HELO command; use --helo-domain to set a domain."`
-
 	// SendHELP indicates that the client should send the HELP command (after HELO/EHLO).
 	SendHELP bool `long:"send-help" description:"Send the HELP command"`
 
@@ -86,9 +80,6 @@ type Flags struct {
 
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
-
-	// StartTLS indicates that the client should attempt to update the connection to TLS.
-	StartTLS bool `long:"starttls" description:"Send STARTTLS before negotiating"`
 
 	// Verbose indicates that there should be more verbose logging.
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
@@ -131,14 +122,6 @@ func (module *Module) Description() string {
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
 func (flags *Flags) Validate(args []string) error {
-	if flags.StartTLS && flags.SMTPSecure {
-		log.Errorln("Cannot specify both --smtps and --starttls")
-		return zgrab2.ErrInvalidArguments
-	}
-	if flags.SendHELO && flags.SendEHLO {
-		log.Errorln("Cannot provide both EHLO and HELO")
-		return zgrab2.ErrInvalidArguments
-	}
 	return nil
 }
 
@@ -259,19 +242,21 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		return sr, nil, errors.New("invalid response for SMTP")
 	}
 	result.Banner = banner
-	if scanner.config.SendHELO {
-		ret, err := conn.SendCommand(getCommand("HELO", target.Domain))
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, err
-		}
-		result.HELO = ret
-	}
-	if scanner.config.SendEHLO {
+	serverSupportsEHLO := strings.Contains(result.Banner, "ESMTP")
+	if serverSupportsEHLO {
+		// server supports EHLO, use Extended Hello
 		ret, err := conn.SendCommand(getCommand("EHLO", target.Domain))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.EHLO = ret
+	} else {
+		// send a HELO msg since server doesn't support EHLO
+		ret, err := conn.SendCommand(getCommand("HELO", target.Domain))
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), result, err
+		}
+		result.HELO = ret
 	}
 	if scanner.config.SendHELP {
 		ret, err := conn.SendCommand("HELP")
@@ -280,7 +265,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		}
 		result.HELP = ret
 	}
-	if scanner.config.StartTLS {
+	serverSupportsSTARTTLS := strings.Contains(result.EHLO, "STARTTLS")
+	// If the server supports STARTTLS, and we haven't already negotiated a TLS connection
+	if serverSupportsSTARTTLS && !scanner.config.SMTPSecure {
 		ret, err := conn.SendCommand("STARTTLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
@@ -306,9 +293,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	if scanner.config.SendQUIT {
 		ret, err := conn.SendCommand("QUIT")
 		if err != nil {
-			if err != nil {
-				return zgrab2.TryGetScanStatus(err), nil, err
-			}
+			return zgrab2.TryGetScanStatus(err), nil, err
 		}
 		result.QUIT = ret
 	}
