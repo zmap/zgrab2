@@ -28,9 +28,10 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/net/http/httpguts"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
-	"golang.org/x/net/http/httpguts"
 )
 
 // DefaultTransport is the default implementation of Transport and is
@@ -1160,7 +1161,7 @@ func (t *TeeConn) ReadPos() int {
 }
 
 func (t *TeeConn) Bytes(s, e int) []byte {
-	if s >= t.tb.Len() {
+	if s >= t.tb.Len() || e > t.tb.Len() {
 		return nil
 	}
 	return t.tb.Bytes()[s:e]
