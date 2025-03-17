@@ -1161,7 +1161,7 @@ func (t *TeeConn) ReadPos() int {
 }
 
 func (t *TeeConn) Bytes(s, e int) []byte {
-	if s >= t.tb.Len() {
+	if s >= t.tb.Len() || e > t.tb.Len() {
 		return nil
 	}
 	return t.tb.Bytes()[s:e]
