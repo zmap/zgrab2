@@ -128,7 +128,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		L4TransportProtocol:  zgrab2.TransportTCP,
 		NeedSeparateL4Dialer: true,
 		BaseFlags:            &f.BaseFlags,
-		TLSEnabled:           true,
+		TLSEnabled:           f.FTPAuthTLS || f.ImplicitTLS,
 		TLSFlags:             &f.TLSFlags,
 	}
 	return nil

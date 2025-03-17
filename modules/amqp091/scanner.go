@@ -147,10 +147,8 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		L4TransportProtocol: zgrab2.TransportTCP,
 		BaseFlags:           &f.BaseFlags,
-	}
-	if f.UseTLS {
-		scanner.dialerGroupConfig.TLSFlags = &f.TLSFlags
-		scanner.dialerGroupConfig.TLSEnabled = true
+		TLSEnabled:          f.UseTLS,
+		TLSFlags:            &f.TLSFlags,
 	}
 	return nil
 }

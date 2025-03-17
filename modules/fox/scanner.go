@@ -22,6 +22,7 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
 	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -77,7 +78,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		L4TransportProtocol: zgrab2.TransportTCP,
 		BaseFlags:           &f.BaseFlags,
-		TLSEnabled:          true,
+		TLSEnabled:          scanner.config.UseTLS,
 		TLSFlags:            &f.TLSFlags,
 	}
 	return nil

@@ -85,9 +85,6 @@ func (config *DialerGroupConfig) Validate() error {
 	if config.TLSEnabled && config.TLSFlags == nil {
 		return fmt.Errorf("TLS flags must be set if TLSEnabled is true")
 	}
-	if config.TLSFlags != nil && !config.TLSEnabled {
-		return fmt.Errorf("TLS flags must be nil if TLSEnabled is false")
-	}
 	return nil
 }
 
