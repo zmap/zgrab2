@@ -995,10 +995,9 @@ func TestMySQL(t *testing.T) {
 			VerifyData: []byte("not real data"),
 		},
 		ClientHello: &tls.ClientHello{
-			CipherSuites: []tls.CipherSuite{
-				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			},
+			CipherSuites: []tls.CipherSuiteID{
+				tls.CipherSuiteID(tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA),
+				tls.CipherSuiteID(tls.TLS_RSA_WITH_AES_256_CBC_SHA)},
 			CompressionMethods:  []tls.CompressionMethod{0x00},
 			OcspStapling:        true,
 			Random:              []byte("some random data"),
@@ -1080,7 +1079,7 @@ func TestMySQL(t *testing.T) {
 			VerifyData: []byte("fake"),
 		},
 		ServerHello: &tls.ServerHello{
-			CipherSuite:       tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			CipherSuite:       tls.CipherSuiteID(tls.TLS_RSA_WITH_AES_256_CBC_SHA),
 			CompressionMethod: 0,
 			Random:            []byte("some other random data"),
 			SessionID:         []byte("some session ID"),
