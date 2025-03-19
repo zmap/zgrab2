@@ -212,18 +212,18 @@ func VerifySMTPContents(banner string) (zgrab2.ScanStatus, int) {
 func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	c, err := target.Open(&scanner.config.BaseFlags)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not open connection to target %s: %v", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not open connection: %v", err)
 	}
 	defer c.Close()
 	result := &ScanResults{}
 	if scanner.config.SMTPSecure {
 		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(c)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not open TLS connection to target %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not open TLS connection: %v", err)
 		}
 		result.TLSLog = tlsConn.GetLog()
 		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not perform a TLS handshake to target %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not perform a TLS handshake: %v", err)
 		}
 		c = tlsConn
 		result.ImplicitTLS = true
