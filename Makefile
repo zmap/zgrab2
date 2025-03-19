@@ -33,7 +33,7 @@ integration-test:
 	# Shut off the services
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
 integration-test-build:
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base runner # ensure the apt cache is up to date and we've built the runner fresh
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base # ensure the apt cache is up to date and we've built the runner fresh
 	# TEST_MODULES will specify the names of the ZGrab modules to run in the integration test
 	# However, the containers are (usually) named module_name_version like smtp_1.0. So we need to do a fuzzy search
 	# to see what containers to run.
@@ -47,6 +47,7 @@ integration-test-build:
 
 integration-test-run:
 	rm -rf zgrab-output
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build runner
 	TEST_MODULES="$(TEST_MODULES)" python3 integration_tests/test.py
 
 integration-test-clean:
