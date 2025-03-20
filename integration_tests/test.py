@@ -64,7 +64,11 @@ def main():
         ):
             for test in mod.glob("test*.sh"):
                 print(f"Running {test}...")
-                subprocess.run(f"./{test.name}", cwd=mod, shell=True)
+                result = subprocess.run(f"./{test.name}", cwd=mod, shell=True)
+
+                if result.returncode != 0:
+                    print(f"Test {test.name} failed with exit code {result.returncode}", file=sys.stderr)
+                    sys.exit(1)  # Exit immediately with failure
 
                 if no_schema:
                     continue
