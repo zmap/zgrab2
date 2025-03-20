@@ -37,7 +37,7 @@ function testEHLO() {
 
 function testSMTPS() {
   CONTAINER_NAME=zgrab_smtp_smtps
-  CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh smtp --smtps > $ZGRAB_OUTPUT/smtp/smtps.json
+  CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh smtp --smtps > $ZGRAB_OUTPUT/smtp/smtps-tls.json
   dumpDockerLogs
 }
 echo "smtp/test: Tests runner for smtp"
@@ -46,7 +46,7 @@ testHelo
 testEHLO
 testSMTPS
 
-FIELDS="help quit helo ehlo"
+FIELDS="help quit helo ehlo tls"
 status=0
 for field in $FIELDS; do
     for file in $(find $OUTPUT_ROOT -iname "*$field*.json"); do
