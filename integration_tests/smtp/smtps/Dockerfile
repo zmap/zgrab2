@@ -1,7 +1,6 @@
-FROM zgrab2_service_base:latest
+FROM zgrab2_smtp_service_base:latest
 
 RUN apt-get install -y \
-    postfix \
     openssl
 RUN rm -rf /var/lib/apt/lists/*
 
@@ -17,8 +16,6 @@ RUN openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 \
 RUN echo "smtpd_tls_cert_file = /etc/ssl/certs/postfix.crt" >> /etc/postfix/main.cf; \
   echo "smtpd_tls_key_file = /etc/ssl/private/postfix.key" >> /etc/postfix/main.cf; \
   echo "smtpd_tls_wrappermode = yes" >> /etc/postfix/main.cf
-
-EXPOSE 25
 
 # Command to run postfix (in the foreground)
 CMD ["postfix", "start-fg"]

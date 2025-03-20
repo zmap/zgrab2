@@ -1,5 +1,7 @@
-FROM instrumentisto/postfix
+FROM zgrab2_smtp_service_base:latest
 
 # Disable all ESMTP capabilities by not announcing ESMTP
-RUN echo "smtpd_banner = $$myhostname $$mail_name" > /etc/postfix/main.cf
+RUN echo "smtpd_banner = $$myhostname $$mail_name" >> /etc/postfix/main.cf
 
+# Command to run postfix (in the foreground)
+CMD ["postfix", "start-fg"]

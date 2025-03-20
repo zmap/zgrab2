@@ -11,11 +11,11 @@ x-postgres-template: &postgres-template
     POSTGRES_PASSWORD: password
   restart: unless-stopped
 
-  x-redis-template: &redis-template
-    build:
-      context: ./redis/container
-    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
-    hostname: "target"
+x-redis-template: &redis-template
+  build:
+    context: ./redis/container
+  command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+  hostname: "target"
 
 services:
   runner:
@@ -30,10 +30,16 @@ services:
 
   # Start Module Intermediate Build Images
   ipp_service_base:
-      build:
-        context: ./ipp
-      image: "zgrab2_ipp_service_base:latest"
-      depends_on:
+    build:
+      context: ./ipp
+    image: "zgrab2_ipp_service_base:latest"
+    depends_on:
+      - service_base
+  smtp_service_base:
+    build:
+        context: ./smtp
+    image: "zgrab2_smtp_service_base:latest"
+    depends_on:
         - service_base
 
   # Modules Start
@@ -376,15 +382,45 @@ services:
         - redis-renamed-network
     command: [ "redis-server", "/usr/local/etc/redis/renamed.conf" ]
 
-  smtp:
+  smtp_helo:
     build:
-      context: ./smtp/container
-    container_name: "zgrab_smtp"
+      context: ./smtp/helo
+    container_name: zgrab_smtp_helo
     networks:
-      - smtp-network
+      - smtp-helo-network
     hostname: "target"
     depends_on:
-      - service_base
+      - smtp_service_base
+
+  smtp_ehlo_starttls:
+    build:
+      context: ./smtp/ehlo-starttls
+    container_name: zgrab_smtp_ehlo_starttls
+    networks:
+      - smtp-ehlo-starttls-network
+    hostname: "target"
+    depends_on:
+      - smtp_service_base
+
+  smtp_ehlo_no_starttls:
+    build:
+      context: ./smtp/ehlo-no-starttls
+    container_name: zgrab_smtp_ehlo_no_starttls
+    networks:
+      - smtp-ehlo-no-starttls-network
+    hostname: "target"
+    depends_on:
+      - smtp_service_base
+
+  smtp_smtps:
+    build:
+      context: ./smtp/smtps
+    container_name: zgrab_smtp_smtps
+    networks:
+      - smtp-smtps-network
+    hostname: "target"
+    depends_on:
+      - smtp_service_base
 
   socks5:
     image: 3proxy/3proxy
@@ -590,23 +626,38 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.132/30
-  smtp-network:
+  smtp-helo-network:
     driver: bridge
     ipam:
       config:
         - subnet: 100.64.0.136/30
-  socks5-network:
+  smtp-ehlo-starttls-network:
     driver: bridge
     ipam:
       config:
         - subnet: 100.64.0.140/30
-  ssh-network:
+  smtp-ehlo-no-starttls-network:
     driver: bridge
     ipam:
       config:
         - subnet: 100.64.0.144/30
-  telnet-network:
+  smtp-smtps-network:
     driver: bridge
     ipam:
       config:
         - subnet: 100.64.0.148/30
+  socks5-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.154/30
+  ssh-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.158/30
+  telnet-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.162/30
