@@ -13,8 +13,6 @@ RUN go mod download && go mod verify
 
 # Build the actual app
 COPY . .
-# Ensures that if a dev left the binary ./zgrab2, we'll remove it to force a new build.
-RUN make clean
 RUN make all
 
 ## Runtime image ##
