@@ -652,14 +652,14 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.154/30
+        - subnet: 100.64.0.152/30
   ssh-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.158/30
+        - subnet: 100.64.0.156/30
   telnet-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.162/30
+        - subnet: 100.64.0.160/30
