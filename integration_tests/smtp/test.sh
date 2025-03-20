@@ -46,20 +46,46 @@ testHelo
 testEHLO
 testSMTPS
 
-FIELDS="help quit helo ehlo tls"
+function checkFileForField() {
+  FILE=$1
+  FIELD=$2
+  echo "check $FILE for $FIELD"
+  RESULT=$(jp data.smtp.result.$FIELD < $FILE)
+  if [ "$RESULT" = "null" ]; then
+    echo "Did not find $FIELD in $FILE [["
+    cat $FILE
+    echo "]]"
+    exit 1
+  fi
+}
+
+function checkFileForLackOfField() {
+  FILE=$1
+  FIELD=$2
+  echo "check $FILE for lack of $FIELD"
+  RESULT=$(jp data.smtp.result.$FIELD < $FILE)
+  if [ "$RESULT" != "null" ]; then
+    echo "Did find $FIELD in $FILE [["
+    cat $FILE
+    echo "]]"
+    exit 1
+  fi
+}
+
+FIELDS="help quit helo ehlo"
 status=0
 for field in $FIELDS; do
     for file in $(find $OUTPUT_ROOT -iname "*$field*.json"); do
-        echo "check $file for $field"
-        RESULT=$(jp data.smtp.result.$field < $file)
-        if [ "$RESULT" = "null" ]; then
-            echo "Did not find $field in $file [["
-            cat $file
-            echo "]]"
-            status=1
-        fi
+        checkFileForField $file $field
     done
 done
+
+checkFileForField $OUTPUT_ROOT/ehlo_starttls.json starttls
+checkFileForField $OUTPUT_ROOT/ehlo_starttls.json tls
+checkFileForField $OUTPUT_ROOT/smtps-tls.json tls
+checkFileForLackOfField $OUTPUT_ROOT/smtps-tls.json starttls
+checkFileForLackOfField $OUTPUT_ROOT/helo.json starttls
+checkFileForLackOfField $OUTPUT_ROOT/ehlo_no_starttls.json starttls
 
 
 exit $status
