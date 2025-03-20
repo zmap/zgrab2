@@ -22,6 +22,7 @@ services:
     build:
       context: ../
     image: "zgrab2_runner:latest"
+
   service_base:
     build:
       context: ../docker-runner
@@ -35,6 +36,7 @@ services:
     image: "zgrab2_ipp_service_base:latest"
     depends_on:
       - service_base
+
   smtp_service_base:
     build:
         context: ./smtp
