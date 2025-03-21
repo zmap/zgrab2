@@ -6,19 +6,23 @@
 package fox
 
 import (
+	"context"
 	"errors"
-	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
+	"fmt"
 	"net"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Flags holds the command-line configuration for the fox scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.TLSFlags  `group:"TLS Options"`
 	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
-	zgrab2.TLSFlags  `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -27,7 +31,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -57,7 +62,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 
@@ -70,6 +75,12 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      scanner.config.UseTLS,
+		TLSFlags:                        &f.TLSFlags,
+	}
 	return nil
 }
 
@@ -93,41 +104,28 @@ func (scanner *Scanner) Protocol() string {
 	return "fox"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Scan probes for a Tridium Fox service.
 // 1. Opens a TCP connection to the configured port (default 1911)
 // 2. Sends a static query
 // 3. Attempt to read the response (up to 8k + 4 bytes -- larger responses trigger an error)
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-
-	var (
-		conn    net.Conn
-		tlsConn *zgrab2.TLSConnection
-		err     error
-	)
-
-	conn, err = target.Open(&scanner.config.BaseFlags)
-	if scanner.config.UseTLS {
-		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-		conn = tlsConn
-	} else {
-		conn, err = target.Open(&scanner.config.BaseFlags)
-	}
-
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
-
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		// cleanup conn
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
 	result := new(FoxLog)
-	if tlsConn != nil {
+	// Attempt to read TLS Log from connection. If it's not a TLS connection then the log will just be empty.
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		result.TLSLog = tlsConn.GetLog()
 	}
 

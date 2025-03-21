@@ -13,6 +13,7 @@
 package ntp
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -810,7 +811,8 @@ type Module struct {
 
 // Scanner holds the state for a single scan
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the module with zgrab2
@@ -838,7 +840,7 @@ func (module *Module) Description() string {
 }
 
 // Validate checks that the flags are valid
-func (cfg *Flags) Validate(args []string) error {
+func (cfg *Flags) Validate() error {
 	return nil
 }
 
@@ -851,6 +853,12 @@ func (cfg *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportUDP,
+		NeedSeparateL4Dialer:            false,
+		BaseFlags:                       &f.BaseFlags,
+		UDPFlags:                        &f.UDPFlags,
+	}
 	return nil
 }
 
@@ -860,7 +868,7 @@ func (scanner *Scanner) InitPerSender(senderID int) error {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "ntp"
 }
 
@@ -872,6 +880,10 @@ func (scanner *Scanner) GetName() string {
 // GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
+}
+
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
@@ -1008,12 +1020,12 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	sock, err := t.OpenUDP(&scanner.config.BaseFlags, &scanner.config.UDPFlags)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	sock, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
 	}
-	defer sock.Close()
+	defer zgrab2.CloseConnAndHandleError(sock)
 	result := &Results{}
 	if !scanner.config.SkipGetTime {
 		inPacket, err := scanner.GetTime(sock)

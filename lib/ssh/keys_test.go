@@ -20,9 +20,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zmap/zcrypto/dsa"
-	"github.com/zmap/zgrab2/lib/ssh/testdata"
+	_ "github.com/zmap/zcrypto/dsa"
 	"golang.org/x/crypto/ed25519"
+
+	"github.com/zmap/zgrab2/lib/ssh/testdata"
 )
 
 func rawKey(pub PublicKey) any {

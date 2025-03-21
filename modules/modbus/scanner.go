@@ -20,11 +20,13 @@
 package modbus
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
 	"net"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -45,7 +47,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -75,7 +78,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	if flags.Verbose {
 		// If --verbose is set, do some extra checking but don't fail.
 		if flags.ObjectID >= 0x07 && flags.ObjectID < 0x80 {
@@ -94,6 +97,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
@@ -115,6 +122,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "modbus"
+}
+
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // Conn wraps the connection state (more importantly, it provides the interface used by the old zgrab code, so that it
@@ -139,12 +150,12 @@ func (c *Conn) getUnderlyingConn() net.Conn {
 //
 // If the response is not a valid modbus response to this packet, then fail with a SCAN_PROTOCOL_ERROR.
 // Otherwise, return the parsed response and status (SCAN_SUCCESS or SCAN_APPLICATION_ERROR)
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not dial target %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 
 	c := Conn{Conn: conn, scanner: scanner}
 	req := ModbusRequest{

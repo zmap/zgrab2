@@ -2,12 +2,14 @@
 package pptp
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -33,7 +35,8 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the pptp zgrab2 module.
@@ -62,7 +65,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate(args []string) (err error) {
+func (f *Flags) Validate() (err error) {
 	return
 }
 
@@ -72,25 +75,33 @@ func (f *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifier for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "pptp"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Init initializes the Scanner instance with the flags from the command line.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
-	s.config = f
+	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
 // InitPerSender does nothing in this module.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
 // GetName returns the configured name for the Scanner.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
@@ -143,32 +154,29 @@ func (pptp *Connection) readResponse() (string, error) {
 }
 
 // Scan performs the configured scan on the PPTP server
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var err error
-	conn, err := t.Open(&s.config.BaseFlags)
+	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection: %w", err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", t.String(), err)
 	}
-	cn := conn
-	defer func() {
-		cn.Close()
-	}()
+	defer zgrab2.CloseConnAndHandleError(conn)
 
 	results := ScanResults{}
 
-	pptp := Connection{conn: cn, config: s.config, results: results}
+	pptp := Connection{conn: conn, config: scanner.config, results: results}
 
 	// Send Start-Control-Connection-Request message
 	request := createSCCRMessage()
 	_, err = pptp.conn.Write(request)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message: %w", err)
+		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message to target %s: %w", t.String(), err)
 	}
 
 	// Read the response
 	response, err := pptp.readResponse()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response: %w", err)
+		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response from target %s: %w", t.String(), err)
 	}
 
 	// Store the banner and control message

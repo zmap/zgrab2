@@ -23,9 +23,10 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zgrab2"
 	"io"
 	"time"
+
+	"github.com/zmap/zgrab2"
 )
 
 const (
@@ -431,7 +432,7 @@ func (c *Connection) readOKPacket(body []byte) (*OKPacket, error) {
 		ret.StatusFlags = binary.LittleEndian.Uint16(rest[0:2])
 		rest = rest[2:]
 		if flags&CLIENT_PROTOCOL_41 != 0 {
-			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading Warnings")
+			log.Debugf("readOKPacket: CapabilityFlags = 0x%x, so reading Warnings", flags)
 			ret.Warnings = binary.LittleEndian.Uint16(rest[0:2])
 			rest = rest[2:]
 		}

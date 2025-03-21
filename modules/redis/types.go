@@ -331,7 +331,6 @@ type Connection struct {
 	scanner *Scanner
 	conn    net.Conn
 	buffer  []byte
-	isSSL   bool
 }
 
 // write writes data to the connection, and returns an error if the write fails
@@ -424,10 +423,10 @@ func (conn *Connection) ReadRedisValue() (RedisValue, error) {
 }
 
 func (conn *Connection) GetTLSLog() *zgrab2.TLSLog {
-	if !conn.isSSL {
-		return nil
+	if tlsConn, ok := conn.conn.(*zgrab2.TLSConnection); ok {
+		return tlsConn.GetLog()
 	}
-	return conn.conn.(*zgrab2.TLSConnection).GetLog()
+	return nil
 }
 
 type CustomResponse struct {
