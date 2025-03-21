@@ -79,6 +79,15 @@ type Flags struct {
 	// SendQUIT indicates that the QUIT command should be set.
 	SendQUIT bool `long:"send-quit" description:"Send the QUIT command before closing."`
 
+	// SendEHLOOverride indicates that regardless of if the server says it supports ESMTP, we should send an EHLO
+	SendEHLOOverride bool `long:"send-ehlo-override" description:"Send the EHLO command regardless of if the server supports ESMTP"`
+
+	// SendHELOOverride indicates that the client should send the HELO command, regardless of if the server supports ESMTP.
+	SendHELOOverride bool `long:"send-helo-override" description:"Send the HELO command regardless of if the server supports ESMTP or not"`
+
+	// SendSTARTTLSOverride indicates that the client should send the STARTTLS command, regardless of if the server supports it with ESMTP
+	SendSTARTTLSOverride bool `long:"send-starttls-override" description:"Send the STARTTLS command regardless of if the server advertises support in ESMTP"`
+
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
 
@@ -116,13 +125,22 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 
 // Description returns an overview of this module.
 func (module *Module) Description() string {
-	return "Fetch an SMTP server banner, optionally over TLS"
+	return "Fetch an SMTP server banner, optionally over TLS. By default, if the server advertises support for ESMTP in " +
+		"the banner, we'll send an EHLO command and an HELO command otherwise. If the server advertises support for " +
+		"STARTTLS, we'll send that command and negotiate a TLS connection. " +
+		"This can be overridden with the various override flags."
 }
 
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
 func (flags *Flags) Validate(args []string) error {
+	if flags.SendSTARTTLSOverride && flags.SMTPSecure {
+		return errors.New("cannot use --smtps and --send-starttls-override at the same time")
+	}
+	if flags.SendEHLOOverride && flags.SendHELOOverride {
+		return errors.New("cannot use --send-helo-override with --send-ehlo-override. Please choose one")
+	}
 	return nil
 }
 
@@ -244,7 +262,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	}
 	result.Banner = banner
 	serverSupportsEHLO := strings.Contains(result.Banner, "ESMTP")
-	if serverSupportsEHLO {
+	// send EHLO if the server supports it, or if we are overriding the default behavior
+	shouldSendEHLO := !scanner.config.SendHELOOverride && (serverSupportsEHLO || scanner.config.SendEHLOOverride)
+	if shouldSendEHLO {
 		// server supports EHLO, use Extended Hello
 		ret, err := conn.SendCommand(getCommand("EHLO", target.Domain))
 		if err != nil {
@@ -267,8 +287,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		result.HELP = ret
 	}
 	serverSupportsSTARTTLS := strings.Contains(result.EHLO, "STARTTLS")
-	// If the server supports STARTTLS, and we haven't already negotiated a TLS connection
-	if serverSupportsSTARTTLS && !scanner.config.SMTPSecure {
+	shouldSendSTARTTLS := scanner.config.SendSTARTTLSOverride || serverSupportsSTARTTLS
+	// If the server supports STARTTLS or user requests STARTTLS, and we haven't already negotiated a TLS connection
+	if shouldSendSTARTTLS && !scanner.config.SMTPSecure {
 		ret, err := conn.SendCommand("STARTTLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send STARTTLS command: %v", err)
