@@ -17,6 +17,7 @@ smtp_scan_response = SubRecord(
                 "help": String(),
                 "starttls": String(),
                 "quit": String(),
+                "implicit_tls": Boolean(),
                 "tls": zgrab2.tls_log,
             }
         )

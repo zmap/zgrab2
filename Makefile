@@ -9,7 +9,7 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean gofmt test integration-test-run-tests integration-test-start-containers
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
@@ -27,23 +27,26 @@ zgrab2: $(GO_FILES)
 	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
 integration-test:
-	rm -rf zgrab-output
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base runner # ensure the apt cache is up to date and we've built the runner fresh
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build $(TEST_MODULES)
-	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $(TEST_MODULES)
-	sleep 15 # Wait for services to start
-	TEST_MODULES="$(TEST_MODULES)" python3 integration_tests/test.py
+	make integration-test-build
+	sleep 15  # Wait for services to start
+	make integration-test-run
 	# Shut off the services
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
 
-integration-test-start-containers:
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base runner # ensure the apt cache is up to date and we've built the runner fresh
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build $(TEST_MODULES)
-	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $(TEST_MODULES)
+integration-test-build:
+	@TEST_SERVICES=$$(docker compose -p zgrab -f integration_tests/docker-compose.yml config --services | grep -E "$$(echo $(TEST_MODULES) | sed 's/ /|/g')"); \
+	if [ -n "$(TEST_MODULES)" ] && [ -z "$$TEST_SERVICES" ]; then \
+		echo "Error: TEST_MODULES is set, but no matching services were found."; \
+		exit 1; \
+	fi; \
+	echo "Filtered services: $$TEST_SERVICES"; \
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base; \
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build $$TEST_SERVICES; \
+	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $$TEST_SERVICES
 
-integration-test-run-tests:
+integration-test-run:
 	rm -rf zgrab-output
-	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache runner # ensure the apt cache is up to date and we've built the runner fresh
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build runner
 	TEST_MODULES="$(TEST_MODULES)" python3 integration_tests/test.py
 
 integration-test-clean:

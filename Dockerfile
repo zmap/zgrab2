@@ -13,7 +13,9 @@ RUN go mod download && go mod verify
 
 # Build the actual app
 COPY . .
-RUN make clean; make all
+# Ensures that if a dev left the binary ./zgrab2, we'll remove it to force a new build.
+RUN make clean
+RUN make all
 
 ## Runtime image ##
 FROM alpine:3.21 AS run
