@@ -174,11 +174,11 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.SetLevel(log.DebugLevel)
 	}
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
-		L4TransportProtocol:  zgrab2.TransportTCP,
-		NeedSeparateL4Dialer: true,
-		BaseFlags:            &f.BaseFlags,
-		TLSEnabled:           true,
-		TLSFlags:             &f.TLSFlags,
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		NeedSeparateL4Dialer:            true,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      true,
+		TLSFlags:                        &f.TLSFlags,
 	}
 	return nil
 }

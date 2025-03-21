@@ -93,8 +93,8 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
 	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
-		L4TransportProtocol: zgrab2.TransportTCP,
-		BaseFlags:           &f.BaseFlags,
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
 	}
 	return nil
 }

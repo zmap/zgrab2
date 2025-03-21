@@ -200,8 +200,8 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.buildInfoOpMsg = getBuildInfoOpMsg()
 	scanner.listDatabasesMsg = getListDatabasesMsg()
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
-		L4TransportProtocol: zgrab2.TransportTCP,
-		BaseFlags:           &f.BaseFlags,
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
 	}
 	return nil
 }

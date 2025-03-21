@@ -854,10 +854,10 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
-		L4TransportProtocol:  zgrab2.TransportUDP,
-		NeedSeparateL4Dialer: false,
-		BaseFlags:            &f.BaseFlags,
-		UDPFlags:             &f.UDPFlags,
+		TransportAgnosticDialerProtocol: zgrab2.TransportUDP,
+		NeedSeparateL4Dialer:            false,
+		BaseFlags:                       &f.BaseFlags,
+		UDPFlags:                        &f.UDPFlags,
 	}
 	return nil
 }

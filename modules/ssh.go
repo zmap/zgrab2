@@ -79,8 +79,8 @@ func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 		s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
 	}
 	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
-		L4TransportProtocol: zgrab2.TransportTCP,
-		BaseFlags:           &f.BaseFlags,
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
 	}
 	return nil
 }

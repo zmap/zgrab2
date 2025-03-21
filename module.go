@@ -45,11 +45,13 @@ const (
 
 // DialerGroupConfig lets modules communicate what they'd need in a dialer group
 type DialerGroupConfig struct {
-	// TransportProtocol is the L4 transport the module needs.
-	L4TransportProtocol TransportProtocol
+	// TransportAgnosticDialerProtocol is the L4 transport the module uses by convention (ex: SSH over TCP).
+	// This is only used to configure the DialerGroup.TransportAgnosticDialer. The L4Dialer can handle both UDP and TCP.
+	TransportAgnosticDialerProtocol TransportProtocol
 	// NeedSeparateL4Dialer indicates whether the module needs a dedicated L4 dialer in its DialerGroup.
 	// Some modules' protocols need to send some command (STARTTLS) after L4 connection and before TLS handshake.
 	// Others like http need to follow redirects to https:// and http:// servers, which requires both a TLS and L4 (TCP) conn.
+	// Still others may require a dialer that can handle both TCP and UDP.
 	// If this is true, the framework will ensure dialerGroup.L4Dialer is set.
 	// If false, the framework will set the TransportAgnosticDialer
 	NeedSeparateL4Dialer bool
@@ -59,7 +61,8 @@ type DialerGroupConfig struct {
 	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module has indicated it only needs a TLS connection.
 	TLSEnabled bool
 	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
-	UDPFlags   *UDPFlags // must be non-nil if L4TransportProtocol is TransportUDP
+	// UDPFlags used for UDP connections either with the TransportAgnosticDialer if TransportAgnosticDialerProtocol is UDP, or with the L4Dialer if a "udp" network is requested true
+	UDPFlags *UDPFlags
 }
 
 // Validate checks for various incompatibilities in the DialerGroupConfig
@@ -67,20 +70,19 @@ func (config *DialerGroupConfig) Validate() error {
 	if config.BaseFlags == nil {
 		return fmt.Errorf("BaseFlags must be set")
 	}
-	switch config.L4TransportProtocol {
-	case reservedTransportProtocol:
-		return fmt.Errorf("L4TransportProtocol must be set")
+	switch config.TransportAgnosticDialerProtocol {
 	case TransportUDP:
 		if config.UDPFlags == nil {
-			return fmt.Errorf("UDP flags must be set if L4TransportProtocol is UDP")
+			return fmt.Errorf("UDP flags must be set if TransportAgnosticDialerProtocol is UDP")
 		}
 		if config.TLSEnabled {
+			// blocking this for now since it's untested. When a module is added that needs this we can unblock it and test.
 			return fmt.Errorf("TLS-over-UDP (DTLS) is not currently supported")
 		}
-	case TransportTCP:
-		// no-op
+	case TransportTCP, reservedTransportProtocol:
+		// nothing to validate here
 	default:
-		return fmt.Errorf("invalid L4TransportProtocol: %d", config.L4TransportProtocol)
+		return fmt.Errorf("invalid TransportAgnosticDialerProtocol: %d", config.TransportAgnosticDialerProtocol)
 	}
 	if config.TLSEnabled && config.TLSFlags == nil {
 		return fmt.Errorf("TLS flags must be set if TLSEnabled is true")
@@ -93,38 +95,39 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 		return nil, fmt.Errorf("config did not pass validation: %w", err)
 	}
 	dialerGroup := new(DialerGroup)
-	// Handle TLS
-	if config.TLSEnabled {
-		if config.NeedSeparateL4Dialer {
-			// will need both an L4 dialer and TLS wrapper
-			dialerGroup.L4Dialer = getPerTargetDefaultTCPDialer(config.BaseFlags)
-			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(config.TLSFlags)
-		} else {
-			// module only needs a TLS connection
-			dialerGroup.TransportAgnosticDialer = GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)
-		}
-		return dialerGroup, nil
-	}
-	// Handle non-TLS, Transport-Agnostic Cases
-	if !config.NeedSeparateL4Dialer {
-		if config.L4TransportProtocol == TransportUDP {
-			dialerGroup.TransportAgnosticDialer = GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)
-		} else {
-			dialerGroup.TransportAgnosticDialer = GetDefaultTCPDialer(config.BaseFlags)
-		}
-	} else {
-		// Non-TLS, but module requested a separate L4 dialer
-		if config.L4TransportProtocol == TransportUDP {
-			dialerGroup.L4Dialer = func(scanTarget *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return func(ctx context.Context, network, addr string) (net.Conn, error) {
+	// DialerGroup has two types of dialers, the L4Dialer and the TransportAgnosticDialer.
+	// A module will use one or the other based on NeedSeparateL4Dialer
+	if config.NeedSeparateL4Dialer {
+		dialerGroup.L4Dialer = func(scanTarget *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return func(ctx context.Context, network, addr string) (net.Conn, error) {
+				switch network {
+				case "udp", "udp4", "udp6":
 					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, scanTarget)
+				case "tcp", "tcp4", "tcp6":
+					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget)
+				default:
+					return nil, fmt.Errorf("unsupported network type: %s", network)
 				}
 			}
+		}
+		if config.TLSEnabled {
+			// module needs both L4 dialer and TLS wrapper
+			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(config.TLSFlags)
+		}
+	} else {
+		// module only needs a TransportAgnosticDialer
+		if config.TLSEnabled {
+			// module needs a TLS TransportAgnosticDialer
+			dialerGroup.TransportAgnosticDialer = GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)
 		} else {
-			dialerGroup.L4Dialer = func(scanTarget *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget)
-				}
+			// module only needs a TransportAgnosticDialer, so we set it based on the protocol
+			switch config.TransportAgnosticDialerProtocol {
+			case TransportUDP:
+				dialerGroup.TransportAgnosticDialer = GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)
+			case TransportTCP:
+				dialerGroup.TransportAgnosticDialer = GetDefaultTCPDialer(config.BaseFlags)
+			default:
+				return nil, fmt.Errorf("unsupported TransportAgnosticDialerProtocol: %d", config.TransportAgnosticDialerProtocol)
 			}
 		}
 	}
@@ -137,7 +140,7 @@ type DialerGroup struct {
 	// TransportAgnosticDialer should be used by most modules that do not need control over the transport layer.
 	// It abstracts the underlying transport protocol so a module can  deal with just the L7 logic. Any protocol that
 	// doesn't need to know about the underlying transport should use this.
-	// If the transport is a TLS connection, the dialer should provide a zgrab2.TLSConnection so the underlying log can be
+	// If the transport is a TLS connection, the dialer should return a zgrab2.TLSConnection so the underlying log can be
 	// accessed.
 	TransportAgnosticDialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)
 	// L4Dialer will be used by any module that needs to have a TCP/UDP connection. Think of following a redirect to an

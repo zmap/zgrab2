@@ -398,11 +398,11 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 	}
 	tlsFlags := &zgrab2.TLSFlags{}
 	dialerGroupConfig := zgrab2.DialerGroupConfig{
-		L4TransportProtocol:  zgrab2.TransportTCP,
-		BaseFlags:            baseFlags,
-		TLSFlags:             tlsFlags,
-		TLSEnabled:           true,
-		NeedSeparateL4Dialer: true,
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       baseFlags,
+		TLSFlags:                        tlsFlags,
+		TLSEnabled:                      true,
+		NeedSeparateL4Dialer:            true,
 	}
 	dialerGroup, err := dialerGroupConfig.GetDefaultDialerGroupFromConfig()
 	if err != nil {
