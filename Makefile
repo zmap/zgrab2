@@ -31,7 +31,7 @@ integration-test:
 	sleep 15  # Wait for services to start
 	make integration-test-run
 	# Shut off the services
-	docker compose -p zgrab -f integration_tests/docker-compose.yml down
+	make integration-test-clean
 
 integration-test-build:
 	@TEST_SERVICES=$$(docker compose -p zgrab -f integration_tests/docker-compose.yml config --services | grep -E "$$(echo $(TEST_MODULES) | sed 's/ /|/g')"); \

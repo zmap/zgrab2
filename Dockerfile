@@ -13,12 +13,10 @@ RUN go mod download && go mod verify
 
 # Build the actual app
 COPY . .
-# Ensures that if a dev left the binary ./zgrab2, we'll remove it to force a new build.
-RUN make clean
-RUN make all
+RUN CGO_ENABLED=0 GOOS=linux make all
 
 ## Runtime image ##
-FROM alpine:3.21 AS run
+FROM scratch
 
 COPY --from=build /usr/src/zgrab2/cmd/zgrab2/zgrab2 /usr/bin/zgrab2
 
