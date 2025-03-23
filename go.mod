@@ -9,7 +9,7 @@ require (
 	github.com/prometheus/client_golang v1.21.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/sirupsen/logrus v1.9.3
-	github.com/zmap/zcrypto v0.0.0-20250318005919-84502f3e6a29
+	github.com/zmap/zcrypto v0.0.0-20250323064825-404b8c7031c7
 	github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6
 	golang.org/x/crypto v0.36.0
 	golang.org/x/net v0.37.0
