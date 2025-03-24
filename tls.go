@@ -31,8 +31,6 @@ import (
 type TLSFlags struct {
 	Config *tls.Config // Config is ready to use TLS configuration
 
-	Heartbleed bool `long:"heartbleed" description:"Check if server is vulnerable to Heartbleed"`
-
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
 	ExtendedMasterSecret bool `long:"extended-master-secret" description:"Offer RFC 7627 Extended Master Secret extension" json:"extended"`
 	ExtendedRandom       bool `long:"extended-random" description:"Send TLS Extended Random Extension" json:"extran"`
@@ -55,13 +53,12 @@ type TLSFlags struct {
 	VerifyServerCertificate bool   `long:"verify-server-certificate" description:"If set, the scan will fail if the server certificate does not match the server-name, or does not chain to a trusted root."`
 	// TODO: format? mapping? zgrab1 had flags like ChromeOnly, FirefoxOnly, etc...
 	CipherSuite      string `long:"cipher-suite" description:"A comma-delimited list of hex cipher suites to advertise."`
-	MinVersion       int    `long:"min-version" description:"The minimum SSL/TLS version that is acceptable. 0 means that SSLv3 is the minimum."`
+	MinVersion       int    `long:"min-version" description:"The minimum SSL/TLS version that is acceptable. 0 means that TLS1.0 is the minimum."`
 	MaxVersion       int    `long:"max-version" description:"The maximum SSL/TLS version that is acceptable. 0 means use the highest supported value."`
 	CurvePreferences string `long:"curve-preferences" description:"A list of elliptic curves used in an ECDHE handshake, in order of preference."`
 	NoECDHE          bool   `long:"no-ecdhe" description:"Do not allow ECDHE handshakes"`
 	// TODO: format?
 	SignatureAlgorithms string `long:"signature-algorithms" description:"Signature and hash algorithms that are acceptable"`
-	HeartbeatEnabled    bool   `long:"heartbeat-enabled" description:"If set, include the heartbeat extension"`
 	DSAEnabled          bool   `long:"dsa-enabled" description:"Accept server DSA keys"`
 	// TODO: format?
 	ClientRandom string `long:"client-random" description:"Set an explicit Client Random (base64 encoded)"`
@@ -218,12 +215,6 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		log.Fatalf("--signature-algorithms not implemented")
 	}
 
-	if t.HeartbeatEnabled || t.Heartbleed {
-		ret.HeartbeatEnabled = true
-	} else {
-		ret.HeartbeatEnabled = false
-	}
-
 	if t.DSAEnabled {
 		ret.ClientDSAEnabled = true
 	} else {
@@ -292,8 +283,6 @@ type TLSConnection struct {
 type TLSLog struct {
 	// TODO include TLSFlags?
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
-	// This will be nil if heartbleed is not checked because of client configuration flags
-	HeartbleedLog *tls.Heartbleed `json:"heartbleed_log,omitempty"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
@@ -306,25 +295,11 @@ func (z *TLSConnection) GetLog() *TLSLog {
 
 func (z *TLSConnection) Handshake() error {
 	log := z.GetLog()
-	if z.flags.Heartbleed {
-		buf := make([]byte, 256)
-		defer func() {
-			log.HandshakeLog = z.Conn.GetHandshakeLog()
-			log.HeartbleedLog = z.Conn.GetHeartbleedLog()
-		}()
-		// TODO - CheckHeartbleed does not bubble errors from Handshake
-		_, err := z.CheckHeartbleed(buf)
-		if err == tls.HeartbleedError {
-			err = nil
-		}
-		return err
-	} else {
-		defer func() {
-			log.HandshakeLog = z.Conn.GetHandshakeLog()
-			log.HeartbleedLog = nil
-		}()
-		return z.Conn.Handshake()
-	}
+	defer func() {
+		log.HandshakeLog = z.Conn.GetHandshakeLog()
+	}()
+	return z.Conn.Handshake()
+
 }
 
 // Close the underlying connection.
