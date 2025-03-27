@@ -43,7 +43,8 @@ const (
 	TransportUDP
 )
 
-// DialerGroupConfig lets modules communicate what they'd need in a dialer group
+// DialerGroupConfig lets modules communicate what they'd need in a dialer group. The framework uses this to configure
+// a default dialer group for the module.
 type DialerGroupConfig struct {
 	// TransportAgnosticDialerProtocol is the L4 transport the module uses by convention (ex: SSH over TCP).
 	// This is only used to configure the DialerGroup.TransportAgnosticDialer. The L4Dialer can handle both UDP and TCP.
@@ -58,10 +59,12 @@ type DialerGroupConfig struct {
 	BaseFlags            *BaseFlags
 	// TLSEnabled indicates whether the module needs a TLS connection. The behavior depends on if NeedsL4Dialer is true.
 	// If NeedsL4Dialer is true, the framework will set up a TLSWrapper in the DialerGroup so a module can access both.
-	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module has indicated it only needs a TLS connection.
+	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module
+	// has indicated it only needs a TLS connection.
 	TLSEnabled bool
 	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
-	// UDPFlags used for UDP connections either with the TransportAgnosticDialer if TransportAgnosticDialerProtocol is UDP, or with the L4Dialer if a "udp" network is requested true
+	// UDPFlags used for UDP connections either with the TransportAgnosticDialer if TransportAgnosticDialerProtocol is
+	// UDP, or with the L4Dialer if a "udp" network is requested true
 	UDPFlags *UDPFlags
 }
 
