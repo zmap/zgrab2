@@ -177,6 +177,10 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 			local = &net.UDPAddr{}
 			if udp.LocalAddress != "" && udp.LocalAddress != "*" {
 				local.IP = net.ParseIP(udp.LocalAddress)
+				if local.IP == nil {
+					// local address provided is invalid
+					return nil, fmt.Errorf("could not parse local address %s", udp.LocalAddress)
+				}
 			}
 			if udp.LocalPort != 0 {
 				local.Port = int(udp.LocalPort)
@@ -184,11 +188,11 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 		}
 		remote, err := net.ResolveUDPAddr("udp", address)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not resolve remote UDP address %s: %w", address, err)
 		}
 		conn, err := net.DialUDP("udp", local, remote)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not dial udp: %w", err)
 		}
 		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
 	}
