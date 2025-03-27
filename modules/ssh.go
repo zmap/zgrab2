@@ -147,7 +147,7 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 	sshClient := ssh.NewClient(c, chans, reqs)
 	defer func() {
 		err := sshClient.Close()
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			log.Errorf("error closing SSH client for target %s: %v", t.String(), err)
 		}
 	}()
