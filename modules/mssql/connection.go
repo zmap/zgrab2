@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -936,8 +938,8 @@ func (connection *Connection) getEncryptMode() EncryptMode {
 // First sends the PRELOGIN packet to the server and reads the response.
 // Then, if necessary, does a TLS handshake.
 // Returns the ENCRYPTION value from the response to PRELOGIN.
-func (connection *Connection) Handshake(flags *Flags) (EncryptMode, error) {
-	encryptMode := getEncryptMode(flags.EncryptMode)
+func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.ScanTarget, encryptModeStr string, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error)) (EncryptMode, error) {
+	encryptMode := getEncryptMode(encryptModeStr)
 	mode, err := connection.prelogin(encryptMode)
 	if err != nil {
 		return mode, err
@@ -946,9 +948,8 @@ func (connection *Connection) Handshake(flags *Flags) (EncryptMode, error) {
 	if mode == EncryptModeNotSupported {
 		return mode, nil
 	}
-	tlsClient, err := flags.TLSFlags.GetTLSConnection(connection.tdsConn)
-	if err != nil {
-		return mode, err
+	if tlsWrapper == nil {
+		return mode, fmt.Errorf("encrypt_mode=%s but no TLS wrapper provided", mode)
 	}
 	// do handshake: the raw TLS frames are wrapped in a TDS packet:
 	// tls.Conn.Handshake() ->
@@ -958,10 +959,7 @@ func (connection *Connection) Handshake(flags *Flags) (EncryptMode, error) {
 	// net.Conn.Read() => header + serverHello ->
 	// -> tdsConnection.Read() => serverHello ->
 	// -> tls.Conn.Handshake()
-	err = tlsClient.Handshake()
-	if err != nil {
-		return mode, err
-	}
+	tlsClient, err := tlsWrapper(ctx, target, connection.rawConn)
 	// After the SSL handshake has been established, wrap packets before they
 	// are passed into TLS, not after.
 

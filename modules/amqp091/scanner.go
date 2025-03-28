@@ -1,9 +1,10 @@
 package amqp091
 
 import (
-	"fmt"
-
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 
 	amqpLib "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
@@ -29,7 +30,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 type connectionTune struct {
@@ -119,7 +121,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	if flags.AuthUser != "" && flags.AuthPass == "" {
 		return fmt.Errorf("must provide --auth-pass if --auth-user is set")
 	}
@@ -142,6 +144,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      f.UseTLS,
+		TLSFlags:                        &f.TLSFlags,
+	}
 	return nil
 }
 
@@ -165,38 +173,26 @@ func (scanner *Scanner) Protocol() string {
 	return "amqp091"
 }
 
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%v): %w", target.String(), err)
 	}
 
 	// Setup result and connection cleanup
 	result := &Result{
 		AuthSuccess: false,
 	}
-	var tlsConn *zgrab2.TLSConnection
 	defer func() {
-		conn.Close()
-
-		if tlsConn != nil {
+		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 			result.TLSLog = tlsConn.GetLog()
 		}
+		zgrab2.CloseConnAndHandleError(conn)
 	}()
-
-	// If we're using TLS, wrap the connection
-	if scanner.config.UseTLS {
-		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-
-		if err := tlsConn.Handshake(); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-
-		conn = tlsConn
-	}
 
 	// Prepare AMQP connection config
 	config := amqpLib.Config{
@@ -221,6 +217,9 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	if err != nil {
 		result.Failure = err.Error()
 	}
+	if amqpConn == nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, result, fmt.Errorf("unable to open AMQP connection, returned conn is nil to target %v", target.String())
+	}
 	defer amqpConn.Close()
 
 	// If there's an error and we haven't even received START frame from the server, consider it a failure
@@ -244,7 +243,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 
 	// Heuristic to see if we're authenticated.
 	// These values are expected to be non-zero if and only if a tune is received and we're authenticated.
-	if err != amqpLib.ErrSASL && err != amqpLib.ErrCredentials && amqpConn.Config.ChannelMax > 0 {
+	if !errors.Is(err, amqpLib.ErrSASL) && !errors.Is(err, amqpLib.ErrCredentials) && amqpConn.Config.ChannelMax > 0 {
 		result.AuthSuccess = true
 		result.Tune = &connectionTune{
 			ChannelMax: int(amqpConn.Config.ChannelMax),

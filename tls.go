@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -65,6 +64,7 @@ type TLSFlags struct {
 	ClientRandom string `long:"client-random" description:"Set an explicit Client Random (base64 encoded)"`
 	// TODO: format?
 	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
+	OverrideSH  bool   `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 }
 
 func getCSV(arg string) []string {
@@ -259,6 +259,18 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		}
 	}
 
+	if t.OverrideSH {
+		ret.SignatureAndHashes = []tls.SigAndHash{
+			{0x01, 0x04}, // rsa, sha256
+			{0x03, 0x04}, // ecdsa, sha256
+			{0x01, 0x02}, // rsa, sha1
+			{0x03, 0x02}, // ecdsa, sha1
+			{0x01, 0x04}, // rsa, sha256
+			{0x01, 0x05}, // rsa, sha384
+			{0x01, 0x06}, // rsa, sha512
+		}
+	}
+
 	return &ret, nil
 }
 
@@ -293,36 +305,4 @@ func (z *TLSConnection) Handshake() error {
 // Close the underlying connection.
 func (conn *TLSConnection) Close() error {
 	return conn.Conn.Close()
-}
-
-// Connect opens the TCP connection to the target using the given configuration,
-// and then returns the configured wrapped TLS connection. The caller must still
-// call Handshake().
-func (t *TLSFlags) Connect(target *ScanTarget, flags *BaseFlags) (*TLSConnection, error) {
-	tcpConn, err := target.Open(flags)
-	if err != nil {
-		return nil, err
-	}
-	return t.GetTLSConnectionForTarget(tcpConn, target)
-}
-
-func (t *TLSFlags) GetTLSConnection(conn net.Conn) (*TLSConnection, error) {
-	return t.GetTLSConnectionForTarget(conn, nil)
-}
-
-func (t *TLSFlags) GetTLSConnectionForTarget(conn net.Conn, target *ScanTarget) (*TLSConnection, error) {
-	cfg, err := t.GetTLSConfigForTarget(target)
-	if err != nil {
-		return nil, fmt.Errorf("Error getting TLSConfig for options: %s", err)
-	}
-	return t.GetWrappedConnection(conn, cfg), nil
-}
-
-func (t *TLSFlags) GetWrappedConnection(conn net.Conn, cfg *tls.Config) *TLSConnection {
-	tlsClient := tls.Client(conn, cfg)
-	wrappedClient := TLSConnection{
-		Conn:  *tlsClient,
-		flags: t,
-	}
-	return &wrappedClient
 }
