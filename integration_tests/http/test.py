@@ -4,6 +4,7 @@ import difflib
 import os
 import subprocess
 import sys
+import time
 
 # Get directories
 module_dir = os.path.dirname(os.path.abspath(__file__))
@@ -62,7 +63,7 @@ def test_large_http_body_contents():
     with open("./container/index-very-large-http.html", "r", encoding="utf-8") as f:
         expected_content = f.read()
     # remove the trailing newlines that jq is adding and extract body from ZGrab scan
-    cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/large.html --max-size=10000 | jq -r '.data.http.result.response.body' | perl -pe 'chomp if eof'"
+    cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/large.html --max-size=10000 --read-limit-per-host=10000 | jq -r '.data.http.result.response.body' | perl -pe 'chomp if eof'"
     actual_content = run_command(cmd)
     if expected_content != actual_content:
         diff = difflib.unified_diff(expected_content.splitlines(), actual_content.splitlines(), lineterm="")
