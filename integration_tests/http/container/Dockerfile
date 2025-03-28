@@ -11,6 +11,7 @@ RUN cat ssl.key ssl.cer > ssl.pem
 
 WORKDIR /var/lighttpd/htdocs/http
 COPY index-http.html index.html
+COPY index-very-large-http.html large.html
 
 WORKDIR /var/lighttpd/htdocs/https
 COPY index-https.html index.html
