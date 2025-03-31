@@ -2,6 +2,7 @@
 
 import difflib
 import os
+import requests
 import subprocess
 import sys
 import time
@@ -80,8 +81,10 @@ def test_http_body_contents():
 
 # Ensures that the returned HTTP body matches the expected contents with a very large HTML file
 def test_large_http_body_contents():
-    with open("./container/index-very-large-http.html", "r", encoding="utf-8") as f:
-        expected_content = f.read()
+    large_http_gist_url = "https://gist.githubusercontent.com/phillip-stephens/3f1a8d2874b4ff33e4fc46035810b7f9/raw/5bd8ed7fb1b923607c26807ea8ea0643825e6e16/index-very-large-http.html"
+    response = requests.get(large_http_gist_url)
+    response.raise_for_status() # Ensure the request was successful
+    expected_content = response.text
     # remove the trailing newlines that jq is adding and extract body from ZGrab scan
     cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/large.html --max-size=10000 --read-limit-per-host=10000 | jq -r '.data.http.result.response.body' | perl -pe 'chomp if eof'"
     actual_content = run_command(cmd)
