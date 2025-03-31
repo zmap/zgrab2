@@ -62,9 +62,16 @@ def main():
             and mod.name != ".template"
             and (not test_modules or mod.name in test_modules)
         ):
-            for test in mod.glob("test*.sh"):
-                print(f"Running {test}...")
-                result = subprocess.run(f"./{test.name}", cwd=mod, shell=True)
+            result = None
+            for test in mod.glob("test*"):
+                if test.suffix == ".sh":
+                    print(f"Running {test}...")
+                    result = subprocess.run(f"./{test.name}", cwd=mod, shell=True)
+                elif test.suffix == ".py":
+                    print(f"Running {test}...")
+                    result = subprocess.run(
+                        f"python3 ./{test.name}", cwd=mod, shell=True
+                    )
 
                 if result.returncode != 0:
                     print(
