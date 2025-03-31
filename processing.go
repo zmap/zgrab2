@@ -73,7 +73,7 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 		}
 
 		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
-		return DialTimeoutConnection(ctx, "tcp", address, flags.Timeout, flags.BytesReadLimit)
+		return DialTimeoutConnection(ctx, "tcp", address, flags.Timeout, DefaultBytesReadLimit)
 	}
 }
 
@@ -194,7 +194,7 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 		if err != nil {
 			return nil, fmt.Errorf("could not dial udp: %w", err)
 		}
-		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
+		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, DefaultBytesReadLimit), nil
 	}
 }
 
