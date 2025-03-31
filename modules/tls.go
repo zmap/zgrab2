@@ -1,7 +1,10 @@
 package modules
 
 import (
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -14,7 +17,8 @@ type TLSModule struct {
 }
 
 type TLSScanner struct {
-	config *TLSFlags
+	config            *TLSFlags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 func init() {
@@ -38,7 +42,7 @@ func (m *TLSModule) Description() string {
 	return "Perform a TLS handshake"
 }
 
-func (f *TLSFlags) Validate(args []string) error {
+func (f *TLSFlags) Validate() error {
 	return nil
 }
 
@@ -52,6 +56,12 @@ func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
 		return zgrab2.ErrMismatchedFlags
 	}
 	s.config = f
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      true,
+		TLSFlags:                        &f.TLSFlags,
+	}
 	return nil
 }
 
@@ -71,28 +81,36 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 // a TLS handshake. If the handshake gets past the ServerHello stage, the
 // handshake log is returned (along with any other TLS-related logs, such as
 // heartbleed, if enabled).
-func (s *TLSScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := t.OpenTLS(&s.config.BaseFlags, &s.config.TLSFlags)
-	if conn != nil {
-		defer conn.Close()
-	}
+func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialerGroup.Dial(ctx, t)
 	if err != nil {
-		if conn != nil {
-			if log := conn.GetLog(); log != nil {
-				if log.HandshakeLog.ServerHello != nil {
-					// If we got far enough to get a valid ServerHello, then
-					// consider it to be a positive TLS detection.
-					return zgrab2.TryGetScanStatus(err), log, err
-				}
-				// Otherwise, detection failed.
-			}
-		}
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to dial target %s: %v", t.String(), err)
 	}
-	return zgrab2.SCAN_SUCCESS, conn.GetLog(), nil
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("failed to close connection to target %s: %v", t.String(), err)
+		}
+	}()
+	tlsConn, ok := conn.(*zgrab2.TLSConnection)
+	if !ok {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("tls scanner requires a default dialer that creates TLS connections")
+	}
+	tlsLog := tlsConn.GetLog()
+	if tlsLog != nil && tlsLog.HandshakeLog.ServerHello != nil {
+		// If we got far enough to get a valid ServerHello, then
+		// consider it to be a positive TLS detection.
+		return zgrab2.SCAN_SUCCESS, tlsLog, nil
+	}
+	// Otherwise detection failed
+	return zgrab2.SCAN_HANDSHAKE_ERROR, nil, fmt.Errorf("tls handshake failed")
 }
 
 // Protocol returns the protocol identifer for the scanner.
 func (s *TLSScanner) Protocol() string {
 	return "tls"
+}
+
+func (s *TLSScanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return s.dialerGroupConfig
 }

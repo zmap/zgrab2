@@ -22,44 +22,44 @@ const uint16Size = 2
 type ReconnectFunction func() (net.Conn, error)
 
 // GetS7Banner scans the target for S7 information, reconnecting if necessary.
-func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunction) (err error) {
+func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunction) error {
 	// Attempt connection
 	var connPacketBytes, connResponseBytes []byte
-	connPacketBytes, err = makeCOTPConnectionPacketBytes(uint16(0x102), uint16(0x100))
+	connPacketBytes, err := makeCOTPConnectionPacketBytes(uint16(0x102), uint16(0x100))
 	if err != nil {
-		return err
+		return fmt.Errorf("could not make COTP connection packet bytes: %v", err)
 	}
 	connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
 	if connResponseBytes == nil || len(connResponseBytes) == 0 || err != nil {
-		connection.Close()
+		zgrab2.CloseConnAndHandleError(connection)
 		connection, err = reconnect()
 		if err != nil {
-			return err
+			return fmt.Errorf("could not re-establish connection: %w", err)
 		}
 
 		connPacketBytes, err = makeCOTPConnectionPacketBytes(uint16(0x200), uint16(0x100))
 		if err != nil {
-			return err
+			return fmt.Errorf("could not make COTP connection packet bytes: %v", err)
 		}
 		connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not send request and read response: %w", err)
 		}
 	}
 
 	_, err = unmarshalCOTPConnectionResponse(connResponseBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not unmarshal COTP connection response: %w", err)
 	}
 
 	// Negotiate S7
 	requestPacketBytes, err := makeRequestPacketBytes(S7_REQUEST, makeNegotiatePDUParamBytes(), nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not make request packet bytes: %w", err)
 	}
 	_, err = sendRequestReadResponse(connection, requestPacketBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not send s7 request and read response: %w", err)
 	}
 
 	logStruct.IsS7 = true
@@ -67,16 +67,22 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	// Make Module Identification request
 	moduleIdentificationResponse, err := readRequest(connection, S7_SZL_MODULE_IDENTIFICATION)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not read module identification response: %w", err)
 	}
-	parseModuleIdentificationRequest(logStruct, &moduleIdentificationResponse)
+	err = parseModuleIdentificationRequest(logStruct, &moduleIdentificationResponse)
+	if err != nil {
+		return fmt.Errorf("failed to parse module identification response: %w", err)
+	}
 
 	// Make Component Identification request
 	componentIdentificationResponse, err := readRequest(connection, S7_SZL_COMPONENT_IDENTIFICATION)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not read component identification response: %w", err)
 	}
-	parseComponentIdentificationResponse(logStruct, &componentIdentificationResponse)
+	err = parseComponentIdentificationResponse(logStruct, &componentIdentificationResponse)
+	if err != nil {
+		return fmt.Errorf("failed to parse component identification response: %w", err)
+	}
 
 	return nil
 }

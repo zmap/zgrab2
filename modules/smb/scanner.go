@@ -3,7 +3,11 @@
 package smb
 
 import (
+	"context"
+	"fmt"
 	log "github.com/sirupsen/logrus"
+	"net"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/smb/smb"
 )
@@ -25,7 +29,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -55,7 +60,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 
@@ -68,6 +73,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
@@ -91,6 +100,10 @@ func (scanner *Scanner) Protocol() string {
 	return "smb"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Scan performs the following:
 //  1. Connect to the TCP port (default 445).
 //  2. Send a negotiation packet with the default values:
@@ -103,25 +116,26 @@ func (scanner *Scanner) Protocol() string {
 //  5. Send a setup session packet to the server with appropriate values
 //  6. Read the response from the server; on failure, exit with the log so far.
 //  7. Return the log.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to SMB server %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 	var result *smb.SMBLog
 	setupSession := scanner.config.SetupSession
 	verbose := scanner.config.Verbose
 	result, err = smb.GetSMBLog(conn, setupSession, false, verbose)
 	if err != nil {
 		if result == nil {
-			conn.Close()
-			conn, err = target.Open(&scanner.config.BaseFlags)
+			zgrab2.CloseConnAndHandleError(conn)
+			var newConn net.Conn
+			newConn, err = dialGroup.Dial(ctx, target)
 			if err != nil {
-				return zgrab2.TryGetScanStatus(err), nil, err
+				return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to SMB server %s on 2nd attempt: %w", target.String(), err)
 			}
-			defer conn.Close()
-			result, err = smb.GetSMBLog(conn, setupSession, true, verbose)
+			defer zgrab2.CloseConnAndHandleError(newConn)
+			result, err = smb.GetSMBLog(newConn, setupSession, true, verbose)
 			if err != nil {
 				return zgrab2.TryGetScanStatus(err), result, err
 			}
