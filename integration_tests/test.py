@@ -69,7 +69,9 @@ def main():
                     result = subprocess.run(f"./{test.name}", cwd=mod, shell=True)
                 elif test.suffix == ".py":
                     print(f"Running {test}...")
-                    result = subprocess.run(f"python3 ./{test.name}", cwd=mod, shell=True)
+                    result = subprocess.run(
+                        f"python3 ./{test.name}", cwd=mod, shell=True
+                    )
 
                 if result.returncode != 0:
                     print(
