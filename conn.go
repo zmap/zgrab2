@@ -31,7 +31,7 @@ const (
 
 var (
 	// DefaultBytesReadLimit is the maximum number of bytes to read per connection when no explicit value is provided.
-	DefaultBytesReadLimit = 256 * 1024 // 256KB
+	DefaultBytesReadLimit = 256 * 1024 * 1024
 
 	// DefaultReadLimitExceededAction is the action used when no explicit action is set.
 	DefaultReadLimitExceededAction = ReadLimitExceededActionTruncate
