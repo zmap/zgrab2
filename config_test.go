@@ -54,6 +54,15 @@ func TestExtractIPAddresses(t *testing.T) {
 			net.ParseIP("192.168.1.3"),
 		}, false},
 
+		// CIDR block with a single IP
+		{"CIDR and single IP", "192.168.1.0/30,192.168.1.128", []net.IP{
+			net.ParseIP("192.168.1.0"),
+			net.ParseIP("192.168.1.1"),
+			net.ParseIP("192.168.1.2"),
+			net.ParseIP("192.168.1.3"),
+			net.ParseIP("192.168.1.128"),
+		}, false},
+
 		// CIDR block overlapping with a single IP
 		{"CIDR and single IP", "192.168.1.0/30,192.168.1.2", []net.IP{
 			net.ParseIP("192.168.1.0"),
@@ -122,6 +131,7 @@ func TestExtractPorts(t *testing.T) {
 		expected []uint16
 		wantErr  bool
 	}{
+		// Positive Test Cases
 		{"Single Port", "80", []uint16{80}, false},
 		{"Single Port with whitespace", "	80 ", []uint16{80}, false},
 		{"Multiple ports", "80,443,8080", []uint16{80, 443, 8080}, false},
@@ -131,6 +141,7 @@ func TestExtractPorts(t *testing.T) {
 		{"Single port with range", "80, 83-89", []uint16{80, 83, 84, 85, 86, 87, 88, 89}, false},
 		{"Duplicate port", "80, 80", []uint16{80}, false},
 		{"Duplicate port with port range", "80, 80-82", []uint16{80, 81, 82}, false},
+		// Negative Test Cases
 		{"Invalid port - too large", "65536", nil, true},
 		{"Invalid port - can't be negative", "-5", nil, true},
 		{"Invalid port - can't be zero", "0", nil, true},

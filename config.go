@@ -28,17 +28,16 @@ type Config struct {
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
-	LocalAddr          string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses or CIDR ranges."`
-	LocalPort          string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges."`
+	LocalAddrString    string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges, or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
+	LocalPortString    string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges. Ex: 1200-1300,2000"`
 	inputFile          *os.File
 	outputFile         *os.File
 	metaFile           *os.File
 	logFile            *os.File
 	inputTargets       InputTargetsFunc
 	outputResults      OutputResultsFunc
-	localAddr          net.Addr // TODO Phillip, remove this after we have full support
-	localAddrs         []net.IP
-	localPorts         []uint16
+	localAddrs         []net.IP // will be non-empty if user specified local addresses
+	localPorts         []uint16 // will be non-empty if user specified local ports
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -144,24 +143,27 @@ func validateFrameworkConfiguration() {
 		}
 	}
 
-	if config.LocalAddr != "" {
-		ips, err := extractIPAddresses(config.LocalAddr)
+	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
+	if config.LocalAddrString != "" {
+		ips, err := extractIPAddresses(config.LocalAddrString)
 		if err != nil {
-			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddr, err)
+			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
 		}
 		config.localAddrs = ips
 	}
-	if config.LocalPort != "" {
-		ports, err := extractPorts(config.LocalPort)
+
+	// If localPortString is set, parse it into a list of ports to use for source ports
+	if config.LocalPortString != "" {
+		ports, err := extractPorts(config.LocalPortString)
 		if err != nil {
-			log.Fatalf("could not extract ports from port string %s: %s", config.LocalPort, err)
+			log.Fatalf("could not extract ports from port string %s: %s", config.LocalPortString, err)
 		}
 		config.localPorts = ports
 	}
 }
 
 func extractIPAddresses(ipString string) ([]net.IP, error) {
-	ipsMap := make(map[string]net.IP, 0)
+	ipsMap := make(map[string]net.IP)
 	for _, addr := range strings.Split(ipString, ",") {
 		// this addr is either an IP address, ip address range, or a CIDR range
 		addr = strings.TrimSpace(addr) // remove whitespace
@@ -217,7 +219,7 @@ func extractIPAddresses(ipString string) ([]net.IP, error) {
 }
 
 func extractPorts(portString string) ([]uint16, error) {
-	portMap := make(map[uint16]struct{}, 0)
+	portMap := make(map[uint16]struct{})
 	for _, portStr := range strings.Split(portString, ",") {
 		portStr = strings.TrimSpace(portStr)
 		if strings.Contains(portStr, "-") {
@@ -226,11 +228,11 @@ func extractPorts(portString string) ([]uint16, error) {
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("invalid port range %s, valid range ex: '80-443'", portStr)
 			}
-			startPort, err := convertPortStringToPort(parts[0])
+			startPort, err := parsePortString(parts[0])
 			if err != nil {
 				return nil, fmt.Errorf("invalid start port %s of port range: %v", parts[0], err)
 			}
-			endPort, err := convertPortStringToPort(parts[1])
+			endPort, err := parsePortString(parts[1])
 			if err != nil {
 				return nil, fmt.Errorf("invalid end port %s of port range: %v", parts[1], err)
 			}
@@ -243,7 +245,7 @@ func extractPorts(portString string) ([]uint16, error) {
 			}
 		} else {
 			// single port
-			port, err := convertPortStringToPort(portStr)
+			port, err := parsePortString(portStr)
 			if err != nil {
 				return nil, fmt.Errorf("invalid port %s: %v", portStr, err)
 			}
@@ -258,9 +260,9 @@ func extractPorts(portString string) ([]uint16, error) {
 	return ports, nil
 }
 
-// convertPortStringToPort converts a string to a uint16 port number after removing whitespace
+// parsePortString converts a string to a uint16 port number after removing whitespace
 // Checks for validity of the port number and returns an error if invalid
-func convertPortStringToPort(portStr string) (uint16, error) {
+func parsePortString(portStr string) (uint16, error) {
 	minimumPort := uint64(1)     // inclusive
 	maximumPort := uint64(65535) // inclusive
 	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)

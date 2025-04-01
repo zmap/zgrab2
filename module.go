@@ -230,6 +230,7 @@ type BaseFlags struct {
 	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
 }
 
+// TODO - remove these once we've handled local addresses at framework level
 // UDPFlags contains the common options used for all UDP scans
 type UDPFlags struct {
 	LocalPort    uint   `long:"local-port" description:"Set an explicit local port for UDP traffic"`
