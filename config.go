@@ -1,13 +1,15 @@
 package zgrab2
 
 import (
+	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 	"os"
 	"runtime"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	"strconv"
+	"strings"
 )
 
 // Config is the high level framework options that will be parsed
@@ -26,13 +28,17 @@ type Config struct {
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
+	LocalAddr          string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses or CIDR ranges."`
+	LocalPort          string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges."`
 	inputFile          *os.File
 	outputFile         *os.File
 	metaFile           *os.File
 	logFile            *os.File
 	inputTargets       InputTargetsFunc
 	outputResults      OutputResultsFunc
-	localAddr          *net.TCPAddr
+	localAddr          net.Addr // TODO Phillip, remove this after we have full support
+	localAddrs         []net.IP
+	localPorts         []uint16
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -137,6 +143,137 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("invalid DNS server address: %s", err)
 		}
 	}
+
+	if config.LocalAddr != "" {
+		ips, err := extractIPAddresses(config.LocalAddr)
+		if err != nil {
+			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddr, err)
+		}
+		config.localAddrs = ips
+	}
+	if config.LocalPort != "" {
+		ports, err := extractPorts(config.LocalPort)
+		if err != nil {
+			log.Fatalf("could not extract ports from port string %s: %s", config.LocalPort, err)
+		}
+		config.localPorts = ports
+	}
+}
+
+func extractIPAddresses(ipString string) ([]net.IP, error) {
+	ipsMap := make(map[string]net.IP, 0)
+	for _, addr := range strings.Split(ipString, ",") {
+		// this addr is either an IP address, ip address range, or a CIDR range
+		addr = strings.TrimSpace(addr) // remove whitespace
+		_, ipnet, err := net.ParseCIDR(addr)
+		if err == nil {
+			// CIDR range, append all constituents
+			for currentIP := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(currentIP); incrementIP(currentIP) {
+				tempIP := duplicateIP(currentIP)
+				ipsMap[currentIP.String()] = tempIP
+			}
+			continue
+		}
+		if strings.Contains(addr, "-") {
+			// IP range
+			parts := strings.Split(addr, "-")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid IP range %s", addr)
+			}
+			parts[0] = strings.TrimSpace(parts[0])
+			parts[1] = strings.TrimSpace(parts[1])
+			startIP := net.ParseIP(parts[0])
+			endIP := net.ParseIP(parts[1])
+			if startIP == nil {
+				return nil, fmt.Errorf("invalid start IP %s of IP range", parts[0])
+			}
+			if endIP == nil {
+				return nil, fmt.Errorf("invalid end IP %s of IP range", parts[1])
+			}
+			if compareIPs(startIP, endIP) > 0 {
+				return nil, fmt.Errorf("start IP %s is greater than end IP %s of IP range", startIP.String(), endIP.String())
+			}
+			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; incrementIP(currentIP) {
+				tempIP := duplicateIP(currentIP)
+				ipsMap[currentIP.String()] = tempIP
+			}
+			continue
+		}
+		// single IP
+		castIP := net.ParseIP(addr)
+		if castIP != nil {
+			ipsMap[castIP.String()] = castIP
+		} else {
+			return nil, fmt.Errorf("could not parse IP address %s", addr)
+		}
+	}
+	// build list from de-duped map
+	ips := make([]net.IP, 0, len(ipsMap))
+	for _, i := range ipsMap {
+		ip := i
+		ips = append(ips, ip)
+	}
+	return ips, nil
+}
+
+func extractPorts(portString string) ([]uint16, error) {
+	portMap := make(map[uint16]struct{}, 0)
+	for _, portStr := range strings.Split(portString, ",") {
+		portStr = strings.TrimSpace(portStr)
+		if strings.Contains(portStr, "-") {
+			// port range
+			parts := strings.Split(portStr, "-")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid port range %s, valid range ex: '80-443'", portStr)
+			}
+			startPort, err := convertPortStringToPort(parts[0])
+			if err != nil {
+				return nil, fmt.Errorf("invalid start port %s of port range: %v", parts[0], err)
+			}
+			endPort, err := convertPortStringToPort(parts[1])
+			if err != nil {
+				return nil, fmt.Errorf("invalid end port %s of port range: %v", parts[1], err)
+			}
+			if startPort >= endPort {
+				return nil, fmt.Errorf("start port %d must be less than end port %d", startPort, endPort)
+			}
+			// validation complete, add all ports in range
+			for i := startPort; i <= endPort; i++ {
+				portMap[i] = struct{}{}
+			}
+		} else {
+			// single port
+			port, err := convertPortStringToPort(portStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid port %s: %v", portStr, err)
+			}
+			portMap[port] = struct{}{}
+		}
+	}
+	// build list from de-duped map
+	ports := make([]uint16, 0, len(portMap))
+	for port := range portMap {
+		ports = append(ports, port)
+	}
+	return ports, nil
+}
+
+// convertPortStringToPort converts a string to a uint16 port number after removing whitespace
+// Checks for validity of the port number and returns an error if invalid
+func convertPortStringToPort(portStr string) (uint16, error) {
+	minimumPort := uint64(1)     // inclusive
+	maximumPort := uint64(65535) // inclusive
+	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port %s: %v", portStr, err)
+	}
+	if port < minimumPort {
+		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
+	}
+	if port > maximumPort {
+		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
+	}
+	return uint16(port), nil
 }
 
 // GetMetaFile returns the file to which metadata should be output
