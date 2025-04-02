@@ -248,11 +248,6 @@ func DialTimeoutConnectionEx(ctx context.Context, proto string, target string, d
 	return NewTimeoutConnection(ctx, conn, sessionTimeout, readTimeout, writeTimeout, bytesReadLimit), nil
 }
 
-// DialTimeoutConnection dials the target and returns a net.Conn that uses the configured single timeout for all operations.
-func DialTimeoutConnection(ctx context.Context, proto string, target string, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	return DialTimeoutConnectionEx(ctx, proto, target, timeout, timeout, timeout, timeout, bytesReadLimit)
-}
-
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
 type Dialer struct {
 	// Timeout is the maximum time to wait for the entire session, after which any operations on the
@@ -310,13 +305,14 @@ func (d *Dialer) SetDefaults() *Dialer {
 	if d.BytesReadLimit == 0 {
 		d.BytesReadLimit = DefaultBytesReadLimit
 	}
+	if d.SessionTimeout == 0 {
+		d.SessionTimeout = DefaultSessionTimeout
+	}
 	if d.Dialer == nil {
 		d.Dialer = &net.Dialer{
-			Timeout:   d.Timeout,
-			KeepAlive: d.Timeout,
-			DualStack: true,
+			Timeout:   d.SessionTimeout,
+			KeepAlive: d.SessionTimeout,
 		}
-
 		// Use custom DNS as default if set
 		if config.CustomDNS != "" {
 			d.Dialer.Resolver = &net.Resolver{
@@ -326,9 +322,6 @@ func (d *Dialer) SetDefaults() *Dialer {
 				},
 			}
 		}
-	}
-	if d.Timeout == 0 {
-		d.Timeout = DefaultSessionTimeout
 	}
 	return d
 }
