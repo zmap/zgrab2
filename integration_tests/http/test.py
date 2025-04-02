@@ -105,6 +105,7 @@ def test_large_http_body_contents():
         )
     pass
 
+
 # Uses the dockerized zgrab to ensure that scanning real domains returns a 200 OK
 def test_scanning_real_domains():
     domains = [
@@ -116,7 +117,8 @@ def test_scanning_real_domains():
         command = "docker run --rm -i zgrab2_runner http --max-redirects=3"
         grabbed_response = run_command(f"echo {domain} | {command}")
         status_line = (
-            json.loads(grabbed_response).get("data", {})
+            json.loads(grabbed_response)
+            .get("data", {})
             .get("http", {})
             .get("result", {})
             .get("response", {})
@@ -128,7 +130,6 @@ def test_scanning_real_domains():
             raise ValueError(
                 f"zgrab2_runner: {domain} returned an unexpected status line: {status_line}"
             )
-
 
 
 def print_docker_logs():
