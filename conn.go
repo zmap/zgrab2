@@ -3,6 +3,7 @@ package zgrab2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -255,11 +256,8 @@ func DialTimeoutConnection(ctx context.Context, proto string, target string, tim
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
 type Dialer struct {
 	// Timeout is the maximum time to wait for the entire session, after which any operations on the
-	// connection will fail.
-	Timeout time.Duration
-
-	// ConnectTimeout is the maximum time to wait for a connection.
-	ConnectTimeout time.Duration
+	// connection will fail. Dial-specific timeouts are set on the net.Dialer.
+	SessionTimeout time.Duration
 
 	// ReadTimeout is the maximum time to wait for a Read
 	ReadTimeout time.Duration
@@ -269,7 +267,7 @@ type Dialer struct {
 
 	// Dialer is an auxiliary dialer used for DialContext (the result gets wrapped in a
 	// TimeoutConnection).
-	Dialer *net.Dialer
+	*net.Dialer
 
 	// BytesReadLimit is the maximum number of bytes that connections dialed with this dialer will
 	// read before erroring.
@@ -280,32 +278,13 @@ type Dialer struct {
 	ReadLimitExceededAction ReadLimitExceededAction
 }
 
-func (d *Dialer) getTimeout(field time.Duration) time.Duration {
-	if field == 0 {
-		return d.Timeout
-	}
-	return field
-}
-
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if d.Timeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, d.Timeout)
-	}
-	// ensure that our aux dialer is up-to-date; copied from http/transport.go
-	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
-	d.Dialer.KeepAlive = d.Timeout
-
-	// Copy over the source IP if set, or nil
-	d.Dialer.LocalAddr = config.localAddr
-
-	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
-	defer cancelDial()
-	conn, err := d.Dialer.DialContext(dialContext, network, address)
+	conn, err := d.Dialer.DialContext(ctx, network, address)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("dial context failed: %v", err)
 	}
-	ret := NewTimeoutConnection(ctx, conn, d.Timeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
@@ -313,19 +292,18 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 // Dial returns a connection with the configured timeout.
 func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
-	return DialTimeoutConnectionEx(context.Background(), proto, target, d.ConnectTimeout, d.Timeout, d.ReadTimeout, d.WriteTimeout, 0)
+	return DialTimeoutConnectionEx(context.Background(), proto, target, d.Timeout, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, 0)
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
 func GetTimeoutConnectionDialer(timeout time.Duration) *Dialer {
-	return NewDialer(&Dialer{Timeout: timeout})
+	dialer := &Dialer{}
+	dialer.Timeout = timeout
+	return NewDialer(dialer)
 }
 
 // SetDefaults for the Dialer.
 func (d *Dialer) SetDefaults() *Dialer {
-	if d.Timeout == 0 {
-		d.Timeout = DefaultSessionTimeout
-	}
 	if d.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
 		d.ReadLimitExceededAction = DefaultReadLimitExceededAction
 	}
@@ -348,6 +326,9 @@ func (d *Dialer) SetDefaults() *Dialer {
 				},
 			}
 		}
+	}
+	if d.Timeout == 0 {
+		d.Timeout = DefaultSessionTimeout
 	}
 	return d
 }
