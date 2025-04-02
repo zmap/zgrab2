@@ -65,7 +65,7 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 		dialer := NewDialer(nil)
 		dialer.Timeout = flags.Timeout
 		if deadline, ok := ctx.Deadline(); ok {
-			dialer.Deadline = deadline
+			dialer.Dialer.Deadline = deadline
 		}
 
 		// If the scan is for a specific IP, and a domain name is provided, we
