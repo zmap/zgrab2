@@ -147,8 +147,6 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
-		// TODO Phillip - remove
-		//address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))
 		var local *net.UDPAddr
 		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 			local = &net.UDPAddr{}
