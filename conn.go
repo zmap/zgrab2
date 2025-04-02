@@ -232,7 +232,7 @@ func DialTimeoutConnectionEx(ctx context.Context, proto string, target string, d
 	// Dial timeout will be min(sessionTimeout, dialTimeout, ctx.Deadline)
 	dialer := net.Dialer{Timeout: sessionTimeout}
 	if dialTimeout > 0 {
-		dialer.Timeout = dialTimeout
+		dialer.Timeout = min(dialTimeout, sessionTimeout)
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		dialer.Deadline = deadline
