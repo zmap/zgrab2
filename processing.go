@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zmap/zcrypto/tls"
-	"time"
-
 	"net"
 	"sync"
 
@@ -62,72 +60,50 @@ func (target *ScanTarget) Host() string {
 }
 
 // GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
-func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-		var port uint
-		// If the port is supplied in ScanTarget, let that override the cmdline option
-		if t.Port != 0 {
-			port = t.Port
-		} else {
-			port = flags.Port
+func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		dialer := NewDialer(nil)
+		dialer.Timeout = flags.Timeout
+		if deadline, ok := ctx.Deadline(); ok {
+			dialer.Deadline = deadline
 		}
 
-		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
-		return DialTimeoutConnection(ctx, "tcp", address, flags.Timeout, DefaultBytesReadLimit)
-	}
-}
-
-func getPerTargetDefaultTCPDialer(flags *BaseFlags) func(scanTarget *ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
-	return func(scanTarget *ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
-		return func(ctx context.Context, network, addr string) (net.Conn, error) {
-
-			dialer := new(Dialer)
-			dialer = dialer.SetDefaults()
-			dialer.Timeout = flags.Timeout
-			if deadline, ok := ctx.Deadline(); ok {
-				dialer.Timeout = min(dialer.Timeout, deadline.Sub(time.Now()))
-			}
-
-			switch network {
-			case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
-				// If the scan is for a specific IP, and a domain name is provided, we
-				// don't want to just let the http library resolve the domain.  Create
-				// a fake resolver that we will use, that always returns the IP we are
-				// given to scan.
-				if scanTarget.IP != nil && scanTarget.Domain != "" {
-					host, _, err := net.SplitHostPort(addr)
+		// If the scan is for a specific IP, and a domain name is provided, we
+		// don't want to just let the http library resolve the domain.  Create
+		// a fake resolver that we will use, that always returns the IP we are
+		// given to scan.
+		if t.IP != nil && t.Domain != "" {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
+				log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
+			} else {
+				// In the case of redirects, we don't want to blindly use the
+				// IP we were given to scan, however.  Only use the fake
+				// resolver if the domain originally specified for the scan
+				// target matches the current address being looked up in this
+				// DialContext.
+				if host == t.Domain {
+					resolver, err := NewFakeResolver(t.IP.String())
 					if err != nil {
-						log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
-						log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
-					} else {
-						// In the case of redirects, we don't want to blindly use the
-						// IP we were given to scan, however.  Only use the fake
-						// resolver if the domain originally specified for the scan
-						// target matches the current address being looked up in this
-						// DialContext.
-						if host == scanTarget.Domain {
-							resolver, err := NewFakeResolver(scanTarget.IP.String())
-							if err != nil {
-								return nil, err
-							}
-							dialer.Dialer.Resolver = resolver
-						}
+						return nil, err
 					}
+					dialer.Dialer.Resolver = resolver
 				}
 			}
-			conn, err := dialer.DialContext(ctx, network, addr)
-			if err != nil {
-				return nil, err
-			}
-			return conn, nil
 		}
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
 }
 
 // GetDefaultTLSDialer returns a TLS-over-TCP dialer suitable for modules with default TLS behavior
-func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t)
+func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
 		if err != nil {
 			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
 		}
@@ -169,9 +145,10 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 }
 
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
-func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
-		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))
+func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		// TODO Phillip - remove
+		//address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))
 		var local *net.UDPAddr
 		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 			local = &net.UDPAddr{}
@@ -186,9 +163,9 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 				local.Port = int(udp.LocalPort)
 			}
 		}
-		remote, err := net.ResolveUDPAddr("udp", address)
+		remote, err := net.ResolveUDPAddr("udp", addr)
 		if err != nil {
-			return nil, fmt.Errorf("could not resolve remote UDP address %s: %w", address, err)
+			return nil, fmt.Errorf("could not resolve remote UDP address %s: %w", addr, err)
 		}
 		conn, err := net.DialUDP("udp", local, remote)
 		if err != nil {

@@ -105,9 +105,9 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 			return func(ctx context.Context, network, addr string) (net.Conn, error) {
 				switch network {
 				case "udp", "udp4", "udp6":
-					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, scanTarget)
+					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, scanTarget, addr)
 				case "tcp", "tcp4", "tcp6":
-					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget)
+					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget, addr)
 				default:
 					return nil, fmt.Errorf("unsupported network type: %s", network)
 				}
@@ -120,15 +120,26 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 	} else {
 		// module only needs a TransportAgnosticDialer
 		if config.TLSEnabled {
-			// module needs a TLS TransportAgnosticDialer
-			dialerGroup.TransportAgnosticDialer = GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)
+			dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+				// TransportAgnosticDialer only connects to a single target
+				address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
+				return GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)(ctx, target, address)
+			}
 		} else {
 			// module only needs a TransportAgnosticDialer, so we set it based on the protocol
 			switch config.TransportAgnosticDialerProtocol {
 			case TransportUDP:
-				dialerGroup.TransportAgnosticDialer = GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)
+				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+					// TransportAgnosticDialer only connects to a single target
+					address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
+					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, target, address)
+				}
 			case TransportTCP:
-				dialerGroup.TransportAgnosticDialer = GetDefaultTCPDialer(config.BaseFlags)
+				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+					// TransportAgnosticDialer only connects to a single target
+					address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
+					return GetDefaultTCPDialer(config.BaseFlags)(ctx, target, address)
+				}
 			default:
 				return nil, fmt.Errorf("unsupported TransportAgnosticDialerProtocol: %d", config.TransportAgnosticDialerProtocol)
 			}
