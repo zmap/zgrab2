@@ -297,9 +297,9 @@ func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
 func GetTimeoutConnectionDialer(timeout time.Duration) *Dialer {
-	dialer := &Dialer{}
+	dialer := NewDialer(nil)
 	dialer.Timeout = timeout
-	return NewDialer(dialer)
+	return dialer
 }
 
 // SetDefaults for the Dialer.
