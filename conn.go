@@ -228,7 +228,7 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
 type Dialer struct {
-	// Timeout is the maximum time to wait for the entire session, after which any operations on the
+	// SessionTimeout is the maximum time to wait for the entire session, after which any operations on the
 	// connection will fail. Dial-specific timeouts are set on the net.Dialer.
 	SessionTimeout time.Duration
 
@@ -253,6 +253,15 @@ type Dialer struct {
 
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	// potentially the user set the SessionTimeout after calling NewDialer. If so, we'll set the dialer's timeout here
+	if d.SessionTimeout != 0 {
+		if d.Timeout == 0 {
+			d.Timeout = d.SessionTimeout
+		} else {
+			// if both session and dial timeout are set, use the minimum of both
+			d.Timeout = min(d.Timeout, d.SessionTimeout)
+		}
+	}
 	conn, err := d.Dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, fmt.Errorf("dial context failed: %v", err)
