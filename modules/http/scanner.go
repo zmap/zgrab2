@@ -377,8 +377,10 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 			RawHeaderBuffer:     scanner.config.RawHeaders,
 		},
-		client:         http.MakeNewClient(),
-		globalDeadline: time.Now().Add(scanner.config.Timeout),
+		client: http.MakeNewClient(),
+	}
+	if scanner.config.Timeout != 0 {
+		ret.globalDeadline = time.Now().Add(scanner.config.Timeout)
 	}
 	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
 		ctx = ret.withDeadlineContext(ctx)

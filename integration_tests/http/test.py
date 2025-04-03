@@ -2,6 +2,7 @@
 
 import difflib
 import os
+import json
 import requests
 import subprocess
 import sys
@@ -103,6 +104,32 @@ def test_large_http_body_contents():
             "http/large-body-test: The HTTP body contents do not match the expected contents.\n"
         )
     pass
+
+
+# Uses the dockerized zgrab to ensure that scanning real domains returns a 200 OK
+def test_scanning_real_domains():
+    domains = [
+        "cloudflare.com",
+        "github.com",
+        "en.wikipedia.org",
+    ]
+    for domain in domains:
+        command = "docker run --rm -i zgrab2_runner http --max-redirects=3"
+        grabbed_response = run_command(f"echo {domain} | {command}")
+        status_line = (
+            json.loads(grabbed_response)
+            .get("data", {})
+            .get("http", {})
+            .get("result", {})
+            .get("response", {})
+            .get("status_line", "Unknown")
+        )
+        print(f"zgrab2_runner: {domain} status => {status_line}")
+        # Check if the response contains a 200 OK status
+        if status_line != "200 OK":
+            raise ValueError(
+                f"zgrab2_runner: {domain} returned an unexpected status line: {status_line}"
+            )
 
 
 def print_docker_logs():
