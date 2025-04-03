@@ -87,6 +87,10 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 				}
 			}
 		}
+		err := dialer.SetRandomLocalAddr("tcp", config.localAddrs, config.localPorts)
+		if err != nil {
+			return nil, fmt.Errorf("could not set random local address: %w", err)
+		}
 		conn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, err
@@ -140,24 +144,13 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 }
 
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
-func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	dialer := GetTimeoutConnectionDialer(flags.Timeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
-		var local *net.UDPAddr
-		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
-			local = &net.UDPAddr{}
-			if udp.LocalAddress != "" && udp.LocalAddress != "*" {
-				local.IP = net.ParseIP(udp.LocalAddress)
-				if local.IP == nil {
-					// local address provided is invalid
-					return nil, fmt.Errorf("could not parse local address %s", udp.LocalAddress)
-				}
-			}
-			if udp.LocalPort != 0 {
-				local.Port = int(udp.LocalPort)
-			}
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
+		if err != nil {
+			return nil, fmt.Errorf("could not set random local address: %w", err)
 		}
-		dialer.Dialer.LocalAddr = local
 		return dialer.DialContext(ctx, "udp", addr)
 	}
 }
