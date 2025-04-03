@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/zmap/zcrypto/tls"
-	"time"
-
 	"net"
 	"sync"
 
@@ -63,6 +61,8 @@ func (target *ScanTarget) Host() string {
 
 // GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
 func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+	dialer := NewDialer(nil)
+	dialer.Timeout = flags.Timeout
 	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
 		var port uint
 		// If the port is supplied in ScanTarget, let that override the cmdline option
@@ -71,23 +71,19 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 		} else {
 			port = flags.Port
 		}
-
+		if deadline, ok := ctx.Deadline(); ok {
+			dialer.Dialer.Deadline = deadline
+		}
 		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", port))
-		return DialTimeoutConnection(ctx, "tcp", address, flags.Timeout, DefaultBytesReadLimit)
+		return dialer.DialContext(ctx, "tcp", address)
 	}
 }
 
 func getPerTargetDefaultTCPDialer(flags *BaseFlags) func(scanTarget *ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
 	return func(scanTarget *ScanTarget) func(ctx context.Context, network, target string) (net.Conn, error) {
+		dialer := NewDialer(nil)
+		dialer.Timeout = flags.Timeout
 		return func(ctx context.Context, network, addr string) (net.Conn, error) {
-
-			dialer := new(Dialer)
-			dialer = dialer.SetDefaults()
-			dialer.Timeout = flags.Timeout
-			if deadline, ok := ctx.Deadline(); ok {
-				dialer.Timeout = min(dialer.Timeout, deadline.Sub(time.Now()))
-			}
-
 			switch network {
 			case "tcp", "tcp4", "tcp6", "udp", "udp4", "udp6":
 				// If the scan is for a specific IP, and a domain name is provided, we
@@ -170,6 +166,8 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
+	dialer := NewDialer(nil)
+	dialer.Timeout = flags.Timeout
 	return func(ctx context.Context, t *ScanTarget) (net.Conn, error) {
 		address := net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))
 		var local *net.UDPAddr
@@ -186,15 +184,8 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 				local.Port = int(udp.LocalPort)
 			}
 		}
-		remote, err := net.ResolveUDPAddr("udp", address)
-		if err != nil {
-			return nil, fmt.Errorf("could not resolve remote UDP address %s: %w", address, err)
-		}
-		conn, err := net.DialUDP("udp", local, remote)
-		if err != nil {
-			return nil, fmt.Errorf("could not dial udp: %w", err)
-		}
-		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, DefaultBytesReadLimit), nil
+		dialer.Dialer.LocalAddr = local
+		return dialer.DialContext(ctx, "udp", address)
 	}
 }
 

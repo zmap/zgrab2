@@ -226,33 +226,6 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 	return ret
 }
 
-// DialTimeoutConnectionEx dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func DialTimeoutConnectionEx(ctx context.Context, proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	var conn net.Conn
-	var err error
-	// Dial timeout will be min(sessionTimeout, dialTimeout, ctx.Deadline)
-	dialer := net.Dialer{Timeout: sessionTimeout}
-	if dialTimeout > 0 {
-		dialer.Timeout = min(dialTimeout, sessionTimeout)
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		dialer.Deadline = deadline
-	}
-	conn, err = dialer.Dial(proto, target)
-	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
-		return nil, err
-	}
-	return NewTimeoutConnection(ctx, conn, sessionTimeout, readTimeout, writeTimeout, bytesReadLimit), nil
-}
-
-// DialTimeoutConnection dials the target and returns a net.Conn that uses the configured single timeout for all operations.
-func DialTimeoutConnection(ctx context.Context, proto string, target string, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	return DialTimeoutConnectionEx(ctx, proto, target, timeout, timeout, timeout, timeout, bytesReadLimit)
-}
-
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
 type Dialer struct {
 	// Timeout is the maximum time to wait for the entire session, after which any operations on the
@@ -292,7 +265,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 // Dial returns a connection with the configured timeout.
 func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
-	return DialTimeoutConnectionEx(context.Background(), proto, target, d.Timeout, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, 0)
+	return d.DialContext(context.Background(), proto, target)
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
