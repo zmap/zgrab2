@@ -175,9 +175,14 @@ func extractIPAddresses(ipString string) ([]net.IP, error) {
 		_, ipnet, err := net.ParseCIDR(addr)
 		if err == nil {
 			// CIDR range, append all constituents
-			for currentIP := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(currentIP); incrementIP(currentIP) {
+			for currentIP := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(currentIP); {
 				tempIP := duplicateIP(currentIP)
 				ipsMap[currentIP.String()] = tempIP
+				incrementIP(currentIP)
+				if currentIP.Equal(tempIP) {
+					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
+					break
+				}
 			}
 			continue
 		}
@@ -200,9 +205,14 @@ func extractIPAddresses(ipString string) ([]net.IP, error) {
 			if compareIPs(startIP, endIP) > 0 {
 				return nil, fmt.Errorf("start IP %s is greater than end IP %s of IP range", startIP.String(), endIP.String())
 			}
-			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; incrementIP(currentIP) {
+			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; {
 				tempIP := duplicateIP(currentIP)
 				ipsMap[currentIP.String()] = tempIP
+				incrementIP(currentIP)
+				if currentIP.Equal(tempIP) {
+					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
+					break
+				}
 			}
 			continue
 		}

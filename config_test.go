@@ -71,6 +71,24 @@ func TestExtractIPAddresses(t *testing.T) {
 			net.ParseIP("192.168.1.3"),
 		}, false},
 
+		{"Max IPv4 CIDR", "255.255.255.255/32", []net.IP{
+			net.ParseIP("255.255.255.255"),
+		}, false},
+
+		{"Max IPv6 CIDR", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128", []net.IP{
+			net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+		}, false},
+
+		{"Max IPv4 Range", "255.255.255.254-255.255.255.255", []net.IP{
+			net.ParseIP("255.255.255.254"),
+			net.ParseIP("255.255.255.255"),
+		}, false},
+
+		{"Max IPv6 Range", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe - ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", []net.IP{
+			net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe"),
+			net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+		}, false},
+
 		// Combination of all formats
 		{"Mixed formats", "10.0.0.1,10.0.0.2-10.0.0.3,10.0.0.0/30", []net.IP{
 			net.ParseIP("10.0.0.0"),
