@@ -29,8 +29,8 @@ type Config struct {
 	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
-	LocalAddrString    string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges, or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
-	LocalPortString    string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges. Ex: 1200-1300,2000"`
+	LocalAddrString    string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
+	LocalPortString    string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
 	inputFile          *os.File
 	outputFile         *os.File
 	metaFile           *os.File
@@ -163,6 +163,10 @@ func validateFrameworkConfiguration() {
 	}
 }
 
+// extractIPAddresses takes in a string of comma-separated IP addresses, ranges, or CIDR blocks and returns a de-duped
+// list of IP addresses, or an error if the string is invalid. Whitespace is trimmed from each address string and the
+// ranges are inclusive.
+// See config_test.go for examples of valid and invalid strings
 func extractIPAddresses(ipString string) ([]net.IP, error) {
 	ipsMap := make(map[string]net.IP)
 	for _, addr := range strings.Split(ipString, ",") {
@@ -219,6 +223,8 @@ func extractIPAddresses(ipString string) ([]net.IP, error) {
 	return ips, nil
 }
 
+// extractPorts takes in a string of comma-separated ports or port ranges (80-443) and returns a de-duped list of ports
+// Whitespace is trimmed from each port string, and the port range is inclusive.
 func extractPorts(portString string) ([]uint16, error) {
 	portMap := make(map[uint16]struct{})
 	for _, portStr := range strings.Split(portString, ",") {
