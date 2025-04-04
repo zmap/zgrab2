@@ -796,13 +796,12 @@ type Results struct {
 // Flags holds the command-line flags for the scanner.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.UDPFlags
-	Verbose       bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	Version       uint8  `long:"version" description:"The version number to pass to the Server." default:"3"`
-	LeapIndicator uint8  `long:"leap-indicator" description:"The LI value to pass to the Server. Default 3 (Unknown)"`
-	SkipGetTime   bool   `long:"skip-get-time" description:"If set, don't request the Server time"`
-	MonList       bool   `long:"monlist" description:"Perform a ReqMonGetList request"`
-	RequestCode   string `long:"request-code" description:"Specify a request code for MonList other than ReqMonGetList" default:"REQ_MON_GETLIST"`
+	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	Version          uint8  `long:"version" description:"The version number to pass to the Server." default:"3"`
+	LeapIndicator    uint8  `long:"leap-indicator" description:"The LI value to pass to the Server. Default 3 (Unknown)"`
+	SkipGetTime      bool   `long:"skip-get-time" description:"If set, don't request the Server time"`
+	MonList          bool   `long:"monlist" description:"Perform a ReqMonGetList request"`
+	RequestCode      string `long:"request-code" description:"Specify a request code for MonList other than ReqMonGetList" default:"REQ_MON_GETLIST"`
 }
 
 // Module is the zgrab2 module implementation
@@ -857,7 +856,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TransportAgnosticDialerProtocol: zgrab2.TransportUDP,
 		NeedSeparateL4Dialer:            false,
 		BaseFlags:                       &f.BaseFlags,
-		UDPFlags:                        &f.UDPFlags,
 	}
 	return nil
 }

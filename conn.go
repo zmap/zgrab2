@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"time"
 
@@ -319,4 +320,32 @@ func NewDialer(value *Dialer) *Dialer {
 		value = &Dialer{}
 	}
 	return value.SetDefaults()
+}
+
+// SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
+// the IP or port, respectively, will be un-set and the system will choose.
+func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16) error {
+	var localIP net.IP
+	if len(localIPs) != 0 {
+		localIP = localIPs[rand.Intn(len(localIPs))]
+	}
+	var localPort int
+	if len(localPorts) != 0 {
+		localPort = int(localPorts[rand.Intn(len(localPorts))])
+	}
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		d.LocalAddr = &net.TCPAddr{
+			IP:   localIP,
+			Port: localPort,
+		}
+	case "udp", "udp4", "udp6":
+		d.LocalAddr = &net.UDPAddr{
+			IP:   localIP,
+			Port: localPort,
+		}
+	default:
+		return fmt.Errorf("unsupported network type: %s", network)
+	}
+	return nil
 }
