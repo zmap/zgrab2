@@ -61,13 +61,8 @@ func (target *ScanTarget) Host() string {
 
 // GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
 func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	dialer := GetTimeoutConnectionDialer(flags.Timeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
-		dialer := NewDialer(nil)
-		dialer.Timeout = flags.Timeout
-		if deadline, ok := ctx.Deadline(); ok {
-			dialer.Dialer.Deadline = deadline
-		}
-
 		// If the scan is for a specific IP, and a domain name is provided, we
 		// don't want to just let the http library resolve the domain.  Create
 		// a fake resolver that we will use, that always returns the IP we are
@@ -146,6 +141,7 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	dialer := GetTimeoutConnectionDialer(flags.Timeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		var local *net.UDPAddr
 		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
@@ -161,15 +157,8 @@ func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Conte
 				local.Port = int(udp.LocalPort)
 			}
 		}
-		remote, err := net.ResolveUDPAddr("udp", addr)
-		if err != nil {
-			return nil, fmt.Errorf("could not resolve remote UDP address %s: %w", addr, err)
-		}
-		conn, err := net.DialUDP("udp", local, remote)
-		if err != nil {
-			return nil, fmt.Errorf("could not dial udp: %w", err)
-		}
-		return NewTimeoutConnection(ctx, conn, flags.Timeout, 0, 0, DefaultBytesReadLimit), nil
+		dialer.Dialer.LocalAddr = local
+		return dialer.DialContext(ctx, "udp", addr)
 	}
 }
 
