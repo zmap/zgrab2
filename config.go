@@ -2,14 +2,15 @@ package zgrab2
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"net/http"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 )
 
 // Config is the high level framework options that will be parsed
