@@ -4,17 +4,18 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
+	"github.com/zmap/zcrypto/encoding/asn1"
+	"github.com/zmap/zcrypto/x509/pkix"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zcrypto/encoding/asn1"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
-	"github.com/zmap/zcrypto/x509/pkix"
 )
 
 // Shared code for TLS scans.
@@ -87,6 +88,9 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 	return t.GetTLSConfigForTarget(nil)
 }
 
+// to avoid a data-race, we'll only set these ZCrypto options once
+var zcryptoOnce sync.Once
+
 func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error) {
 	var err error
 
@@ -149,8 +153,10 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		}
 	}
 
-	asn1.AllowPermissiveParsing = true
-	pkix.LegacyNameString = true
+	zcryptoOnce.Do(func() {
+		asn1.AllowPermissiveParsing = true
+		pkix.LegacyNameString = true
+	})
 
 	if t.NextProtos != "" {
 		// TODO: Different format?
