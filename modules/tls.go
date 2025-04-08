@@ -6,11 +6,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 type TLSFlags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 }
 
 type TLSModule struct {
@@ -92,7 +93,7 @@ func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, 
 			log.Errorf("failed to close connection to target %s: %v", t.String(), err)
 		}
 	}()
-	tlsConn, ok := conn.(*zgrab2.TLSConnection)
+	tlsConn, ok := conn.(*tlslog.TLSConnection)
 	if !ok {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("tls scanner requires a default dialer that creates TLS connections")
 	}

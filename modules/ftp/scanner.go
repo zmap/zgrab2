@@ -20,6 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // ScanResults is the output of the scan.
@@ -42,14 +43,14 @@ type ScanResults struct {
 
 	// TLSLog is the standard shared TLS handshake log.
 	// Only present if the FTPAuthTLS flag is set.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // Flags are the FTP-specific command-line flags. Taken from the original zgrab.
 // (TODO: should FTPAuthTLS be on by default?).
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 
 	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	FTPAuthTLS  bool `long:"authtls" description:"Collect FTPS certificates in addition to FTP banners"`
@@ -225,7 +226,7 @@ func (ftp *Connection) SetupFTPS() (bool, error) {
 // First sends the AUTH TLS/AUTH SSL command to tell the server we want to
 // do a TLS handshake. If that fails, break. Otherwise, perform the handshake.
 // Taken over from the original zgrab.
-func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.ScanTarget, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error)) error {
+func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.ScanTarget, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*tlslog.TLSConnection, error)) error {
 	ftpsReady, err := ftp.SetupFTPS()
 
 	if err != nil {
@@ -234,7 +235,7 @@ func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.S
 	if !ftpsReady {
 		return nil
 	}
-	var conn *zgrab2.TLSConnection
+	var conn *tlslog.TLSConnection
 	if conn, err = tlsWrapper(ctx, target, ftp.conn); err != nil {
 		return fmt.Errorf("error setting up TLS connection to target %s: %w", target.String(), err)
 	}
@@ -279,7 +280,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	defer func() {
 		// Check if we have a TLS conn and grab the log
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		if tlsConn, ok := conn.(*tlslog.TLSConnection); ok {
 			results.TLSLog = tlsConn.GetLog()
 		}
 		// cleanup conn

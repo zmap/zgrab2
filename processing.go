@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zdns/v2/src/zdns"
 	"net"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2/lib/output"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // Grab contains all scan responses for a single host
@@ -63,30 +66,32 @@ func (target *ScanTarget) Host() string {
 func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	dialer := GetTimeoutConnectionDialer(flags.Timeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
-		// If the scan is for a specific IP, and a domain name is provided, we
-		// don't want to just let the http library resolve the domain.  Create
-		// a fake resolver that we will use, that always returns the IP we are
-		// given to scan.
-		if t.IP != nil && t.Domain != "" {
-			host, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
-				log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
-			} else {
-				// In the case of redirects, we don't want to blindly use the
-				// IP we were given to scan, however.  Only use the fake
-				// resolver if the domain originally specified for the scan
-				// target matches the current address being looked up in this
-				// DialContext.
-				if host == t.Domain {
-					resolver, err := NewFakeResolver(t.IP.String())
-					if err != nil {
-						return nil, err
-					}
-					dialer.Dialer.Resolver = resolver
-				}
-			}
-		}
+
+		// TODO Phillip testing - will need to uncomment this
+		//// If the scan is for a specific IP, and a domain name is provided, we
+		//// don't want to just let the http library resolve the domain.  Create
+		//// a fake resolver that we will use, that always returns the IP we are
+		//// given to scan.
+		//if t.IP != nil && t.Domain != "" {
+		//	host, _, err := net.SplitHostPort(addr)
+		//	if err != nil {
+		//		log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
+		//		log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
+		//	} else {
+		//		// In the case of redirects, we don't want to blindly use the
+		//		// IP we were given to scan, however.  Only use the fake
+		//		// resolver if the domain originally specified for the scan
+		//		// target matches the current address being looked up in this
+		//		// DialContext.
+		//		if host == t.Domain {
+		//			resolver, err := NewFakeResolver(t.IP.String())
+		//			if err != nil {
+		//				return nil, err
+		//			}
+		//			dialer.Dialer.Resolver = resolver
+		//		}
+		//	}
+		//}
 		conn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, err
@@ -96,7 +101,7 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 }
 
 // GetDefaultTLSDialer returns a TLS-over-TCP dialer suitable for modules with default TLS behavior
-func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *tlslog.TLSFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
 		if err != nil {
@@ -107,9 +112,9 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 }
 
 // GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
-func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
-	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
-		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
+func GetDefaultTLSWrapper(tlsFlags *tlslog.TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*tlslog.TLSConnection, error) {
+	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*tlslog.TLSConnection, error) {
+		tlsConfig, err := GetTLSConfigForTarget(tlsFlags, t)
 		if err != nil {
 			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
 		}
@@ -127,9 +132,9 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 				tlsConfig.ServerName = host
 			}
 		}
-		tlsConn := TLSConnection{
+		tlsConn := tlslog.TLSConnection{
 			Conn:  *(tls.Client(conn, tlsConfig)),
-			flags: tlsFlags,
+			Flags: tlsFlags,
 		}
 		err = tlsConn.Handshake()
 		if err != nil {
@@ -141,8 +146,16 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
-	dialer := GetTimeoutConnectionDialer(flags.Timeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		dialer := GetTimeoutConnectionDialer(flags.Timeout)
+		// TODO Phillip Testing
+		log.Warnf("trying to dial %s", addr)
+		// TODO Phillip testing
+		resolver, err := NewFakeResolverWithZDNS(config.resolverConfig)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create zdns resolver")
+		}
+		dialer.Dialer.Resolver = resolver
 		var local *net.UDPAddr
 		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
 			local = &net.UDPAddr{}
@@ -198,7 +211,8 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input ScanTarget, m *Monitor) []byte {
+func grabTarget(input ScanTarget, m *Monitor, resolver *zdns.Resolver) []byte {
+	//
 	moduleResult := make(map[string]ScanResponse)
 
 	for _, scannerName := range orderedScanners {
@@ -255,13 +269,18 @@ func Process(mon *Monitor) {
 	//Start all the workers
 	for i := 0; i < workers; i++ {
 		go func(i int) {
+			// Initizlae a ZDNS resolver
+			resolver, err := zdns.InitResolver(config.resolverConfig)
+			if err != nil {
+				log.Fatalf("failed to initialize ZDNS resolver: %v", err)
+			}
 			for _, scannerName := range orderedScanners {
 				scanner := *scanners[scannerName]
 				scanner.InitPerSender(i)
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
-					result := grabTarget(obj, mon)
+					result := grabTarget(obj, mon, resolver)
 					outputQueue <- result
 				}
 			}

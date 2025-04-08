@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // Scanner is an interface that represents all functions necessary to run a scan
@@ -62,7 +64,7 @@ type DialerGroupConfig struct {
 	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module
 	// has indicated it only needs a TLS connection.
 	TLSEnabled bool
-	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
+	TLSFlags   *tlslog.TLSFlags // must be non-nil if TLSEnabled is true
 	// UDPFlags used for UDP connections either with the TransportAgnosticDialer if TransportAgnosticDialerProtocol is
 	// UDP, or with the L4Dialer if a "udp" network is requested true
 	UDPFlags *UDPFlags
@@ -154,7 +156,7 @@ type DialerGroup struct {
 	// TransportAgnosticDialer should be used by most modules that do not need control over the transport layer.
 	// It abstracts the underlying transport protocol so a module can  deal with just the L7 logic. Any protocol that
 	// doesn't need to know about the underlying transport should use this.
-	// If the transport is a TLS connection, the dialer should return a zgrab2.TLSConnection so the underlying log can be
+	// If the transport is a TLS connection, the dialer should return a tlslog.TLSConnection so the underlying log can be
 	// accessed.
 	TransportAgnosticDialer func(ctx context.Context, target *ScanTarget) (net.Conn, error)
 	// L4Dialer will be used by any module that needs to have a TCP/UDP connection. Think of following a redirect to an
@@ -165,7 +167,7 @@ type DialerGroup struct {
 	// TLSWrapper is a function that takes an existing net.Conn and upgrades it to a TLS connection. This is useful for
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
 	// Cannot be used for QUIC connections, as QUIC connections are not "upgraded" from a L4 connection
-	TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+	TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*tlslog.TLSConnection, error)
 }
 
 // Dial is used to access the transport agnostic dialer
@@ -178,8 +180,8 @@ func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, e
 
 // GetTLSDialer returns a function that can be used as a standalone TLS dialer. This is useful for modules like HTTP that
 // require this for handling redirects to https://
-func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*TLSConnection, error) {
-	return func(network, addr string) (*TLSConnection, error) {
+func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*tlslog.TLSConnection, error) {
+	return func(network, addr string) (*tlslog.TLSConnection, error) {
 		if d.TLSWrapper == nil {
 			return nil, fmt.Errorf("no TLS wrapper set")
 		}

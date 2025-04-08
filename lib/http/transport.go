@@ -30,8 +30,8 @@ import (
 	"github.com/zmap/zcrypto/tls"
 	"golang.org/x/net/http/httpguts"
 
-	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // DefaultTransport is the default implementation of Transport and is
@@ -392,9 +392,9 @@ func (t *Transport) RoundTrip(req *Request) (*Response, error) {
 		if cm.targetScheme == "https" {
 			switch conn := pconn.conn.(type) {
 			case *tls.Conn:
-				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
-				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
-			case *zgrab2.TLSConnection:
+				// TODO/HACK: This is a local fork of the library, so it should always be a tlslog.TLSConnection...
+				req.TLSLog = &tlslog.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+			case *tlslog.TLSConnection:
 				req.TLSLog = conn.GetLog()
 			}
 		}

@@ -25,8 +25,9 @@ import (
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
 	"github.com/zmap/zcrypto/x509/pkix"
-	"github.com/zmap/zgrab2"
+
 	"github.com/zmap/zgrab2/lib/output"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 const doFailDiffs = false
@@ -961,7 +962,7 @@ type fakeMySQLScanResults struct {
 	RawPackets []string `json:"raw_packets,omitempty"`
 
 	// TLSLog contains the usual shared TLS logs.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // TestMySQL builds a bogus MySQL result, and then manually checks that the
@@ -989,7 +990,7 @@ func TestMySQL(t *testing.T) {
 	results.StatusFlags = map[string]bool{
 		"SERVER_STATUS_AUTOCOMMIT": true,
 	}
-	results.TLSLog = new(zgrab2.TLSLog)
+	results.TLSLog = new(tlslog.TLSLog)
 	results.TLSLog.HandshakeLog = &tls.ServerHandshake{
 		ClientFinished: &tls.Finished{
 			VerifyData: []byte("not real data"),

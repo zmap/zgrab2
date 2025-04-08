@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -46,14 +47,14 @@ type ScanResults struct {
 	CLOSE string `json:"close,omitempty"`
 
 	// TLSLog is the standard TLS log, if --starttls or --imaps is enabled.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the IMAP scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 
 	// SendCLOSE indicates that the CLOSE command should be sent.
 	SendCLOSE bool `long:"send-close" description:"Send the CLOSE command before closing."`

@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -37,14 +38,14 @@ type ScanResults struct {
 
 	// TLSLog contains the log of the TLS handshake (and any additional
 	// configured TLS scan operations).
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 
 	// Version is the client version number sent to the server in the Connect
 	// packet. TODO: Find version number mappings.
@@ -237,7 +238,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
 	}
-	if tlsConn, ok := sock.(*zgrab2.TLSConnection); ok {
+	if tlsConn, ok := sock.(*tlslog.TLSConnection); ok {
 		results.TLSLog = tlsConn.GetLog()
 	}
 

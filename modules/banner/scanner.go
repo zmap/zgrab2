@@ -22,12 +22,13 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // Flags give the command-line flags for the banner module.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 
 	ReadTimeout int    `long:"read-timeout" default:"10" description:"Read timeout in milliseconds"`
 	BufferSize  int    `long:"buffer-size" default:"8209" description:"Read buffer size in bytes"`
@@ -60,7 +61,7 @@ type Scanner struct {
 type Results struct {
 	Banner string         `json:"banner,omitempty"`
 	Length int            `json:"length,omitempty"`
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 	MD5    string         `json:"md5,omitempty"`
 	SHA1   string         `json:"sha1,omitempty"`
 	SHA256 string         `json:"sha256,omitempty"`
@@ -182,7 +183,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 	}
 	defer func() {
 		// attempt to collect TLS Log
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		if tlsConn, ok := conn.(*tlslog.TLSConnection); ok {
 			results.TLSLog = tlsConn.GetLog()
 		}
 		// cleanup our connection

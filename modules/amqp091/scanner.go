@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // Flags holds the command-line configuration for the smb scan module.
@@ -21,7 +22,7 @@ type Flags struct {
 	AuthPass         string `long:"auth-pass" description:"Password to use for authentication. Must be used with --auth-user. No auth is attempted if not provided."`
 
 	UseTLS          bool `long:"use-tls" description:"Use TLS to connect to the server. Note that AMQPS uses a different default port (5671) than AMQP (5672) and you will need to specify that port manually with -p."`
-	zgrab2.TLSFlags `group:"TLS Options"`
+	tlslog.TLSFlags `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -91,7 +92,7 @@ type Result struct {
 
 	Tune *connectionTune `json:"tune,omitempty"`
 
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -188,7 +189,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		AuthSuccess: false,
 	}
 	defer func() {
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		if tlsConn, ok := conn.(*tlslog.TLSConnection); ok {
 			result.TLSLog = tlsConn.GetLog()
 		}
 		zgrab2.CloseConnAndHandleError(conn)

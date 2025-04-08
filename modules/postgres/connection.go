@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // Don't allow unbounded reads
@@ -220,11 +221,11 @@ func (c *Connection) ReadPacket() (*ServerPacket, *zgrab2.ScanError) {
 
 // GetTLSLog gets the connection's TLSLog, or nil if the connection has
 // not yet been set up as TLS.
-func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
+func (c *Connection) GetTLSLog() *tlslog.TLSLog {
 	if !c.IsSSL {
 		return nil
 	}
-	return c.Connection.(*zgrab2.TLSConnection).GetLog()
+	return c.Connection.(*tlslog.TLSConnection).GetLog()
 }
 
 // encodeMap encodes a map into a byte array of the form

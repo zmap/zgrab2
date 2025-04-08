@@ -36,6 +36,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // ErrInvalidResponse is returned when the server returns an invalid or unexpected response.
@@ -66,14 +67,14 @@ type ScanResults struct {
 	ImplicitTLS bool `json:"implicit_tls,omitempty"`
 
 	// TLSLog is the standard TLS log, if STARTTLS is sent or if --SMTPS is used
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 
 	// SendHELP indicates that the client should send the HELP command (after HELO/EHLO).
 	SendHELP bool `long:"send-help" description:"Send the HELP command"`
@@ -257,7 +258,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found. SMTP with SMTPSecure requires a TLS wrapper")
 		}
-		var tlsConn *zgrab2.TLSConnection
+		var tlsConn *tlslog.TLSConnection
 		tlsConn, err = tlsWrapper(ctx, target, conn)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not open TLS connection: %v", err)

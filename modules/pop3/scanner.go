@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -54,14 +55,14 @@ type ScanResults struct {
 	QUIT string `json:"quit,omitempty"`
 
 	// TLSLog is the standard TLS log, if --starttls or --pop3s is enabled.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the POP3 scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 
 	// SendHELP indicates that the client should send the HELP command.
 	SendHELP bool `long:"send-help" description:"Send the HELP command"`
@@ -228,7 +229,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	result := &ScanResults{}
 	if scanner.config.POP3Secure {
 		// Perform a TLS handshake immediately
-		var tlsConn *zgrab2.TLSConnection
+		var tlsConn *tlslog.TLSConnection
 		tlsConn, err = tlsWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
@@ -271,7 +272,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if err := getPOP3Error(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
-		var tlsConn *zgrab2.TLSConnection
+		var tlsConn *tlslog.TLSConnection
 		tlsConn, err = tlsWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)

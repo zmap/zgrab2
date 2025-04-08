@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/tlslog"
 )
 
 const (
@@ -41,7 +42,7 @@ const (
 // https://raw.githubusercontent.com/nmap/nmap/master/nmap-service-probes uses the line number of the error response (e.g. StartupError["line"]) to infer the version number
 type Results struct {
 	// TLSLog is the standard TLS log for the first connection.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.TLSLog `json:"tls,omitempty"`
 
 	// SupportedVersions is the string returned by the server in response
 	// to a StartupMessage with ProtocolVersion = 0.0.
@@ -119,7 +120,7 @@ type AuthenticationMode struct {
 // command line.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.TLSFlags  `group:"TLS Options"`
 	SkipSSL          bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
 	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	ProtocolVersion  string `long:"protocol-version" description:"The protocol to use in the StartupPacket" default:"3.0"`
@@ -341,7 +342,7 @@ func (s *Scanner) GetTrigger() string {
 
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
 func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.DialerGroup) error {
-	var conn *zgrab2.TLSConnection
+	var conn *tlslog.TLSConnection
 	var err error
 	tlsWrapper := dialGroup.TLSWrapper
 	if tlsWrapper == nil {

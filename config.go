@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"github.com/zmap/zdns/v2/src/zdns"
 	"net"
 	"net/http"
 	"os"
@@ -33,6 +34,7 @@ type Config struct {
 	inputTargets       InputTargetsFunc
 	outputResults      OutputResultsFunc
 	localAddr          *net.TCPAddr
+	resolverConfig     *zdns.ResolverConfig // ZDNS resolver configuration, used for per-worker resolvers
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -137,6 +139,15 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("invalid DNS server address: %s", err)
 		}
 	}
+
+	// Configure ZDNS ResolverConfig
+	config.resolverConfig = zdns.NewResolverConfig()
+	config.resolverConfig.ExternalNameServersV4 = zdns.DefaultExternalResolversV4
+	config.resolverConfig.ExternalNameServersV6 = zdns.DefaultExternalResolversV6
+	config.resolverConfig.RootNameServersV4 = zdns.RootServersV4
+	config.resolverConfig.RootNameServersV6 = zdns.RootServersV6
+	// TODO Phillip - handle CustomDNS
+
 }
 
 // GetMetaFile returns the file to which metadata should be output
