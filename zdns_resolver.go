@@ -15,31 +15,89 @@ import (
 	// You may need to import the package that provides constants for DNS types/classes.
 )
 
-// FakeDNSServer now uses an external ZDNS resolver for lookups.
-type zdnsServer struct {
-	resolver *zdns.Resolver
-	*sync.Mutex
+type zdnsResolverPool struct {
+	sync.RWMutex
+	pool      chan *zdns.Resolver
+	resolvers []*zdns.Resolver // to keep track of resolvers so we can ensure we close them when done
+	hasClosed bool
 }
+
+var pool *zdnsResolverPool
+
+func newZDNSResolverPool(size int, zdnsResolverConfig *zdns.ResolverConfig) (*zdnsResolverPool, error) {
+	if zdnsResolverConfig == nil {
+		return nil, fmt.Errorf("ZDNS resolver config must be provided")
+	}
+
+	pool = &zdnsResolverPool{
+		RWMutex:   sync.RWMutex{},
+		pool:      make(chan *zdns.Resolver, size),
+		resolvers: make([]*zdns.Resolver, 0, size),
+		hasClosed: false,
+	}
+
+	for i := 0; i < size; i++ {
+		resolver, err := zdns.InitResolver(zdnsResolverConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize ZDNS resolver: %v", err)
+		}
+		pool.pool <- resolver
+		pool.resolvers = append(pool.resolvers, resolver)
+	}
+
+	return pool, nil
+}
+
+func (p *zdnsResolverPool) checkOut() *zdns.Resolver {
+	p.RLock()
+	defer p.RUnlock()
+	res, ok := <-p.pool
+	if !ok {
+		log.Warn("resolver pool is closed")
+		return nil
+	}
+	return res
+}
+
+func (p *zdnsResolverPool) checkIn(resolver *zdns.Resolver) {
+	p.RLock()
+	defer p.RUnlock()
+	if p.hasClosed {
+		resolver.Close()
+	} else {
+		// return to pool
+		p.pool <- resolver
+	}
+}
+
+func (p *zdnsResolverPool) close() {
+	p.Lock()
+	defer p.Unlock()
+	close(p.pool)
+	// Close all resolvers in the pool
+	for _, resolver := range p.resolvers {
+		resolver := resolver
+		go func() {
+			if resolver != nil {
+				resolver.Close()
+			}
+		}()
+	}
+	p.hasClosed = true
+}
+
+// FakeDNSServer now uses an external ZDNS resolver for lookups.
+type zdnsServer struct{}
 
 // NewFakeResolverWithZDNS creates a new net.Resolver that uses the FakeDNSServer
 // which in turn uses the ZDNS lookup for actual DNS resolution.
 // TODO Phillip this has a bit of overhead in that it creates a new resolver for each lookup. But handling this properly will require some thread-saftey work to do correctly. Let's see what performance we get with this.
-func NewFakeResolverWithZDNS(zdnsResolverConfig *zdns.ResolverConfig) (*net.Resolver, error) {
-	if zdnsResolverConfig == nil {
-		return nil, fmt.Errorf("ZDNS resolver config must be provided")
-	}
-	resolver, err := zdns.InitResolver(zdnsResolverConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize ZDNS resolver: %v", err)
-	}
-	fDNS := zdnsServer{
-		resolver: resolver,
-		Mutex:    &sync.Mutex{},
-	}
+func NewFakeResolverWithZDNS() *net.Resolver {
+	fDNS := zdnsServer{}
 	return &net.Resolver{
 		PreferGo: true, // Forces use of Go's internal resolver (and our custom Dial)
 		Dial:     fDNS.DialContext,
-	}, nil
+	}
 }
 
 // fakeDNS performs the external lookup using ZDNS. It extracts the question,
@@ -73,22 +131,25 @@ func (f *zdnsServer) fakeDNS(address string, dmsg dnsmessage.Message) (dnsmessag
 	}
 
 	// Perform the external lookup. Adjust context/timeout as needed.
-	startTime := time.Now()
-	f.Lock() // TODO Phillip this is a hack to avoid concurrent access to the resolver. It appears that per net.Resolver.goLookupIPCNAMEOrder,
+	//f.Lock() // TODO Phillip this is a hack to avoid concurrent access to the resolver. It appears that per net.Resolver.goLookupIPCNAMEOrder,
 	// the net.Dialer is multi-threaded. Therefore we should likely have a pool of zdns.Resolver objects that can be checked in and out here.
-	result, _, status, err := f.resolver.IterativeLookup(context.Background(), dnsQuestion)
+	resolver := pool.checkOut()
+	if resolver == nil {
+		log.Warn("No available ZDNS resolver in pool")
+		r.Header.RCode = dnsmessage.RCodeServerFailure
+		return r, errors.New("no available ZDNS resolver in pool")
+	}
+	result, _, status, err := resolver.IterativeLookup(context.Background(), dnsQuestion)
 	if err != nil {
 		log.Printf("Error during external lookup for %s: %v", qname, err)
 		r.Header.RCode = dnsmessage.RCodeServerFailure
 		return r, err
 	}
-	f.Unlock()
+	pool.checkIn(resolver)
 	if status != "NOERROR" {
 		r.Header.RCode = dnsmessage.RCodeNameError
 		return r, nil
 	}
-	elapsed := time.Since(startTime)
-	log.Warnf("Elapsed time: %v, Result: %v", elapsed, result)
 
 	// Check that there is a result
 	if result == nil || len(result.Answers) == 0 {
@@ -105,7 +166,7 @@ func (f *zdnsServer) fakeDNS(address string, dmsg dnsmessage.Message) (dnsmessag
 		}
 		ip := net.ParseIP(castAnswer.Answer)
 		if ip == nil {
-			log.Warnf("Answer's IP is not valid: %s", castAnswer.Answer)
+			//log.Warnf("Answer's IP is not valid: %s", castAnswer.Answer)
 			continue
 		}
 		if castAnswer.Type == "A" {

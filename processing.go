@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zdns/v2/src/zdns"
 	"net"
@@ -66,6 +65,8 @@ func (target *ScanTarget) Host() string {
 func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	dialer := GetTimeoutConnectionDialer(flags.Timeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		resolver := NewFakeResolverWithZDNS()
+		dialer.Dialer.Resolver = resolver
 
 		// TODO Phillip testing - will need to uncomment this
 		//// If the scan is for a specific IP, and a domain name is provided, we
@@ -148,13 +149,8 @@ func GetDefaultTLSWrapper(tlsFlags *tlslog.TLSFlags) func(ctx context.Context, t
 func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		dialer := GetTimeoutConnectionDialer(flags.Timeout)
-		// TODO Phillip Testing
-		log.Warnf("trying to dial %s", addr)
 		// TODO Phillip testing
-		resolver, err := NewFakeResolverWithZDNS(config.resolverConfig)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create zdns resolver")
-		}
+		resolver := NewFakeResolverWithZDNS()
 		dialer.Dialer.Resolver = resolver
 		var local *net.UDPAddr
 		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
@@ -295,4 +291,6 @@ func Process(mon *Monitor) {
 	workerDone.Wait()
 	close(outputQueue)
 	outputDone.Wait()
+	// Close the resolver pool
+	pool.close()
 }

@@ -2,17 +2,20 @@ package bin
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"runtime/pprof"
 	"sync"
 	"time"
 
 	"fmt"
+	_ "net/http/pprof"
 	"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -94,6 +97,13 @@ func stopCPUProfile(f *os.File) {
 // include custom sets of scan modules by creating new main packages with custom
 // sets of ZGrab modules imported with side-effects.
 func ZGrab2Main() {
+	runtime.SetMutexProfileFraction(1)
+	runtime.SetBlockProfileRate(1)
+	runtime.SetCPUProfileRate(20)
+	go func() {
+		fmt.Println("Starting pprof server on :6060")
+		fmt.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	f := startCPUProfile()
 	defer stopCPUProfile(f)
 	defer dumpHeapProfile()

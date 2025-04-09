@@ -146,6 +146,12 @@ func validateFrameworkConfiguration() {
 	config.resolverConfig.ExternalNameServersV6 = zdns.DefaultExternalResolversV6
 	config.resolverConfig.RootNameServersV4 = zdns.RootServersV4
 	config.resolverConfig.RootNameServersV6 = zdns.RootServersV6
+	var err error
+	pool, err := newZDNSResolverPool(100, config.resolverConfig) // TODO Phillip - make this configurable
+	if err != nil {
+		log.Fatalf("failed to create zdns resolver pool: %s", err)
+	}
+	log.Debugf("pool size: %d", len(pool.resolvers))
 	// TODO Phillip - handle CustomDNS
 
 }
