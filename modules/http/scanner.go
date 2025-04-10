@@ -133,7 +133,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 
 // Description returns an overview of this module.
 func (module *Module) Description() string {
-	return "Send an HTTP request and read the response, optionally following redirects."
+	desc := []string{
+		"Send an HTTP request and read the response, optionally following redirects",
+		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
+	}
+	return strings.Join(desc, "\n")
 }
 
 // Validate performs any needed validation on the arguments

@@ -96,7 +96,12 @@ domain.com
 10.0.0.1, , , 5678
 , domain.com, tag
 192.168.0.0/24, , tag
+```
 
+And an example of calling zgrab2 with input:
+
+```shell
+echo "en.wikipedia.org" | ./zgrab2 http --max-redirects=1 --endpoint="/wiki/New_York_City"
 ```
 
 ## Multiple Module Usage
