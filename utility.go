@@ -36,7 +36,7 @@ func init() {
 		"",
 		"Example usages:",
 		"echo '1.1.1.1' | zgrab2 tls          # Scan 1.1.1.1 with TLS",
-		"echo example.com | ./zgrab2 http     # Scan example.com with HTTP",
+		"echo example.com | zgrab2 http     # Scan example.com with HTTP",
 	}
 	parser.LongDescription = strings.Join(desc, "\n")
 }
