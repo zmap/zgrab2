@@ -131,13 +131,6 @@ func (r RejectionReason) String() string {
 	return fmt.Sprintf("unknown reason %d", int(r))
 }
 
-func min(a uint32, b int) uint32 {
-	if a < uint32(b) {
-		return a
-	}
-	return uint32(b)
-}
-
 type channelDirection uint8
 
 const (
