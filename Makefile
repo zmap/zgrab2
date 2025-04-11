@@ -9,11 +9,12 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean gofmt test
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
 test:
+	go test -v .
 	cd lib/output/test && go test -v ./...
 	cd modules && go test -v ./...
 
@@ -31,7 +32,7 @@ integration-test:
 	sleep 15  # Wait for services to start
 	make integration-test-run
 	# Shut off the services
-	docker compose -p zgrab -f integration_tests/docker-compose.yml down
+	make integration-test-clean
 
 integration-test-build:
 	@TEST_SERVICES=$$(docker compose -p zgrab -f integration_tests/docker-compose.yml config --services | grep -E "$$(echo $(TEST_MODULES) | sed 's/ /|/g')"); \

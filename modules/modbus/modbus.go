@@ -377,13 +377,18 @@ func (c *Conn) GetModbusResponse() (*ModbusResponse, error) {
 	}
 
 	//TODO this really should be done by a more elegant unmarshaling function
-	return &ModbusResponse{
-		Length:   msglen,
-		UnitID:   unitID,
-		Function: FunctionCode(body[0]),
-		Data:     body[1:],
-		Raw:      raw,
-	}, readError
+	resp := &ModbusResponse{
+		Length: msglen,
+		UnitID: unitID,
+		Raw:    raw,
+	}
+	if len(body) > 0 {
+		resp.Function = FunctionCode(body[0])
+	}
+	if len(body) > 1 {
+		resp.Data = body[1:]
+	}
+	return resp, readError
 }
 
 // FunctionCode strips the high bit off of the exception function code, to get the function for which the server is

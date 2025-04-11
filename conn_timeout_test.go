@@ -166,11 +166,11 @@ func (cfg *connTimeoutTestConfig) getEndpoint() string {
 // Dial a connection to the configured endpoint using a Dialer
 func (cfg *connTimeoutTestConfig) dialerDial() (*TimeoutConnection, error) {
 	dialer := NewDialer(&Dialer{
-		Timeout:        cfg.timeout,
-		ConnectTimeout: cfg.connectTimeout,
+		SessionTimeout: cfg.timeout,
 		ReadTimeout:    cfg.readTimeout,
 		WriteTimeout:   cfg.writeTimeout,
 	})
+	dialer.Timeout = cfg.connectTimeout
 	ret, err := dialer.Dial("tcp", cfg.getEndpoint())
 	if err != nil {
 		return nil, err
@@ -180,7 +180,14 @@ func (cfg *connTimeoutTestConfig) dialerDial() (*TimeoutConnection, error) {
 
 // Dial a connection to the configured endpoint using a DialTimeoutConnectionEx
 func (cfg *connTimeoutTestConfig) directDial() (*TimeoutConnection, error) {
-	ret, err := DialTimeoutConnectionEx("tcp", cfg.getEndpoint(), cfg.connectTimeout, cfg.timeout, cfg.readTimeout, cfg.writeTimeout, 0)
+	dialer := NewDialer(&Dialer{
+		SessionTimeout: cfg.timeout,
+		ReadTimeout:    cfg.readTimeout,
+		WriteTimeout:   cfg.writeTimeout,
+	})
+	dialer.Timeout = cfg.connectTimeout
+
+	ret, err := dialer.Dial("tcp", cfg.getEndpoint())
 	if err != nil {
 		return nil, err
 	}
@@ -190,11 +197,11 @@ func (cfg *connTimeoutTestConfig) directDial() (*TimeoutConnection, error) {
 // Dial a connection to the configured endpoint using Dialer.DialContext
 func (cfg *connTimeoutTestConfig) contextDial() (*TimeoutConnection, error) {
 	dialer := NewDialer(&Dialer{
-		Timeout:        cfg.timeout,
-		ConnectTimeout: cfg.connectTimeout,
+		SessionTimeout: cfg.timeout,
 		ReadTimeout:    cfg.readTimeout,
 		WriteTimeout:   cfg.writeTimeout,
 	})
+	dialer.Timeout = cfg.connectTimeout
 	ret, err := dialer.DialContext(context.Background(), "tcp", cfg.getEndpoint())
 	if err != nil {
 		return nil, err

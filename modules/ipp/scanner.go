@@ -4,11 +4,12 @@ package ipp
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
 
-	//"fmt"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -122,7 +123,8 @@ type version struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 	// TODO: Add scan state if any is necessary
 }
 
@@ -153,7 +155,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 
@@ -170,6 +172,13 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	// TODO: Remove debug logging for unexpected behavior after 1% scan
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
+	}
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		NeedSeparateL4Dialer:            true,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      true,
+		TLSFlags:                        &f.TLSFlags,
 	}
 	return nil
 }
@@ -192,6 +201,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "ipp"
+}
+
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
@@ -636,21 +649,14 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 }
 
 // Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
-func (scan *scan) getTLSDialer(scanner *Scanner) func(net, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) func(net, addr string) (net.Conn, error) {
 	return func(net, addr string) (net.Conn, error) {
-		outer, err := zgrab2.DialTimeoutConnection(net, addr, scanner.config.BaseFlags.Timeout, 0)
+		tlsConn, err := dialGroup.GetTLSDialer(ctx, target)("tcp", addr)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to establish TLS connection to %s: %v", addr, err)
 		}
-		scan.connections = append(scan.connections, outer)
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(outer)
-		if err != nil {
-			return nil, err
-		}
-		// lib/http/transport.go fills in the TLSLog in the http.Request instance(s)
-		err = tlsConn.Handshake()
 		scan.results.TLSLog = tlsConn.GetLog()
-		return tlsConn, err
+		return tlsConn, nil
 	}
 }
 
@@ -666,8 +672,20 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	return proto + "://" + host + ":" + strconv.FormatUint(uint64(port), 10) + endpoint
 }
 
-// Adapted from newHTTPScan in zgrab2 http module
-func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
+// Cleanup closes any connections that have been opened during the scan
+func (scan *scan) Cleanup() {
+	if scan.connections != nil {
+		for _, conn := range scan.connections {
+			// cleanup conn
+			zgrab2.CloseConnAndHandleError(conn)
+		}
+		scan.connections = nil
+	}
+}
+
+// TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
+func (scanner *Scanner) tryGrabForVersions(ctx context.Context, target *zgrab2.ScanTarget, versions []version, tls bool, dialGroup *zgrab2.DialerGroup) (*scan, *zgrab2.ScanError) {
+	// Adapted from newHTTPScan in zgrab2 http module
 	newScan := scan{
 		client: http.MakeNewClient(),
 	}
@@ -678,7 +696,7 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
-	transport.DialTLS = newScan.getTLSDialer(scanner)
+	transport.DialTLS = newScan.getTLSDialer(ctx, target, dialGroup)
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.Timeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
@@ -691,41 +709,18 @@ func (scanner *Scanner) newIPPScan(target *zgrab2.ScanTarget, tls bool) *scan {
 		// FIXME: Change this, since ipp uri's cannot contain an IP address. Still valid for HTTP
 		host = target.IP.String()
 	}
-	// Scanner Target port overrides config flag port
-	var port uint16
-	if target.Port != nil {
-		port = uint16(*target.Port)
-	} else {
-		port = uint16(scanner.config.BaseFlags.Port)
-	}
 	// FIXME: ?Should just use endpoint "/", since we get the same response as "/ipp" on CUPS??
-	newScan.url = getHTTPURL(tls, host, port, "/ipp")
-	return &newScan
-}
-
-// Cleanup closes any connections that have been opened during the scan
-func (scan *scan) Cleanup() {
-	if scan.connections != nil {
-		for _, conn := range scan.connections {
-			defer conn.Close()
-		}
-		scan.connections = nil
-	}
-}
-
-// TODO: Do you want to retry with TLS for all versions? Just one's you've already tried? Haven't tried? Just the same version?
-func (scanner *Scanner) tryGrabForVersions(target *zgrab2.ScanTarget, versions []version, tls bool) (*scan, *zgrab2.ScanError) {
-	scan := scanner.newIPPScan(target, tls)
-	defer scan.Cleanup()
+	newScan.url = getHTTPURL(tls, host, uint16(target.Port), "/ipp")
+	defer newScan.Cleanup()
 	var err *zgrab2.ScanError
 	for i := 0; i < len(versions); i++ {
-		err = scanner.Grab(scan, target, &versions[i])
-		if err != nil && err.Err == ErrVersionNotSupported && i < len(versions)-1 {
+		err = scanner.Grab(&newScan, target, &versions[i])
+		if err != nil && errors.Is(err.Err, ErrVersionNotSupported) && i < len(versions)-1 {
 			continue
 		}
 		break
 	}
-	return scan, err
+	return &newScan, err
 }
 
 // TODO: Incorporate status into this? I don't think so, b/c with certain statuses, we should return
@@ -743,9 +738,9 @@ func (scan *scan) shouldReportResult(scanner *Scanner) bool {
 // Scan TODO: describe how scan operates in appropriate detail
 // 1. Send a request (currently get-printer-attributes)
 // 2. Take in that response & read out version numbers
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Try all known IPP versions from newest to oldest until we reach a supported version
-	scan, err := scanner.tryGrabForVersions(&target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure)
+	scan, err := scanner.tryGrabForVersions(ctx, target, Versions, scanner.config.TLSRetry || scanner.config.IPPSecure, dialGroup)
 	if err != nil {
 		// If versionNotSupported error was confirmed, the scanner was connecting w/o TLS, so don't retry
 		// Same goes for a protocol error of any kind. It means we got something back but it didn't conform.
@@ -753,7 +748,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 			return err.Unpack(&scan.results)
 		}
 		if scanner.config.TLSRetry && !scanner.config.IPPSecure {
-			retry, retryErr := scanner.tryGrabForVersions(&target, Versions, false)
+			retry, retryErr := scanner.tryGrabForVersions(ctx, target, Versions, false, dialGroup)
 			if retryErr != nil {
 				if retry.shouldReportResult(scanner) {
 					return retryErr.Unpack(&retry.results)

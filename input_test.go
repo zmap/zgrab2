@@ -184,8 +184,8 @@ example.com
 		{IP: net.ParseIP("2.2.2.1"), Tag: "tag"},
 		{IP: net.ParseIP("2.2.2.2"), Tag: "tag"},
 		{IP: net.ParseIP("2.2.2.3"), Tag: "tag"},
-		{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag", Port: &port},
-		{IP: net.ParseIP("10.0.0.1"), Port: &port},
+		{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag", Port: port},
+		{IP: net.ParseIP("10.0.0.1"), Port: port},
 	}
 
 	ch := make(chan ScanTarget, 0)

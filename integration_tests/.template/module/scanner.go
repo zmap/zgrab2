@@ -4,6 +4,7 @@ package #{MODULE_NAME}
 
 import (
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -33,6 +34,7 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	config *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 	// TODO: Add scan state
 }
 
@@ -59,7 +61,7 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate() error {
 	return nil
 }
 
@@ -72,6 +74,8 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	// FIXME set DialerGroupConfig Settings
+	scanner.dialerGroupConfig = new(zgrab2.DialerGroupConfig)
 	return nil
 }
 
@@ -95,9 +99,17 @@ func (scanner *Scanner) Protocol() string {
 	return "#{MODULE_NAME}"
 }
 
+// GetDialerGroupConfig gets the dialer group config that describes what dialers this module expects
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Scan TODO: describe what is scanned
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	if dialerGroup.TransportAgnosticDialer == nil {
+		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("dialer is required in dialer group")
+	}
+	conn, err := dialerGroup.TransportAgnosticDialer(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}

@@ -1,12 +1,15 @@
 package zgrab2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/zmap/zcrypto/tls"
 	"net"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2/lib/output"
 )
 
@@ -23,7 +26,7 @@ type ScanTarget struct {
 	IP     net.IP
 	Domain string
 	Tag    string
-	Port   *uint
+	Port   uint
 }
 
 func (target ScanTarget) String() string {
@@ -56,78 +59,119 @@ func (target *ScanTarget) Host() string {
 	panic("unreachable")
 }
 
-// Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	var port uint
-	// If the port is supplied in ScanTarget, let that override the cmdline option
-	if target.Port != nil {
-		port = *target.Port
-	} else {
-		port = flags.Port
+// GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
+func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	dialer := GetTimeoutConnectionDialer(flags.Timeout)
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		// If the scan is for a specific IP, and a domain name is provided, we
+		// don't want to just let the http library resolve the domain.  Create
+		// a fake resolver that we will use, that always returns the IP we are
+		// given to scan.
+		if t.IP != nil && t.Domain != "" {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
+				log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
+			} else {
+				// In the case of redirects, we don't want to blindly use the
+				// IP we were given to scan, however.  Only use the fake
+				// resolver if the domain originally specified for the scan
+				// target matches the current address being looked up in this
+				// DialContext.
+				if host == t.Domain {
+					resolver, err := NewFakeResolver(t.IP.String())
+					if err != nil {
+						return nil, err
+					}
+					dialer.Dialer.Resolver = resolver
+				}
+			}
+		}
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
-
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
 }
 
-// OpenTLS connects to the ScanTarget using the configured flags, then performs
-// the TLS handshake. On success error is nil, but the connection can be non-nil
-// even if there is an error (this allows fetching the handshake log).
-func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TLSConnection, error) {
-	conn, err := tlsFlags.Connect(target, baseFlags)
-	if err != nil {
-		return conn, err
+// GetDefaultTLSDialer returns a TLS-over-TCP dialer suitable for modules with default TLS behavior
+func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
+		if err != nil {
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+		}
+		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
 	}
-	err = conn.Handshake()
-	return conn, err
 }
 
-// OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-// Note that the UDP "connection" does not have an associated timeout.
-func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-	var port uint
-	// If the port is supplied in ScanTarget, let that override the cmdline option
-	if target.Port != nil {
-		port = *target.Port
-	} else {
-		port = flags.Port
-	}
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-	var local *net.UDPAddr
-	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
-		local = &net.UDPAddr{}
-		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
-			local.IP = net.ParseIP(udp.LocalAddress)
+// GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
+func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
+		if err != nil {
+			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
 		}
-		if udp.LocalPort != 0 {
-			local.Port = int(udp.LocalPort)
+		// Set SNI server name on redirects unless --server-name was used (issue #300)
+		//  - t.Domain is always set to the *original* Host so it's not useful for setting SNI
+		//  - host is the current target of the request in this context; this is true for the
+		//    initial request as well as subsequent requests caused by redirects
+		//  - scan.scanner.config.ServerName is the value from --server-name if one was specified
+
+		// If SNI is enabled and --server-name is not set, use the target host for the SNI server name
+		if !tlsFlags.NoSNI && tlsFlags.ServerName == "" {
+			host := t.Domain
+			// RFC4366: Literal IPv4 and IPv6 addresses are not permitted in "HostName"
+			if i := net.ParseIP(host); i == nil {
+				tlsConfig.ServerName = host
+			}
 		}
+		tlsConn := TLSConnection{
+			Conn:  *(tls.Client(conn, tlsConfig)),
+			flags: tlsFlags,
+		}
+		err = tlsConn.Handshake()
+		if err != nil {
+			return nil, fmt.Errorf("could not perform tls handshake for target %s: %w", t.String(), err)
+		}
+		return &tlsConn, err
 	}
-	remote, err := net.ResolveUDPAddr("udp", address)
-	if err != nil {
-		return nil, err
+}
+
+// GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
+func GetDefaultUDPDialer(flags *BaseFlags, udp *UDPFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	dialer := GetTimeoutConnectionDialer(flags.Timeout)
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		var local *net.UDPAddr
+		if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
+			local = &net.UDPAddr{}
+			if udp.LocalAddress != "" && udp.LocalAddress != "*" {
+				local.IP = net.ParseIP(udp.LocalAddress)
+				if local.IP == nil {
+					// local address provided is invalid
+					return nil, fmt.Errorf("could not parse local address %s", udp.LocalAddress)
+				}
+			}
+			if udp.LocalPort != 0 {
+				local.Port = int(udp.LocalPort)
+			}
+		}
+		dialer.Dialer.LocalAddr = local
+		return dialer.DialContext(ctx, "udp", addr)
 	}
-	conn, err := net.DialUDP("udp", local, remote)
-	if err != nil {
-		return nil, err
-	}
-	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
 }
 
 // BuildGrabFromInputResponse constructs a Grab object for a target, given the
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
 	var ipstr string
-	var port uint
 	if t.IP != nil {
 		ipstr = t.IP.String()
 	}
-	if t.Port != nil {
-		port = *t.Port
-	}
 	return &Grab{
 		IP:     ipstr,
-		Port:   port,
+		Port:   t.Port,
 		Domain: t.Domain,
 		Data:   responses,
 	}
