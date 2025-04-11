@@ -178,22 +178,6 @@ func (cfg *connTimeoutTestConfig) dialerDial() (*TimeoutConnection, error) {
 	return ret.(*TimeoutConnection), err
 }
 
-// Dial a connection to the configured endpoint using a DialTimeoutConnectionEx
-func (cfg *connTimeoutTestConfig) directDial() (*TimeoutConnection, error) {
-	dialer := NewDialer(&Dialer{
-		SessionTimeout: cfg.timeout,
-		ReadTimeout:    cfg.readTimeout,
-		WriteTimeout:   cfg.writeTimeout,
-	})
-	dialer.Timeout = cfg.connectTimeout
-
-	ret, err := dialer.Dial("tcp", cfg.getEndpoint())
-	if err != nil {
-		return nil, err
-	}
-	return ret.(*TimeoutConnection), err
-}
-
 // Dial a connection to the configured endpoint using Dialer.DialContext
 func (cfg *connTimeoutTestConfig) contextDial() (*TimeoutConnection, error) {
 	dialer := NewDialer(&Dialer{
@@ -405,7 +389,6 @@ func TestTimeoutConnectionTimeouts(t *testing.T) {
 	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*3)
 	// Make three copies of connTestConfigs, one with each dial method.
 	for _, cfg := range connTestConfigs {
-		direct := cfg
 		dialer := cfg
 		ctxDialer := cfg
 
@@ -413,14 +396,10 @@ func TestTimeoutConnectionTimeouts(t *testing.T) {
 		dialer.port = dialer.port + 100
 		dialer.dialer = dialer.dialerDial
 
-		direct.name = direct.name + "_direct"
-		direct.port = direct.port + 200
-		direct.dialer = direct.directDial
-
 		ctxDialer.name = ctxDialer.name + "_context"
-		ctxDialer.port = ctxDialer.port + 300
+		ctxDialer.port = ctxDialer.port + 200
 		ctxDialer.dialer = ctxDialer.contextDial
-		temp = append(temp, direct, dialer, ctxDialer)
+		temp = append(temp, dialer, ctxDialer)
 	}
 	for _, cfg := range temp {
 		t.Logf("Running %s", cfg.name)
