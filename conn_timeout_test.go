@@ -127,24 +127,24 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError
 		time.Sleep(cfg.acceptDelay)
 		sock, err := listener.Accept()
 		if err != nil {
-			errorChan <- serverError(testStepConnect, err)
+			errorChan <- serverError(testStepConnect, fmt.Errorf("error accepting connection: %v", err))
 			return
 		}
 		defer sock.Close()
 		time.Sleep(cfg.writeDelay)
 		if err := _write(sock, cfg.serverToClientPayload); err != nil {
-			errorChan <- serverError(testStepWrite, err)
+			errorChan <- serverError(testStepWrite, fmt.Errorf("error writing to client: %v", err))
 			return
 		}
 		time.Sleep(cfg.readDelay)
 		buf := make([]byte, len(cfg.clientToServerPayload))
 		n, err := io.ReadFull(sock, buf)
 		if err != nil && err != io.EOF {
-			errorChan <- serverError(testStepRead, err)
+			errorChan <- serverError(testStepRead, fmt.Errorf("error reading from client: %v", err))
 			return
 		}
 		if err == io.EOF && n < len(buf) {
-			errorChan <- serverError(testStepRead, err)
+			errorChan <- serverError(testStepRead, fmt.Errorf("EOF before reading full payload: %d bytes read with %d len buff", n, len(buf)))
 			return
 		}
 		if !bytes.Equal(buf, cfg.clientToServerPayload) {
@@ -387,7 +387,7 @@ var connTestConfigs = []connTimeoutTestConfig{
 // to timeouts.
 func TestTimeoutConnectionTimeouts(t *testing.T) {
 	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*3)
-	// Make three copies of connTestConfigs, one with each dial method.
+	// Make twp copies of connTestConfigs, one with each dial method.
 	for _, cfg := range connTestConfigs {
 		dialer := cfg
 		ctxDialer := cfg
