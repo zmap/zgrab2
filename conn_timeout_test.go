@@ -386,7 +386,7 @@ var connTestConfigs = []connTimeoutTestConfig{
 // TestTimeoutConnectionTimeouts tests that the TimeoutConnection behaves as expected with respect
 // to timeouts.
 func TestTimeoutConnectionTimeouts(t *testing.T) {
-	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*3)
+	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*2)
 	// Make twp copies of connTestConfigs, one with each dial method.
 	for _, cfg := range connTestConfigs {
 		dialer := cfg
@@ -402,7 +402,7 @@ func TestTimeoutConnectionTimeouts(t *testing.T) {
 		temp = append(temp, dialer, ctxDialer)
 	}
 	for _, cfg := range temp {
-		t.Logf("Running %s", cfg.name)
+		t.Logf("Running %s on port %d", cfg.name, cfg.port)
 		cfg.run(t)
 	}
 }
