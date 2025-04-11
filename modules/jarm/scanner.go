@@ -4,6 +4,7 @@ package jarm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -146,7 +147,13 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		zgrab2.CloseConnAndHandleError(conn)
 	}
 
+	var fingerprint = jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ","))
+
+	if fingerprint == "00000000000000000000000000000000000000000000000000000000000000" {
+		return zgrab2.SCAN_APPLICATION_ERROR, nil, errors.New("Unable to calculate hashes from server")
+	}
+
 	return zgrab2.SCAN_SUCCESS, &Results{
-		Fingerprint: jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ",")),
+		Fingerprint: fingerprint,
 	}, nil
 }

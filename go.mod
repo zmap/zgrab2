@@ -11,10 +11,10 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/zmap/zcrypto v0.0.0-20250324021606-4f0ea0eaccac
 	github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6
-	golang.org/x/crypto v0.36.0
+	golang.org/x/crypto v0.37.0
 	golang.org/x/net v0.38.0
-	golang.org/x/sys v0.31.0
-	golang.org/x/text v0.23.0
+	golang.org/x/sys v0.32.0
+	golang.org/x/text v0.24.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v2 v2.4.0
