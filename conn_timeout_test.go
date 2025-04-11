@@ -387,7 +387,7 @@ var connTestConfigs = []connTimeoutTestConfig{
 // to timeouts.
 func TestTimeoutConnectionTimeouts(t *testing.T) {
 	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*2)
-	// Make twp copies of connTestConfigs, one with each dial method.
+	// Make two copies of connTestConfigs, one with each dial method.
 	for _, cfg := range connTestConfigs {
 		dialer := cfg
 		ctxDialer := cfg
