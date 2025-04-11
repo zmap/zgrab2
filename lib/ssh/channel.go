@@ -242,7 +242,7 @@ func (ch *channel) WriteExtended(data []byte, extendedCode uint32) (n int, err e
 	ch.writeMu.Unlock()
 
 	for len(data) > 0 {
-		space := min(ch.maxRemotePayload, len(data))
+		space := min(ch.maxRemotePayload, uint32(len(data)))
 		if space, err = ch.remoteWin.reserve(space); err != nil {
 			return n, err
 		}
