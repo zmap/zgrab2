@@ -119,12 +119,6 @@ func (err errTotalTimeout) Temporary() bool {
 // connection's timeout (or, failing that, 1 second).
 // On failure, returns anything it was able to read along with the error.
 func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Duration, totalTimeout time.Duration, maxReadSize int) ([]byte, error) {
-	min := func(a, b int) int {
-		if a < b {
-			return a
-		}
-		return b
-	}
 	var totalDeadline time.Time
 	if totalTimeout == 0 {
 		// Would be nice if this could be taken from the SetReadDeadline(), but that's not possible in general

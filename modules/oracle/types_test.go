@@ -452,13 +452,6 @@ func serialize(val any) []byte {
 	return ret
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func getTNSDriver() *TNSDriver {
 	return &TNSDriver{Mode: TNSModeOld}
 }
