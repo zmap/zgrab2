@@ -19,7 +19,6 @@ import (
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.UDPFlags  `group:"UDP Options"`
 
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
