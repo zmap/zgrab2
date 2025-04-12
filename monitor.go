@@ -52,6 +52,9 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) printStatus(isFinalPrint bool) {
+	if config.statusUpdatesFile == nil {
+		return // no file to write to
+	}
 	scanStatusMsg := ""
 	if isFinalPrint {
 		scanStatusMsg = "Scan Complete; "
