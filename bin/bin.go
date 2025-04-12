@@ -13,6 +13,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -157,8 +158,9 @@ func ZGrab2Main() {
 		EndTime:           end.Format(time.RFC3339),
 		Duration:          end.Sub(start).String(),
 	}
-	enc := json.NewEncoder(zgrab2.GetMetaFile())
-	if err := enc.Encode(&s); err != nil {
-		log.Fatalf("unable to write summary: %s", err.Error())
+	if metadataFile := zgrab2.GetMetaFile(); metadataFile != nil {
+		if err := json.NewEncoder(zgrab2.GetMetaFile()).Encode(&s); err != nil {
+			log.Fatalf("unable to write metadata summary: %s", err.Error())
+		}
 	}
 }

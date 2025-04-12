@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -13,26 +14,28 @@ import (
 // Config is the high level framework options that will be parsed
 // from the command line
 type Config struct {
-	OutputFileName     string          `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
-	InputFileName      string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
-	MetaFileName       string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
-	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
-	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
-	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
-	Flush              bool            `long:"flush" description:"Flush after each line of output."`
-	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
-	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
-	ReadLimitPerHost   int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
-	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
-	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
-	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
-	inputFile          *os.File
-	outputFile         *os.File
-	metaFile           *os.File
-	logFile            *os.File
-	inputTargets       InputTargetsFunc
-	outputResults      OutputResultsFunc
-	localAddr          *net.TCPAddr
+	OutputFileName        string          `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
+	InputFileName         string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
+	MetaFileName          string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr."`
+	StatusUpdatesFileName string          `short:"u" long:"status-updates-file" default:"-" description:"Status updates filename, use - for stderr."`
+	LogFileName           string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
+	Senders               int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
+	Debug                 bool            `long:"debug" description:"Include debug fields in the output."`
+	Flush                 bool            `long:"flush" description:"Flush after each line of output."`
+	GOMAXPROCS            int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
+	ConnectionsPerHost    int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
+	ReadLimitPerHost      int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
+	Prometheus            string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
+	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
+	inputFile             *os.File
+	outputFile            *os.File
+	metaFile              *os.File
+	statusUpdatesFile     *os.File
+	logFile               *os.File
+	inputTargets          InputTargetsFunc
+	outputResults         OutputResultsFunc
+	localAddr             *net.TCPAddr
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -87,10 +90,19 @@ func validateFrameworkConfiguration() {
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr
-	} else {
+	} else if len(config.MetaFileName) > 0 {
 		var err error
 		if config.metaFile, err = os.Create(config.MetaFileName); err != nil {
-			log.Fatal(err)
+			log.Fatal(fmt.Errorf("error creating meta file: %s", err))
+		}
+	}
+
+	if config.StatusUpdatesFileName == "-" {
+		config.statusUpdatesFile = os.Stderr
+	} else if len(config.StatusUpdatesFileName) > 0 {
+		var err error
+		if config.statusUpdatesFile, err = os.Create(config.StatusUpdatesFileName); err != nil {
+			log.Fatal(fmt.Errorf("error creating status updates file: %v", err))
 		}
 	}
 
