@@ -30,8 +30,8 @@ type Config struct {
 	Prometheus            string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
 	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
-	LocalAddrString    string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
-	LocalPortString    string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
+	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
+	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
 	inputFile             *os.File
 	outputFile            *os.File
 	metaFile              *os.File
@@ -40,8 +40,8 @@ type Config struct {
 	inputTargets          InputTargetsFunc
 	outputResults         OutputResultsFunc
 	localAddr             *net.TCPAddr
-	localAddrs         []net.IP // will be non-empty if user specified local addresses
-	localPorts         []uint16 // will be non-empty if user specified local ports
+	localAddrs            []net.IP // will be non-empty if user specified local addresses
+	localPorts            []uint16 // will be non-empty if user specified local ports
 }
 
 // SetInputFunc sets the target input function to the provided function.
