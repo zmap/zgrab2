@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
 	"net"
 	"sync"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2/lib/output"
 )
