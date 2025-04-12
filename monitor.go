@@ -52,16 +52,16 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) printStatus(isFinalPrint bool) {
-	msg := ""
+	scanStatusMsg := ""
 	if isFinalPrint {
-		msg = "Scan Complete; "
+		scanStatusMsg = "Scan Complete; "
 	}
 	timeSinceStart := time.Since(m.startTime)
 	updateLine := fmt.Sprintf("%02dh:%02dm:%02ds; %s%d targets scanned; %.02f targets/sec; %.01f%% success rate",
 		int(timeSinceStart.Hours()),
 		int(timeSinceStart.Minutes())%60,
 		int(timeSinceStart.Seconds())%60,
-		msg,
+		scanStatusMsg,
 		m.totalSuccesses+m.totalFailures,
 		float64(m.totalSuccesses+m.totalFailures)/float64(timeSinceStart.Seconds()),
 		float64(m.totalSuccesses)/float64(m.totalSuccesses+m.totalFailures)*100,
@@ -113,7 +113,6 @@ func MakeMonitor(statusChanSize int, wg *sync.WaitGroup) *Monitor {
 				// print per-second summary
 				m.printStatus(false)
 			}
-
 		}
 	}()
 	return m
