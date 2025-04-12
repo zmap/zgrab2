@@ -57,14 +57,23 @@ func (m *Monitor) printStatus(isFinalPrint bool) {
 		scanStatusMsg = "Scan Complete; "
 	}
 	timeSinceStart := time.Since(m.startTime)
+	scanRate := float64(0)
+	if timeSinceStart.Seconds() > 0 {
+		scanRate = float64(m.totalSuccesses+m.totalFailures) / timeSinceStart.Seconds() // avoid division by zero
+	}
+	scanSuccessRate := float64(0)
+	totalTargetsScanned := m.totalSuccesses + m.totalFailures
+	if totalTargetsScanned > 0 {
+		scanSuccessRate = float64(m.totalSuccesses) / float64(totalTargetsScanned) * 100
+	}
 	updateLine := fmt.Sprintf("%02dh:%02dm:%02ds; %s%d targets scanned; %.02f targets/sec; %.01f%% success rate",
 		int(timeSinceStart.Hours()),
 		int(timeSinceStart.Minutes())%60,
 		int(timeSinceStart.Seconds())%60,
 		scanStatusMsg,
 		m.totalSuccesses+m.totalFailures,
-		float64(m.totalSuccesses+m.totalFailures)/float64(timeSinceStart.Seconds()),
-		float64(m.totalSuccesses)/float64(m.totalSuccesses+m.totalFailures)*100,
+		scanRate,
+		scanSuccessRate,
 	)
 	_, err := fmt.Fprintln(config.statusUpdatesFile, updateLine)
 	if err != nil {
