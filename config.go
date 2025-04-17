@@ -147,13 +147,10 @@ func validateFrameworkConfiguration() {
 	config.resolverConfig.RootNameServersV4 = zdns.RootServersV4
 	config.resolverConfig.RootNameServersV6 = zdns.RootServersV6
 	var err error
-	pool, err := newZDNSResolverPool(100, config.resolverConfig) // TODO Phillip - make this configurable
+	pool, err = newZDNSResolverPool(config.Senders, config.resolverConfig) // Each sender will have its own resolver
 	if err != nil {
 		log.Fatalf("failed to create zdns resolver pool: %s", err)
 	}
-	log.Debugf("pool size: %d", len(pool.resolvers))
-	// TODO Phillip - handle CustomDNS
-
 }
 
 // GetMetaFile returns the file to which metadata should be output

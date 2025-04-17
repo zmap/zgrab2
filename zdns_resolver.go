@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/miekg/dns"
 	"net"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/dns"
 	"github.com/zmap/zdns/v2/src/zdns"
 	"golang.org/x/net/dns/dnsmessage"
 	// You may need to import the package that provides constants for DNS types/classes.
