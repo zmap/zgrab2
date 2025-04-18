@@ -161,6 +161,7 @@ func validateFrameworkConfiguration() {
 	}
 
 	config.resolverConfig = zdns.NewResolverConfig()
+	config.resolverConfig.FollowCNAMEs = true
 
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
 	if config.LocalAddrString != "" {
