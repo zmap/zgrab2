@@ -206,7 +206,7 @@ func (w *scanWorker) grabTarget(ctx context.Context, input ScanTarget, m *Monito
 		// TODO - provide user with CLI control over relevent ZDNS resolution behavior
 		possibleIPs := make([]net.IP, 0)
 		if config.useIPv4 {
-			res, _, _, err := w.resolver.IterativeLookup(ctx, &zdns.Question{Name: input.Domain, Type: dns.TypeA, Class: dns.ClassINET})
+			res, _, _, err := w.resolver.ExternalLookup(ctx, &zdns.Question{Name: input.Domain, Type: dns.TypeA, Class: dns.ClassINET}, nil)
 			if err == nil {
 				// we only attempt to resolve using ZDNS. If we get an error, the scanner will resolve the address itself
 				// with the build-in resolver to net.Dial
@@ -224,7 +224,7 @@ func (w *scanWorker) grabTarget(ctx context.Context, input ScanTarget, m *Monito
 			}
 		}
 		if config.useIPv6 {
-			res, _, _, err := w.resolver.IterativeLookup(ctx, &zdns.Question{Name: input.Domain, Type: dns.TypeAAAA, Class: dns.ClassINET})
+			res, _, _, err := w.resolver.ExternalLookup(ctx, &zdns.Question{Name: input.Domain, Type: dns.TypeAAAA, Class: dns.ClassINET}, nil)
 			if err == nil {
 				for _, ans := range res.Answers {
 					if castAns, ok := ans.(zdns.Answer); ok {
@@ -241,9 +241,11 @@ func (w *scanWorker) grabTarget(ctx context.Context, input ScanTarget, m *Monito
 		}
 		if len(possibleIPs) == 0 {
 			// TODO - remove this, used for debugging
-			log.Fatal("No IP addresses found for domain %s", input.Domain)
+			//log.Fatalf("No IP addresses found for domain %s", input.Domain)
+		} else {
+			input.IP = possibleIPs[rand.Intn(len(possibleIPs))] // randomly select an IP address
+
 		}
-		input.IP = possibleIPs[rand.Intn(len(possibleIPs))] // randomly select an IP address
 	}
 
 	for _, scannerName := range orderedScanners {
