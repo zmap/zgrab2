@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/dns"
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zdns/v2/src/zdns"
+	"math/rand"
 	"net"
 	"sync"
 
@@ -193,8 +196,55 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input ScanTarget, m *Monitor) []byte {
+func (w *scanWorker) grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]ScanResponse)
+
+	if input.IP == nil && input.Domain != "" {
+		// use the ZDNS resolver to resolve the domain name
+		// TODO - append the ZDNS grab to the moduleResult
+		// TODO - filter out the irrelevent ZDNS records
+		// TODO - provide user with CLI control over relevent ZDNS resolution behavior
+		possibleIPs := make([]net.IP, 0)
+		if config.useIPv4 {
+			res, _, _, err := w.resolver.IterativeLookup(ctx, &zdns.Question{Name: input.Domain, Type: dns.TypeA, Class: dns.ClassINET})
+			if err == nil {
+				// we only attempt to resolve using ZDNS. If we get an error, the scanner will resolve the address itself
+				// with the build-in resolver to net.Dial
+				for _, ans := range res.Answers {
+					if castAns, ok := ans.(zdns.Answer); ok {
+						ip := net.ParseIP(castAns.Answer)
+						if castAns.Type == "A" && ip != nil {
+							possibleIPs = append(possibleIPs, ip)
+						}
+					}
+				}
+			} else {
+				// TODO - remove this, used for debugging
+				log.Debugf("Unable to resolve %s A: %s", input.Domain, err)
+			}
+		}
+		if config.useIPv6 {
+			res, _, _, err := w.resolver.IterativeLookup(ctx, &zdns.Question{Name: input.Domain, Type: dns.TypeAAAA, Class: dns.ClassINET})
+			if err == nil {
+				for _, ans := range res.Answers {
+					if castAns, ok := ans.(zdns.Answer); ok {
+						ip := net.ParseIP(castAns.Answer)
+						if castAns.Type == "AAAA" && ip != nil {
+							possibleIPs = append(possibleIPs, ip)
+						}
+					}
+				}
+			} else {
+				// TODO - remove this, used for debugging
+				log.Debugf("Unable to resolve %s AAAA: %s", input.Domain, err)
+			}
+		}
+		if len(possibleIPs) == 0 {
+			// TODO - remove this, used for debugging
+			log.Fatal("No IP addresses found for domain %s", input.Domain)
+		}
+		input.IP = possibleIPs[rand.Intn(len(possibleIPs))] // randomly select an IP address
+	}
 
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
@@ -209,7 +259,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 				panic(e)
 			}
 		}(scannerName)
-		name, res := RunScanner(*scanner, m, input)
+		name, res := RunScanner(ctx, *scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
@@ -226,6 +276,21 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 	}
 
 	return result
+}
+
+// scanWorker contains all the "thread-local" state for a worker
+type scanWorker struct {
+	resolver *zdns.Resolver // not thread-safe, so create one per worker
+}
+
+func newScanWorker() *scanWorker {
+	res, err := zdns.InitResolver(config.resolverConfig)
+	if err != nil {
+		log.Fatal("Error initializing resolver: ", err)
+	}
+	return &scanWorker{
+		resolver: res,
+	}
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers.
@@ -250,13 +315,14 @@ func Process(mon *Monitor) {
 	//Start all the workers
 	for i := 0; i < workers; i++ {
 		go func(i int) {
+			w := newScanWorker()
 			for _, scannerName := range orderedScanners {
 				scanner := *scanners[scannerName]
 				scanner.InitPerSender(i)
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
-					result := grabTarget(obj, mon)
+					result := w.grabTarget(context.Background(), obj, mon)
 					outputQueue <- result
 				}
 			}
