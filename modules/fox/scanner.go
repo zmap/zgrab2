@@ -14,13 +14,14 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // Flags holds the command-line configuration for the fox scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
 }
@@ -79,7 +80,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      scanner.config.UseTLS,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }
@@ -125,7 +126,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}(conn)
 	result := new(FoxLog)
 	// Attempt to read TLS Log from connection. If it's not a TLS connection then the log will just be empty.
-	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+	if tlsConn, ok := conn.(*tlslog.Connection); ok {
 		result.TLSLog = tlsConn.GetLog()
 	}
 

@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // Flags holds the command-line configuration for the smb scan module.
@@ -20,8 +21,8 @@ type Flags struct {
 	AuthUser         string `long:"auth-user" description:"Username to use for authentication. Must be used with --auth-pass. No auth is attempted if not provided."`
 	AuthPass         string `long:"auth-pass" description:"Password to use for authentication. Must be used with --auth-user. No auth is attempted if not provided."`
 
-	UseTLS          bool `long:"use-tls" description:"Use TLS to connect to the server. Note that AMQPS uses a different default port (5671) than AMQP (5672) and you will need to specify that port manually with -p."`
-	zgrab2.TLSFlags `group:"TLS Options"`
+	UseTLS       bool `long:"use-tls" description:"Use TLS to connect to the server. Note that AMQPS uses a different default port (5671) than AMQP (5672) and you will need to specify that port manually with -p."`
+	tlslog.Flags `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -91,7 +92,7 @@ type Result struct {
 
 	Tune *connectionTune `json:"tune,omitempty"`
 
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -148,7 +149,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }
@@ -188,7 +189,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		AuthSuccess: false,
 	}
 	defer func() {
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		if tlsConn, ok := conn.(*tlslog.Connection); ok {
 			result.TLSLog = tlsConn.GetLog()
 		}
 		zgrab2.CloseConnAndHandleError(conn)

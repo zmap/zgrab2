@@ -34,6 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -54,14 +55,14 @@ type ScanResults struct {
 	QUIT string `json:"quit,omitempty"`
 
 	// TLSLog is the standard TLS log, if --starttls or --pop3s is enabled.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the POP3 scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 
 	// SendHELP indicates that the client should send the HELP command.
 	SendHELP bool `long:"send-help" description:"Send the HELP command"`
@@ -141,7 +142,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }
@@ -228,7 +229,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	result := &ScanResults{}
 	if scanner.config.POP3Secure {
 		// Perform a TLS handshake immediately
-		var tlsConn *zgrab2.TLSConnection
+		var tlsConn *tlslog.Connection
 		tlsConn, err = tlsWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
@@ -271,7 +272,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if err := getPOP3Error(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
-		var tlsConn *zgrab2.TLSConnection
+		var tlsConn *tlslog.Connection
 		tlsConn, err = tlsWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)

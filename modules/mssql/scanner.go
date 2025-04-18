@@ -21,6 +21,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // ScanResults contains detailed information about each step of the
@@ -43,13 +44,13 @@ type ScanResults struct {
 	EncryptMode *EncryptMode `json:"encrypt_mode,omitempty"`
 
 	// TLSLog is the shared TLS handshake/scan log.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags defines the command-line configuration options for the module.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 	EncryptMode      string `long:"encrypt-mode" description:"The type of encryption to request in the pre-login step. One of ENCRYPT_ON, ENCRYPT_OFF, ENCRYPT_NOT_SUP." default:"ENCRYPT_ON"`
 	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
@@ -102,7 +103,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }

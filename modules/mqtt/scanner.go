@@ -10,20 +10,21 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // ScanResults is the output of the scan.
 type ScanResults struct {
-	SessionPresent    bool           `json:"session_present,omitempty"`
-	ConnectReturnCode byte           `json:"connect_return_code,omitempty"`
-	Response          string         `json:"response,omitempty"`
-	TLSLog            *zgrab2.TLSLog `json:"tls,omitempty"`
+	SessionPresent    bool        `json:"session_present,omitempty"`
+	ConnectReturnCode byte        `json:"connect_return_code,omitempty"`
+	Response          string      `json:"response,omitempty"`
+	TLSLog            *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags are the MQTT-specific command-line flags.
 type Flags struct {
 	zgrab2.BaseFlags
-	zgrab2.TLSFlags
+	tlslog.Flags
 
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	V5      bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
@@ -100,7 +101,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }
@@ -302,7 +303,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 
 	mqtt := Connection{conn: conn, config: s.config}
 
-	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+	if tlsConn, ok := conn.(*tlslog.Connection); ok {
 		// if the passed in connection is a TLS connection, try to grab the log
 		mqtt.results.TLSLog = tlsConn.GetLog()
 	}

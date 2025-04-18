@@ -961,7 +961,7 @@ type fakeMySQLScanResults struct {
 	RawPackets []string `json:"raw_packets,omitempty"`
 
 	// TLSLog contains the usual shared TLS logs.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // TestMySQL builds a bogus MySQL result, and then manually checks that the
@@ -989,7 +989,7 @@ func TestMySQL(t *testing.T) {
 	results.StatusFlags = map[string]bool{
 		"SERVER_STATUS_AUTOCOMMIT": true,
 	}
-	results.TLSLog = new(zgrab2.TLSLog)
+	results.TLSLog = new(tlslog.Log)
 	results.TLSLog.HandshakeLog = &tls.ServerHandshake{
 		ClientFinished: &tls.Finished{
 			VerifyData: []byte("not real data"),

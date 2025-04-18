@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/zmap/zgrab2/lib/output"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // Grab contains all scan responses for a single host
@@ -100,7 +101,7 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 }
 
 // GetDefaultTLSDialer returns a TLS-over-TCP dialer suitable for modules with default TLS behavior
-func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *tlslog.Flags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
 		if err != nil {
@@ -111,9 +112,9 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 }
 
 // GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
-func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
-	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
-		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
+func GetDefaultTLSWrapper(tlsFlags *tlslog.Flags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*tlslog.Connection, error) {
+	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*tlslog.Connection, error) {
+		tlsConfig, err := GetTLSConfigForTarget(tlsFlags, t)
 		if err != nil {
 			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
 		}
@@ -131,9 +132,9 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 				tlsConfig.ServerName = host
 			}
 		}
-		tlsConn := TLSConnection{
+		tlsConn := tlslog.Connection{
 			Conn:  *(tls.Client(conn, tlsConfig)),
-			flags: tlsFlags,
+			Flags: tlsFlags,
 		}
 		err = tlsConn.Handshake()
 		if err != nil {

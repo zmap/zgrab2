@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 var (
@@ -611,7 +612,7 @@ type Connection struct {
 
 	// tlsConn is the TLS client. During the handshake, it wraps an active
 	// tdsConnection. Afterwards, the inner tdsConnection is deactivated.
-	tlsConn *zgrab2.TLSConnection
+	tlsConn *tlslog.Connection
 
 	// tdsConn allows sending / receiving TDS packets through the net.Conn
 	// interface. Wraps either rawConn or tlsConn.
@@ -930,7 +931,7 @@ func (connection *Connection) getEncryptMode() EncryptMode {
 // First sends the PRELOGIN packet to the server and reads the response.
 // Then, if necessary, does a TLS handshake.
 // Returns the ENCRYPTION value from the response to PRELOGIN.
-func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.ScanTarget, encryptModeStr string, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error)) (EncryptMode, error) {
+func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.ScanTarget, encryptModeStr string, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*tlslog.Connection, error)) (EncryptMode, error) {
 	encryptMode := getEncryptMode(encryptModeStr)
 	mode, err := connection.prelogin(encryptMode)
 	if err != nil {

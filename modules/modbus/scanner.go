@@ -33,7 +33,7 @@ import (
 // Flags holds the command-line configuration for the modbus scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags `group:"Basic Options"` // Protocols that support TLS should include zgrab2.TLSFlags
+	zgrab2.BaseFlags `group:"Basic Options"` // Protocols that support TLS should include tlslog.Flags
 	UnitID           uint8                   `long:"unit-id" description:"The UnitID / Station ID to probe"`
 	ObjectID         uint8                   `long:"object-id" description:"The ObjectID of the object to be read." default:"0x00"`
 	Strict           bool                    `long:"strict" description:"If set, perform stricter checks on the response data to get fewer false positives"`

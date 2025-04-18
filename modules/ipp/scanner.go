@@ -22,6 +22,7 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 const (
@@ -87,14 +88,14 @@ type ScanResults struct {
 	AttributeIPPVersions []string     `json:"attr_ipp_versions,omitempty"`
 	AttributePrinterURIs []string     `json:"attr_printer_uris,omitempty"`
 
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the ipp scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
 	//FIXME: Borrowed from http module, determine whether this is all needed
@@ -178,7 +179,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }

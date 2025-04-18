@@ -14,6 +14,7 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // ScanResults contains detailed information about the scan.
@@ -74,7 +75,7 @@ type ScanResults struct {
 	RawPackets []string `json:"raw_packets,omitempty" zgrab:"debug"`
 
 	// TLSLog contains the usual shared TLS logs.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Put the error into the results.
@@ -137,7 +138,7 @@ func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *ScanResul
 // Flags give the command-line flags for the MySQL module.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
@@ -197,7 +198,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }
@@ -241,7 +242,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 	defer func() {
 		result = readResultsFromConnectionLog(&sql.ConnectionLog)
 		// attempt to capture TLS log
-		if tlsConn, ok := sql.Connection.(*zgrab2.TLSConnection); ok {
+		if tlsConn, ok := sql.Connection.(*tlslog.Connection); ok {
 			if scanResults, ok := result.(*ScanResults); ok {
 				scanResults.TLSLog = tlsConn.GetLog()
 			}
@@ -252,7 +253,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 		}
 	}()
 	var err error
-	var tlsConn *zgrab2.TLSConnection
+	var tlsConn *tlslog.Connection
 
 	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.String(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {

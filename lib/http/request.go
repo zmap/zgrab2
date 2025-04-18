@@ -31,7 +31,8 @@ import (
 	"golang.org/x/text/width"
 
 	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zgrab2"
+
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 const (
@@ -293,7 +294,7 @@ type Request struct {
 	TLS *tls.ConnectionState `json:"tls,omitempty"`
 
 	// Everywhere else, this is "tls". Conains the logs from the configured zgrab2 TLS scan (TLS handshake, heartbleed check, etc)
-	TLSLog *zgrab2.TLSLog `json:"tls_log,omitempty"`
+	TLSLog *tlslog.Log `json:"tls_log,omitempty"`
 
 	// Cancel is an optional channel whose closure indicates that the client
 	// request should be regarded as canceled. Not all implementations of

@@ -27,6 +27,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // Flags contains redis-specific command-line flags.
@@ -40,7 +41,7 @@ type Flags struct {
 	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
 	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	UseTLS           bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface
@@ -161,7 +162,7 @@ type Result struct {
 	QuitResponse string `json:"quit_response,omitempty"`
 
 	// TLSLog is the standard TLS log for the connection if used
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module
@@ -209,7 +210,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 		TLSEnabled:                      f.UseTLS,
 	}
 	return nil

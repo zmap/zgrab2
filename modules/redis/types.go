@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 var (
@@ -422,8 +423,8 @@ func (conn *Connection) ReadRedisValue() (RedisValue, error) {
 	return reader(conn)
 }
 
-func (conn *Connection) GetTLSLog() *zgrab2.TLSLog {
-	if tlsConn, ok := conn.conn.(*zgrab2.TLSConnection); ok {
+func (conn *Connection) GetTLSLog() *tlslog.Log {
+	if tlsConn, ok := conn.conn.(*tlslog.Connection); ok {
 		return tlsConn.GetLog()
 	}
 	return nil

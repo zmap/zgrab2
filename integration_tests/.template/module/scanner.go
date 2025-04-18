@@ -13,7 +13,7 @@ type ScanResults struct {
 	// TODO: Add protocol
 
 	// Protocols that support TLS should include
-	// TLSLog      *zgrab2.TLSLog `json:"tls,omitempty"`
+	// TLSLog      *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the #{MODULE_NAME} scan module.
@@ -21,7 +21,7 @@ type ScanResults struct {
 type Flags struct {
 	zgrab2.BaseFlags
 	// TODO: Add more protocol-specific flags
-	// Protocols that support TLS should include zgrab2.TLSFlags
+	// Protocols that support TLS should include tlslog.Flags
 
 	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }

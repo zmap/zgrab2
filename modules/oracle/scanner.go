@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -37,14 +38,14 @@ type ScanResults struct {
 
 	// TLSLog contains the log of the TLS handshake (and any additional
 	// configured TLS scan operations).
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the HTTP scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 
 	// Version is the client version number sent to the server in the Connect
 	// packet. TODO: Find version number mappings.
@@ -171,7 +172,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 		TLSEnabled:                      f.TCPS,
 	}
 	return nil
@@ -237,7 +238,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
 	}
-	if tlsConn, ok := sock.(*zgrab2.TLSConnection); ok {
+	if tlsConn, ok := sock.(*tlslog.Connection); ok {
 		results.TLSLog = tlsConn.GetLog()
 	}
 

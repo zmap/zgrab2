@@ -27,6 +27,7 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 var (
@@ -45,7 +46,7 @@ var (
 // TODO: Custom headers?
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 	Method           string `long:"method" default:"GET" description:"Set HTTP request method type"`
 	Endpoint         string `long:"endpoint" default:"/" description:"Send an HTTP request to an endpoint"`
 	FailHTTPToHTTPS  bool   `long:"fail-http-to-https" description:"Trigger retry-https logic on known HTTP/400 protocol mismatch responses"`
@@ -243,7 +244,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &scanner.config.BaseFlags,
 		TLSEnabled:                      true,
-		TLSFlags:                        &scanner.config.TLSFlags,
+		TLSFlags:                        &scanner.config.Flags,
 	}
 
 	return nil

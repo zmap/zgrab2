@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // ScanResults instances are returned by the module's Scan function.
@@ -46,14 +47,14 @@ type ScanResults struct {
 	CLOSE string `json:"close,omitempty"`
 
 	// TLSLog is the standard TLS log, if --starttls or --imaps is enabled.
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog *tlslog.Log `json:"tls,omitempty"`
 }
 
 // Flags holds the command-line configuration for the IMAP scan module.
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	tlslog.Flags     `group:"TLS Options"`
 
 	// SendCLOSE indicates that the CLOSE command should be sent.
 	SendCLOSE bool `long:"send-close" description:"Send the CLOSE command before closing."`
@@ -127,7 +128,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
-		TLSFlags:                        &f.TLSFlags,
+		TLSFlags:                        &f.Flags,
 	}
 	return nil
 }
