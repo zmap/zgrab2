@@ -2,6 +2,7 @@ package zgrab2
 
 import (
 	"fmt"
+	"golang.org/x/net/nettest"
 	"net"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zdns/v2/src/zdns"
 )
 
 // Config is the high level framework options that will be parsed
@@ -42,6 +44,9 @@ type Config struct {
 	localAddr             *net.TCPAddr
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
+	resolverConfig        *zdns.ResolverConfig
+	useIPv4               bool // whether to attempt to resolve domains to IPv4 addresses
+	useIPv6               bool // whether to attempt to resolve domains to IPv6 addresses
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -156,6 +161,8 @@ func validateFrameworkConfiguration() {
 		}
 	}
 
+	config.resolverConfig = zdns.NewResolverConfig()
+
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
 	if config.LocalAddrString != "" {
 		ips, err := extractIPAddresses(config.LocalAddrString)
@@ -163,6 +170,37 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
 		}
 		config.localAddrs = ips
+		// Use local addrs to populate resolverConfig
+		for _, ip := range ips {
+			if ip == nil {
+				log.Fatalf("could not extract IP addresses from address string: %s", ip)
+			}
+			if ip.To4() != nil {
+				config.useIPv4 = true
+				config.resolverConfig.LocalAddrsV4 = append(config.resolverConfig.LocalAddrsV4, ip)
+			} else if ip.To16() != nil {
+				config.useIPv6 = true
+				config.resolverConfig.LocalAddrsV6 = append(config.resolverConfig.LocalAddrsV6, ip)
+			} else {
+				log.Fatalf("invalid local address: %s", ip)
+			}
+		}
+	}
+
+	if !config.useIPv4 && !config.useIPv6 {
+		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs
+		// The user hasn't specified any local addresses, so we'll detect the system's capabilities
+		config.useIPv4 = nettest.SupportsIPv4()
+		config.useIPv6 = nettest.SupportsIPv6()
+		if config.useIPv4 && config.useIPv6 {
+			config.resolverConfig.IPVersionMode = zdns.IPv4OrIPv6
+		} else if config.useIPv4 {
+			config.resolverConfig.IPVersionMode = zdns.IPv4Only
+		} else if config.useIPv6 {
+			config.resolverConfig.IPVersionMode = zdns.IPv6Only
+		} else {
+			log.Fatalf("could not determine what IP version host supports, please specify --local-addr")
+		}
 	}
 
 	// If localPortString is set, parse it into a list of ports to use for source ports
