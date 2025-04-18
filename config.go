@@ -2,7 +2,6 @@ package zgrab2
 
 import (
 	"fmt"
-	"golang.org/x/net/nettest"
 	"net"
 	"net/http"
 	"os"
@@ -190,8 +189,19 @@ func validateFrameworkConfiguration() {
 	if !config.useIPv4 && !config.useIPv6 {
 		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs
 		// The user hasn't specified any local addresses, so we'll detect the system's capabilities
-		config.useIPv4 = nettest.SupportsIPv4()
-		config.useIPv6 = nettest.SupportsIPv6()
+		// Simply detecting if the host has a loopback IPv6 is not sufficient, some systems have IPv6 out but ISP won't
+		// support
+		cloudflareIPv4Conn, err := net.Dial("tcp4", "1.1.1.1:53")
+		if err == nil {
+			config.useIPv4 = true
+			cloudflareIPv4Conn.Close()
+		}
+
+		cloudflareIPv6Conn, err := net.Dial("tcp6", "2606:4700:4700::1111:53")
+		if err == nil {
+			config.useIPv6 = true
+			cloudflareIPv6Conn.Close()
+		}
 		if config.useIPv4 && config.useIPv6 {
 			config.resolverConfig.IPVersionMode = zdns.IPv4OrIPv6
 		} else if config.useIPv4 {
