@@ -64,10 +64,7 @@ type DialerGroupConfig struct {
 	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module
 	// has indicated it only needs a TLS connection.
 	TLSEnabled bool
-	TLSFlags   *tlslog.TLSFlags // must be non-nil if TLSEnabled is true
-	// UDPFlags used for UDP connections either with the TransportAgnosticDialer if TransportAgnosticDialerProtocol is
-	// UDP, or with the L4Dialer if a "udp" network is requested true
-	UDPFlags *UDPFlags
+	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
 }
 
 // Validate checks for various incompatibilities in the DialerGroupConfig
@@ -77,9 +74,6 @@ func (config *DialerGroupConfig) Validate() error {
 	}
 	switch config.TransportAgnosticDialerProtocol {
 	case TransportUDP:
-		if config.UDPFlags == nil {
-			return fmt.Errorf("UDP flags must be set if TransportAgnosticDialerProtocol is UDP")
-		}
 		if config.TLSEnabled {
 			// blocking this for now since it's untested. When a module is added that needs this we can unblock it and test.
 			return fmt.Errorf("TLS-over-UDP (DTLS) is not currently supported")
@@ -107,7 +101,7 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 			return func(ctx context.Context, network, addr string) (net.Conn, error) {
 				switch network {
 				case "udp", "udp4", "udp6":
-					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, scanTarget, addr)
+					return GetDefaultUDPDialer(config.BaseFlags)(ctx, scanTarget, addr)
 				case "tcp", "tcp4", "tcp6":
 					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget, addr)
 				default:
@@ -134,7 +128,7 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 					// TransportAgnosticDialer only connects to a single target
 					address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
-					return GetDefaultUDPDialer(config.BaseFlags, config.UDPFlags)(ctx, target, address)
+					return GetDefaultUDPDialer(config.BaseFlags)(ctx, target, address)
 				}
 			case TransportTCP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
@@ -240,12 +234,6 @@ type BaseFlags struct {
 	Name    string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
 	Timeout time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
 	Trigger string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
-}
-
-// UDPFlags contains the common options used for all UDP scans
-type UDPFlags struct {
-	LocalPort    uint   `long:"local-port" description:"Set an explicit local port for UDP traffic"`
-	LocalAddress string `long:"local-addr" description:"Set an explicit local address for UDP traffic"`
 }
 
 // GetName returns the name of the respective scanner

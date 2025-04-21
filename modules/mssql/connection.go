@@ -748,14 +748,6 @@ type tdsConnection struct {
 	remainder []byte
 }
 
-// return the lesser of a, b
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // Check if the given header is likely to be a valid TDS header (for detection
 // purposes).
 func isValidTDSHeader(header *TDSHeader) bool {
