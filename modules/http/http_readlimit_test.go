@@ -18,6 +18,7 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	tlslog "github.com/zmap/zgrab2/tls"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
