@@ -39,7 +39,6 @@ type Config struct {
 	logFile               *os.File
 	inputTargets          InputTargetsFunc
 	outputResults         OutputResultsFunc
-	localAddr             *net.TCPAddr
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
 }
