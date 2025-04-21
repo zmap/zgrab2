@@ -301,16 +301,16 @@ func (d *Dialer) SetDefaults() *Dialer {
 			Timeout:   d.SessionTimeout,
 			KeepAlive: d.SessionTimeout,
 		}
-		// Use custom DNS as default if set
-		if len(config.customDNSNameservers) > 0 {
-			// this may be a single IP address or a comma-separated list of IP addresses
-			ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
-			d.Dialer.Resolver = &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					return net.Dial(network, ns)
-				},
-			}
+	}
+	// Use custom DNS as default if set
+	if len(config.customDNSNameservers) > 0 {
+		// this may be a single IP address or a comma-separated list of IP addresses
+		ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
+		d.Dialer.Resolver = &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return d.Dialer.DialContext(ctx, network, ns)
+			},
 		}
 	}
 	return d

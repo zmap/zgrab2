@@ -43,6 +43,8 @@ type Config struct {
 	localAddr             *net.TCPAddr
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
+	useIPv4               bool     // true if zgrab should use IPv4 addresses after resolving domains
+	useIPv6               bool
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -157,6 +159,7 @@ func validateFrameworkConfiguration() {
 		}
 	} else {
 		// if user doesn't specify, we'll use defaults
+		// TODO Phillip handle IPv6
 		config.customDNSNameservers = []string{
 			"1.1.1.1:53",
 			"1.0.0.1:53",
@@ -172,6 +175,36 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
 		}
 		config.localAddrs = ips
+		for _, ip := range ips {
+			if ip == nil {
+				log.Fatalf("could not extract IP addresses from address string: %s", ip)
+			}
+			if ip.To4() != nil {
+				config.useIPv4 = true
+			} else if ip.To16() != nil {
+				config.useIPv6 = true
+			} else {
+				log.Fatalf("invalid local address: %s", ip)
+			}
+		}
+	}
+
+	if !config.useIPv4 && !config.useIPv6 {
+		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs
+		// The user hasn't specified any local addresses, so we'll detect the system's capabilities
+		// Simply detecting if the host has a loopback IPv6 is not sufficient, some systems have IPv6 out but ISP won't
+		// support
+		cloudflareIPv4Conn, err := net.Dial("tcp4", "1.1.1.1:53")
+		if err == nil {
+			config.useIPv4 = true
+			cloudflareIPv4Conn.Close()
+		}
+
+		cloudflareIPv6Conn, err := net.Dial("tcp6", "2606:4700:4700::1111:53")
+		if err == nil {
+			config.useIPv6 = true
+			cloudflareIPv6Conn.Close()
+		}
 	}
 
 	// If localPortString is set, parse it into a list of ports to use for source ports
@@ -182,6 +215,8 @@ func validateFrameworkConfiguration() {
 		}
 		config.localPorts = ports
 	}
+
+	log.Errorf("Using dns servers: %s", strings.Join(config.customDNSNameservers, ","))
 }
 
 // extractIPAddresses takes in a string of comma-separated IP addresses, ranges, or CIDR blocks and returns a de-duped
