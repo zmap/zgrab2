@@ -94,6 +94,9 @@ type Results struct {
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
 	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
+
+	// TargetIP is the IP address of the target after following redirects.
+	TargetIP string `json:"target_ip_after_redirects,omitempty"`
 }
 
 // Module is an implementation of the zgrab2.Module interface.
@@ -120,6 +123,9 @@ type scan struct {
 	results        Results
 	url            string
 	globalDeadline time.Time
+	// We'll over-write this each time a connection is made, so at the end of the scan this will contain the IP address
+	// after following re-directs.
+	targetIP net.IP
 }
 
 // NewFlags returns an empty Flags object.
@@ -393,6 +399,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
 		}
+		if conn != nil && conn.RemoteAddr() != nil && conn.RemoteAddr().(*net.TCPAddr) != nil {
+			ret.targetIP = conn.RemoteAddr().(*net.TCPAddr).IP
+		}
 		ret.connections = append(ret.connections, conn)
 		return conn, nil
 	}
@@ -401,6 +410,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		conn, err := dialerGroup.L4Dialer(t)(ctx, network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
+		}
+		if conn != nil && conn.RemoteAddr() != nil && conn.RemoteAddr().(*net.TCPAddr) != nil {
+			ret.targetIP = conn.RemoteAddr().(*net.TCPAddr).IP
 		}
 		ret.connections = append(ret.connections, conn)
 		return conn, nil
@@ -460,6 +472,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		defer resp.Body.Close()
 	}
 	scan.results.Response = resp
+	if scan.targetIP != nil {
+		scan.results.TargetIP = scan.targetIP.String()
+	}
 	if err != nil {
 		if urlError, ok := err.(*url.Error); ok {
 			err = urlError.Err
