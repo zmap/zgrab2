@@ -6,7 +6,6 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zdns/v2/src/zdns"
 	"math/rand"
 	"net"
 	"sync"
@@ -254,11 +253,6 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
 	}
 
 	return result
-}
-
-// scanWorker contains all the "thread-local" state for a worker
-type scanWorker struct {
-	resolver *zdns.Resolver // not thread-safe, so create one per worker
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers.
