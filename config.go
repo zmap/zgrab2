@@ -28,7 +28,7 @@ type Config struct {
 	ConnectionsPerHost    int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	ReadLimitPerHost      int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 	Prometheus            string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
-	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
+	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server(s) for lookups, comma-delimited. Default port is 53. Ex: 1.1.1.1:53,8.8.8.8"`
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
@@ -39,6 +39,7 @@ type Config struct {
 	logFile               *os.File
 	inputTargets          InputTargetsFunc
 	outputResults         OutputResultsFunc
+	customDNSNameservers  []string // will be non-empty if user specified custom DNS, we'll check these are reachable before populating
 	localAddr             *net.TCPAddr
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
@@ -151,8 +152,16 @@ func validateFrameworkConfiguration() {
 	// Validate custom DNS
 	if config.CustomDNS != "" {
 		var err error
-		if config.CustomDNS, err = addDefaultPortToDNSServerName(config.CustomDNS); err != nil {
+		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
 			log.Fatalf("invalid DNS server address: %s", err)
+		}
+	} else {
+		// if user doesn't specify, we'll use defaults
+		config.customDNSNameservers = []string{
+			"1.1.1.1:53",
+			"1.0.0.1:53",
+			"8.8.8.8:53",
+			"8.8.4.4:53",
 		}
 	}
 

@@ -264,6 +264,26 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 	return net.JoinHostPort(ip.String(), port), nil
 }
 
+func parseCustomDNSString(customDNS string) ([]string, error) {
+	nameservers := make([]string, 0)
+	customDNS = strings.TrimSpace(customDNS)
+	if customDNS == "" {
+		return nil, nil
+	}
+	for _, ns := range strings.Split(customDNS, ",") {
+		ns = strings.TrimSpace(ns)
+		if ns == "" {
+			continue
+		}
+		nsWithPort, err := addDefaultPortToDNSServerName(ns)
+		if err != nil {
+			return nil, fmt.Errorf("invalid DNS server address: %s", ns)
+		}
+		nameservers = append(nameservers, nsWithPort)
+	}
+	return nameservers, nil
+}
+
 // CloseConnAndHandleError closes the connection and logs an error if it fails. Convenience function for code-reuse.
 func CloseConnAndHandleError(conn net.Conn) {
 	err := conn.Close()
