@@ -6,6 +6,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"math/rand"
 	"net"
 	"sync"
 
@@ -192,8 +193,29 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input ScanTarget, m *Monitor) []byte {
+func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
 	moduleResult := make(map[string]ScanResponse)
+
+	if len(input.Domain) > 0 && input.IP == nil {
+		// resolve the target's IP here once, so it doesn't need to be resolved in each module
+		nameserver := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				d := net.Dialer{}
+				return d.DialContext(ctx, "udp", nameserver)
+			},
+		}
+
+		ips, err := resolver.LookupIP(ctx, "ip", input.Domain)
+		if err != nil {
+			// no point in trying to grab the target if we can't resolve it
+			// TODO Phillip - figure out how to error, debug for now
+			log.Errorf("Unable to resolve %s: %s", input.Domain, err)
+			return nil
+		}
+		input.IP = ips[rand.Intn(len(ips))]
+	}
 
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
@@ -255,7 +277,7 @@ func Process(mon *Monitor) {
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
-					result := grabTarget(obj, mon)
+					result := grabTarget(context.Background(), obj, mon)
 					outputQueue <- result
 				}
 			}
