@@ -119,6 +119,7 @@ type scan struct {
 	results        Results
 	url            string
 	globalDeadline time.Time
+	targetIP       string // over-written each time we follow re-directs, used to get the final IP of an HTTP redirect chain
 }
 
 // NewFlags returns an empty Flags object.
@@ -392,6 +393,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
 		}
+		if conn != nil && conn.RemoteAddr() != nil {
+			ret.targetIP = conn.RemoteAddr().String()
+		}
 		ret.connections = append(ret.connections, conn)
 		return conn, nil
 	}
@@ -400,6 +404,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		conn, err := dialerGroup.L4Dialer(t)(ctx, network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
+		}
+		if conn != nil && conn.RemoteAddr() != nil {
+			ret.targetIP = conn.RemoteAddr().String()
 		}
 		ret.connections = append(ret.connections, conn)
 		return conn, nil
