@@ -64,7 +64,7 @@ type DialerGroupConfig struct {
 	// If NeedsL4Dialer is false, the framework will set up a TLS dialer as the TransportAgnosticDialer since the module
 	// has indicated it only needs a TLS connection.
 	TLSEnabled bool
-	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
+	TLSFlags   *tlslog.TLSFlags // must be non-nil if TLSEnabled is true
 }
 
 // Validate checks for various incompatibilities in the DialerGroupConfig
