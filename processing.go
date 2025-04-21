@@ -198,23 +198,24 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
 
 	if len(input.Domain) > 0 && input.IP == nil {
 		// resolve the target's IP here once, so it doesn't need to be resolved in each module
-		nameserver := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
-		resolver := &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				d := net.Dialer{}
-				return d.DialContext(ctx, "udp", nameserver)
-			},
-		}
-
-		ips, err := resolver.LookupIP(ctx, "ip", input.Domain)
+		dialer := NewDialer(nil)
+		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
 		if err != nil {
 			// no point in trying to grab the target if we can't resolve it
 			// TODO Phillip - figure out how to error, debug for now
 			log.Errorf("Unable to resolve %s: %s", input.Domain, err)
 			return nil
 		}
-		input.IP = ips[rand.Intn(len(ips))]
+		// filter out IPs that aren't reachable
+		possibleIPS := make([]string, 0, len(ips))
+		for _, ip := range ips {
+			if config.useIPv4 && ip.To4() != nil {
+				possibleIPS = append(possibleIPS, ip.String())
+			} else if config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
+				possibleIPS = append(possibleIPS, ip.String())
+			}
+		}
+		input.IP = net.ParseIP(possibleIPS[rand.Intn(len(possibleIPS))])
 	}
 
 	for _, scannerName := range orderedScanners {
