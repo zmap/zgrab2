@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -310,6 +311,16 @@ func (d *Dialer) SetDefaults() *Dialer {
 				},
 			}
 		}
+		// Set SO_REUSEADDR on the dialer so we can rebind the socket without waiting for TIME-WAIT to expire
+		d.Dialer.Control = func(network, address string, c syscall.RawConn) error {
+			var err error
+			if err = c.Control(func(fd uintptr) {
+				err = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+			}); err != nil {
+				return err
+			}
+			return nil
+		}
 	}
 	return d
 }
@@ -336,6 +347,7 @@ func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPort
 	if localIP == nil && localPort == 0 {
 		return nil // no local address or port set
 	}
+
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 		d.LocalAddr = &net.TCPAddr{
