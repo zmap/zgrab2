@@ -92,8 +92,13 @@ type Results struct {
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
-	RedirectResponseChain []*http.Response  `json:"redirect_response_chain,omitempty"`
-	NamesToIPs            map[string]string `json:"redirects_to_resolved_ips,omitempty"`
+	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
+	NamesToIPs            []RedirectToIP   `json:"redirects_to_resolved_ips,omitempty"`
+}
+
+type RedirectToIP struct {
+	RedirectName string `json:"redirect_name"`
+	IP           string `json:"ip"`
 }
 
 // Module is an implementation of the zgrab2.Module interface.
@@ -591,7 +596,13 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	// Copy over the resolved names to IPs
 	if len(scan.redirectsToResolvedIPs) > 0 {
-		scan.results.NamesToIPs = scan.redirectsToResolvedIPs
+		scan.results.NamesToIPs = make([]RedirectToIP, 0, len(scan.redirectsToResolvedIPs))
+		for k, v := range scan.redirectsToResolvedIPs {
+			scan.results.NamesToIPs = append(scan.results.NamesToIPs, RedirectToIP{
+				RedirectName: k,
+				IP:           v,
+			})
+		}
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }
