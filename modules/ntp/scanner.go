@@ -839,7 +839,7 @@ func (module *Module) Description() string {
 }
 
 // Validate checks that the flags are valid
-func (cfg *Flags) Validate() error {
+func (cfg *Flags) Validate(_ []string) error {
 	return nil
 }
 

@@ -91,7 +91,7 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate() error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 

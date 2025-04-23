@@ -105,7 +105,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	if flags.StartTLS && flags.IMAPSecure {
 		log.Error("Cannot send both --starttls and --imaps")
 		return zgrab2.ErrInvalidArguments

@@ -137,7 +137,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	if flags.SendSTARTTLSOverride && flags.SMTPSecure {
 		return errors.New("cannot use --smtps and --send-starttls-override at the same time")
 	}

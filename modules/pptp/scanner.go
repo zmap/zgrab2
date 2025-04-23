@@ -65,7 +65,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate() (err error) {
+func (f *Flags) Validate(_ []string) (err error) {
 	return
 }
 
