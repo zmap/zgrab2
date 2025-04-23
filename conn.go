@@ -335,6 +335,9 @@ func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPort
 	if len(localPorts) != 0 {
 		localPort = int(localPorts[rand.Intn(len(localPorts))])
 	}
+	if localIP == nil && localPort == 0 {
+		return nil // nothing to set
+	}
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 		d.LocalAddr = &net.TCPAddr{

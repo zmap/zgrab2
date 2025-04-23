@@ -92,7 +92,8 @@ type Results struct {
 
 	// RedirectResponseChain is non-empty is the scanner follows a redirect.
 	// It contains all redirect response prior to the final response.
-	RedirectResponseChain []*http.Response `json:"redirect_response_chain,omitempty"`
+	RedirectResponseChain []*http.Response  `json:"redirect_response_chain,omitempty"`
+	NamesToIPs            map[string]string `json:"redirects_to_resolved_ips,omitempty"`
 }
 
 // Module is an implementation of the zgrab2.Module interface.
@@ -111,15 +112,15 @@ type Scanner struct {
 // scan holds the state for a single scan. This may entail multiple connections.
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
-	connections    []net.Conn
-	scanner        *Scanner
-	target         *zgrab2.ScanTarget
-	transport      *http.Transport
-	client         *http.Client
-	results        Results
-	url            string
-	globalDeadline time.Time
-	targetIP       string // over-written each time we follow re-directs, used to get the final IP of an HTTP redirect chain
+	connections            []net.Conn
+	scanner                *Scanner
+	target                 *zgrab2.ScanTarget
+	transport              *http.Transport
+	client                 *http.Client
+	results                Results
+	url                    string
+	globalDeadline         time.Time
+	redirectsToResolvedIPs map[string]string // appended the result of DNS resolution for each
 }
 
 // NewFlags returns an empty Flags object.
@@ -314,6 +315,8 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
 			return ErrRedirLocalhost
 		}
+		// We're following a re-direct. The IP that the framework resolved initially is no longer valid. Clearing
+		scan.target.IP = nil
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
 		b := new(bytes.Buffer)
 		maxReadLen := int64(scan.scanner.config.MaxSize) * 1024
@@ -382,7 +385,8 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 			RawHeaderBuffer:     scanner.config.RawHeaders,
 		},
-		client: http.MakeNewClient(),
+		client:                 http.MakeNewClient(),
+		redirectsToResolvedIPs: make(map[string]string),
 	}
 	if scanner.config.Timeout != 0 {
 		ret.globalDeadline = time.Now().Add(scanner.config.Timeout)
@@ -393,8 +397,10 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
 		}
-		if conn != nil && conn.RemoteAddr() != nil {
-			ret.targetIP = conn.RemoteAddr().String()
+		host, _, err := net.SplitHostPort(addr)
+		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+			// addr is a domain, update our mapping of redirected URLs to resolved IPs
+			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
 		}
 		ret.connections = append(ret.connections, conn)
 		return conn, nil
@@ -405,8 +411,10 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
 		}
-		if conn != nil && conn.RemoteAddr() != nil {
-			ret.targetIP = conn.RemoteAddr().String()
+		host, _, err := net.SplitHostPort(addr)
+		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+			// addr is a domain, update our mapping of redirected URLs to resolved IPs
+			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
 		}
 		ret.connections = append(ret.connections, conn)
 		return conn, nil
@@ -555,7 +563,6 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			scan.results.Response.BodySHA256 = m.Sum(nil)
 		}
 	}
-
 	return nil
 }
 
@@ -581,6 +588,10 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.SCAN_SUCCESS, &retry.results, nil
 		}
 		return err.Unpack(&scan.results)
+	}
+	// Copy over the resolved names to IPs
+	if len(scan.redirectsToResolvedIPs) > 0 {
+		scan.results.NamesToIPs = scan.redirectsToResolvedIPs
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
 }

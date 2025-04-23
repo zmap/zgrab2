@@ -19,6 +19,7 @@ type Grab struct {
 	Port   uint                    `json:"port,omitempty"`
 	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
+	Error  string                  `json:"error,omitempty"` // an error that affects the entire grab, preventing any data from being returned
 }
 
 // ScanTarget is the host that will be scanned
@@ -193,7 +194,7 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
+func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
 
 	if len(input.Domain) > 0 && input.IP == nil {
@@ -201,18 +202,25 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
 		dialer := NewDialer(nil)
 		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
 		if err != nil {
-			// no point in trying to grab the target if we can't resolve it
-			// TODO Phillip - figure out how to error, debug for now
-			log.Errorf("Unable to resolve %s: %s", input.Domain, err)
-			return nil
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  fmt.Sprintf("could not resolve %s", input.Domain),
+			}
 		}
 		// filter out IPs that aren't reachable
 		possibleIPS := make([]string, 0, len(ips))
 		for _, ip := range ips {
-			if config.useIPv4 && ip.To4() != nil {
+			if config.useIPv4 && ip.To4() != nil ||
+				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
 				possibleIPS = append(possibleIPS, ip.String())
-			} else if config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
-				possibleIPS = append(possibleIPS, ip.String())
+			}
+		}
+		if len(possibleIPS) == 0 {
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  fmt.Sprintf("no reachable ips for %s were found during name resolution", input.Domain),
 			}
 		}
 		input.IP = net.ParseIP(possibleIPS[rand.Intn(len(possibleIPS))])
@@ -241,13 +249,7 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) []byte {
 		}
 	}
 
-	raw := BuildGrabFromInputResponse(&input, moduleResult)
-	result, err := EncodeGrab(raw, includeDebugOutput())
-	if err != nil {
-		log.Errorf("unable to marshal data: %s", err)
-	}
-
-	return result
+	return BuildGrabFromInputResponse(&input, moduleResult)
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers.
@@ -278,7 +280,11 @@ func Process(mon *Monitor) {
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
-					result := grabTarget(context.Background(), obj, mon)
+					grab := grabTarget(context.Background(), obj, mon)
+					result, err := EncodeGrab(grab, includeDebugOutput())
+					if err != nil {
+						log.Errorf("unable to marshal data: %s", err)
+					}
 					outputQueue <- result
 				}
 			}

@@ -13,6 +13,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var defaultIPv4DNSResolvers = []string{
+	"1.1.1.1:53",
+	"1.0.0.1:53",
+	"8.8.8.8:53",
+	"8.8.4.4:53",
+}
+
+var defaultIPv6DNSResolvers = []string{
+	"2606:4700:4700::1111:53",
+	"2606:4700:4700::1001:53",
+	"2001:4860:4860::8888:53",
+	"2001:4860:4860::8844:53",
+}
+
 // Config is the high level framework options that will be parsed
 // from the command line
 type Config struct {
@@ -151,23 +165,6 @@ func validateFrameworkConfiguration() {
 		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
 	}
 
-	// Validate custom DNS
-	if config.CustomDNS != "" {
-		var err error
-		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
-			log.Fatalf("invalid DNS server address: %s", err)
-		}
-	} else {
-		// if user doesn't specify, we'll use defaults
-		// TODO Phillip handle IPv6
-		config.customDNSNameservers = []string{
-			"1.1.1.1:53",
-			"1.0.0.1:53",
-			"8.8.8.8:53",
-			"8.8.4.4:53",
-		}
-	}
-
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
 	if config.LocalAddrString != "" {
 		ips, err := extractIPAddresses(config.LocalAddrString)
@@ -190,10 +187,10 @@ func validateFrameworkConfiguration() {
 	}
 
 	if !config.useIPv4 && !config.useIPv6 {
-		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs
-		// The user hasn't specified any local addresses, so we'll detect the system's capabilities
-		// Simply detecting if the host has a loopback IPv6 is not sufficient, some systems have IPv6 out but ISP won't
-		// support
+		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs.
+		// The user hasn't specified any local addresses, so we'll detect the system's capabilities.
+		// Simply detecting if the host has a loopback IPv6 is not enough, some systems have IPv6 interfaces, but ISP
+		// won't support.
 		cloudflareIPv4Conn, err := net.Dial("tcp4", "1.1.1.1:53")
 		if err == nil {
 			config.useIPv4 = true
@@ -204,6 +201,29 @@ func validateFrameworkConfiguration() {
 		if err == nil {
 			config.useIPv6 = true
 			cloudflareIPv6Conn.Close()
+		}
+		if !config.useIPv4 && !config.useIPv6 {
+			log.Fatalf("could not reach any DNS servers, are you connected to the internet?")
+		}
+	}
+
+	// Validate custom DNS must occur after setting useIPv4 and useIPv6
+	if config.CustomDNS != "" {
+		var err error
+		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
+			log.Fatalf("invalid DNS server address: %s", err)
+		}
+	} else {
+		// if the user doesn't specify, we'll use defaults
+		if !config.useIPv4 && !config.useIPv6 {
+			log.Fatalf("invalid configuration: could not detect IP capabilites")
+		}
+		config.customDNSNameservers = make([]string, 0, min(len(defaultIPv4DNSResolvers), len(defaultIPv6DNSResolvers))) // preallocate
+		if config.useIPv4 {
+			config.customDNSNameservers = append(config.customDNSNameservers, defaultIPv4DNSResolvers...)
+		}
+		if config.useIPv6 {
+			config.customDNSNameservers = append(config.customDNSNameservers, defaultIPv6DNSResolvers...)
 		}
 	}
 
