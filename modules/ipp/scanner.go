@@ -697,7 +697,7 @@ func (scanner *Scanner) tryGrabForVersions(ctx context.Context, target *zgrab2.S
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
 	transport.DialTLS = newScan.getTLSDialer(ctx, target, dialGroup)
-	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.ConnectTimeout).DialContext
+	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.ConnectTimeout, scanner.config.TargetTimeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport

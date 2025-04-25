@@ -279,9 +279,10 @@ func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
-func GetTimeoutConnectionDialer(timeout time.Duration) *Dialer {
+func GetTimeoutConnectionDialer(dialTimeout, sessionTimeout time.Duration) *Dialer {
 	dialer := NewDialer(nil)
-	dialer.Timeout = timeout
+	dialer.Timeout = dialTimeout
+	dialer.SessionTimeout = sessionTimeout
 	return dialer
 }
 
@@ -293,14 +294,8 @@ func (d *Dialer) SetDefaults() *Dialer {
 	if d.BytesReadLimit == 0 {
 		d.BytesReadLimit = DefaultBytesReadLimit
 	}
-	if d.SessionTimeout == 0 {
-		d.SessionTimeout = DefaultSessionTimeout
-	}
 	if d.Dialer == nil {
-		d.Dialer = &net.Dialer{
-			Timeout:   d.SessionTimeout,
-			KeepAlive: d.SessionTimeout,
-		}
+		d.Dialer = &net.Dialer{}
 		// Use custom DNS as default if set
 		if config.CustomDNS != "" {
 			d.Dialer.Resolver = &net.Resolver{
