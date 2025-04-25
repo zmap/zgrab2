@@ -75,10 +75,6 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 	if c.SessionTimeout > 0 {
 		minDeadline = min(minDeadline, int64(c.SessionTimeout))
 	}
-	if minDeadline == int64(math.MaxInt64) {
-		// no deadline set, we'll use the default
-		minDeadline = int64(DefaultSessionTimeout)
-	}
 	c.SessionTimeout = time.Duration(minDeadline)
 
 	// Now we'll check read and write timeouts.
@@ -214,21 +210,10 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 	ret := &TimeoutConnection{
 		ctx:            ctx,
 		Conn:           conn,
-		ReadTimeout:    DefaultSessionTimeout,
-		WriteTimeout:   DefaultSessionTimeout,
-		BytesReadLimit: DefaultBytesReadLimit,
-	}
-	if readTimeout != 0 {
-		ret.ReadTimeout = readTimeout
-	}
-	if writeTimeout != 0 {
-		ret.WriteTimeout = writeTimeout
-	}
-	if bytesReadLimit != 0 {
-		ret.BytesReadLimit = bytesReadLimit
-	}
-	if timeout == 0 {
-		timeout = DefaultSessionTimeout
+		SessionTimeout: timeout,
+		ReadTimeout:    readTimeout,
+		WriteTimeout:   writeTimeout,
+		BytesReadLimit: bytesReadLimit,
 	}
 	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
 	ret.SaturateTimeoutsToReadAndWriteTimeouts()
