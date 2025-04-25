@@ -66,6 +66,10 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}
 		err = nil
 	} else {
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			// scan timed out
+			e = fmt.Errorf("ctx deadline exceeded: %w", e)
+		}
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusFailure}
 		errString := e.Error()
 		err = &errString
