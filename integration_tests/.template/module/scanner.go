@@ -4,6 +4,7 @@ package #{MODULE_NAME}
 
 import (
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
