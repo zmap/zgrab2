@@ -383,8 +383,8 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		},
 		client: http.MakeNewClient(),
 	}
-	if scanner.config.Timeout != 0 {
-		ret.globalDeadline = time.Now().Add(scanner.config.Timeout)
+	if scanner.config.TargetTimeout != 0 {
+		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
 	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
 		ctx = ret.withDeadlineContext(ctx)
@@ -408,7 +408,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
-	ret.client.Timeout = scanner.config.Timeout
+	ret.client.Timeout = scanner.config.ConnectTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		ret.client.Timeout = min(ret.client.Timeout, deadline.Sub(time.Now()))
 	}

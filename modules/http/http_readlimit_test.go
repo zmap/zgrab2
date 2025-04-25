@@ -176,7 +176,7 @@ func (cfg *readLimitTestConfig) getScanner(t *testing.T) *Scanner {
 	}
 	flags.MaxSize = cfg.maxBodySize / 1024
 	flags.MaxRedirects = 0
-	flags.Timeout = 1 * time.Second
+	flags.ConnectTimeout = 1 * time.Second
 	flags.Port = uint(cfg.port)
 	flags.UseHTTPS = cfg.tls
 	zgrab2.DefaultBytesReadLimit = cfg.maxReadSize
@@ -393,8 +393,8 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 		Port: uint(cfg.port),
 	}
 	baseFlags := &zgrab2.BaseFlags{
-		Port:    80,
-		Timeout: time.Second * 10,
+		Port:           80,
+		ConnectTimeout: time.Second * 10,
 	}
 	tlsFlags := &zgrab2.TLSFlags{}
 	dialerGroupConfig := zgrab2.DialerGroupConfig{

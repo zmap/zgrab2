@@ -228,10 +228,11 @@ type ScanFlags interface {
 
 // BaseFlags contains the options that every flags type must embed
 type BaseFlags struct {
-	Port    uint          `short:"p" long:"port" description:"Specify port to grab on"`
-	Name    string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
-	Timeout time.Duration `short:"t" long:"timeout" description:"Set connection timeout (0 = no timeout)" default:"10s"`
-	Trigger string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
+	Port           uint          `short:"p" long:"port" description:"Specify port to grab on"`
+	Name           string        `short:"n" long:"name" description:"Specify name for output json, only necessary if scanning multiple modules"`
+	ConnectTimeout time.Duration `short:"t" long:"connect-timeout" description:"Set how long to wait for initial connection establishment (0 = no timeout)" default:"10s"`
+	TargetTimeout  time.Duration `long:"target-timeout" description:"Set how long a scan of a single target (IP, Domain, etc) should take (0 = no timeout)" default:"60s"`
+	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
 }
 
 // GetName returns the name of the respective scanner

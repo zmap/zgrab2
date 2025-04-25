@@ -61,7 +61,7 @@ func (target *ScanTarget) Host() string {
 // GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
 func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	// create dialer once and reuse it
-	dialer := GetTimeoutConnectionDialer(flags.Timeout)
+	dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		// If the scan is for a specific IP, and a domain name is provided, we
 		// don't want to just let the http library resolve the domain.  Create
@@ -146,7 +146,7 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	// create dialer once and reuse it
-	dialer := GetTimeoutConnectionDialer(flags.Timeout)
+	dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
 		if err != nil {
