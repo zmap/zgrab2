@@ -15,11 +15,11 @@ def run_command(command, output_file=None):
     """Run a shell command and optionally redirect output to a file."""
     try:
         with subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                shell=True,
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=True,
         ) as process:
             stdout, stderr = process.communicate()
             if output_file:
@@ -38,10 +38,12 @@ zgrab_output = os.path.join(zgrab_root, "zgrab-output")
 output_root = os.path.join(zgrab_output, "multiple")
 multiple_test_root = os.path.join(zgrab_root, "integration_tests", "multiple")
 
+
 def validate_http(output):
     json_data = json.loads(output)
     assert json_data["domain"] == "example.com"
     assert json_data["data"]["http"]["status"] == "success"
+
 
 def validate_ntp(output):
     json_data = json.loads(output)
@@ -57,7 +59,7 @@ def test_multiple():
         cmd,
     )
     # print output
-    lines = out.strip().split('\n')
+    lines = out.strip().split("\n")
 
     # Write each line to a separate JSON file
     for i, line in enumerate(lines):
@@ -71,4 +73,4 @@ def test_multiple():
 
 
 if __name__ == "__main__":
-   test_multiple()
+    test_multiple()

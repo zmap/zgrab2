@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 
+
 def run_command(command, output_file=None):
     """Run a shell command and optionally redirect output to a file."""
     try:
