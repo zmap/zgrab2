@@ -34,7 +34,7 @@ jobs:
 
       - name: Sleep to let the server start
         run: |
-          sleep 5
+          sleep 10
 
       - name: Test
         run: |
