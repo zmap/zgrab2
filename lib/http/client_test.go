@@ -1257,7 +1257,7 @@ func testClientTimeout(t *testing.T, h2 bool) {
 
 	res, err := cst.c.Get(cst.ts.URL)
 	if err != nil {
-		if strings.Contains(err.Error(), "Client.Timeout") {
+		if strings.Contains(err.Error(), "Client.SessionTimeout") {
 			t.Skipf("host too slow to get fast resource in %v", timeout)
 		}
 		t.Fatal(err)
@@ -1294,9 +1294,9 @@ func testClientTimeout(t *testing.T, h2 bool) {
 		if !ok {
 			t.Errorf("error value from ReadAll was %T; expected some net.Error", err)
 		} else if !ne.Timeout() {
-			t.Errorf("net.Error.Timeout = false; want true")
+			t.Errorf("net.Error.SessionTimeout = false; want true")
 		}
-		if got := ne.Error(); !strings.Contains(got, "Client.Timeout exceeded") {
+		if got := ne.Error(); !strings.Contains(got, "Client.SessionTimeout exceeded") {
 			t.Errorf("error string = %q; missing timeout substring", got)
 		}
 	case <-time.After(failTime):
@@ -1340,14 +1340,14 @@ func testClientTimeout_Headers(t *testing.T, h2 bool) {
 		t.Fatalf("Got error of type %T; want some net.Error", err)
 	}
 	if !ne.Timeout() {
-		t.Error("net.Error.Timeout = false; want true")
+		t.Error("net.Error.SessionTimeout = false; want true")
 	}
-	if got := ne.Error(); !strings.Contains(got, "Client.Timeout exceeded") {
+	if got := ne.Error(); !strings.Contains(got, "Client.SessionTimeout exceeded") {
 		t.Errorf("error string = %q; missing timeout substring", got)
 	}
 }
 
-// Issue 16094: if Client.Timeout is set but not hit, a Timeout error shouldn't be
+// Issue 16094: if Client.Timeout is set but not hit, a SessionTimeout error shouldn't be
 // returned.
 func TestClientTimeoutCancel(t *testing.T) {
 	setParallel(t)

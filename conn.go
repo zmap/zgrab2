@@ -52,7 +52,7 @@ var ErrReadLimitExceeded = errors.New("read limit exceeded")
 type TimeoutConnection struct {
 	net.Conn
 	ctx                     context.Context
-	Timeout                 time.Duration // used to set the connection deadline, set once
+	SessionTimeout          time.Duration // used to set the connection deadline, set once
 	ReadTimeout             time.Duration // used to set the read deadline, set fresh for each read
 	WriteTimeout            time.Duration // used to set the write deadline, set fresh for each write
 	BytesRead               int
@@ -72,14 +72,14 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 	if ctxDeadline, ok := c.ctx.Deadline(); ok {
 		minDeadline = int64(ctxDeadline.Sub(time.Now()))
 	}
-	if c.Timeout > 0 {
-		minDeadline = min(minDeadline, int64(c.Timeout))
+	if c.SessionTimeout > 0 {
+		minDeadline = min(minDeadline, int64(c.SessionTimeout))
 	}
 	if minDeadline == int64(math.MaxInt64) {
 		// no deadline set, we'll use the default
 		minDeadline = int64(DefaultSessionTimeout)
 	}
-	c.Timeout = time.Duration(minDeadline)
+	c.SessionTimeout = time.Duration(minDeadline)
 
 	// Now we'll check read and write timeouts.
 	if c.ReadTimeout > 0 {
@@ -211,12 +211,13 @@ func (c *TimeoutConnection) checkContext() error {
 
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
-	ret := (&TimeoutConnection{
+	ret := &TimeoutConnection{
+		ctx:            ctx,
 		Conn:           conn,
 		ReadTimeout:    DefaultSessionTimeout,
 		WriteTimeout:   DefaultSessionTimeout,
 		BytesReadLimit: DefaultBytesReadLimit,
-	})
+	}
 	if readTimeout != 0 {
 		ret.ReadTimeout = readTimeout
 	}
@@ -226,15 +227,9 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 	if bytesReadLimit != 0 {
 		ret.BytesReadLimit = bytesReadLimit
 	}
-	connDeadline := time.Now().Add(timeout)
-	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(connDeadline) {
-		// get the minimum of the two deadlines
-		connDeadline = ctxDeadline
+	if timeout == 0 {
+		timeout = DefaultSessionTimeout
 	}
-	if err := ret.SetDeadline(connDeadline); err != nil {
-		logrus.Errorf("Failed to set deadline on connection: %v", err)
-	}
-
 	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
 	ret.SaturateTimeoutsToReadAndWriteTimeouts()
 	return ret

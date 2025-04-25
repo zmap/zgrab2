@@ -955,7 +955,7 @@ func TestServerAllowsBlockingRemoteAddr(t *testing.T) {
 
 	tr := &Transport{DisableKeepAlives: true}
 	defer tr.CloseIdleConnections()
-	c := &Client{Transport: tr, Timeout: time.Second}
+	c := &Client{Transport: tr, SessionTimeout: time.Second}
 
 	fetch := func(response chan string) {
 		resp, err := c.Get(ts.URL)
@@ -1947,7 +1947,7 @@ func testTimeoutHandler(t *testing.T, h2 bool) {
 		t.Errorf("got res.StatusCode %d; expected %d", g, e)
 	}
 	body, _ = ioutil.ReadAll(res.Body)
-	if !strings.Contains(string(body), "<title>Timeout</title>") {
+	if !strings.Contains(string(body), "<title>SessionTimeout</title>") {
 		t.Errorf("expected timeout body; got %q", string(body))
 	}
 
@@ -2086,7 +2086,7 @@ func TestTimeoutHandlerRaceHeaderTimeout(t *testing.T) {
 		t.Errorf("got res.StatusCode %d; expected %d", g, e)
 	}
 	body, _ = ioutil.ReadAll(res.Body)
-	if !strings.Contains(string(body), "<title>Timeout</title>") {
+	if !strings.Contains(string(body), "<title>SessionTimeout</title>") {
 		t.Errorf("expected timeout body; got %q", string(body))
 	}
 
@@ -3155,7 +3155,7 @@ func TestHeaderToWire(t *testing.T) {
 func goTimeout(t *testing.T, d time.Duration, f func()) {
 	ch := make(chan bool, 2)
 	timer := time.AfterFunc(d, func() {
-		t.Errorf("Timeout expired after %v", d)
+		t.Errorf("SessionTimeout expired after %v", d)
 		ch <- true
 	})
 	defer timer.Stop()
@@ -3512,7 +3512,7 @@ func testTransportAndServerSharedBodyRace(t *testing.T, h2 bool) {
 			stacks := make([]byte, 1<<20)
 			stacks = stacks[:runtime.Stack(stacks, true)]
 			fmt.Fprintf(os.Stderr, "%s", stacks)
-			log.Fatalf("Timeout.")
+			log.Fatalf("SessionTimeout.")
 		})
 	}()
 

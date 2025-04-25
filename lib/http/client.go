@@ -608,7 +608,7 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 		if resp, didTimeout, err = c.send(req, deadline); err != nil {
 			if !deadline.IsZero() && didTimeout() {
 				err = &httpError{
-					err:     err.Error() + " (Client.Timeout exceeded while awaiting headers)",
+					err:     err.Error() + " (Client.SessionTimeout exceeded while awaiting headers)",
 					timeout: true,
 				}
 			}
@@ -822,7 +822,7 @@ func (b *cancelTimerBody) Read(p []byte) (n int, err error) {
 	}
 	if b.reqDidTimeout() {
 		err = &httpError{
-			err:     err.Error() + " (Client.Timeout exceeded while reading body)",
+			err:     err.Error() + " (Client.SessionTimeout exceeded while reading body)",
 			timeout: true,
 		}
 	}

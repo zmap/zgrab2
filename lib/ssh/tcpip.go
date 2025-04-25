@@ -460,7 +460,7 @@ func (t *chanConn) SetDeadline(deadline time.Time) error {
 // SetReadDeadline sets the read deadline.
 // A zero value for t means Read will not time out.
 // After the deadline, the error from Read will implement net.Error
-// with Timeout() == true.
+// with SessionTimeout() == true.
 func (t *chanConn) SetReadDeadline(deadline time.Time) error {
 	// for compatibility with previous version,
 	// the error message contains "tcpChan"

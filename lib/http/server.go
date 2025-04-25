@@ -2949,7 +2949,7 @@ func (h *timeoutHandler) errorBody() string {
 	if h.body != "" {
 		return h.body
 	}
-	return "<html><head><title>Timeout</title></head><body><h1>Timeout</h1></body></html>"
+	return "<html><head><title>SessionTimeout</title></head><body><h1>SessionTimeout</h1></body></html>"
 }
 
 func (h *timeoutHandler) ServeHTTP(w ResponseWriter, r *Request) {
