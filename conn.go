@@ -51,7 +51,6 @@ var ErrReadLimitExceeded = errors.New("read limit exceeded")
 type TimeoutConnection struct {
 	net.Conn
 	ctx                     context.Context
-	Timeout                 time.Duration
 	ReadTimeout             time.Duration
 	WriteTimeout            time.Duration
 	BytesRead               int
@@ -81,6 +80,10 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 			return 0, err
 		}
 	}
+	//c.SetDeadline(time.Now())
+	//timeUntilDeadline := time.Now().Add(c.Timeout)
+	////c.SetDeadline(time.Now().Add(c.Timeout))
+	//fmt.Printf("time until deadline: %v\n", timeUntilDeadline)
 	n, err = c.Conn.Read(b)
 	c.BytesRead += n
 	if err == nil && origSize != len(b) && n == len(b) {
@@ -174,7 +177,7 @@ func (c *TimeoutConnection) Close() error {
 // Get the timeout for the given field, falling back to the global timeout.
 func (c *TimeoutConnection) getTimeout(field time.Duration) time.Duration {
 	if field == 0 {
-		return c.Timeout
+		return DefaultSessionTimeout
 	}
 	return field
 }
@@ -205,8 +208,10 @@ func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 	if c.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
 		c.ReadLimitExceededAction = DefaultReadLimitExceededAction
 	}
-	if c.Timeout == 0 {
-		c.Timeout = DefaultSessionTimeout
+	if !c.explicitDeadline {
+		if err := c.SetDeadline(time.Now().Add(DefaultSessionTimeout)); err != nil {
+			logrus.Fatalf("failed to set default deadline: %v", err)
+		}
 	}
 	return c
 }
@@ -215,7 +220,6 @@ func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := (&TimeoutConnection{
 		Conn:           conn,
-		Timeout:        timeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
@@ -225,6 +229,9 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 		// get the minimum of the two deadlines
 		connDeadline = ctxDeadline
 	}
+	// TODO testing
+	//timeUntilDeadlinge := connDeadline.Sub(time.Now())
+	//fmt.Printf("time until deadline: %v\n", timeUntilDeadlinge)
 	if err := ret.SetDeadline(connDeadline); err != nil {
 		logrus.Errorf("Failed to set deadline on connection: %v", err)
 	}

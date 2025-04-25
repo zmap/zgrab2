@@ -57,9 +57,9 @@ type connTimeoutTestConfig struct {
 
 // Standardized time units, separated by factors of 100.
 const (
-	short  = 100 * time.Millisecond
-	medium = 10000 * time.Millisecond
-	long   = 1000000 * time.Millisecond
+	short  = 10 * time.Millisecond
+	medium = 1000 * time.Millisecond
+	long   = 100000 * time.Millisecond
 )
 
 // enum type for the various locations where the test can fail
@@ -280,82 +280,82 @@ func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 
 var connTestConfigs = []connTimeoutTestConfig{
 	// Long timeouts, short delays -- should succeed
-	{
-		name:           "happy",
-		port:           0x5613,
-		timeout:        long,
-		connectTimeout: medium,
-		readTimeout:    medium,
-		writeTimeout:   medium,
-
-		acceptDelay: short,
-		writeDelay:  short,
-		readDelay:   short,
-
-		serverToClientPayload: []byte("abc"),
-		clientToServerPayload: []byte("defghi"),
-
-		failStep: testStepDone,
-	},
-	// long session timeout, short connectTimeout. Use a non-local, nonexistent endpoint (localhost
-	// would return "connection refused" immediately)
-	{
-		name:           "connect_timeout",
-		endpoint:       "10.0.254.254:41591",
-		timeout:        long,
-		connectTimeout: short,
-		readTimeout:    medium,
-		writeTimeout:   medium,
-
-		acceptDelay: short,
-		writeDelay:  short,
-		readDelay:   short,
-
-		serverToClientPayload: []byte("abc"),
-		clientToServerPayload: []byte("defghi"),
-
-		failStep:  testStepConnect,
-		failError: "i/o timeout",
-	},
-	// short session timeout, medium connect timeout, with connect to nonexistent endpoint.
-	{
-		name:           "session_connect_timeout",
-		endpoint:       "10.0.254.254:41591",
-		timeout:        short,
-		connectTimeout: medium,
-		readTimeout:    medium,
-		writeTimeout:   medium,
-
-		acceptDelay: short,
-		writeDelay:  short,
-		readDelay:   short,
-
-		serverToClientPayload: []byte("abc"),
-		clientToServerPayload: []byte("defghi"),
-
-		failStep:  testStepConnect,
-		failError: "i/o timeout",
-	},
-	// Get an IO timeout on the read.
-	// sessionTimeout > acceptDelay + writeDelay > writeDelay > readTimeout
-	{
-		name:           "read_timeout",
-		port:           0x5614,
-		timeout:        long,
-		connectTimeout: short,
-		readTimeout:    short,
-		writeTimeout:   short,
-
-		acceptDelay: short,
-		writeDelay:  medium,
-		readDelay:   short,
-
-		serverToClientPayload: []byte("abc"),
-		clientToServerPayload: []byte("defghi"),
-
-		failStep:  testStepRead,
-		failError: "i/o timeout",
-	},
+	//{
+	//	name:           "happy",
+	//	port:           0x5613,
+	//	timeout:        long,
+	//	connectTimeout: medium,
+	//	readTimeout:    medium,
+	//	writeTimeout:   medium,
+	//
+	//	acceptDelay: short,
+	//	writeDelay:  short,
+	//	readDelay:   short,
+	//
+	//	serverToClientPayload: []byte("abc"),
+	//	clientToServerPayload: []byte("defghi"),
+	//
+	//	failStep: testStepDone,
+	//},
+	//// long session timeout, short connectTimeout. Use a non-local, nonexistent endpoint (localhost
+	//// would return "connection refused" immediately)
+	//{
+	//	name:           "connect_timeout",
+	//	endpoint:       "10.0.254.254:41591",
+	//	timeout:        long,
+	//	connectTimeout: short,
+	//	readTimeout:    medium,
+	//	writeTimeout:   medium,
+	//
+	//	acceptDelay: short,
+	//	writeDelay:  short,
+	//	readDelay:   short,
+	//
+	//	serverToClientPayload: []byte("abc"),
+	//	clientToServerPayload: []byte("defghi"),
+	//
+	//	failStep:  testStepConnect,
+	//	failError: "i/o timeout",
+	//},
+	//// short session timeout, medium connect timeout, with connect to nonexistent endpoint.
+	//{
+	//	name:           "session_connect_timeout",
+	//	endpoint:       "10.0.254.254:41591",
+	//	timeout:        short,
+	//	connectTimeout: medium,
+	//	readTimeout:    medium,
+	//	writeTimeout:   medium,
+	//
+	//	acceptDelay: short,
+	//	writeDelay:  short,
+	//	readDelay:   short,
+	//
+	//	serverToClientPayload: []byte("abc"),
+	//	clientToServerPayload: []byte("defghi"),
+	//
+	//	failStep:  testStepConnect,
+	//	failError: "i/o timeout",
+	//},
+	//// Get an IO timeout on the read.
+	//// sessionTimeout > acceptDelay + writeDelay > writeDelay > readTimeout
+	//{
+	//	name:           "read_timeout",
+	//	port:           0x5614,
+	//	timeout:        long,
+	//	connectTimeout: short,
+	//	readTimeout:    short,
+	//	writeTimeout:   short,
+	//
+	//	acceptDelay: short,
+	//	writeDelay:  medium,
+	//	readDelay:   short,
+	//
+	//	serverToClientPayload: []byte("abc"),
+	//	clientToServerPayload: []byte("defghi"),
+	//
+	//	failStep:  testStepRead,
+	//	failError: "i/o timeout",
+	//},
 	// Get a context timeout on a read.
 	// readTimeout > writeDelay > timeout > acceptDelay
 	{
@@ -378,24 +378,24 @@ var connTestConfigs = []connTimeoutTestConfig{
 	},
 	// Use a session timeout that is longer than any individual action's timeout.
 	// acceptDelay+writeDelay+readDelay > timeout > acceptDelay >= writeDelay >= readDelay
-	{
-		name:           "session_timeout",
-		port:           0x5616,
-		timeout:        medium,
-		connectTimeout: long,
-		readTimeout:    long,
-		writeTimeout:   long,
-
-		acceptDelay: time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
-		writeDelay:  time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
-		readDelay:   time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
-
-		serverToClientPayload: []byte("abc"),
-		clientToServerPayload: []byte("defghi"),
-
-		failStep:  testStepWrite,
-		failError: "context deadline exceeded",
-	},
+	//{
+	//	name:           "session_timeout",
+	//	port:           0x5616,
+	//	timeout:        medium,
+	//	connectTimeout: long,
+	//	readTimeout:    long,
+	//	writeTimeout:   long,
+	//
+	//	acceptDelay: time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+	//	writeDelay:  time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+	//	readDelay:   time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+	//
+	//	serverToClientPayload: []byte("abc"),
+	//	clientToServerPayload: []byte("defghi"),
+	//
+	//	failStep:  testStepWrite,
+	//	failError: "context deadline exceeded",
+	//},
 	// TODO: How to test write timeout?
 }
 

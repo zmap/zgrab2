@@ -124,10 +124,10 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 		// Would be nice if this could be taken from the SetReadDeadline(), but that's not possible in general
 		const defaultTotalTimeout = 1 * time.Second
 		totalTimeout = defaultTotalTimeout
-		timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
-		if isTimeoutConn {
-			totalTimeout = timeoutConn.Timeout
-		}
+		//timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
+		//if isTimeoutConn {
+		//	totalTimeout = timeoutConn.Conn.Dea
+		//}
 	}
 	if totalTimeout > 0 {
 		totalDeadline = time.Now().Add(totalTimeout)
