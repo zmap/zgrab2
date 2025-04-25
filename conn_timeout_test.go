@@ -57,9 +57,9 @@ type connTimeoutTestConfig struct {
 
 // Standardized time units, separated by factors of 100.
 const (
-	short  = 10 * time.Millisecond
-	medium = 1000 * time.Millisecond
-	long   = 100000 * time.Millisecond
+	short  = 100 * time.Millisecond
+	medium = 10000 * time.Millisecond
+	long   = 1000000 * time.Millisecond
 )
 
 // enum type for the various locations where the test can fail
