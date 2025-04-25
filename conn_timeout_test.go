@@ -35,13 +35,13 @@ type connTimeoutTestConfig struct {
 	writeTimeout   time.Duration
 
 	// Time for server to wait after listening before accepting a connection
-	acceptDelay time.Duration
+	serverAcceptDelay time.Duration
 
 	// Time for server to wait after accepting before writing payload
-	writeDelay time.Duration
+	serverWriteDelay time.Duration
 
 	// Time for server to wait before reading payload
-	readDelay time.Duration
+	serverReadDelay time.Duration
 
 	// Payload for server to send client after connecting
 	serverToClientPayload []byte
@@ -50,7 +50,7 @@ type connTimeoutTestConfig struct {
 	clientToServerPayload []byte
 
 	// Step when the client is expected to fail
-	failStep testStep
+	clientFailStep testStep
 
 	// If non-empty, the error string returned by the client should contain this
 	failError string
@@ -67,10 +67,10 @@ const (
 type testStep string
 
 const (
-	testStepConnect = testStep("connect")
-	testStepRead    = testStep("read")
-	testStepWrite   = testStep("write")
-	testStepDone    = testStep("done")
+	clientTestStepConnect = testStep("connect")
+	clientTestStepRead    = testStep("read")
+	clientTestStepWrite   = testStep("write")
+	testStepDone          = testStep("done")
 )
 
 // Encapsulates a source for an error (client/server/???), the step where it occurred, and an
@@ -125,27 +125,27 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError
 	go func() {
 		defer listener.Close()
 		defer close(errorChan)
-		time.Sleep(cfg.acceptDelay)
+		time.Sleep(cfg.serverAcceptDelay)
 		sock, err := listener.Accept()
 		if err != nil {
-			errorChan <- serverError(testStepConnect, err)
+			errorChan <- serverError(clientTestStepConnect, err)
 			return
 		}
 		defer sock.Close()
-		time.Sleep(cfg.writeDelay)
+		time.Sleep(cfg.serverWriteDelay)
 		if err := _write(sock, cfg.serverToClientPayload); err != nil {
-			errorChan <- serverError(testStepWrite, err)
+			errorChan <- serverError(clientTestStepRead, err)
 			return
 		}
-		time.Sleep(cfg.readDelay)
+		time.Sleep(cfg.serverReadDelay)
 		buf := make([]byte, len(cfg.clientToServerPayload))
 		n, err := io.ReadFull(sock, buf)
 		if err != nil && err != io.EOF {
-			errorChan <- serverError(testStepRead, err)
+			errorChan <- serverError(clientTestStepWrite, err)
 			return
 		}
 		if err == io.EOF && n < len(buf) {
-			errorChan <- serverError(testStepRead, err)
+			errorChan <- serverError(clientTestStepWrite, err)
 			return
 		}
 		if !bytes.Equal(buf, cfg.clientToServerPayload) {
@@ -214,19 +214,19 @@ func (cfg *connTimeoutTestConfig) contextDial() (*TimeoutConnection, error) {
 func (cfg *connTimeoutTestConfig) runClient(t *testing.T) (testStep, error) {
 	conn, err := cfg.dialer()
 	if err != nil {
-		return testStepConnect, err
+		return clientTestStepConnect, err
 	}
 	defer conn.Close()
 	buf := make([]byte, len(cfg.serverToClientPayload))
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		return testStepRead, err
+		return clientTestStepRead, err
 	}
 	if !bytes.Equal(cfg.serverToClientPayload, buf) {
 		t.Errorf("%s: serverToClientPayload payload mismatch", cfg.name)
 	}
 	if err := _write(conn, cfg.clientToServerPayload); err != nil {
-		return testStepWrite, err
+		return clientTestStepWrite, err
 	}
 	return testStepDone, nil
 }
@@ -261,8 +261,8 @@ func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 	if ret.source != "client" {
 		t.Fatalf("%s: Unexpected error from %s: %v", cfg.name, ret.source, ret.cause)
 	}
-	if ret.step != cfg.failStep {
-		t.Errorf("%s: Failed at step %s, but expected to fail at step %s (error=%v)", cfg.name, ret.step, cfg.failStep, ret.cause)
+	if ret.step != cfg.clientFailStep {
+		t.Errorf("%s: Failed at step %s, but expected to fail at step %s (error=%v)", cfg.name, ret.step, cfg.clientFailStep, ret.cause)
 		return
 	}
 	if cfg.failError != "" {
@@ -271,94 +271,94 @@ func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 			errString = ret.cause.Error()
 		}
 		if !strings.Contains(errString, cfg.failError) {
-			t.Errorf("%s: Expected an error (%s) at step %s, got %s", cfg.name, cfg.failError, cfg.failStep, errString)
+			t.Errorf("%s: Expected an error (%s) at step %s, got %s", cfg.name, cfg.failError, cfg.clientFailStep, errString)
 			return
 		}
 	} else if ret.cause != nil {
-		t.Errorf("%s: expected no error at step %s, but got %v", cfg.name, cfg.failStep, ret.cause)
+		t.Errorf("%s: expected no error at step %s, but got %v", cfg.name, cfg.clientFailStep, ret.cause)
 	}
 }
 
 var connTestConfigs = []connTimeoutTestConfig{
 	// Long timeouts, short delays -- should succeed
-	//{
-	//	name:           "happy",
-	//	port:           0x5613,
-	//	timeout:        long,
-	//	connectTimeout: medium,
-	//	readTimeout:    medium,
-	//	writeTimeout:   medium,
-	//
-	//	acceptDelay: short,
-	//	writeDelay:  short,
-	//	readDelay:   short,
-	//
-	//	serverToClientPayload: []byte("abc"),
-	//	clientToServerPayload: []byte("defghi"),
-	//
-	//	failStep: testStepDone,
-	//},
+	{
+		name:           "happy",
+		port:           0x5613,
+		timeout:        long,
+		connectTimeout: medium,
+		readTimeout:    medium,
+		writeTimeout:   medium,
+
+		serverAcceptDelay: short,
+		serverWriteDelay:  short,
+		serverReadDelay:   short,
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: testStepDone,
+	},
 	//// long session timeout, short connectTimeout. Use a non-local, nonexistent endpoint (localhost
 	//// would return "connection refused" immediately)
-	//{
-	//	name:           "connect_timeout",
-	//	endpoint:       "10.0.254.254:41591",
-	//	timeout:        long,
-	//	connectTimeout: short,
-	//	readTimeout:    medium,
-	//	writeTimeout:   medium,
-	//
-	//	acceptDelay: short,
-	//	writeDelay:  short,
-	//	readDelay:   short,
-	//
-	//	serverToClientPayload: []byte("abc"),
-	//	clientToServerPayload: []byte("defghi"),
-	//
-	//	failStep:  testStepConnect,
-	//	failError: "i/o timeout",
-	//},
+	{
+		name:           "connect_timeout",
+		endpoint:       "10.0.254.254:41591",
+		timeout:        long,
+		connectTimeout: short,
+		readTimeout:    medium,
+		writeTimeout:   medium,
+
+		serverAcceptDelay: short,
+		serverWriteDelay:  short,
+		serverReadDelay:   short,
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: clientTestStepConnect,
+		failError:      "i/o timeout",
+	},
 	//// short session timeout, medium connect timeout, with connect to nonexistent endpoint.
-	//{
-	//	name:           "session_connect_timeout",
-	//	endpoint:       "10.0.254.254:41591",
-	//	timeout:        short,
-	//	connectTimeout: medium,
-	//	readTimeout:    medium,
-	//	writeTimeout:   medium,
-	//
-	//	acceptDelay: short,
-	//	writeDelay:  short,
-	//	readDelay:   short,
-	//
-	//	serverToClientPayload: []byte("abc"),
-	//	clientToServerPayload: []byte("defghi"),
-	//
-	//	failStep:  testStepConnect,
-	//	failError: "i/o timeout",
-	//},
+	{
+		name:           "session_connect_timeout",
+		endpoint:       "10.0.254.254:41591",
+		timeout:        short,
+		connectTimeout: medium,
+		readTimeout:    medium,
+		writeTimeout:   medium,
+
+		serverAcceptDelay: short,
+		serverWriteDelay:  short,
+		serverReadDelay:   short,
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: clientTestStepConnect,
+		failError:      "i/o timeout",
+	},
 	//// Get an IO timeout on the read.
-	//// sessionTimeout > acceptDelay + writeDelay > writeDelay > readTimeout
-	//{
-	//	name:           "read_timeout",
-	//	port:           0x5614,
-	//	timeout:        long,
-	//	connectTimeout: short,
-	//	readTimeout:    short,
-	//	writeTimeout:   short,
-	//
-	//	acceptDelay: short,
-	//	writeDelay:  medium,
-	//	readDelay:   short,
-	//
-	//	serverToClientPayload: []byte("abc"),
-	//	clientToServerPayload: []byte("defghi"),
-	//
-	//	failStep:  testStepRead,
-	//	failError: "i/o timeout",
-	//},
+	//// sessionTimeout > serverAcceptDelay + serverWriteDelay > serverWriteDelay > readTimeout
+	{
+		name:           "read_timeout",
+		port:           0x5614,
+		timeout:        long,
+		connectTimeout: short,
+		readTimeout:    short,
+		writeTimeout:   short,
+
+		serverAcceptDelay: short,
+		serverWriteDelay:  medium,
+		serverReadDelay:   short,
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: clientTestStepRead,
+		failError:      "i/o timeout",
+	},
 	// Get a context timeout on a read.
-	// readTimeout > writeDelay > timeout > acceptDelay
+	// readTimeout > serverWriteDelay > timeout > serverAcceptDelay
 	{
 		name:           "session_read_timeout",
 		port:           0x5615,
@@ -367,36 +367,36 @@ var connTestConfigs = []connTimeoutTestConfig{
 		readTimeout:    long,
 		writeTimeout:   long,
 
-		acceptDelay: 0,
-		writeDelay:  medium * 2,
-		readDelay:   0,
+		serverAcceptDelay: 0,
+		serverWriteDelay:  medium * 2,
+		serverReadDelay:   0,
 
 		serverToClientPayload: []byte("abc"),
 		clientToServerPayload: []byte("defghi"),
 
-		failStep:  testStepWrite,
-		failError: "context deadline exceeded",
+		clientFailStep: clientTestStepRead,
+		failError:      "i/o timeout",
 	},
-	// Use a session timeout that is longer than any individual action's timeout.
-	// acceptDelay+writeDelay+readDelay > timeout > acceptDelay >= writeDelay >= readDelay
-	//{
-	//	name:           "session_timeout",
-	//	port:           0x5616,
-	//	timeout:        medium,
-	//	connectTimeout: long,
-	//	readTimeout:    long,
-	//	writeTimeout:   long,
-	//
-	//	acceptDelay: time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
-	//	writeDelay:  time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
-	//	readDelay:   time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
-	//
-	//	serverToClientPayload: []byte("abc"),
-	//	clientToServerPayload: []byte("defghi"),
-	//
-	//	failStep:  testStepWrite,
-	//	failError: "context deadline exceeded",
-	//},
+	//Use a session timeout that is longer than any individual action's timeout.
+	//serverAcceptDelay+serverWriteDelay+serverReadDelay > timeout > serverAcceptDelay >= serverWriteDelay >= serverReadDelay
+	{
+		name:           "session_timeout",
+		port:           0x5616,
+		timeout:        medium,
+		connectTimeout: long,
+		readTimeout:    long,
+		writeTimeout:   long,
+
+		serverAcceptDelay: time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+		serverWriteDelay:  time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+		serverReadDelay:   time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: clientTestStepRead,
+		failError:      "i/o timeout",
+	},
 	// TODO: How to test write timeout?
 }
 
