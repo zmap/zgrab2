@@ -13,20 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var defaultIPv4DNSResolvers = []string{
-	"1.1.1.1:53",
-	"1.0.0.1:53",
-	"8.8.8.8:53",
-	"8.8.4.4:53",
-}
-
-var defaultIPv6DNSResolvers = []string{
-	"2606:4700:4700::1111:53",
-	"2606:4700:4700::1001:53",
-	"2001:4860:4860::8888:53",
-	"2001:4860:4860::8844:53",
-}
-
 // Config is the high level framework options that will be parsed
 // from the command line
 type Config struct {
@@ -213,18 +199,6 @@ func validateFrameworkConfiguration() {
 		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
 			log.Fatalf("invalid DNS server address: %s", err)
 		}
-	} else {
-		// if the user doesn't specify, we'll use defaults
-		if !config.useIPv4 && !config.useIPv6 {
-			log.Fatalf("invalid configuration: could not detect IP capabilites")
-		}
-		config.customDNSNameservers = make([]string, 0, min(len(defaultIPv4DNSResolvers), len(defaultIPv6DNSResolvers))) // preallocate
-		if config.useIPv4 {
-			config.customDNSNameservers = append(config.customDNSNameservers, defaultIPv4DNSResolvers...)
-		}
-		if config.useIPv6 {
-			config.customDNSNameservers = append(config.customDNSNameservers, defaultIPv6DNSResolvers...)
-		}
 	}
 
 	// If localPortString is set, parse it into a list of ports to use for source ports
@@ -235,8 +209,6 @@ func validateFrameworkConfiguration() {
 		}
 		config.localPorts = ports
 	}
-
-	log.Errorf("Using dns servers: %s", strings.Join(config.customDNSNameservers, ","))
 }
 
 // extractIPAddresses takes in a string of comma-separated IP addresses, ranges, or CIDR blocks and returns a de-duped
