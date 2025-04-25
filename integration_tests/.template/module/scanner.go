@@ -1,17 +1,9 @@
 // Package #{MODULE_NAME} provides a zgrab2 module that scans for #{MODULE_NAME}.
 // TODO: Describe module, the flags, the probe, the output, etc.
-package
-
-import (
-	"fmt"
-
-	"github.com/zmap/zgrab2"
-)
-#{MODULE_NAME}
+package #{MODULE_NAME}
 
 import (
 	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
