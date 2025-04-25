@@ -63,7 +63,8 @@ type TimeoutConnection struct {
 }
 
 // ManageTimeouts uses the timeouts set on a TimeoutConnection to set the underlying deadlines on the base connection.
-// The underlying conn only supports read and write deadlines. So we'll use the minimum of the set ctx, timeouts, etc.
+// The underlying conn only supports a deadline on reads and a deadline on writes, so we need to set the minimum of the
+// context deadline, the timeout, and the read/write timeouts. If no deadline is set, we use the default session timeout.
 func (c *TimeoutConnection) ManageTimeouts() {
 	// Get the minimum of the context deadline and the timeout
 	minDeadline := int64(math.MaxInt64)
@@ -98,13 +99,10 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 	if c.BytesRead+len(b) >= c.BytesReadLimit {
 		b = b[0 : c.BytesReadLimit-c.BytesRead]
 	}
+	c.ManageTimeouts()
 	if err = c.Conn.SetReadDeadline(time.Now().Add(c.ReadTimeout)); err != nil {
 		return 0, err
 	}
-	//c.SetDeadline(time.Now())
-	//timeUntilDeadline := time.Now().Add()
-	////c.SetDeadline(time.Now().Add(c.Timeout))
-	//fmt.Printf("time until deadline: %v\n", timeUntilDeadline)
 	n, err = c.Conn.Read(b)
 	c.BytesRead += n
 	if err == nil && origSize != len(b) && n == len(b) {
@@ -129,6 +127,7 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 	if err := c.checkContext(); err != nil {
 		return 0, err
 	}
+	c.ManageTimeouts()
 	if err = c.Conn.SetWriteDeadline(time.Now().Add(c.WriteTimeout)); err != nil {
 		return 0, err
 	}
@@ -174,9 +173,6 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 		return err
 	}
 	if !deadline.IsZero() {
-		// print time until deadline
-		timeUntilDeadline := deadline.Sub(time.Now())
-		fmt.Printf("time until deadline: %v\n", timeUntilDeadline)
 		err := c.Conn.SetDeadline(deadline)
 		if err != nil {
 			return err
@@ -208,22 +204,6 @@ func (c *TimeoutConnection) checkContext() error {
 	}
 }
 
-//// SetDefaults on the connection.
-//func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
-//	if c.BytesReadLimit == 0 {
-//		c.BytesReadLimit = DefaultBytesReadLimit
-//	}
-//	if c.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
-//		c.ReadLimitExceededAction = DefaultReadLimitExceededAction
-//	}
-//	if !c.explicitDeadline {
-//		if err := c.SetDeadline(time.Now().Add(DefaultSessionTimeout)); err != nil {
-//			logrus.Fatalf("failed to set default deadline: %v", err)
-//		}
-//	}
-//	return c
-//}
-
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := (&TimeoutConnection{
@@ -246,9 +226,6 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 		// get the minimum of the two deadlines
 		connDeadline = ctxDeadline
 	}
-	// TODO testing
-	//timeUntilDeadlinge := connDeadline.Sub(time.Now())
-	//fmt.Printf("time until deadline: %v\n", timeUntilDeadlinge)
 	if err := ret.SetDeadline(connDeadline); err != nil {
 		logrus.Errorf("Failed to set deadline on connection: %v", err)
 	}

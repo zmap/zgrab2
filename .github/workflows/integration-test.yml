@@ -32,10 +32,6 @@ jobs:
           go get -t ./...
           make
 
-      - name: Sleep to let the server start
-        run: |
-          sleep 10
-
       - name: Test
         run: |
           make test
