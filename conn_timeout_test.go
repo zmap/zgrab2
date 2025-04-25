@@ -143,10 +143,10 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError
 			errorChan <- serverError(testStepRead, err)
 			return
 		}
-		//if err == io.EOF && n < len(buf) {
-		//	errorChan <- serverError(testStepRead, err)
-		//	return
-		//}
+		if err == io.EOF && n < len(buf) {
+			errorChan <- serverError(testStepRead, err)
+			return
+		}
 		if !bytes.Equal(buf, cfg.clientToServerPayload) {
 			t.Errorf("%s: clientToServerPayload mismatch", cfg.name)
 		}

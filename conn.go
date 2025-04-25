@@ -220,9 +220,15 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeo
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
 	}).SetDefaults()
-	if ctx == nil {
-		ctx = context.Background()
+	connDeadline := time.Now().Add(timeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(connDeadline) {
+		// get the minimum of the two deadlines
+		connDeadline = ctxDeadline
 	}
+	if err := ret.SetDeadline(connDeadline); err != nil {
+		logrus.Errorf("Failed to set deadline on connection: %v", err)
+	}
+
 	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
 	return ret
 }
