@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -402,6 +403,7 @@ var connTestConfigs = []connTimeoutTestConfig{
 // TestTimeoutConnectionTimeouts tests that the TimeoutConnection behaves as expected with respect
 // to timeouts.
 func TestTimeoutConnectionTimeouts(t *testing.T) {
+	fmt.Printf("GOMAXPROCS = %d\n", runtime.GOMAXPROCS(0))
 	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*3)
 	// Make three copies of connTestConfigs, one with each dial method.
 	for _, cfg := range connTestConfigs {
