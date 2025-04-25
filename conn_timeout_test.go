@@ -376,8 +376,8 @@ var connTestConfigs = []connTimeoutTestConfig{
 		clientFailStep: clientTestStepRead,
 		failError:      "i/o timeout",
 	},
-	//Use a session timeout that is longer than any individual action's timeout.
-	//serverAcceptDelay+serverWriteDelay+serverReadDelay > timeout > serverAcceptDelay >= serverWriteDelay >= serverReadDelay
+	// Use a session timeout that is longer than any individual action's timeout.
+	// serverAcceptDelay+serverWriteDelay+serverReadDelay > timeout > serverAcceptDelay >= serverWriteDelay >= serverReadDelay
 	{
 		name:           "session_timeout",
 		port:           0x5616,
