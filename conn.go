@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net"
 	"time"
@@ -51,17 +52,43 @@ var ErrReadLimitExceeded = errors.New("read limit exceeded")
 type TimeoutConnection struct {
 	net.Conn
 	ctx                     context.Context
-	Timeout                 time.Duration
-	ReadTimeout             time.Duration
-	WriteTimeout            time.Duration
+	SessionTimeout          time.Duration // used to set the connection deadline, set once
+	ReadTimeout             time.Duration // used to set the read deadline, set fresh for each read
+	WriteTimeout            time.Duration // used to set the write deadline, set fresh for each write
 	BytesRead               int
 	BytesWritten            int
 	BytesReadLimit          int
 	ReadLimitExceededAction ReadLimitExceededAction
 	Cancel                  context.CancelFunc
-	explicitReadDeadline    bool
-	explicitWriteDeadline   bool
-	explicitDeadline        bool
+}
+
+// SaturateTimeoutsToReadAndWriteTimeouts gets the minimum of the context deadline, the timeout, and the read/write timeouts
+// and sets the read/write timeouts accordingly. This is necessary because the underlying connection only supports a
+// deadline on reads and a deadline on writes, so we need to compute the minimum of all these to find what to set the
+// underlying conn's read/write deadlines to.
+func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
+	// Get the minimum of the context deadline and the timeout
+	minDeadline := int64(math.MaxInt64)
+	if ctxDeadline, ok := c.ctx.Deadline(); ok {
+		minDeadline = int64(ctxDeadline.Sub(time.Now()))
+	}
+	if c.SessionTimeout > 0 {
+		minDeadline = min(minDeadline, int64(c.SessionTimeout))
+	}
+	c.SessionTimeout = time.Duration(minDeadline)
+
+	// Now we'll check read and write timeouts.
+	if c.ReadTimeout > 0 {
+		c.ReadTimeout = time.Duration(min(minDeadline, int64(c.ReadTimeout)))
+	} else {
+		c.ReadTimeout = time.Duration(minDeadline)
+	}
+
+	if c.WriteTimeout > 0 {
+		c.WriteTimeout = time.Duration(min(minDeadline, int64(c.WriteTimeout)))
+	} else {
+		c.WriteTimeout = time.Duration(minDeadline)
+	}
 }
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
@@ -73,13 +100,9 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 	if c.BytesRead+len(b) >= c.BytesReadLimit {
 		b = b[0 : c.BytesReadLimit-c.BytesRead]
 	}
-	if c.explicitReadDeadline || c.explicitDeadline {
-		c.explicitReadDeadline = false
-		c.explicitDeadline = false
-	} else if readTimeout := c.getTimeout(c.ReadTimeout); readTimeout > 0 {
-		if err = c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
-			return 0, err
-		}
+	c.SaturateTimeoutsToReadAndWriteTimeouts()
+	if err = c.Conn.SetReadDeadline(time.Now().Add(c.ReadTimeout)); err != nil {
+		return 0, err
 	}
 	n, err = c.Conn.Read(b)
 	c.BytesRead += n
@@ -105,13 +128,9 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 	if err := c.checkContext(); err != nil {
 		return 0, err
 	}
-	if c.explicitWriteDeadline || c.explicitDeadline {
-		c.explicitWriteDeadline = false
-		c.explicitDeadline = false
-	} else if writeTimeout := c.getTimeout(c.WriteTimeout); writeTimeout > 0 {
-		if err = c.Conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
-			return 0, err
-		}
+	c.SaturateTimeoutsToReadAndWriteTimeouts()
+	if err = c.Conn.SetWriteDeadline(time.Now().Add(c.WriteTimeout)); err != nil {
+		return 0, err
 	}
 	n, err = c.Conn.Write(b)
 	c.BytesWritten += n
@@ -119,7 +138,7 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 }
 
 // SetReadDeadline sets an explicit ReadDeadline that will override the timeout
-// for one read. Use deadline = 0 to clear the deadline.
+// for one read.
 func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
 	if err := c.checkContext(); err != nil {
 		return err
@@ -130,12 +149,11 @@ func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
 			return err
 		}
 	}
-	c.explicitReadDeadline = !deadline.IsZero()
 	return nil
 }
 
 // SetWriteDeadline sets an explicit WriteDeadline that will override the
-// WriteDeadline for one write. Use deadline = 0 to clear the deadline.
+// WriteDeadline for one write.
 func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
 	if err := c.checkContext(); err != nil {
 		return err
@@ -146,12 +164,11 @@ func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
 			return err
 		}
 	}
-	c.explicitWriteDeadline = deadline.IsZero()
 	return nil
 }
 
 // SetDeadline sets a read / write deadline that will override the deadline for
-// a single read/write. Use deadline = 0 to clear the deadline.
+// a single read/write.
 func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 	if err := c.checkContext(); err != nil {
 		return err
@@ -162,21 +179,12 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 			return err
 		}
 	}
-	c.explicitDeadline = deadline.IsZero()
 	return nil
 }
 
 // Close the underlying connection.
 func (c *TimeoutConnection) Close() error {
 	return c.Conn.Close()
-}
-
-// Get the timeout for the given field, falling back to the global timeout.
-func (c *TimeoutConnection) getTimeout(field time.Duration) time.Duration {
-	if field == 0 {
-		return c.Timeout
-	}
-	return field
 }
 
 // Check if the context has been cancelled, and if so, return an error (either the context error, or
@@ -197,33 +205,18 @@ func (c *TimeoutConnection) checkContext() error {
 	}
 }
 
-// SetDefaults on the connection.
-func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
-	if c.BytesReadLimit == 0 {
-		c.BytesReadLimit = DefaultBytesReadLimit
-	}
-	if c.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
-		c.ReadLimitExceededAction = DefaultReadLimitExceededAction
-	}
-	if c.Timeout == 0 {
-		c.Timeout = DefaultSessionTimeout
-	}
-	return c
-}
-
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
-	ret := (&TimeoutConnection{
+	ret := &TimeoutConnection{
+		ctx:            ctx,
 		Conn:           conn,
-		Timeout:        timeout,
+		SessionTimeout: timeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
-	}).SetDefaults()
-	if ctx == nil {
-		ctx = context.Background()
 	}
 	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
+	ret.SaturateTimeoutsToReadAndWriteTimeouts()
 	return ret
 }
 
