@@ -42,7 +42,7 @@ func (m *TLSModule) Description() string {
 	return "Perform a TLS handshake"
 }
 
-func (f *TLSFlags) Validate() error {
+func (f *TLSFlags) Validate(_ []string) error {
 	return nil
 }
 

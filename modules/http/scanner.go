@@ -141,7 +141,7 @@ func (module *Module) Description() string {
 }
 
 // Validate performs any needed validation on the arguments
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 

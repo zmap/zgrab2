@@ -176,7 +176,7 @@ func (m *Module) Description() string {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate() error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 

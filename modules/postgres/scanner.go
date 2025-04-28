@@ -289,7 +289,7 @@ func (m *Module) Description() string {
 }
 
 // Validate checks the arguments; on success, returns nil.
-func (f *Flags) Validate() error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
