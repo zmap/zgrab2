@@ -8,10 +8,6 @@ import subprocess
 import sys
 import time
 
-# Get directories
-module_dir = os.path.dirname(os.path.abspath(__file__))
-test_root = os.path.join(module_dir, "..")
-
 
 def run_command(command, output_file=None):
     """Run a shell command and optionally redirect output to a file."""

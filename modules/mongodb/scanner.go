@@ -231,7 +231,7 @@ func (scanner *Scanner) GetTrigger() string {
 }
 
 // Validate checks that the flags are valid
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 

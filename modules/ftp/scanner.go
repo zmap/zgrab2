@@ -103,7 +103,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate() (err error) {
+func (f *Flags) Validate(_ []string) (err error) {
 	if f.FTPAuthTLS && f.ImplicitTLS {
 		err = fmt.Errorf("Cannot specify both '--authtls' and '--implicit-tls' together")
 	}
