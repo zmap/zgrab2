@@ -94,7 +94,7 @@ func ReadAvailable(conn net.Conn) ([]byte, error) {
 	return ReadAvailableWithOptions(conn, defaultBufferSize, defaultReadTimeout, 0, defaultMaxReadSize)
 }
 
-// Make this implement the net.Error interface so that err.(net.Error).Timeout() works.
+// Make this implement the net.Error interface so that err.(net.Error).SessionTimeout() works.
 type errTotalTimeout string
 
 const (
@@ -126,7 +126,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 		totalTimeout = defaultTotalTimeout
 		timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
 		if isTimeoutConn {
-			totalTimeout = timeoutConn.Timeout
+			totalTimeout = timeoutConn.SessionTimeout
 		}
 	}
 	if totalTimeout > 0 {
