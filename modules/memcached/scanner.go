@@ -116,13 +116,30 @@ type MemcachedResultStats struct {
 // TODO - Describe Scan process
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
+	// Write stats
+	var message []byte = []byte("stats")
+	message = append(message, byte(0x0D))
+	message = append(message, byte(0x0A))
+	_, err = conn.Write(message)
+	println(message)
+	println(target.Port)
+	// Want read to get data
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
+
+	// var results []byte
+	results := make([]byte, 1000)
+	_, err = conn.Read(results)
+	print("error", err)
+	println("Results", results)
+	print("Results (string)", string(results))
+
 	defer func(conn net.Conn) {
 		// cleanup conn
 		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
+
 	result := new(MemcachedResult)
 	// TODO - populate memcached result
 
