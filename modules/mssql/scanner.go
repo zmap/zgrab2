@@ -81,7 +81,7 @@ func (module *Module) Description() string {
 }
 
 // Validate does nothing in this module.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
