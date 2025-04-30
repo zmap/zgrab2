@@ -117,6 +117,9 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	// Loop through each Probe type
 	for _, probe := range jarm.GetProbes(target.Host(), int(scanner.GetPort())) {
+		if zgrab2.HasCtxExpired(ctx) {
+			return zgrab2.SCAN_IO_TIMEOUT, nil, errors.New("scan timed out")
+		}
 		var (
 			conn net.Conn
 			err  error
