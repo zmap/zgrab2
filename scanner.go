@@ -57,9 +57,13 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 	if target.Port == 0 {
 		target.Port = dialerGroupConfig.BaseFlags.Port
 	}
-
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(dialerGroupConfig.BaseFlags.TargetTimeout))
-	defer cancel()
+	ctx := context.Background()
+	if dialerGroupConfig.BaseFlags.TargetTimeout > 0 {
+		// timeout is set, use it on the context
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(dialerGroupConfig.BaseFlags.TargetTimeout))
+		defer cancel()
+	}
 	status, res, e := s.Scan(ctx, dialerGroup, &target)
 	var err *string
 	if e == nil {

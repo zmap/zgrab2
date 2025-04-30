@@ -277,6 +277,9 @@ func (scan *scan) Cleanup() {
 // Get a context whose deadline is the earliest of the context's deadline (if it has one) and the
 // global scan deadline.
 func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
+	if scan.globalDeadline.IsZero() {
+		return ctx
+	}
 	ctxDeadline, ok := ctx.Deadline()
 	if !ok || scan.globalDeadline.Before(ctxDeadline) {
 		ret, _ := context.WithDeadline(ctx, scan.globalDeadline)
@@ -408,7 +411,6 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
-	ret.client.Timeout = scanner.config.ConnectTimeout
 	if deadline, ok := ctx.Deadline(); ok {
 		ret.client.Timeout = min(ret.client.Timeout, deadline.Sub(time.Now()))
 	}

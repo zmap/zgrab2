@@ -206,16 +206,20 @@ func (c *TimeoutConnection) checkContext() error {
 }
 
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
-func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
+func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := &TimeoutConnection{
 		ctx:            ctx,
 		Conn:           conn,
-		SessionTimeout: timeout,
+		SessionTimeout: sessionTimeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
 	}
-	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
+	if sessionTimeout > 0 {
+		ret.ctx, ret.Cancel = context.WithTimeout(ctx, sessionTimeout)
+	} else {
+		ret.ctx, ret.Cancel = context.WithCancel(ctx)
+	}
 	ret.SaturateTimeoutsToReadAndWriteTimeouts()
 	return ret
 }
