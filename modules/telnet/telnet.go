@@ -100,7 +100,7 @@ func GetTelnetBanner(logStruct *TelnetLog, conn net.Conn, maxReadSize int) (err 
 	}
 	// Keep reading until READ_BUFFER_LENGTH chunks until
 	// 	(a) a read takes longer than 500ms
-	//  (b) the combined reads take longer than the configured timeout for the connection (--timeout command line flag)
+	//  (b) the combined reads take longer than the configured timeout for the connection (--target-timeout command line flag)
 	//  (c) the banner is maxReadSize bytes long [taking into account the fact that logStruct.Banner may already have some data from NegotiateOptions]
 	bannerSlice, err := zgrab2.ReadAvailableWithOptions(conn, READ_BUFFER_LENGTH, 500*time.Millisecond, 0, maxReadSize-len(logStruct.Banner))
 	if bannerSlice != nil {

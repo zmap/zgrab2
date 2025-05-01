@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -289,5 +290,15 @@ func CloseConnAndHandleError(conn net.Conn) {
 	err := conn.Close()
 	if err != nil {
 		logrus.Errorf("could not close connection to %v: %v", conn.RemoteAddr(), err)
+	}
+}
+
+// HasCtxExpired checks if the context has expired. Common function used in various places.
+func HasCtxExpired(ctx context.Context) bool {
+	select {
+	case <-(ctx).Done():
+		return true
+	default:
+		return false
 	}
 }

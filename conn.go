@@ -206,16 +206,20 @@ func (c *TimeoutConnection) checkContext() error {
 }
 
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
-func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
+func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := &TimeoutConnection{
 		ctx:            ctx,
 		Conn:           conn,
-		SessionTimeout: timeout,
+		SessionTimeout: sessionTimeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
 	}
-	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
+	if sessionTimeout > 0 {
+		ret.ctx, ret.Cancel = context.WithTimeout(ctx, sessionTimeout)
+	} else {
+		ret.ctx, ret.Cancel = context.WithCancel(ctx)
+	}
 	ret.SaturateTimeoutsToReadAndWriteTimeouts()
 	return ret
 }
@@ -272,9 +276,10 @@ func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
-func GetTimeoutConnectionDialer(timeout time.Duration) *Dialer {
+func GetTimeoutConnectionDialer(dialTimeout, sessionTimeout time.Duration) *Dialer {
 	dialer := NewDialer(nil)
-	dialer.Timeout = timeout
+	dialer.Timeout = dialTimeout
+	dialer.SessionTimeout = sessionTimeout
 	return dialer
 }
 
@@ -286,24 +291,18 @@ func (d *Dialer) SetDefaults() *Dialer {
 	if d.BytesReadLimit == 0 {
 		d.BytesReadLimit = DefaultBytesReadLimit
 	}
-	if d.SessionTimeout == 0 {
-		d.SessionTimeout = DefaultSessionTimeout
-	}
 	if d.Dialer == nil {
-		d.Dialer = &net.Dialer{
-			Timeout:   d.SessionTimeout,
-			KeepAlive: d.SessionTimeout,
-		}
-	}
-	// Use custom DNS as default if set
-	if len(config.customDNSNameservers) > 0 {
-		// this may be a single IP address or a comma-separated list of IP addresses
-		ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
-		d.Dialer.Resolver = &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				return d.Dialer.DialContext(ctx, network, ns)
-			},
+		if len(config.customDNSNameservers) > 0 {
+
+			d.Dialer = &net.Dialer{}
+			// this may be a single IP address or a comma-separated list of IP addresses
+			ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
+			d.Dialer.Resolver = &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					return d.Dialer.DialContext(ctx, network, ns)
+				},
+			}
 		}
 	}
 	return d

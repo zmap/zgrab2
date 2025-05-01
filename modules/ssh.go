@@ -103,7 +103,7 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()
-	sshConfig.Timeout = s.config.Timeout
+	sshConfig.Timeout = s.config.ConnectTimeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	sshConfig.HelloOnly = s.config.HelloOnly
@@ -134,8 +134,8 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 		err = fmt.Errorf("failed to dial target %s: %w", t.String(), err)
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	if s.config.Timeout != 0 {
-		err = conn.SetDeadline(time.Now().Add(s.config.Timeout))
+	if s.config.ConnectTimeout != 0 {
+		err = conn.SetDeadline(time.Now().Add(s.config.ConnectTimeout))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to set connection deadline: %w", err)
 		}
