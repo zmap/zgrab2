@@ -57,13 +57,23 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 	if target.Port == 0 {
 		target.Port = dialerGroupConfig.BaseFlags.Port
 	}
-
-	status, res, e := s.Scan(context.Background(), dialerGroup, &target)
+	ctx := context.Background()
+	if dialerGroupConfig.BaseFlags.TargetTimeout > 0 {
+		// timeout is set, use it on the context
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(dialerGroupConfig.BaseFlags.TargetTimeout))
+		defer cancel()
+	}
+	status, res, e := s.Scan(ctx, dialerGroup, &target)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}
 		err = nil
 	} else {
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			// scan timed out
+			e = fmt.Errorf("ctx deadline exceeded: %w", e)
+		}
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusFailure}
 		errString := e.Error()
 		err = &errString
