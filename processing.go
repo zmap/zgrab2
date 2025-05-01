@@ -239,7 +239,7 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 				panic(e)
 			}
 		}(scannerName)
-		name, res := RunScanner(*scanner, m, input)
+		name, res := RunScanner(ctx, *scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
