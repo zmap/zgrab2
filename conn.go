@@ -312,6 +312,7 @@ func (d *Dialer) SetDefaults() *Dialer {
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
+		value.Dialer = &net.Dialer{}
 	}
 	return value.SetDefaults()
 }
