@@ -1,4 +1,4 @@
-package zgrab2
+package timeout_conn
 
 import (
 	"bytes"

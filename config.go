@@ -11,6 +11,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zmap/zgrab2/timeout_conn"
 )
 
 // Config is the high level framework options that will be parsed
@@ -144,7 +146,7 @@ func validateFrameworkConfiguration() {
 
 	// Stop even third-party libraries from performing unbounded reads on untrusted hosts
 	if config.ReadLimitPerHost > 0 {
-		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
+		timeout_conn.DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
 	}
 
 	// Validate custom DNS

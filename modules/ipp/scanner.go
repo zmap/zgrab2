@@ -22,6 +22,7 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/timeout_conn"
 )
 
 const (
@@ -697,7 +698,7 @@ func (scanner *Scanner) tryGrabForVersions(ctx context.Context, target *zgrab2.S
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
 	transport.DialTLS = newScan.getTLSDialer(ctx, target, dialGroup)
-	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.ConnectTimeout, scanner.config.TargetTimeout).DialContext
+	transport.DialContext = timeout_conn.GetTimeoutConnectionDialer(scanner.config.ConnectTimeout, scanner.config.TargetTimeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
 	newScan.client.Transport = transport

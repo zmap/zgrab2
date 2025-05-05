@@ -1,7 +1,8 @@
-package zgrab2
+package timeout_conn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -130,7 +131,7 @@ func checkedSendReceive(t *testing.T, conn *TimeoutConnection, size int) (result
 			// EOF should only occur with truncation
 			return tErrorf("read: unexpected EOF")
 		}
-		if err == ErrReadLimitExceeded && action != ReadLimitExceededActionError {
+		if errors.Is(err, ErrReadLimitExceeded) && action != ReadLimitExceededActionError {
 			// ErrReadLimitExceeded should only occur with ReadLimitExceededActionError
 			return tErrorf("read: unexpected ErrReadLimitExceeded")
 		}
@@ -231,7 +232,7 @@ func (d *dialerConnector) connect(ctx context.Context, t *testing.T, port int, i
 		d.dialer = NewDialer(&Dialer{
 			BytesReadLimit:          d.limit,
 			ReadLimitExceededAction: d.action,
-		})
+		}, "")
 	}
 	var ret *TimeoutConnection
 	conn, err := d.dialer.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -262,7 +263,7 @@ func (d *directDial) connect(ctx context.Context, t *testing.T, port int, idx in
 		BytesReadLimit: d.limit,
 		ReadTimeout:    time.Second,
 		WriteTimeout:   time.Second,
-	})
+	}, "")
 
 	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 

@@ -15,6 +15,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
+
+	"github.com/zmap/zgrab2/timeout_conn"
 )
 
 var parser *flags.Parser
@@ -95,25 +97,6 @@ func ReadAvailable(conn net.Conn) ([]byte, error) {
 	return ReadAvailableWithOptions(conn, defaultBufferSize, defaultReadTimeout, 0, defaultMaxReadSize)
 }
 
-// Make this implement the net.Error interface so that err.(net.Error).SessionTimeout() works.
-type errTotalTimeout string
-
-const (
-	ErrTotalTimeout = errTotalTimeout("timeout")
-)
-
-func (err errTotalTimeout) Error() string {
-	return string(err)
-}
-
-func (err errTotalTimeout) Timeout() bool {
-	return true
-}
-
-func (err errTotalTimeout) Temporary() bool {
-	return false
-}
-
 // ReadAvailableWithOptions reads whatever can be read (up to maxReadSize) from
 // conn without blocking for longer than readTimeout per read, or totalTimeout
 // for the entire session. A totalTimeout of 0 means attempt to use the
@@ -125,7 +108,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 		// Would be nice if this could be taken from the SetReadDeadline(), but that's not possible in general
 		const defaultTotalTimeout = 1 * time.Second
 		totalTimeout = defaultTotalTimeout
-		timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
+		timeoutConn, isTimeoutConn := conn.(*timeout_conn.TimeoutConnection)
 		if isTimeoutConn {
 			totalTimeout = timeoutConn.SessionTimeout
 		}
@@ -166,7 +149,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 			return ret, err
 		}
 	}
-	return ret, ErrTotalTimeout
+	return ret, errors.New("timeout")
 }
 
 var InsufficientBufferError = errors.New("not enough buffer space")
