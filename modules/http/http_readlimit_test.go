@@ -18,7 +18,6 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/timeout_conn"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
@@ -180,7 +179,7 @@ func (cfg *readLimitTestConfig) getScanner(t *testing.T) *Scanner {
 	flags.ConnectTimeout = 1 * time.Second
 	flags.Port = uint(cfg.port)
 	flags.UseHTTPS = cfg.tls
-	timeout_conn.DefaultBytesReadLimit = cfg.maxReadSize
+	zgrab2.DefaultBytesReadLimit = cfg.maxReadSize
 	scanner := module.NewScanner()
 	scanner.Init(flags)
 	return scanner.(*Scanner)
@@ -453,8 +452,8 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 // TestReadLimitHTTP checks that the HTTP scanner works as expected with the default
 // ReadLimitExeededAction (specifically, ReadLimnitExceededActionTruncate) defined in conn.go.
 func TestReadLimitHTTP(t *testing.T) {
-	if timeout_conn.DefaultReadLimitExceededAction != timeout_conn.ReadLimitExceededActionTruncate {
-		t.Logf("Warning: DefaultReadLimitExceededAction is %s, not %s", timeout_conn.DefaultReadLimitExceededAction, timeout_conn.ReadLimitExceededActionTruncate)
+	if zgrab2.DefaultReadLimitExceededAction != zgrab2.ReadLimitExceededActionTruncate {
+		t.Logf("Warning: DefaultReadLimitExceededAction is %s, not %s", zgrab2.DefaultReadLimitExceededAction, zgrab2.ReadLimitExceededActionTruncate)
 	}
 	for testName, cfg := range readLimitTestConfigs {
 		cfg.runTest(t, testName)

@@ -1,4 +1,4 @@
-package timeout_conn
+package zgrab2
 
 import (
 	"context"
@@ -198,7 +198,7 @@ func (c *TimeoutConnection) checkContext() error {
 		if err := c.ctx.Err(); err != nil {
 			return err
 		} else {
-			return errors.New("timeout")
+			return ErrTotalTimeout
 		}
 	default:
 		return nil
@@ -277,14 +277,14 @@ func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
 func GetTimeoutConnectionDialer(dialTimeout, sessionTimeout time.Duration) *Dialer {
-	dialer := NewDialer(nil, "")
+	dialer := NewDialer(nil)
 	dialer.Timeout = dialTimeout
 	dialer.SessionTimeout = sessionTimeout
 	return dialer
 }
 
 // SetDefaults for the Dialer.
-func (d *Dialer) SetDefaults(customDNS string) *Dialer {
+func (d *Dialer) SetDefaults() *Dialer {
 	if d.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
 		d.ReadLimitExceededAction = DefaultReadLimitExceededAction
 	}
@@ -294,11 +294,11 @@ func (d *Dialer) SetDefaults(customDNS string) *Dialer {
 	if d.Dialer == nil {
 		d.Dialer = &net.Dialer{}
 		// Use custom DNS as default if set
-		if customDNS != "" {
+		if config.CustomDNS != "" {
 			d.Dialer.Resolver = &net.Resolver{
 				PreferGo: true,
 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					return net.Dial(network, customDNS)
+					return net.Dial(network, config.CustomDNS)
 				},
 			}
 		}
@@ -307,11 +307,11 @@ func (d *Dialer) SetDefaults(customDNS string) *Dialer {
 }
 
 // NewDialer creates a new Dialer with default settings.
-func NewDialer(value *Dialer, customDNS string) *Dialer {
+func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
 	}
-	return value.SetDefaults(customDNS)
+	return value.SetDefaults()
 }
 
 // SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
