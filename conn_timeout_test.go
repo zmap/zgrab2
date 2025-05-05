@@ -28,10 +28,11 @@ type connTimeoutTestConfig struct {
 	dialer func() (*TimeoutConnection, error)
 
 	// Client timeout values
-	timeout        time.Duration
-	connectTimeout time.Duration
-	readTimeout    time.Duration
-	writeTimeout   time.Duration
+	timeout             time.Duration
+	connectTimeout      time.Duration
+	readTimeout         time.Duration
+	writeTimeout        time.Duration
+	postConnReadTimeout time.Duration // set on conn after dialer gives it to us
 
 	// Time for server to wait after listening before accepting a connection
 	serverAcceptDelay time.Duration
@@ -203,6 +204,10 @@ func (cfg *connTimeoutTestConfig) contextDial() (*TimeoutConnection, error) {
 	})
 	dialer.Timeout = cfg.connectTimeout
 	ret, err := dialer.DialContext(context.Background(), "tcp", cfg.getEndpoint())
+	if err != nil {
+		return nil, err
+	}
+	err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
 	if err != nil {
 		return nil, err
 	}
@@ -389,6 +394,25 @@ var connTestConfigs = []connTimeoutTestConfig{
 		serverAcceptDelay: time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
 		serverWriteDelay:  time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
 		serverReadDelay:   time.Nanosecond * time.Duration(medium.Nanoseconds()/2+short.Nanoseconds()),
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: clientTestStepRead,
+		failError:      "i/o timeout",
+	},
+	// Use a session timeout that is longer than any individual action's timeout.
+	// serverAcceptDelay+serverWriteDelay+serverReadDelay > timeout > serverAcceptDelay >= serverWriteDelay >= serverReadDelay
+	{
+		name:                "post conn read timeout",
+		port:                0x5617,
+		timeout:             long,
+		connectTimeout:      long,
+		readTimeout:         long,
+		writeTimeout:        long,
+		postConnReadTimeout: medium, // we'll apply this after dialing, connection should succeed
+
+		serverWriteDelay: medium,
 
 		serverToClientPayload: []byte("abc"),
 		clientToServerPayload: []byte("defghi"),
