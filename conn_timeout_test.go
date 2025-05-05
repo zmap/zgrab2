@@ -176,6 +176,12 @@ func (cfg *connTimeoutTestConfig) dialerDial() (*TimeoutConnection, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.postConnReadTimeout > 0 {
+		err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
+		if err != nil {
+			return nil, err
+		}
+	}
 	return ret.(*TimeoutConnection), err
 }
 
@@ -192,6 +198,12 @@ func (cfg *connTimeoutTestConfig) directDial() (*TimeoutConnection, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.postConnReadTimeout > 0 {
+		err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
+		if err != nil {
+			return nil, err
+		}
+	}
 	return ret.(*TimeoutConnection), err
 }
 
@@ -207,9 +219,11 @@ func (cfg *connTimeoutTestConfig) contextDial() (*TimeoutConnection, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
-	if err != nil {
-		return nil, err
+	if cfg.postConnReadTimeout > 0 {
+		err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
+		if err != nil {
+			return nil, err
+		}
 	}
 	return ret.(*TimeoutConnection), err
 }
@@ -408,17 +422,16 @@ var connTestConfigs = []connTimeoutTestConfig{
 		port:                0x5617,
 		timeout:             long,
 		connectTimeout:      long,
-		readTimeout:         long,
+		readTimeout:         short, // if the post Conn timeout isn't set appropriately, this will be the read timeout, causing the test to fail
 		writeTimeout:        long,
-		postConnReadTimeout: medium, // we'll apply this after dialing, connection should succeed
+		postConnReadTimeout: medium * 2, // we'll apply this after dialing, connection should succeed
 
 		serverWriteDelay: medium,
 
 		serverToClientPayload: []byte("abc"),
 		clientToServerPayload: []byte("defghi"),
 
-		clientFailStep: clientTestStepRead,
-		failError:      "i/o timeout",
+		clientFailStep: testStepDone,
 	},
 	// TODO: How to test write timeout?
 }
