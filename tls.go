@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -20,6 +21,7 @@ import (
 func init() {
 	asn1.AllowPermissiveParsing = true
 	pkix.LegacyNameString = true
+	mut = sync.Mutex{}
 }
 
 // Shared code for TLS scans.
@@ -92,6 +94,9 @@ func (t *TLSFlags) GetTLSConfig() (*tls.Config, error) {
 	return t.GetTLSConfigForTarget(nil)
 }
 
+var mut sync.Mutex
+var hasRead bool
+
 func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error) {
 	var err error
 
@@ -151,6 +156,14 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		ok := ret.RootCAs.AppendCertsFromPEM(caBytes)
 		if !ok {
 			log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
+		}
+
+		mut.Lock()
+		defer mut.Unlock()
+		if !hasRead {
+			hasRead = true
+		} else {
+			log.Fatalf("Root CA file already read. Read only once")
 		}
 	}
 
