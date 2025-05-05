@@ -314,6 +314,9 @@ func NewDialer(value *Dialer) *Dialer {
 		value = &Dialer{}
 		value.Dialer = &net.Dialer{}
 	}
+	if value.Dialer == nil {
+		value.Dialer = &net.Dialer{} // initialize defaults to prevent nil pointer dereference
+	}
 	return value.SetDefaults()
 }
 
