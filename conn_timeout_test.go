@@ -270,7 +270,9 @@ func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 	var ret *timeoutTestError
 	select {
 	case err := <-serverError:
-		t.Fatalf("%s: Server error: %v", cfg.name, err)
+		if err != nil {
+			t.Fatalf("%s: Server error: %v", cfg.name, err)
+		}
 	case ret = <-done:
 		if ret == nil {
 			t.Fatalf("Channel unexpectedly closed")
