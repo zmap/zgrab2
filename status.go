@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"errors"
 	"io"
 	"net"
 	"runtime/debug"
@@ -67,11 +68,13 @@ func TryGetScanStatus(err error) ScanStatus {
 		// Presumably the caller did not call TryGetScanStatus if the EOF was expected
 		return SCAN_IO_TIMEOUT
 	}
-	switch e := err.(type) {
-	case *ScanError:
-		return e.Status
-	case *net.OpError:
-		switch e.Op {
+	var scanError *ScanError
+	var opError *net.OpError
+	switch {
+	case errors.As(err, &scanError):
+		return scanError.Status
+	case errors.As(err, &opError):
+		switch opError.Op {
 		case "dial":
 			// TODO: Distinguish connection timeout / connection refused
 			// Windows examples:
@@ -86,12 +89,12 @@ func TryGetScanStatus(err error) ScanStatus {
 			return SCAN_IO_TIMEOUT
 		default:
 			// TODO: Do we need a generic network error?
-			log.Debugf("Failed to detect error from net.OpError %v, op = %s at %s", e, e.Op, string(debug.Stack()))
+			log.Debugf("Failed to detect error from net.OpError %v, op = %s at %s", opError, opError.Op, string(debug.Stack()))
 			return SCAN_UNKNOWN_ERROR
 		}
 	// TODO: More error types
 	default:
-		log.Debugf("Failed to detect error from %v at %s", e, string(debug.Stack()))
+		log.Debugf("Failed to detect error from %v at %s", err, string(debug.Stack()))
 		return SCAN_UNKNOWN_ERROR
 	}
 }
