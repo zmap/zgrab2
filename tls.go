@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"github.com/zmap/zcrypto/encoding/asn1"
 	"github.com/zmap/zcrypto/x509/pkix"
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -71,6 +72,52 @@ type TLSFlags struct {
 	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
 	OverrideSH  bool   `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 }
+
+// rootCAsStore is a struct to hold the value of the last x509.CertPool fetched using the RootCAs flag in TLSFlags
+// In CLI usage, this value is constant across all targets, and so doesn't make sense to lookup every time
+type rootCAsCache struct {
+	sync.RWMutex
+	rootCAs         string         // the flag value of what folder to find root cas
+	rootCAsCertPool *x509.CertPool // the Root CAs cert pool itself
+}
+
+// Fetch returns the x509.CertPool from the cache if the rootCAs string matches or from the filesystem if not
+func (s *rootCAsCache) Fetch(rootCAs string) *x509.CertPool {
+	var fd *os.File
+	var err error
+	var pool *x509.CertPool
+	s.RLock() // optimistic reader lock, most cases will just require a read lock since in CLI usage, the rootCAs value is constant
+	if s.rootCAs == rootCAs {
+		certPool := s.rootCAsCertPool
+		s.RUnlock()
+		return certPool
+	}
+	s.RUnlock()
+	s.Lock() // lock for writing, it's possible that another thread has changed the rootCAs value in between the RUnlock and Lock
+	defer s.Unlock()
+	if s.rootCAs == rootCAs { // ensure no one else has changed it
+		certPool := s.rootCAsCertPool
+		return certPool
+	}
+	if fd, err = os.Open(rootCAs); err != nil {
+		log.Fatal(err)
+	}
+	caBytes, readErr := io.ReadAll(fd)
+	if readErr != nil {
+		log.Fatal(err)
+	}
+	pool = x509.NewCertPool()
+	ok := pool.AppendCertsFromPEM(caBytes)
+	if !ok {
+		log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
+	}
+
+	s.rootCAs = rootCAs
+	s.rootCAsCertPool = pool
+	return s.rootCAsCertPool
+}
+
+var casCache rootCAsCache
 
 func getCSV(arg string) []string {
 	// TODO: Find standard way to pass array-valued options
@@ -139,19 +186,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		log.Fatalf("--certificate-map not implemented")
 	}
 	if t.RootCAs != "" {
-		var fd *os.File
-		if fd, err = os.Open(t.RootCAs); err != nil {
-			log.Fatal(err)
-		}
-		caBytes, readErr := ioutil.ReadAll(fd)
-		if readErr != nil {
-			log.Fatal(err)
-		}
-		ret.RootCAs = x509.NewCertPool()
-		ok := ret.RootCAs.AppendCertsFromPEM(caBytes)
-		if !ok {
-			log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
-		}
+		ret.RootCAs = casCache.Fetch(t.RootCAs)
 	}
 
 	if t.NextProtos != "" {
