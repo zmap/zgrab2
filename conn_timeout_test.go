@@ -112,7 +112,7 @@ func _write(writer io.Writer, data []byte) error {
 
 // Run the configured server. As soon as it returns, it is listening.
 // Returns a channel that receives a timeoutTestError on error, or is closed on successful completion.
-func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError {
+func (cfg *connTimeoutTestConfig) runServer(t *testing.T, stopServer <-chan struct{}) chan *timeoutTestError {
 	errorChan := make(chan *timeoutTestError)
 	if cfg.endpoint != "" {
 		// Only listen on localhost
@@ -151,6 +151,7 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError
 		if !bytes.Equal(buf, cfg.clientToServerPayload) {
 			t.Errorf("%s: clientToServerPayload mismatch", cfg.name)
 		}
+		<-stopServer // wait for client to indicate server can exit
 		return
 	}()
 	return errorChan
@@ -252,7 +253,8 @@ func (cfg *connTimeoutTestConfig) runClient(t *testing.T) (testStep, error) {
 // Run the configured test -- start a server and a client to connect to it.
 func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 	done := make(chan *timeoutTestError)
-	serverError := cfg.runServer(t)
+	stopServer := make(chan struct{})
+	serverError := cfg.runServer(t, stopServer)
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -270,14 +272,13 @@ func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 	var ret *timeoutTestError
 	select {
 	case err := <-serverError:
-		if err != nil {
-			t.Fatalf("%s: Server error: %v", cfg.name, err)
-		}
+		t.Fatalf("%s: Server error: %v", cfg.name, err)
 	case ret = <-done:
 		if ret == nil {
 			t.Fatalf("Channel unexpectedly closed")
 		}
 	}
+	close(stopServer)
 	if ret.source != "client" {
 		t.Fatalf("%s: Unexpected error from %s: %v", cfg.name, ret.source, ret.cause)
 	}
