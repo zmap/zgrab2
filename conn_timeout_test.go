@@ -28,10 +28,11 @@ type connTimeoutTestConfig struct {
 	dialer func() (*TimeoutConnection, error)
 
 	// Client timeout values
-	timeout        time.Duration
-	connectTimeout time.Duration
-	readTimeout    time.Duration
-	writeTimeout   time.Duration
+	timeout             time.Duration
+	connectTimeout      time.Duration
+	readTimeout         time.Duration
+	writeTimeout        time.Duration
+	postConnReadTimeout time.Duration // set on conn after dialer gives it to us
 
 	// Time for server to wait after listening before accepting a connection
 	serverAcceptDelay time.Duration
@@ -111,7 +112,7 @@ func _write(writer io.Writer, data []byte) error {
 
 // Run the configured server. As soon as it returns, it is listening.
 // Returns a channel that receives a timeoutTestError on error, or is closed on successful completion.
-func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError {
+func (cfg *connTimeoutTestConfig) runServer(t *testing.T, stopServer <-chan struct{}) chan *timeoutTestError {
 	errorChan := make(chan *timeoutTestError)
 	if cfg.endpoint != "" {
 		// Only listen on localhost
@@ -150,6 +151,7 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T) chan *timeoutTestError
 		if !bytes.Equal(buf, cfg.clientToServerPayload) {
 			t.Errorf("%s: clientToServerPayload mismatch", cfg.name)
 		}
+		<-stopServer // wait for client to indicate server can exit
 		return
 	}()
 	return errorChan
@@ -175,6 +177,12 @@ func (cfg *connTimeoutTestConfig) dialerDial() (*TimeoutConnection, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.postConnReadTimeout > 0 {
+		err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
+		if err != nil {
+			return nil, err
+		}
+	}
 	return ret.(*TimeoutConnection), err
 }
 
@@ -191,6 +199,12 @@ func (cfg *connTimeoutTestConfig) directDial() (*TimeoutConnection, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cfg.postConnReadTimeout > 0 {
+		err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
+		if err != nil {
+			return nil, err
+		}
+	}
 	return ret.(*TimeoutConnection), err
 }
 
@@ -205,6 +219,12 @@ func (cfg *connTimeoutTestConfig) contextDial() (*TimeoutConnection, error) {
 	ret, err := dialer.DialContext(context.Background(), "tcp", cfg.getEndpoint())
 	if err != nil {
 		return nil, err
+	}
+	if cfg.postConnReadTimeout > 0 {
+		err = ret.SetReadDeadline(time.Now().Add(cfg.postConnReadTimeout))
+		if err != nil {
+			return nil, err
+		}
 	}
 	return ret.(*TimeoutConnection), err
 }
@@ -233,7 +253,8 @@ func (cfg *connTimeoutTestConfig) runClient(t *testing.T) (testStep, error) {
 // Run the configured test -- start a server and a client to connect to it.
 func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 	done := make(chan *timeoutTestError)
-	serverError := cfg.runServer(t)
+	stopServer := make(chan struct{})
+	serverError := cfg.runServer(t, stopServer)
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -257,6 +278,7 @@ func (cfg *connTimeoutTestConfig) run(t *testing.T) {
 			t.Fatalf("Channel unexpectedly closed")
 		}
 	}
+	close(stopServer)
 	if ret.source != "client" {
 		t.Fatalf("%s: Unexpected error from %s: %v", cfg.name, ret.source, ret.cause)
 	}
@@ -395,6 +417,24 @@ var connTestConfigs = []connTimeoutTestConfig{
 
 		clientFailStep: clientTestStepRead,
 		failError:      "i/o timeout",
+	},
+	// Use a session timeout that is longer than any individual action's timeout.
+	// serverAcceptDelay+serverWriteDelay+serverReadDelay > timeout > serverAcceptDelay >= serverWriteDelay >= serverReadDelay
+	{
+		name:                "post conn read timeout",
+		port:                0x5617,
+		timeout:             long,
+		connectTimeout:      long,
+		readTimeout:         short, // if the post Conn timeout isn't set appropriately, this will be the read timeout, causing the test to fail
+		writeTimeout:        long,
+		postConnReadTimeout: medium * 2, // we'll apply this after dialing, connection should succeed
+
+		serverWriteDelay: medium,
+
+		serverToClientPayload: []byte("abc"),
+		clientToServerPayload: []byte("defghi"),
+
+		clientFailStep: testStepDone,
 	},
 	// TODO: How to test write timeout?
 }

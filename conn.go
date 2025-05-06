@@ -144,10 +144,7 @@ func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
 		return err
 	}
 	if !deadline.IsZero() {
-		err := c.Conn.SetReadDeadline(deadline)
-		if err != nil {
-			return err
-		}
+		c.ReadTimeout = deadline.Sub(time.Now())
 	}
 	return nil
 }
@@ -159,10 +156,7 @@ func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
 		return err
 	}
 	if !deadline.IsZero() {
-		err := c.Conn.SetWriteDeadline(deadline)
-		if err != nil {
-			return err
-		}
+		c.WriteTimeout = deadline.Sub(time.Now())
 	}
 	return nil
 }
