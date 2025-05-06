@@ -43,7 +43,7 @@ func PrintScanners() {
 }
 
 // RunScanner runs a single scan on a target and returns the resulting data
-func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
+func RunScanner(ctx context.Context, s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
 	dialerGroupConfig, ok := defaultDialerGroupConfigToScanners[s.GetName()]
 	if !ok {
@@ -57,7 +57,6 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 	if target.Port == 0 {
 		target.Port = dialerGroupConfig.BaseFlags.Port
 	}
-	ctx := context.Background()
 	if dialerGroupConfig.BaseFlags.TargetTimeout > 0 {
 		// timeout is set, use it on the context
 		var cancel context.CancelFunc

@@ -292,13 +292,15 @@ func (d *Dialer) SetDefaults() *Dialer {
 		d.BytesReadLimit = DefaultBytesReadLimit
 	}
 	if d.Dialer == nil {
-		d.Dialer = &net.Dialer{}
-		// Use custom DNS as default if set
-		if config.CustomDNS != "" {
+		if len(config.customDNSNameservers) > 0 {
+
+			d.Dialer = &net.Dialer{}
+			// this may be a single IP address or a comma-separated list of IP addresses
+			ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
 			d.Dialer.Resolver = &net.Resolver{
 				PreferGo: true,
 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					return net.Dial(network, config.CustomDNS)
+					return d.Dialer.DialContext(ctx, network, ns)
 				},
 			}
 		}
@@ -310,6 +312,10 @@ func (d *Dialer) SetDefaults() *Dialer {
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
+		value.Dialer = &net.Dialer{}
+	}
+	if value.Dialer == nil {
+		value.Dialer = &net.Dialer{} // initialize defaults to prevent nil pointer dereference
 	}
 	return value.SetDefaults()
 }
@@ -324,6 +330,9 @@ func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPort
 	var localPort int
 	if len(localPorts) != 0 {
 		localPort = int(localPorts[rand.Intn(len(localPorts))])
+	}
+	if localIP == nil && localPort == 0 {
+		return nil // nothing to set
 	}
 	switch network {
 	case "tcp", "tcp4", "tcp6":

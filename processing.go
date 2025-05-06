@@ -6,6 +6,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
+	"math/rand"
 	"net"
 	"sync"
 
@@ -18,6 +19,7 @@ type Grab struct {
 	Port   uint                    `json:"port,omitempty"`
 	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
+	Error  string                  `json:"error,omitempty"` // an error that affects the entire grab, preventing any data from being returned
 }
 
 // ScanTarget is the host that will be scanned
@@ -61,8 +63,8 @@ func (target *ScanTarget) Host() string {
 // GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
 func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	// create dialer once and reuse it
-	dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
 		// If the scan is for a specific IP, and a domain name is provided, we
 		// don't want to just let the http library resolve the domain.  Create
 		// a fake resolver that we will use, that always returns the IP we are
@@ -146,8 +148,8 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 // GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
 func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 	// create dialer once and reuse it
-	dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
 		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
 		if err != nil {
 			return nil, fmt.Errorf("could not set random local address: %w", err)
@@ -192,8 +194,37 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input ScanTarget, m *Monitor) []byte {
+func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
+
+	if len(input.Domain) > 0 && input.IP == nil {
+		// resolve the target's IP here once, so it doesn't need to be resolved in each module
+		dialer := NewDialer(nil)
+		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
+		if err != nil {
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  fmt.Sprintf("could not resolve %s", input.Domain),
+			}
+		}
+		// filter out IPs that aren't reachable
+		possibleIPS := make([]string, 0, len(ips))
+		for _, ip := range ips {
+			if config.useIPv4 && ip.To4() != nil ||
+				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
+				possibleIPS = append(possibleIPS, ip.String())
+			}
+		}
+		if len(possibleIPS) == 0 {
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  fmt.Sprintf("no reachable ips for %s were found during name resolution", input.Domain),
+			}
+		}
+		input.IP = net.ParseIP(possibleIPS[rand.Intn(len(possibleIPS))])
+	}
 
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
@@ -208,7 +239,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 				panic(e)
 			}
 		}(scannerName)
-		name, res := RunScanner(*scanner, m, input)
+		name, res := RunScanner(ctx, *scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
@@ -218,13 +249,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 		}
 	}
 
-	raw := BuildGrabFromInputResponse(&input, moduleResult)
-	result, err := EncodeGrab(raw, includeDebugOutput())
-	if err != nil {
-		log.Errorf("unable to marshal data: %s", err)
-	}
-
-	return result
+	return BuildGrabFromInputResponse(&input, moduleResult)
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers.
@@ -255,7 +280,11 @@ func Process(mon *Monitor) {
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
-					result := grabTarget(obj, mon)
+					grab := grabTarget(context.Background(), obj, mon)
+					result, err := EncodeGrab(grab, includeDebugOutput())
+					if err != nil {
+						log.Errorf("unable to marshal data: %s", err)
+					}
 					outputQueue <- result
 				}
 			}

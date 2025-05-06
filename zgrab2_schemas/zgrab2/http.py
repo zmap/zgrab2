@@ -168,6 +168,13 @@ http_response_full = SubRecord(
     }
 )
 
+redirects_to_resolved_ip = SubRecord(
+    {
+        "redirect_name": String(),
+        "ip": String(),
+    }
+)
+
 # modules/http.go: HTTPResults
 http_scan_response = SubRecord(
     {
@@ -177,6 +184,7 @@ http_scan_response = SubRecord(
                 "connect_response": http_response,
                 "response": http_response_full,
                 "redirect_response_chain": ListOf(http_response_full),
+                "redirects_to_resolved_ips": ListOf(redirects_to_resolved_ip),
             }
         )
     },

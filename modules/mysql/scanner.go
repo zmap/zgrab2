@@ -254,7 +254,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 	var err error
 	var tlsConn *zgrab2.TLSConnection
 
-	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.String(), fmt.Sprintf("%d", t.Port)))
+	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", t.String(), err)
 	}
