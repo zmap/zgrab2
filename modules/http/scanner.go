@@ -400,8 +400,8 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
 	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
-		ctx = ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(ctx, t)(network, addr)
+		deadlineCtx := ret.withDeadlineContext(ctx)
+		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
 		}
