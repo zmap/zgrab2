@@ -4,13 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
-	"github.com/zmap/zcrypto/encoding/asn1"
-	"github.com/zmap/zcrypto/x509/pkix"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/zmap/zcrypto/encoding/asn1"
+	"github.com/zmap/zcrypto/x509/pkix"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"

@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+
 	//"net/http/httputil"
 	"net/url"
 	"os"
@@ -22,11 +23,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
 	//"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptest"
 )
