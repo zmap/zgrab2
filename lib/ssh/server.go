@@ -459,7 +459,7 @@ type ServerAuthError struct {
 }
 
 func (l ServerAuthError) Error() string {
-	var errs []string
+	errs := make([]string, 0, len(l.Errors))
 	for _, err := range l.Errors {
 		errs = append(errs, err.Error())
 	}

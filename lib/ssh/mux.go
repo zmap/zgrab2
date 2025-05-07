@@ -71,8 +71,7 @@ func (c *chanList) remove(id uint32) {
 func (c *chanList) dropAll() []*channel {
 	c.Lock()
 	defer c.Unlock()
-	var r []*channel
-
+	r := make([]*channel, 0, len(c.chans))
 	for _, ch := range c.chans {
 		if ch == nil {
 			continue

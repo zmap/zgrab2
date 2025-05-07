@@ -396,7 +396,7 @@ func (options PreloginOptions) Encode() ([]byte, error) {
 	// starting just after the TERMINATOR token
 	offset := options.HeaderSize()
 	// Ensure that the tokens are encoded in ascending order
-	var sortedKeys []int
+	sortedKeys := make([]int, 0, len(options))
 	for k := range options {
 		sortedKeys = append(sortedKeys, int(k))
 	}

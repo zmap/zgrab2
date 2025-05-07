@@ -230,7 +230,7 @@ func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
 // encodeMap encodes a map into a byte array of the form
 // "key0\0value\0key1\0value1\0...keyN\0valueN\0\0"
 func encodeMap(dict map[string]string) []byte {
-	var strs []string
+	strs := make([]string, 0, 2*len(dict)) // allocate space for both keys and values
 	for k, v := range dict {
 		strs = append(strs, k)
 		strs = append(strs, v)
