@@ -273,12 +273,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		var tlsConn *zgrab2.TLSConnection
-		tlsConn, err = tlsWrapper(ctx, target, c)
+		tlsConn, err = tlsWrapper(ctx, target, conn.Conn)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
 		}
 		result.TLSLog = tlsConn.GetLog()
-		c = tlsConn
+		conn.Conn = tlsConn
 	}
 	if scanner.config.SendQUIT {
 		ret, err := conn.SendCommand("QUIT")

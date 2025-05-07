@@ -503,7 +503,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	}
 	buf, err = encoder.Marshal(ssreq)
 	if err != nil {
-		s.Debug("", err)
+		s.Debug("Raw: \n"+hex.Dump(buf), err)
 		return err
 	}
 

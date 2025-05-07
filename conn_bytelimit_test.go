@@ -35,7 +35,7 @@ func runEchoServer(t *testing.T, port int) {
 				return
 			}
 			sock.SetWriteDeadline(time.Now().Add(time.Millisecond * 250))
-			n, err = sock.Write(buf[0:n])
+			_, err = sock.Write(buf[0:n])
 			if err != nil {
 				if err != io.EOF && !strings.Contains(err.Error(), "connection reset") && !strings.Contains(err.Error(), "broken pipe") {
 					t.Logf("Unexpected error writing to client: %v", err)

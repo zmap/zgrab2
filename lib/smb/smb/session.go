@@ -171,7 +171,7 @@ func (s *Session) NegotiateProtocol() error {
 	}
 	buf, err = encoder.Marshal(ssreq)
 	if err != nil {
-		s.Debug("", err)
+		s.Debug("Raw: \n"+hex.Dump(buf), err)
 		return err
 	}
 
@@ -229,7 +229,7 @@ func (s *Session) NegotiateProtocol() error {
 	ss2req.Header.Credits = 127
 	buf, err = encoder.Marshal(ss2req)
 	if err != nil {
-		s.Debug("", err)
+		s.Debug("Raw: \n"+hex.Dump(buf), err)
 		return err
 	}
 

@@ -146,7 +146,6 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 		// Negotiate options
 
 		for iacIndex = getIACIndex(readBuffer); iacIndex != -1; iacIndex = getIACIndex(readBuffer) {
-			firstUnreadIndex = 0
 			optionType = readBuffer[iacIndex+1]
 			option = readBuffer[iacIndex+2]
 
@@ -154,7 +153,6 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 			if optionType == GO_AHEAD {
 				readBuffer = readBuffer[0:iacIndex]
 				numBytes = iacIndex
-				firstUnreadIndex = 0
 				break
 			}
 

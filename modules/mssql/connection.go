@@ -952,6 +952,9 @@ func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.Scan
 	// -> tdsConnection.Read() => serverHello ->
 	// -> tls.Conn.Handshake()
 	tlsClient, err := tlsWrapper(ctx, target, connection.rawConn)
+	if err != nil {
+		return mode, fmt.Errorf("tls handshake failed for encrypt mode %s: %w", mode, err)
+	}
 	// After the SSL handshake has been established, wrap packets before they
 	// are passed into TLS, not after.
 

@@ -59,7 +59,6 @@ func mapPath(theMap any, keys ...string) (any, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s in map is not a map", strings.Join(keys[0:i], "."))
 		}
-		theMap = cast
 		next, ok := cast[key]
 		if !ok {
 			return nil, fmt.Errorf("map does not contain %s", strings.Join(keys[0:i+1], "."))

@@ -155,7 +155,6 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 			t.Logf("Failed writing foot to client: %v", err)
 			return
 		}
-		sent += len(headSuffix)
 		body := strings.Repeat("X", cfg.bodySize)
 		if err := _write(sock, []byte(body)); err != nil {
 			t.Logf("Failed writing body to client: %v", err)
