@@ -80,24 +80,6 @@ func GetDNP3Banner(logStruct *DNP3Log, connection net.Conn) (err error) {
 	return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for DNP3"))
 }
 
-func makeLinkStatusRequest(dstAddress uint16) []byte {
-	return makeLinkHeader(0x0000, dstAddress, LINK_REQUEST_STATUS_FC, 0) // no transport/app layer
-}
-
-func makeBannerRequest(dstAddress uint16) []byte {
-	var request []byte
-
-	transportLayer := makeTransportHeader()
-	appLayer := makeAppAttrRequest()
-	linkLayer := makeLinkHeader(0x0000, dstAddress, LINK_UNCONFIRMED_USER_DATA_FC, len(transportLayer)+len(appLayer))
-
-	request = append(request, linkLayer...)
-	request = append(request, transportLayer...)
-	request = append(request, appLayer...)
-
-	return request
-}
-
 func setBit(b byte, position uint32, value int) (result byte) {
 
 	if value == 1 {
@@ -151,42 +133,6 @@ func makeLinkHeader(srcAddress uint16, dstAddress uint16, functionCode int, msgL
 	linkHeader = append(linkHeader, crcCheck...)
 
 	return linkHeader
-}
-
-func makeTransportHeader() []byte {
-	var transportHeader []byte
-
-	transportByte := byte(TRANSPORT_START_SEQUENCE)
-	transportByte = setBit(transportByte, 7, 1) //first transport segment
-	transportByte = setBit(transportByte, 6, 1) //last transport segment
-	transportHeader = append(transportHeader, transportByte)
-
-	return transportHeader
-}
-
-// Make an application layer []byte request for device attributes
-func makeAppAttrRequest() []byte {
-	var attrRequest []byte
-
-	// control byte
-	appControlByte := byte(APP_START_SEQUENCE)
-	appControlByte = setBit(appControlByte, 7, 1)           //first app layer segment
-	appControlByte = setBit(appControlByte, 6, 1)           //last app layer segment
-	appControlByte = setBit(appControlByte, 5, APP_CON_BIT) //
-	appControlByte = setBit(appControlByte, 4, APP_UNS_BIT) //last app layer segment
-	attrRequest = append(attrRequest, appControlByte)
-
-	attrRequest = append(attrRequest, byte(APP_FUNC_CODE_READ)) // function code
-
-	// Object header
-	attrRequest = append(attrRequest, byte(APP_GROUP_0))                // group to be reading from
-	attrRequest = append(attrRequest, byte(APP_GROUP_0_ALL_ATTRIBUTES)) // get all attributes
-	attrRequest = append(attrRequest, byte(APP_GROUP_0_QUALIFIER))      // no object indexing
-	appIndexRange := make([]byte, 2)
-	binary.LittleEndian.PutUint16(appIndexRange, APP_GROUP_0_RANGE) // range is irrelevant due to no indexing
-	attrRequest = append(attrRequest, appIndexRange...)
-
-	return attrRequest
 }
 
 func makeLinkRequestBatch(startingSrcAddress uint16, numberSrc int, startingDestAddress uint16, numberDest int) []byte {

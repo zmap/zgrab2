@@ -76,7 +76,6 @@ type Connection struct {
 	target    *zgrab2.ScanTarget
 	scanner   *Scanner
 	resent    bool
-	redirect  string
 	tnsDriver *TNSDriver
 }
 

@@ -40,7 +40,6 @@ type Config struct {
 	inputTargets          InputTargetsFunc
 	outputResults         OutputResultsFunc
 	customDNSNameservers  []string // will be non-empty if user specified custom DNS, we'll check these are reachable before populating
-	localAddr             *net.TCPAddr
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
 	useIPv4               bool     // true if zgrab should use IPv4 addresses after resolving domains

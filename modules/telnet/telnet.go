@@ -206,7 +206,3 @@ func getIACIndex(buffer []byte) int {
 	// TODO: This doesn't seem to take into account that a 0xFF data byte is encoded as 0xFF + 0xFF
 	return bytes.IndexByte(buffer, IAC)
 }
-
-func containsIAC(buffer []byte) bool {
-	return getIACIndex(buffer) != -1
-}

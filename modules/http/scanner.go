@@ -109,7 +109,6 @@ type Module struct {
 type Scanner struct {
 	config            *Flags
 	customHeaders     map[string]string
-	requestBody       string
 	decodedHashFn     func([]byte) string
 	dialerGroupConfig *zgrab2.DialerGroupConfig
 }

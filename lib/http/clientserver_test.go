@@ -61,13 +61,6 @@ func (t *clientServerTest) getURL(u string) string {
 	return string(slurp)
 }
 
-func (t *clientServerTest) scheme() string {
-	if t.h2 {
-		return "https"
-	}
-	return "http"
-}
-
 const (
 	h1Mode = false
 	h2Mode = true

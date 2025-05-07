@@ -34,7 +34,6 @@ type Scanner struct {
 
 type Results struct {
 	Fingerprint string `json:"fingerprint"`
-	error       string `json:"error,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.

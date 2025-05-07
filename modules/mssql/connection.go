@@ -551,23 +551,6 @@ type TDSPacket struct {
 	Body []byte
 }
 
-// decodeTDSPacket decodes a TDSPacket from the start of buf, returning the
-// packet and any remaining bytes following it.
-func decodeTDSPacket(buf []byte) (*TDSPacket, []byte, error) {
-	header, err := decodeTDSHeader(buf)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(buf) < int(header.Length) {
-		return nil, nil, ErrBufferTooSmall
-	}
-	body := buf[8:header.Length]
-	return &TDSPacket{
-		TDSHeader: *header,
-		Body:      body,
-	}, buf[header.Length:], nil
-}
-
 // Encode returns the encoded packet: header + body. Updates the header's length
 // to match the actual body length.
 func (packet *TDSPacket) Encode() ([]byte, error) {

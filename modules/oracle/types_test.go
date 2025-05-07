@@ -698,14 +698,6 @@ func TestDescriptorGetValue(t *testing.T) {
 	}
 }
 
-func removeSpace(s string) string {
-	ret := strings.Replace(s, "\r", "", -1)
-	ret = strings.Replace(ret, "\n", "", -1)
-	ret = strings.Replace(ret, "\t", "", -1)
-	ret = strings.Replace(ret, " ", "", -1)
-	return ret
-}
-
 func stringSlicesEqual(lhs, rhs []string) bool {
 	if len(lhs) != len(rhs) {
 		return false

@@ -59,7 +59,6 @@ var (
 
 type scan struct {
 	connections []net.Conn
-	transport   *http.Transport
 	client      *http.Client
 	results     ScanResults
 	url         string

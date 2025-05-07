@@ -38,7 +38,6 @@ type Scanner struct {
 
 // Connection holds the state for a single connection to the SOCKS5 server.
 type Connection struct {
-	buffer  [10000]byte
 	config  *Flags
 	results ScanResults
 	conn    net.Conn
