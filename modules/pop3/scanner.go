@@ -30,6 +30,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -221,7 +222,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if tlsWrapper == nil && (scanner.config.StartTLS || scanner.config.POP3Secure) {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("TLS wrapper is required for mysql with --starttls or --pop3s")
 	}
-	c, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
+	c, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), strconv.FormatUint(uint64(target.Port), 10)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", target.String(), err)
 	}

@@ -206,7 +206,7 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 			return &Grab{
 				Port:   input.Port,
 				Domain: input.Domain,
-				Error:  fmt.Sprintf("could not resolve %s", input.Domain),
+				Error:  "could not resolve " + input.Domain,
 			}
 		}
 		// filter out IPs that aren't reachable

@@ -825,7 +825,7 @@ func TestAuthMethodGSSAPIWithMIC(t *testing.T) {
 			},
 			gssConfig: &GSSAPIWithMICConfig{
 				AllowLogin: func(conn ConnMetadata, srcName string) (*Permissions, error) {
-					return nil, fmt.Errorf("user is not allowed to login")
+					return nil, errors.New("user is not allowed to login")
 				},
 				Server: &FakeServer{
 					exchanges: []*exchange{

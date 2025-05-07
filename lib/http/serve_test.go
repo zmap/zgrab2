@@ -4113,11 +4113,11 @@ Host: foo
 func TestHandlerFinishSkipBigContentLengthRead(t *testing.T) {
 	setParallel(t)
 	conn := &testConn{closec: make(chan bool)}
-	conn.readBuf.Write([]byte(fmt.Sprintf(
+	conn.readBuf.Write([]byte(
 		"POST / HTTP/1.1\r\n" +
 			"Host: test\r\n" +
 			"Content-Length: 9999999999\r\n" +
-			"\r\n" + strings.Repeat("a", 1<<20))))
+			"\r\n" + strings.Repeat("a", 1<<20)))
 
 	ls := &oneConnListener{conn}
 	var inHandlerLen int
@@ -4587,7 +4587,7 @@ func BenchmarkServer(b *testing.B) {
 	cmd := exec.Command(os.Args[0], "-test.run=XXXX", "-test.bench=BenchmarkServer$")
 	cmd.Env = append([]string{
 		fmt.Sprintf("TEST_BENCH_CLIENT_N=%d", b.N),
-		fmt.Sprintf("TEST_BENCH_SERVER_URL=%s", ts.URL),
+		"TEST_BENCH_SERVER_URL=" + ts.URL,
 	}, os.Environ()...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

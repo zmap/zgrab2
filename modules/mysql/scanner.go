@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
@@ -255,7 +256,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 	var err error
 	var tlsConn *zgrab2.TLSConnection
 
-	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port)))
+	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), strconv.FormatUint(uint64(t.Port), 10)))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %w", t.String(), err)
 	}
@@ -268,7 +269,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 		}
 		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
-			return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("TLS wrapper required for mysql")
+			return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("TLS wrapper required for mysql")
 		}
 		if tlsConn, err = tlsWrapper(ctx, t, conn); err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", t.String(), err)

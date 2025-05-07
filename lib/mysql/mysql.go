@@ -13,6 +13,7 @@ package mysql
 
 import (
 	"bufio"
+	"errors"
 
 	"encoding/base64"
 	"encoding/binary"
@@ -638,7 +639,7 @@ func trunc(body []byte, n int) (result string) {
 		return "<empty>"
 	}
 	if n < 48 {
-		return fmt.Sprintf("%x", body[:n])
+		return hex.EncodeToString(body[:n])
 	}
 	// 16 bytes = 32 bytes hex * 2 + ellipses = 3 * 2 + len("[%d bytes]") = 8 + log10(len - 32)
 	// max len = 24 bits ~= 16 million = 8 digits
@@ -799,7 +800,7 @@ func readNulString(body []byte) (string, []byte) {
 func readLenInt(body []byte) (uint64, []byte, error) {
 	bodyLen := len(body)
 	if bodyLen == 0 {
-		return 0, nil, fmt.Errorf("invalid data: empty LEN INT")
+		return 0, nil, errors.New("invalid data: empty LEN INT")
 	}
 	v := body[0]
 	if v < 0xfb {

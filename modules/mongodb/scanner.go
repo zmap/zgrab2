@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
@@ -294,7 +295,7 @@ func getIsMaster(conn *Connection) (*IsMaster_t, error) {
 	}
 	respFlags := binary.LittleEndian.Uint32(msg[MSGHEADER_LEN : MSGHEADER_LEN+4])
 	if respFlags&QUERY_RESP_FAILED != 0 {
-		return nil, fmt.Errorf("isMaster query failed")
+		return nil, errors.New("isMaster query failed")
 	}
 	doclen := int(binary.LittleEndian.Uint32(msg[doc_offset : doc_offset+4]))
 	if len(msg[doc_offset:]) < doclen {

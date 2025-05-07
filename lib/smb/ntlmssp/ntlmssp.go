@@ -179,7 +179,7 @@ func (s *AvPairSlice) UnmarshalBinary(buf []byte, meta *encoder.Metadata) error 
 			offset, length)
 	}
 	if offset+length > int64(len(meta.ParentBuf)) {
-		return fmt.Errorf("AvPairSlice.UnmarshalBinary: ParentBuf overrun")
+		return errors.New("AvPairSlice.UnmarshalBinary: ParentBuf overrun")
 	}
 	for i := length; i > 0; {
 		var avPair AvPair

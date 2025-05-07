@@ -671,7 +671,7 @@ userAuthLoop:
 			}
 			// OpenSSH supports Kerberos V5 mechanism only for GSS-API authentication.
 			if userAuthRequestGSSAPI.N == 0 {
-				authErr = fmt.Errorf("ssh: Mechanism negotiation is not supported")
+				authErr = errors.New("ssh: Mechanism negotiation is not supported")
 				break
 			}
 			var i uint32
@@ -683,7 +683,7 @@ userAuthLoop:
 				}
 			}
 			if !present {
-				authErr = fmt.Errorf("ssh: GSSAPI authentication must use the Kerberos V5 mechanism")
+				authErr = errors.New("ssh: GSSAPI authentication must use the Kerberos V5 mechanism")
 				break
 			}
 			// Initial server response, see RFC 4462 section 3.3.

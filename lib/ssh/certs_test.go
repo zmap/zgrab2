@@ -9,7 +9,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"reflect"
@@ -236,7 +236,7 @@ type legacyRSASigner struct {
 func (s *legacyRSASigner) Sign(rand io.Reader, data []byte) (*Signature, error) {
 	v, ok := s.Signer.(AlgorithmSigner)
 	if !ok {
-		return nil, fmt.Errorf("invalid signer")
+		return nil, errors.New("invalid signer")
 	}
 	return v.SignWithAlgorithm(rand, data, KeyAlgoRSA)
 }

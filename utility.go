@@ -254,7 +254,7 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 	// Validate the host part as an IP address.
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return "", fmt.Errorf("invalid IP address")
+		return "", errors.New("invalid IP address")
 	}
 
 	// If the original input does not have a port, specify port 53 as the default

@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"os"
 	"runtime/pprof"
+	"strconv"
 	"sync"
 	"time"
 
-	"fmt"
 	"runtime"
 	"strings"
 
@@ -35,7 +35,7 @@ func getCPUProfileFile() string {
 // YYYYMMDDhhmmss, and {NANOS} as the decimal nanosecond offset.
 func getFormattedFile(formatString string, when time.Time) string {
 	timestamp := when.Format("20060102150405")
-	nanos := fmt.Sprintf("%d", when.Nanosecond())
+	nanos := strconv.Itoa(when.Nanosecond())
 	ret := strings.Replace(formatString, "{TIMESTAMP}", timestamp, -1)
 	ret = strings.Replace(ret, "{NANOS}", nanos, -1)
 	return ret

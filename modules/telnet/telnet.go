@@ -18,9 +18,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/zmap/zgrab2"
@@ -174,7 +174,7 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 			} else if optionType == DO || optionType == DONT {
 				returnOptionType = WONT
 			} else {
-				return errors.New("Unsupported telnet IAC option type" + fmt.Sprintf("%d", optionType))
+				return errors.New("Unsupported telnet IAC option type" + strconv.FormatUint(uint64(optionType), 10))
 			}
 
 			retBuffer = append(retBuffer, IAC)

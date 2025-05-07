@@ -3,6 +3,7 @@ package siemens
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 
@@ -287,7 +288,7 @@ type moduleIDData struct {
 // parseModuleIDDataRecord parses a byte slice into a DataRecord.
 func parseModuleIDDataRecord(data []byte) (*moduleIDData, error) {
 	if len(data) < 28 {
-		return nil, fmt.Errorf("data slice too short to contain a valid DataRecord")
+		return nil, errors.New("data slice too short to contain a valid DataRecord")
 	}
 
 	return &moduleIDData{
@@ -328,7 +329,7 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 
 	// Check if the data record length and number of data records are valid
 	if recordLen != s7ModuleIdRecordSize || numRecords*recordLen > len(s7Packet.Data)-offset {
-		return fmt.Errorf("invalid data record length or number of data records")
+		return errors.New("invalid data record length or number of data records")
 	}
 
 	// Now parse the data records, considering each one is 28 bytes long after the header

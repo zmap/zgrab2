@@ -233,12 +233,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if fl.ComputeDecodedBodyHashAlgorithm == "sha1" {
 		scanner.decodedHashFn = func(body []byte) string {
 			rawHash := sha1.Sum(body)
-			return fmt.Sprintf("sha1:%s", hex.EncodeToString(rawHash[:]))
+			return "sha1:" + hex.EncodeToString(rawHash[:])
 		}
 	} else if fl.ComputeDecodedBodyHashAlgorithm == "sha256" {
 		scanner.decodedHashFn = func(body []byte) string {
 			rawHash := sha256.Sum256(body)
-			return fmt.Sprintf("sha256:%s", hex.EncodeToString(rawHash[:]))
+			return "sha256:" + hex.EncodeToString(rawHash[:])
 		}
 	} else if fl.ComputeDecodedBodyHashAlgorithm != "" {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)

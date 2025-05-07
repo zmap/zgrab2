@@ -1235,15 +1235,15 @@ func (value *NSNValue) String() string {
 	case NSNValueTypeBytes:
 		return base64.StdEncoding.EncodeToString(value.Value)
 	case NSNValueTypeUB1:
-		return fmt.Sprintf("%d", value.Value[0])
+		return strconv.FormatUint(uint64(value.Value[0]), 10)
 	case NSNValueTypeUB4:
-		return fmt.Sprintf("%d", binary.BigEndian.Uint32(value.Value))
+		return strconv.FormatUint(uint64(binary.BigEndian.Uint32(value.Value)), 10)
 	case NSNValueTypeVersion:
 		return ReleaseVersion(binary.BigEndian.Uint32(value.Value)).String()
 	case NSNValueTypeStatus:
 		fallthrough
 	case NSNValueTypeUB2:
-		return fmt.Sprintf("%d", binary.BigEndian.Uint16(value.Value))
+		return strconv.FormatUint(uint64(binary.BigEndian.Uint16(value.Value)), 10)
 	default:
 		return base64.StdEncoding.EncodeToString(value.Value)
 	}

@@ -1276,7 +1276,7 @@ func passphraseProtectedOpenSSHKey(passphrase []byte) openSSHDecryptFunc {
 			ctr.XORKeyStream(privKeyBlock, privKeyBlock)
 		case "aes256-cbc":
 			if len(privKeyBlock)%c.BlockSize() != 0 {
-				return nil, fmt.Errorf("ssh: invalid encrypted private key length, not a multiple of the block size")
+				return nil, errors.New("ssh: invalid encrypted private key length, not a multiple of the block size")
 			}
 			cbc := cipher.NewCBCDecrypter(c, iv)
 			cbc.CryptBlocks(privKeyBlock, privKeyBlock)

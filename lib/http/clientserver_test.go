@@ -8,6 +8,9 @@ package http_test
 
 import (
 	"bytes"
+	"errors"
+	"strconv"
+
 	//"compress/gzip"
 	"fmt"
 	"io"
@@ -671,7 +674,7 @@ func testTrailersServerToClient(t *testing.T, h2, flush bool) {
 		// is able to calculate the length while still sending
 		// trailers afterwards.
 		wantLen = len(body)
-		wantHeader["Content-Length"] = []string{fmt.Sprint(wantLen)}
+		wantHeader["Content-Length"] = []string{strconv.Itoa(wantLen)}
 	}
 	if res.ContentLength != int64(wantLen) {
 		t.Errorf("ContentLength = %v; want %v", res.ContentLength, wantLen)
@@ -1247,7 +1250,7 @@ func testInterruptWithPanic(t *testing.T, h2 bool, panicValue any) {
 			return fmt.Errorf("want no log output; got: %s", gotLog)
 		}
 		if gotLog == "" {
-			return fmt.Errorf("wanted a stack trace logged; got nothing")
+			return errors.New("wanted a stack trace logged; got nothing")
 		}
 		if !strings.Contains(gotLog, "created by ") && strings.Count(gotLog, "\n") < 6 {
 			return fmt.Errorf("output doesn't look like a panic stack trace. Got: %s", gotLog)
