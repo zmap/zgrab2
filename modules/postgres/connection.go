@@ -128,7 +128,7 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 			return nil, zgrab2.DetectScanError(err)
 		}
 		if n < 2 {
-			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too little data (%d bytes: %s)", n, hex.EncodeToString(buf[:n])))
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("server returned too little data (%d bytes: %s)", n, hex.EncodeToString(buf[:n])))
 		}
 		if string(buf[n-2:n]) == "\x0a\x00" {
 			return &ServerPacket{
@@ -137,7 +137,7 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 				Body:   append(length[:], buf[:n]...),
 			}, nil
 		}
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Server returned too much data: length = 0x%x; first %d bytes = %s", bodyLen, n, hex.EncodeToString(buf[:n])))
+		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("server returned too much data: length = 0x%x; first %d bytes = %s", bodyLen, n, hex.EncodeToString(buf[:n])))
 	}
 	sizeToRead := bodyLen
 	if sizeToRead > maxPacketSize {
@@ -180,7 +180,7 @@ func (c *Connection) RequestSSL() (bool, *zgrab2.ScanError) {
 	if header[0] < '0' || header[0] > 'z' {
 		// Back-end messages always start with the alphanumeric Byte1 value
 		// We could further constrain this to currently-valid message types, but then we may incorrectly reject future versions
-		return false, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Response message type 0x%02x was not an alphanumeric character", header[0]))
+		return false, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("response message type 0x%02x was not an alphanumeric character", header[0]))
 	}
 	switch header[0] {
 	case 'N':
@@ -195,10 +195,10 @@ func (c *Connection) RequestSSL() (bool, *zgrab2.ScanError) {
 	}
 	switch packet.Type {
 	case 'E':
-		return false, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("Application rejected SSLRequest packet -- response = %s", packet.ToString()))
+		return false, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, fmt.Errorf("application rejected SSLRequest packet -- response = %s", packet.ToString()))
 	default:
 		// Returning PROTOCOL_ERROR here since any garbage data that starts with a small-ish u32 could be a valid packet, and no known server versions return anything beyond S/N/E.
-		return false, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Unexpected response type '%c' from server (full response = %s)", packet.Type, packet.ToString()))
+		return false, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("unexpected response type '%c' from server (full response = %s)", packet.Type, packet.ToString()))
 
 	}
 }
@@ -213,7 +213,7 @@ func (c *Connection) ReadPacket() (*ServerPacket, *zgrab2.ScanError) {
 	if header[0] < '0' || header[0] > 'z' {
 		// Back-end messages always start with the alphanumeric Byte1 value
 		// We could further constrain this to currently-valid message types, but then we may incorrectly reject future versions
-		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("Response message type 0x%02x was not an alphanumeric character", header[0]))
+		return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("response message type 0x%02x was not an alphanumeric character", header[0]))
 	}
 	return c.tryReadPacket(header[0])
 }

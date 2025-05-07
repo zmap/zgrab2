@@ -124,7 +124,7 @@ func (fc *fakeDNSConn) Read(b []byte) (int, error) {
 	bb := make([]byte, 2, 514)
 	bb, err = resp.AppendPack(bb)
 	if err != nil {
-		return 0, fmt.Errorf("cannot marshal DNS message: %v", err)
+		return 0, fmt.Errorf("cannot marshal DNS message: %w", err)
 	}
 
 	bb = bb[2:]

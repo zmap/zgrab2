@@ -141,11 +141,11 @@ func (scanner *Scanner) GetTrigger() string {
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mssql")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mssql")
 	}
 	conn, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %w", target.String(), err)
 	}
 	sql := NewConnection(conn)
 	defer func(sql *Connection) {

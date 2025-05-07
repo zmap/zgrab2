@@ -102,7 +102,7 @@ func validateFrameworkConfiguration() {
 	} else if len(config.MetaFileName) > 0 {
 		var err error
 		if config.metaFile, err = os.Create(config.MetaFileName); err != nil {
-			log.Fatal(fmt.Errorf("error creating meta file: %s", err))
+			log.Fatal(fmt.Errorf("error creating meta file: %w", err))
 		}
 	}
 
@@ -111,7 +111,7 @@ func validateFrameworkConfiguration() {
 	} else if len(config.StatusUpdatesFileName) > 0 {
 		var err error
 		if config.statusUpdatesFile, err = os.Create(config.StatusUpdatesFileName); err != nil {
-			log.Fatal(fmt.Errorf("error creating status updates file: %v", err))
+			log.Fatal(fmt.Errorf("error creating status updates file: %w", err))
 		}
 	}
 
@@ -295,11 +295,11 @@ func extractPorts(portString string) ([]uint16, error) {
 			}
 			startPort, err := parsePortString(parts[0])
 			if err != nil {
-				return nil, fmt.Errorf("invalid start port %s of port range: %v", parts[0], err)
+				return nil, fmt.Errorf("invalid start port %s of port range: %w", parts[0], err)
 			}
 			endPort, err := parsePortString(parts[1])
 			if err != nil {
-				return nil, fmt.Errorf("invalid end port %s of port range: %v", parts[1], err)
+				return nil, fmt.Errorf("invalid end port %s of port range: %w", parts[1], err)
 			}
 			if startPort >= endPort {
 				return nil, fmt.Errorf("start port %d must be less than end port %d", startPort, endPort)
@@ -312,7 +312,7 @@ func extractPorts(portString string) ([]uint16, error) {
 			// single port
 			port, err := parsePortString(portStr)
 			if err != nil {
-				return nil, fmt.Errorf("invalid port %s: %v", portStr, err)
+				return nil, fmt.Errorf("invalid port %s: %w", portStr, err)
 			}
 			portMap[port] = struct{}{}
 		}

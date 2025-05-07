@@ -106,7 +106,7 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
 		if err != nil {
-			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %w", err)
 		}
 		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
 	}

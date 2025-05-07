@@ -653,7 +653,7 @@ func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, d
 	return func(net, addr string) (net.Conn, error) {
 		tlsConn, err := dialGroup.GetTLSDialer(ctx, target)("tcp", addr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to establish TLS connection to %s: %v", addr, err)
+			return nil, fmt.Errorf("failed to establish TLS connection to %s: %w", addr, err)
 		}
 		scan.results.TLSLog = tlsConn.GetLog()
 		return tlsConn, nil

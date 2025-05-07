@@ -578,7 +578,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 // multiple TCP connections to hosts other than target.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	if dialGroup == nil || dialGroup.L4Dialer == nil || dialGroup.TLSWrapper == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("must specify a dialer group with L4 dialer and TLS wrapper")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("must specify a dialer group with L4 dialer and TLS wrapper")
 	}
 	scan := scanner.newHTTPScan(ctx, target, scanner.config.UseHTTPS, dialGroup)
 	defer scan.Cleanup()

@@ -121,7 +121,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		var baseTime time.Time
 		baseTime, err = time.Parse("20060102150405Z", t.Time)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing time '%s': %s", t.Time, err)
+			return nil, fmt.Errorf("error parsing time '%s': %w", t.Time, err)
 		}
 		startTime := time.Now()
 		ret.Time = func() time.Time {
@@ -250,14 +250,14 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 	if t.ClientRandom != "" {
 		ret.ClientRandom, err = base64.StdEncoding.DecodeString(t.ClientRandom)
 		if err != nil {
-			return nil, fmt.Errorf("Error decoding --client-random value '%s': %s", t.ClientRandom, err)
+			return nil, fmt.Errorf("error decoding --client-random value '%s': %w", t.ClientRandom, err)
 		}
 	}
 
 	if t.ClientHello != "" {
 		ret.ExternalClientHello, err = base64.StdEncoding.DecodeString(t.ClientHello)
 		if err != nil {
-			return nil, fmt.Errorf("Error decoding --client-hello value '%s': %s", t.ClientHello, err)
+			return nil, fmt.Errorf("error decoding --client-hello value '%s': %w", t.ClientHello, err)
 		}
 	}
 

@@ -15,6 +15,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -259,7 +260,7 @@ func (scanner *Scanner) getFileContents(file string, output any) error {
 		return err
 	}
 	if fileStat.Size() > scanner.config.MaxInputFileSize {
-		err = fmt.Errorf("input file too large")
+		err = errors.New("input file too large")
 		return err
 	}
 	fileContent, err := ioutil.ReadFile(file)

@@ -178,7 +178,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 		break
 	}
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to connect to %v: %v", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to connect to %v: %w", target.String(), err)
 	}
 	defer func() {
 		// attempt to collect TLS Log

@@ -27,6 +27,7 @@ package pop3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -214,11 +215,11 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// check for necessary dialers
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mysql")
 	}
 	tlsWrapper := dialGroup.TLSWrapper
 	if tlsWrapper == nil && (scanner.config.StartTLS || scanner.config.POP3Secure) {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("TLS wrapper is required for mysql with --starttls or --pop3s")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("TLS wrapper is required for mysql with --starttls or --pop3s")
 	}
 	c, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
 	if err != nil {
@@ -245,7 +246,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// OR save it to return later
 	sr := VerifyPOP3Contents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, fmt.Errorf("Invalid POP3 banner: %s", banner)
+		return sr, nil, fmt.Errorf("invalid POP3 banner: %s", banner)
 	}
 	result.Banner = banner
 	if scanner.config.SendHELP {

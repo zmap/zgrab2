@@ -6,6 +6,7 @@ package mysql
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -235,7 +236,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 	// check for necessary dialers
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mysql")
 	}
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
@@ -256,21 +257,21 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 
 	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port)))
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %w", t.String(), err)
 	}
 	if err = sql.Connect(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %v", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", t.String(), err)
 	}
 	if sql.SupportsTLS() {
 		if err = sql.NegotiateTLS(); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %v", t.String(), err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %w", t.String(), err)
 		}
 		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("TLS wrapper required for mysql")
 		}
 		if tlsConn, err = tlsWrapper(ctx, t, conn); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %v", t.String(), err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", t.String(), err)
 		}
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		sql.Connection = tlsConn
