@@ -169,7 +169,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	return ret, ErrTotalTimeout
 }
 
-var InsufficientBufferError = errors.New("not enough buffer space")
+var ErrInsufficientBuffer = errors.New("not enough buffer space")
 
 // ReadUntilRegex calls connection.Read() until it returns an error, or the cumulatively-read data matches the given regexp
 func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, error) {
@@ -185,7 +185,7 @@ func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, 
 			finished = true
 		}
 		if length == len(res) {
-			return length, InsufficientBufferError
+			return length, ErrInsufficientBuffer
 		}
 		buf = res[length:]
 	}

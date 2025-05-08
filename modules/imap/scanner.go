@@ -228,7 +228,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// OR save a valid scan result for later
 	sr := VerifyIMAPContents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, errors.New("Invalid response for IMAP")
+		return sr, nil, errors.New("invalid response for IMAP")
 	}
 	result.Banner = banner
 	if scanner.config.StartTLS {

@@ -20,7 +20,7 @@ import (
 func NewFakeResolver(ipstr string) (*net.Resolver, error) {
 	ip := net.ParseIP(ipstr)
 	if len(ip) < 4 {
-		return nil, fmt.Errorf("Fake resolver can't use non-IP '%s'", ipstr)
+		return nil, fmt.Errorf("fake resolver can't use non-IP '%s'", ipstr)
 	}
 	fDNS := FakeDNSServer{
 		IP: ip,
@@ -87,7 +87,7 @@ func (f *FakeDNSServer) fakeDNS(s string, dmsg dnsmessage.Message) (r dnsmessage
 			},
 		}
 	default:
-		r.Header.RCode = dnsmessage.RCodeNameError
+		r.RCode = dnsmessage.RCodeNameError
 	}
 
 	return r, nil

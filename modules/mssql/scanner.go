@@ -181,7 +181,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 
 	if handshakeErr != nil {
-		if sql.PreloginOptions == nil && sql.readValidTDSPacket == false {
+		if sql.PreloginOptions == nil && !sql.readValidTDSPacket {
 			// If we received no PreloginOptions and none of the packets we've
 			// read appeared to be a valid TDS header, then the inference is
 			// that we found no MSSQL service on the target.

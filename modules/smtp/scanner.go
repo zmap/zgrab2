@@ -39,7 +39,7 @@ import (
 )
 
 // ErrInvalidResponse is returned when the server returns an invalid or unexpected response.
-var ErrInvalidResponse = zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for SMTP"))
+var ErrInvalidResponse = zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("invalid response for SMTP"))
 
 // ScanResults instances are returned by the module's Scan function.
 type ScanResults struct {

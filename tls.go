@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -126,7 +126,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		}
 		startTime := time.Now()
 		ret.Time = func() time.Time {
-			offset := time.Now().Sub(startTime)
+			offset := time.Since(startTime)
 			// Return (now - startTime) + baseTime
 			return baseTime.Add(offset)
 		}
@@ -144,7 +144,7 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		if fd, err = os.Open(t.RootCAs); err != nil {
 			log.Fatal(err)
 		}
-		caBytes, readErr := ioutil.ReadAll(fd)
+		caBytes, readErr := io.ReadAll(fd)
 		if readErr != nil {
 			log.Fatal(err)
 		}
@@ -299,7 +299,7 @@ func (z *TLSConnection) GetLog() *TLSLog {
 func (z *TLSConnection) Handshake() error {
 	log := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.Conn.GetHandshakeLog()
+		log.HandshakeLog = z.GetHandshakeLog()
 	}()
 	return z.Conn.Handshake()
 

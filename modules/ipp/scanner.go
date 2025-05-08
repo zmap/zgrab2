@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"io"
-	"io/ioutil"
 	"mime"
 	"net"
 	"net/url"
@@ -34,11 +33,11 @@ const (
 var (
 	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
 	// unless FollowLocalhostRedirects is set.
-	ErrRedirLocalhost = errors.New("Redirecting to localhost")
+	ErrRedirLocalhost = errors.New("redirecting to localhost")
 
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
-	ErrTooManyRedirects = errors.New("Too many redirects")
+	ErrTooManyRedirects = errors.New("too many redirects")
 
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
@@ -226,7 +225,7 @@ func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
 	}
 	io.CopyN(b, res.Body, readLen)
 	res.Body.Close()
-	res.Body = ioutil.NopCloser(b)
+	res.Body = io.NopCloser(b)
 	return b
 }
 
@@ -246,15 +245,15 @@ func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 		if size >= upperBound {
 			return true, nil
 		}
-		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("reported field length runs out of bounds"))
 
 	}
 	return false, nil
 }
 
 func detectReadBodyError(err error) error {
-	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Fewer body bytes read than expected."))
+	if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("fewer body bytes read than expected"))
 	}
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
@@ -404,7 +403,7 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
 	// RFC 8010's abstract specifies that IPP uses the MIME media type "application/ipp"
 	if !isIPP(resp) {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected"))
 	}
 
 	attrs, err := readAllAttributes(body, scanner)
@@ -505,12 +504,12 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 	}
 	// TODO: Examine whether an empty response overall is a connection error; see RFC 8011 Section 4.2.5.2
 	if resp == nil {
-		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("no HTTP response"))
 	}
 	// Empty body is not allowed in IPP because a response has required parameter
 	// Source: RFC 8011 Section 4.1.1 (https://tools.ietf.org/html/rfc8011#section-4.1.1)
 	if resp.Body == nil {
-		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("empty body"))
 	}
 	return resp, nil
 }

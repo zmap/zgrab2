@@ -27,9 +27,9 @@ const (
 )
 
 var (
-	errBACNetPacketTooShort error = errors.New("BACNet packet too short")
-	errInvalidPacket        error = errors.New("Invalid BACNet packet")
-	errNotBACNet            error = errors.New("Not a BACNet packet")
+	errBACNetPacketTooShort = errors.New("BACNet packet too short")
+	errInvalidPacket        = errors.New("invalid BACNet packet")
+	errNotBACNet            = errors.New("not a BACNet packet")
 )
 
 func SendVLC(c net.Conn, payload []byte) error {

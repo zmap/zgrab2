@@ -32,11 +32,11 @@ import (
 var (
 	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
 	// unless FollowLocalhostRedirects is set.
-	ErrRedirLocalhost = errors.New("Redirecting to localhost")
+	ErrRedirLocalhost = errors.New("redirecting to localhost")
 
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
-	ErrTooManyRedirects = errors.New("Too many redirects")
+	ErrTooManyRedirects = errors.New("too many redirects")
 )
 
 // Flags holds the command-line configuration for the HTTP scan module.
@@ -75,7 +75,7 @@ type Flags struct {
 
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
-	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256" choice:"sha1" description:"Choose algorithm for BodyHash field"`
+	ComputeDecodedBodyHashAlgorithm string `long:"compute-decoded-body-hash-algorithm" choice:"sha256,sha1" description:"Choose algorithm for BodyHash field"`
 
 	// WithBodyLength enables adding the body_size field to the Response
 	WithBodyLength bool `long:"with-body-size" description:"inserts the body_size field into the http result, listing how many bytes were read of the body"`
@@ -213,12 +213,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 			// The case of header names is normalized to title case later by HTTP library
 			// explicitly ToLower() to catch duplicates more easily
 			hName := strings.ToLower(headerNames[i])
-			switch {
-			case hName == "host":
+			switch hName {
+			case "host":
 				log.Panicf("Attempt to set immutable header 'Host', specify this in targets file")
-			case hName == "user-agent":
+			case "user-agent":
 				log.Panicf("Attempt to set special header 'User-Agent', use --user-agent instead")
-			case hName == "content-length":
+			case "content-length":
 				log.Panicf("Attempt to set immutable header 'Content-Length'")
 			}
 			// Disallow duplicate headers
@@ -431,7 +431,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	if deadline, ok := ctx.Deadline(); ok {
-		ret.client.Timeout = min(ret.client.Timeout, deadline.Sub(time.Now()))
+		ret.client.Timeout = min(ret.client.Timeout, time.Until(deadline))
 	}
 
 	host := t.Domain

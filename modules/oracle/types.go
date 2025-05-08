@@ -282,21 +282,21 @@ func (flags ServiceOptions) Set() map[string]bool {
 
 const (
 	SOBrokenConnectNotify ServiceOptions = 0x2000
-	SOPacketChecksum                     = 0x1000
-	SOHeaderChecksum                     = 0x0800
-	SOFullDuplex                         = 0x0400
-	SOHalfDuplex                         = 0x0200
-	SOUnknown0100                        = 0x0100
-	SOUnknown0080                        = 0x0080
-	SOUnknown0040                        = 0x0040
-	SOUnknown0020                        = 0x0020
-	SODirectIO                           = 0x0010
-	SOAttentionProcessing                = 0x0008
-	SOCanReceiveAttention                = 0x0004
-	SOCanSendAttention                   = 0x0002
-	SOUnknown0001                        = 0x0001
-	SOUnknown4000                        = 0x4000
-	SOUnknown8000                        = 0x8000
+	SOPacketChecksum      ServiceOptions = 0x1000
+	SOHeaderChecksum      ServiceOptions = 0x0800
+	SOFullDuplex          ServiceOptions = 0x0400
+	SOHalfDuplex          ServiceOptions = 0x0200
+	SOUnknown0100         ServiceOptions = 0x0100
+	SOUnknown0080         ServiceOptions = 0x0080
+	SOUnknown0040         ServiceOptions = 0x0040
+	SOUnknown0020         ServiceOptions = 0x0020
+	SODirectIO            ServiceOptions = 0x0010
+	SOAttentionProcessing ServiceOptions = 0x0008
+	SOCanReceiveAttention ServiceOptions = 0x0004
+	SOCanSendAttention    ServiceOptions = 0x0002
+	SOUnknown0001         ServiceOptions = 0x0001
+	SOUnknown4000         ServiceOptions = 0x4000
+	SOUnknown8000         ServiceOptions = 0x8000
 )
 
 var soNames = map[ServiceOptions]string{
@@ -324,21 +324,21 @@ type NTProtocolCharacteristics uint16
 
 const (
 	NTPCHangon           NTProtocolCharacteristics = 0x8000
-	NTPCConfirmedRelease                           = 0x4000
-	NTPCTDUBasedIO                                 = 0x2000
-	NTPCSpawnerRunning                             = 0x1000
-	NTPCDataTest                                   = 0x0800
-	NTPCCallbackIO                                 = 0x0400
-	NTPCAsyncIO                                    = 0x0200
-	NTPCPacketIO                                   = 0x0100
-	NTPCCanGrant                                   = 0x0080
-	NTPCCanHandoff                                 = 0x0040
-	NTPCGenerateSIGIO                              = 0x0020
-	NTPCGenerateSIGPIPE                            = 0x0010
-	NTPCGenerateSIGURG                             = 0x0008
-	NTPCUrgentIO                                   = 0x0004
-	NTPCFullDuplex                                 = 0x0002
-	NTPCTestOperation                              = 0x0001
+	NTPCConfirmedRelease NTProtocolCharacteristics = 0x4000
+	NTPCTDUBasedIO       NTProtocolCharacteristics = 0x2000
+	NTPCSpawnerRunning   NTProtocolCharacteristics = 0x1000
+	NTPCDataTest         NTProtocolCharacteristics = 0x0800
+	NTPCCallbackIO       NTProtocolCharacteristics = 0x0400
+	NTPCAsyncIO          NTProtocolCharacteristics = 0x0200
+	NTPCPacketIO         NTProtocolCharacteristics = 0x0100
+	NTPCCanGrant         NTProtocolCharacteristics = 0x0080
+	NTPCCanHandoff       NTProtocolCharacteristics = 0x0040
+	NTPCGenerateSIGIO    NTProtocolCharacteristics = 0x0020
+	NTPCGenerateSIGPIPE  NTProtocolCharacteristics = 0x0010
+	NTPCGenerateSIGURG   NTProtocolCharacteristics = 0x0008
+	NTPCUrgentIO         NTProtocolCharacteristics = 0x0004
+	NTPCFullDuplex       NTProtocolCharacteristics = 0x0002
+	NTPCTestOperation    NTProtocolCharacteristics = 0x0001
 )
 
 var ntpcNames = map[NTProtocolCharacteristics]string{
@@ -378,13 +378,13 @@ type ConnectFlags uint8
 
 const (
 	CFServicesWanted      ConnectFlags = 0x01
-	CFInterchangeInvolved              = 0x02
-	CFServicesEnabled                  = 0x04
-	CFServicesLinkedIn                 = 0x08
-	CFServicesRequired                 = 0x10
-	CFUnknown20                        = 0x20
-	CFUnknown40                        = 0x40
-	CFUnknown80                        = 0x80
+	CFInterchangeInvolved ConnectFlags = 0x02
+	CFServicesEnabled     ConnectFlags = 0x04
+	CFServicesLinkedIn    ConnectFlags = 0x08
+	CFServicesRequired    ConnectFlags = 0x10
+	CFUnknown20           ConnectFlags = 0x20
+	CFUnknown40           ConnectFlags = 0x40
+	CFUnknown80           ConnectFlags = 0x80
 )
 
 var cfNames = map[ConnectFlags]string{
@@ -967,21 +967,21 @@ type DataFlags uint16
 // TODO: details
 const (
 	DFSendToken           DataFlags = 0x0001
-	DFRequestConfirmation           = 0x0002
-	DFConfirmation                  = 0x0004
-	DFReserved                      = 0x0008
-	DFUnknown0010                   = 0x0010
-	DFMoreData                      = 0x0020
-	DFEOF                           = 0x0040
-	DFConfirmImmediately            = 0x0080
-	DFRequestToSend                 = 0x0100
-	DFSendNTTrailer                 = 0x0200
-	DFUnknown0400                   = 0x0400
-	DFUnknown0800                   = 0x0800
-	DFUnknown1000                   = 0x1000
-	DFUnknown2000                   = 0x2000
-	DFUnknown4000                   = 0x4000
-	DFUnknown8000                   = 0x8000
+	DFRequestConfirmation DataFlags = 0x0002
+	DFConfirmation        DataFlags = 0x0004
+	DFReserved            DataFlags = 0x0008
+	DFUnknown0010         DataFlags = 0x0010
+	DFMoreData            DataFlags = 0x0020
+	DFEOF                 DataFlags = 0x0040
+	DFConfirmImmediately  DataFlags = 0x0080
+	DFRequestToSend       DataFlags = 0x0100
+	DFSendNTTrailer       DataFlags = 0x0200
+	DFUnknown0400         DataFlags = 0x0400
+	DFUnknown0800         DataFlags = 0x0800
+	DFUnknown1000         DataFlags = 0x1000
+	DFUnknown2000         DataFlags = 0x2000
+	DFUnknown4000         DataFlags = 0x4000
+	DFUnknown8000         DataFlags = 0x8000
 )
 
 var dfNames = map[DataFlags]string{
@@ -1630,9 +1630,8 @@ func DecodeDescriptor(descriptor string) (Descriptor, error) {
 				ret = append(ret, DescriptorEntry{key, value})
 				// Consume the value
 				rest = strings.TrimSpace(rest[closer:])
-			} else {
-				// What follows is a list -- already consumed the =
 			}
+			// else - What follows is a list -- already consumed the =
 		default:
 			return nil, ErrInvalidData
 		}

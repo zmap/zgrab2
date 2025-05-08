@@ -77,14 +77,15 @@ func GetDNP3Banner(logStruct *DNP3Log, connection net.Conn) (err error) {
 		return nil
 	}
 
-	return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for DNP3"))
+	return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("invalid response for DNP3"))
 }
 
 func setBit(b byte, position uint32, value int) (result byte) {
 
-	if value == 1 {
+	switch value {
+	case 1:
 		result = b | (1 << position)
-	} else if value == 0 {
+	case 0:
 		result = b & (^(1 << position))
 	}
 

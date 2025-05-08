@@ -13,8 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -66,7 +66,7 @@ type Results struct {
 	SHA256 string         `json:"sha256,omitempty"`
 }
 
-var NoMatchError = errors.New("pattern did not match")
+var ErrNoMatch = errors.New("pattern did not match")
 
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
@@ -139,7 +139,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		s.regex = regexp.MustCompile(s.config.Pattern)
 	}
 	if len(f.ProbeFile) != 0 {
-		s.probe, err = ioutil.ReadFile(f.ProbeFile)
+		s.probe, err = os.ReadFile(f.ProbeFile)
 		if err != nil {
 			log.Fatal("Failed to open probe file")
 			return zgrab2.ErrInvalidArguments
@@ -243,5 +243,5 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 
-	return zgrab2.SCAN_PROTOCOL_ERROR, &results, NoMatchError
+	return zgrab2.SCAN_PROTOCOL_ERROR, &results, ErrNoMatch
 }

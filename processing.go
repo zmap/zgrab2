@@ -86,7 +86,7 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 					if err != nil {
 						return nil, err
 					}
-					dialer.Dialer.Resolver = resolver
+					dialer.Resolver = resolver
 				}
 			}
 		}

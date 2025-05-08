@@ -615,7 +615,7 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 	case 0xfe:
 		return c.readOKPacket(body)
 	default:
-		return nil, fmt.Errorf("Unrecognized packet type 0x%02x", header)
+		return nil, fmt.Errorf("unrecognized packet type 0x%02x", header)
 	}
 }
 
@@ -773,9 +773,9 @@ func (c *Connection) Connect(conn net.Conn) error {
 		c.ConnectionLog.Error = packet
 		jsonStr, err := json.Marshal(p)
 		if err != nil {
-			return fmt.Errorf("Server returned unexpected packet type, failed to marshal paclet: %s", err)
+			return fmt.Errorf("server returned unexpected packet type, failed to marshal paclet: %s", err)
 		}
-		return fmt.Errorf("Server returned unexpected packet type after connecting: %s", jsonStr)
+		return fmt.Errorf("server returned unexpected packet type after connecting: %s", jsonStr)
 	}
 	return nil
 }
@@ -835,10 +835,10 @@ func readLenInt(body []byte) (uint64, []byte, error) {
 func readLenString(body []byte) (string, []byte, error) {
 	length, rest, err := readLenInt(body)
 	if err != nil {
-		return "", nil, fmt.Errorf("Error reading string length: %s", err)
+		return "", nil, fmt.Errorf("error reading string length: %s", err)
 	}
 	if uint64(len(rest)) < length {
-		return "", nil, fmt.Errorf("String length 0x%x longer than remaining body size 0x%x", length, len(rest))
+		return "", nil, fmt.Errorf("string length 0x%x longer than remaining body size 0x%x", length, len(rest))
 	}
 	return string(rest[:length]), rest[length+1:], nil
 }

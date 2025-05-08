@@ -36,8 +36,8 @@ func getCPUProfileFile() string {
 func getFormattedFile(formatString string, when time.Time) string {
 	timestamp := when.Format("20060102150405")
 	nanos := strconv.Itoa(when.Nanosecond())
-	ret := strings.Replace(formatString, "{TIMESTAMP}", timestamp, -1)
-	ret = strings.Replace(ret, "{NANOS}", nanos, -1)
+	ret := strings.ReplaceAll(formatString, "{TIMESTAMP}", timestamp)
+	ret = strings.ReplaceAll(ret, "{NANOS}", nanos)
 	return ret
 }
 

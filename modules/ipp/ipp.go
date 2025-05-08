@@ -32,7 +32,7 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 		binary.Write(target, binary.BigEndian, []byte(name))
 	} else {
 		// TODO: Log error somewhere
-		return errors.New("Name wrong length to encode.")
+		return errors.New("name wrong length to encode")
 	}
 
 	if len(value) <= math.MaxInt16 && len(value) >= 0 {
@@ -43,7 +43,7 @@ func AttributeByteString(valueTag byte, name string, value string, target *bytes
 		binary.Write(target, binary.BigEndian, []byte(value))
 	} else {
 		// TODO: Log error somewhere
-		return errors.New("Value wrong length to encode.")
+		return errors.New("value wrong length to encode")
 	}
 
 	return nil

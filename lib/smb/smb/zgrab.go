@@ -263,7 +263,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
 			Revision:  0,
 			VerString: "SMB 1.0"}
 	} else {
-		return errors.New("invalid v1 Protocol ID\n")
+		return errors.New("invalid v1 Protocol ID")
 	}
 
 	negRes := NegotiateResV1{}

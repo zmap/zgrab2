@@ -242,7 +242,7 @@ func (conn *Connection) readBulkString() (RedisValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(body[size] == '\r' && body[size+1] == '\n') {
+	if body[size] != '\r' || body[size+1] != '\n' {
 		return nil, ErrInvalidData
 	}
 	return BulkString(body[:size]), nil

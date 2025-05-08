@@ -152,7 +152,6 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T, stopServer <-chan stru
 			t.Errorf("%s: clientToServerPayload mismatch", cfg.name)
 		}
 		<-stopServer // wait for client to indicate server can exit
-		return
 	}()
 	return errorChan
 }

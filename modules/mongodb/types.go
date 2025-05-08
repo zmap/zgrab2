@@ -59,7 +59,7 @@ func (conn *Connection) ReadMsg() ([]byte, error) {
 		// msglen is length of message which includes msglen itself; Less than
 		// four is invalid. More than a few K probably mean this isn't actually
 		// a mongodb server.
-		return nil, fmt.Errorf("Server sent invalid message: msglen = %d", msglen)
+		return nil, fmt.Errorf("server sent invalid message: msglen = %d", msglen)
 	}
 	msg_buf := make([]byte, msglen)
 	// Extra copy to make result look like spec (only four bytes)

@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -263,7 +262,7 @@ func (scanner *Scanner) getFileContents(file string, output any) error {
 		err = errors.New("input file too large")
 		return err
 	}
-	fileContent, err := ioutil.ReadFile(file)
+	fileContent, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}

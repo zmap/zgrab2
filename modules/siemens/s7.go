@@ -31,7 +31,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 		return fmt.Errorf("could not make COTP connection packet bytes: %v", err)
 	}
 	connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
-	if connResponseBytes == nil || len(connResponseBytes) == 0 || err != nil {
+	if len(connResponseBytes) == 0 || err != nil {
 		zgrab2.CloseConnAndHandleError(connection)
 		connection, err = reconnect()
 		if err != nil {

@@ -557,7 +557,7 @@ func (packet *TDSPacket) Encode() ([]byte, error) {
 	if len(packet.Body)+8 > 0xffff {
 		return nil, ErrTooLarge
 	}
-	packet.TDSHeader.Length = uint16(len(packet.Body) + 8)
+	packet.Length = uint16(len(packet.Body) + 8)
 	header := packet.TDSHeader.Encode()
 	ret := append(header, packet.Body...)
 	return ret, nil
@@ -649,9 +649,6 @@ func (connection *Connection) readPreloginPacket() (*TDSPacket, *PreloginOptions
 // specifically returns the ENCRYPTION value (which is used to determine whether
 // a TLS handshake needs to be done).
 func (connection *Connection) prelogin(clientEncrypt EncryptMode) (EncryptMode, error) {
-	if clientEncrypt < 0 || clientEncrypt > 0xff {
-		return EncryptModeUnknown, ErrInvalidData
-	}
 	clientOptions := PreloginOptions{
 		PreloginVersion:    {0, 0, 0, 0, 0, 0},
 		PreloginEncryption: {byte(clientEncrypt)},
@@ -753,10 +750,7 @@ func isValidTDSHeader(header *TDSHeader) bool {
 		return false
 	}
 	_, ok := knownTDSPacketTypes[TDSPacketType(header.Type)]
-	if !ok {
-		return false
-	}
-	return true
+	return ok
 }
 
 // Read a single packet from the connection and return the whole packet (this is
