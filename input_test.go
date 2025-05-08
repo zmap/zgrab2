@@ -196,7 +196,7 @@ example.com
 		}
 		close(ch)
 	}()
-	var res []ScanTarget
+	res := make([]ScanTarget, 0, len(ch))
 	for r := range ch {
 		res = append(res, r)
 	}
