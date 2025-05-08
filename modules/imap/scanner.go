@@ -212,7 +212,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	defer zgrab2.CloseConnAndHandleError(c)
 	result := &ScanResults{}
 	if scanner.config.IMAPSecure {
-		tlsConn, err := dialGroup.TLSWrapper(ctx, target, c)
+		var tlsConn *zgrab2.TLSConnection
+		tlsConn, err = dialGroup.TLSWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %v", target.String(), err)
 		}
@@ -231,13 +232,14 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		return sr, nil, errors.New("invalid response for IMAP")
 	}
 	result.Banner = banner
+	var ret string
 	if scanner.config.StartTLS {
-		ret, err := conn.SendCommand("a001 STARTTLS")
+		ret, err = conn.SendCommand("a001 STARTTLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error sending STLS command for IMAP %s: %v", target.String(), err)
 		}
 		result.StartTLS = ret
-		if err := getIMAPError(ret); err != nil {
+		if err = getIMAPError(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %v", target.String(), err)
 		}
 		tlsConn, err := dialGroup.TLSWrapper(ctx, target, c)

@@ -174,7 +174,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	w := 0
 	for w < len(data) {
-		written, err := c.getUnderlyingConn().Write(data[w:])
+		var written int
+		written, err = c.getUnderlyingConn().Write(data[w:])
 		w += written
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err

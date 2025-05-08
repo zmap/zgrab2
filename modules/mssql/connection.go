@@ -880,12 +880,12 @@ func NewConnection(conn net.Conn) *Connection {
 func (connection *Connection) Login() {
 	panic("unimplemented")
 	// TODO: send login
-	if connection.getEncryptMode() != EncryptModeOn {
-		// Client was only using encryption for login, so switch back to rawConn
-		connection.tdsConn = &tdsConnection{conn: connection.rawConn, enabled: true, session: connection}
-		// tdsConnection.Write(rawData) -> net.Conn.Write(header + rawData)
-		// conn.Read() -> header + rawData -> tdsConnection.Read() -> rawData
-	}
+	//if connection.getEncryptMode() != EncryptModeOn {
+	//	// Client was only using encryption for login, so switch back to rawConn
+	//	connection.tdsConn = &tdsConnection{conn: connection.rawConn, enabled: true, session: connection}
+	//	// tdsConnection.Write(rawData) -> net.Conn.Write(header + rawData)
+	//	// conn.Read() -> header + rawData -> tdsConnection.Read() -> rawData
+	//}
 }
 
 // getEncryptMode returns the EncryptMode enum returned by the server in the

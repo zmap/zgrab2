@@ -250,27 +250,28 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		return sr, nil, fmt.Errorf("invalid POP3 banner: %s", banner)
 	}
 	result.Banner = banner
+	var ret string
 	if scanner.config.SendHELP {
-		ret, err := conn.SendCommand("HELP")
+		ret, err = conn.SendCommand("HELP")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.HELP = ret
 	}
 	if scanner.config.SendNOOP {
-		ret, err := conn.SendCommand("NOOP")
+		ret, err = conn.SendCommand("NOOP")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.NOOP = ret
 	}
 	if scanner.config.StartTLS {
-		ret, err := conn.SendCommand("STLS")
+		ret, err = conn.SendCommand("STLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.StartTLS = ret
-		if err := getPOP3Error(ret); err != nil {
+		if err = getPOP3Error(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		var tlsConn *zgrab2.TLSConnection
@@ -282,7 +283,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		conn.Conn = tlsConn
 	}
 	if scanner.config.SendQUIT {
-		ret, err := conn.SendCommand("QUIT")
+		ret, err = conn.SendCommand("QUIT")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}

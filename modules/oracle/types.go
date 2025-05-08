@@ -1473,13 +1473,13 @@ func ReadTNSDataNSN(reader io.Reader) (*TNSDataNSN, error) {
 	next.read(&ret.Options)
 	// TODO: Check for valid options?
 
-	if err := next.Error(); err != nil {
+	if err = next.Error(); err != nil {
 		return nil, err
 	}
 
 	ret.Services = make([]NSNService, n)
 	for i := 0; i < int(n); i++ {
-		_, err := ReadNSNService(reader, &ret.Services[i])
+		_, err = ReadNSNService(reader, &ret.Services[i])
 		if err != nil {
 			return nil, err
 		}

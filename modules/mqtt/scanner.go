@@ -308,7 +308,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 		mqtt.results.TLSLog = tlsConn.GetLog()
 	}
 
-	if err := mqtt.SendMQTTConnectPacket(s.config.V5); err != nil {
+	if err = mqtt.SendMQTTConnectPacket(s.config.V5); err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CONNECT packet to target %s: %w", t.String(), err)
 	}
 

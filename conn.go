@@ -93,7 +93,7 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
 func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
-	if err := c.checkContext(); err != nil {
+	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
 	origSize := len(b)
@@ -125,7 +125,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 
 // TimeoutConnection.Write calls Write() on the underlying connection, using any configured deadlines.
 func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
-	if err := c.checkContext(); err != nil {
+	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
 	c.SaturateTimeoutsToReadAndWriteTimeouts()

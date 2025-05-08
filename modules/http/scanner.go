@@ -117,6 +117,7 @@ type Scanner struct {
 // It is used to implement the zgrab2.Scanner interface.
 type scan struct {
 	connections            []net.Conn
+	cancelFuncs            []context.CancelFunc
 	scanner                *Scanner
 	target                 *zgrab2.ScanTarget
 	transport              *http.Transport
@@ -278,20 +279,26 @@ func (scan *scan) Cleanup() {
 		}
 		scan.connections = nil
 	}
+	if scan.cancelFuncs != nil {
+		for _, cancel := range scan.cancelFuncs {
+			cancel()
+		}
+		scan.cancelFuncs = nil
+	}
 }
 
 // Get a context whose deadline is the earliest of the context's deadline (if it has one) and the
 // global scan deadline.
-func (scan *scan) withDeadlineContext(ctx context.Context) context.Context {
+func (scan *scan) withDeadlineContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if scan.globalDeadline.IsZero() {
-		return ctx
+		return ctx, func() {}
 	}
 	ctxDeadline, ok := ctx.Deadline()
 	if !ok || scan.globalDeadline.Before(ctxDeadline) {
-		ret, _ := context.WithDeadline(ctx, scan.globalDeadline)
-		return ret
+		ret, cancelFunc := context.WithDeadline(ctx, scan.globalDeadline)
+		return ret, cancelFunc
 	}
-	return ctx
+	return ctx, func() {}
 }
 
 // Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
@@ -399,7 +406,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
 	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
-		deadlineCtx := ret.withDeadlineContext(ctx)
+		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
 		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
@@ -410,11 +417,12 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
 		}
 		ret.connections = append(ret.connections, conn)
+		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
 		return conn, nil
 	}
 	ret.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		ctx = ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(t)(ctx, network, addr)
+		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+		conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
 		if err != nil {
 			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
 		}
@@ -424,6 +432,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
 		}
 		ret.connections = append(ret.connections, conn)
+		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
 		return conn, nil
 	}
 	ret.client.UserAgent = scanner.config.UserAgent

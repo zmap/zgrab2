@@ -113,7 +113,7 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) <-chan error {
 		defer sock.Close()
 		if cfg.tls {
 			tlsSock := tls.Server(sock, getTLSConfig())
-			if err := tlsSock.Handshake(); err != nil {
+			if err = tlsSock.Handshake(); err != nil {
 				errChan <- fmt.Errorf("server handshake error: %w", err)
 			}
 			sock = tlsSock

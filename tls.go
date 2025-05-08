@@ -185,7 +185,8 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 			var intCiphers = make([]uint16, len(strCiphers))
 			for i, s := range strCiphers {
 				s = strings.TrimPrefix(s, "0x")
-				v64, err := strconv.ParseUint(s, 16, 16)
+				var v64 uint64
+				v64, err = strconv.ParseUint(s, 16, 16)
 				if err != nil {
 					log.Fatalf("cipher suites: unable to convert %s to a 16bit integer: %s", s, err)
 				}
@@ -264,13 +265,13 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 
 	if t.OverrideSH {
 		ret.SignatureAndHashes = []tls.SigAndHash{
-			{0x01, 0x04}, // rsa, sha256
-			{0x03, 0x04}, // ecdsa, sha256
-			{0x01, 0x02}, // rsa, sha1
-			{0x03, 0x02}, // ecdsa, sha1
-			{0x01, 0x04}, // rsa, sha256
-			{0x01, 0x05}, // rsa, sha384
-			{0x01, 0x06}, // rsa, sha512
+			{Signature: 0x01, Hash: 0x04}, // rsa, sha256
+			{Signature: 0x03, Hash: 0x04}, // ecdsa, sha256
+			{Signature: 0x01, Hash: 0x02}, // rsa, sha1
+			{Signature: 0x03, Hash: 0x02}, // ecdsa, sha1
+			{Signature: 0x01, Hash: 0x04}, // rsa, sha256
+			{Signature: 0x01, Hash: 0x05}, // rsa, sha384
+			{Signature: 0x01, Hash: 0x06}, // rsa, sha512
 		}
 	}
 

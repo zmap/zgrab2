@@ -123,7 +123,8 @@ func (c *Connection) tryReadPacket(header byte) (*ServerPacket, *zgrab2.ScanErro
 		// For scanning purposes, there is no reason we want to read more than 2^24 bytes
 		// But in practice, it probably means we have a null-terminated error string
 		var buf [1024]byte
-		n, err := c.Connection.Read(buf[:])
+		var n int
+		n, err = c.Connection.Read(buf[:])
 		if err != nil && err != io.EOF {
 			return nil, zgrab2.DetectScanError(err)
 		}

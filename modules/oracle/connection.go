@@ -108,7 +108,7 @@ func (conn *Connection) SendPacket(packet TNSPacketBody) (TNSPacketBody, error) 
 		return nil, err
 	}
 
-	if err := conn.send(toSend); err != nil {
+	if err = conn.send(toSend); err != nil {
 		return nil, err
 	}
 
@@ -180,13 +180,14 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		result.DidResend = true
 	}
 	var accept *TNSAccept
+	var desc Descriptor
 	switch resp := response.(type) {
 	case *TNSAccept:
 		accept = resp
 	case *TNSRedirect:
 		result.RedirectTargetRaw = string(resp.Data)
-		if parsed, err := DecodeDescriptor(result.RedirectTargetRaw); err != nil {
-			result.RedirectTarget = parsed
+		if desc, err = DecodeDescriptor(result.RedirectTargetRaw); err != nil {
+			result.RedirectTarget = desc
 		}
 		// TODO: Follow redirects?
 		return &result, nil
@@ -194,12 +195,13 @@ func (conn *Connection) Connect(connectDescriptor string) (*HandshakeLog, error)
 		result.RefuseErrorRaw = string(resp.Data)
 		result.RefuseReasonApp = resp.AppReason.String()
 		result.RefuseReasonSys = resp.SysReason.String()
-		if desc, err := DecodeDescriptor(result.RefuseErrorRaw); err == nil {
+		if desc, err = DecodeDescriptor(result.RefuseErrorRaw); err == nil {
 			result.RefuseError = desc
 			if versions := desc.GetValues("DESCRIPTION.VSNNUM"); len(versions) > 0 {
 				// If there are multiple VSNNUMs, we only care about the first.
 				decVersion := versions[0]
-				if intVersion, err := strconv.ParseUint(decVersion, 10, 32); err == nil {
+				var intVersion uint64
+				if intVersion, err = strconv.ParseUint(decVersion, 10, 32); err == nil {
 					result.RefuseVersion = ReleaseVersion(intVersion).String()
 				}
 			}
