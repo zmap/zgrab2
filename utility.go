@@ -155,8 +155,9 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 		if err != nil {
 			if IsTimeoutError(err) {
 				err = nil
+			} else {
+				return ret, fmt.Errorf("conn read encountered error after reading %d bytes: %w", n, err)
 			}
-			return ret, fmt.Errorf("conn read encountered error after reading %d bytes: %w", n, err)
 		}
 
 		if n >= maxReadSize {
