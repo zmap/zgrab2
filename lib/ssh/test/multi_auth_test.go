@@ -20,6 +20,7 @@
 package test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
