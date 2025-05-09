@@ -225,7 +225,11 @@ func (c *Connection) GetTLSLog() *zgrab2.TLSLog {
 	if !c.IsSSL {
 		return nil
 	}
-	return c.Connection.(*zgrab2.TLSConnection).GetLog()
+	tlsConn, ok := c.Connection.(*zgrab2.TLSConnection)
+	if !ok {
+		return nil
+	}
+	return tlsConn.GetLog()
 }
 
 // encodeMap encodes a map into a byte array of the form

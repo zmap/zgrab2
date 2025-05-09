@@ -277,7 +277,9 @@ func Process(mon *Monitor) {
 		go func(i int) {
 			for _, scannerName := range orderedScanners {
 				scanner := *scanners[scannerName]
-				scanner.InitPerSender(i)
+				if err := scanner.InitPerSender(i); err != nil {
+					log.Fatalf("error initializing sender %d with scanner %s: %v", i, scannerName, err)
+				}
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {

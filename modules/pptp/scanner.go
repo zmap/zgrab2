@@ -145,7 +145,9 @@ func createSCCRMessage() []byte {
 // Read response from the PPTP server
 func (pptp *Connection) readResponse() (string, error) {
 	buffer := make([]byte, 1024)
-	pptp.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := pptp.conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return "", fmt.Errorf("could not set read deadline: %w", err)
+	}
 	n, err := pptp.conn.Read(buffer)
 	if err != nil {
 		return "", err

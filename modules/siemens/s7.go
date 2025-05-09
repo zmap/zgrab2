@@ -140,7 +140,9 @@ func makeRequestPacketBytes(pduType byte, parameters []byte, data []byte) ([]byt
 
 // Send a generic packet request and return the response
 func sendRequestReadResponse(connection net.Conn, requestBytes []byte) ([]byte, error) {
-	connection.Write(requestBytes)
+	if n, err := connection.Write(requestBytes); err != nil {
+		return nil, fmt.Errorf("error encountered after writing %d bytes: %w", n, err)
+	}
 	responseBytes, err := zgrab2.ReadAvailable(connection)
 	if err != nil {
 		return nil, err

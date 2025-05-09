@@ -314,14 +314,18 @@ func getIsMaster(conn *Connection) (*IsMaster_t, error) {
 
 func listDatabases(conn *Connection) (*ListDatabases_t, error) {
 	document := ListDatabases_t{}
-	conn.Write(conn.scanner.listDatabasesMsg)
+	if err := conn.Write(conn.scanner.listDatabasesMsg); err != nil {
+		return nil, fmt.Errorf("failed to write listDatabases message: %w", err)
+	}
 
 	msg, err := conn.ReadMsg()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read listDatabases response: %w", err)
 	}
 
-	bson.Unmarshal(msg[MSGHEADER_LEN+20:], &document)
+	if err = bson.Unmarshal(msg[MSGHEADER_LEN+20:], &document); err != nil {
+		return nil, fmt.Errorf("failed to unmarshall listDatabases message: %w", err)
+	}
 	return &document, nil
 }
 

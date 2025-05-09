@@ -48,12 +48,6 @@ func NewIniParser() *flags.IniParser {
 	return flags.NewIniParser(parser)
 }
 
-// AddGroup exposes the parser's AddGroup function, allowing extension
-// of the global arguments.
-func AddGroup(shortDescription string, longDescription string, data any) {
-	parser.AddGroup(shortDescription, longDescription, data)
-}
-
 // AddCommand adds a module to the parser and returns a pointer to
 // a flags.command object or an error
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
@@ -151,7 +145,10 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	// Keep reading until we time out or get an error.
 	for totalDeadline.IsZero() || totalDeadline.After(time.Now()) {
 		deadline := time.Now().Add(readTimeout)
-		conn.SetReadDeadline(deadline)
+		err = conn.SetReadDeadline(deadline)
+		if err != nil {
+			return ret, fmt.Errorf("could not set read deadline on conn: %w", err)
+		}
 		n, err := conn.Read(buf[0:min(maxReadSize, bufferSize)])
 		maxReadSize -= n
 		ret = append(ret, buf[0:n]...)
@@ -159,7 +156,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 			if IsTimeoutError(err) {
 				err = nil
 			}
-			return ret, err
+			return ret, fmt.Errorf("conn read encountered error after reading %d bytes: %w", n, err)
 		}
 
 		if n >= maxReadSize {

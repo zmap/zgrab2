@@ -206,27 +206,34 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
-func storeBody(res *http.Response, scanner *Scanner) {
-	b := bufferFromBody(res, scanner)
+func storeBody(res *http.Response, scanner *Scanner) error {
+	b, err := bufferFromBody(res, scanner)
+	if err != nil {
+		return err
+	}
 	res.BodyText = b.String()
 	if len(res.BodyText) > 0 {
 		m := sha256.New()
 		m.Write(b.Bytes())
 		res.BodySHA256 = m.Sum(nil)
 	}
+	return nil
 }
 
-func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
+func bufferFromBody(res *http.Response, scanner *Scanner) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 	maxReadLen := int64(scanner.config.MaxSize) * 1024
 	readLen := maxReadLen
 	if res.ContentLength >= 0 && res.ContentLength < maxReadLen {
 		readLen = res.ContentLength
 	}
-	io.CopyN(b, res.Body, readLen)
+
+	if n, err := io.CopyN(b, res.Body, readLen); err != nil {
+		return nil, fmt.Errorf("error reading body after reading %d bytes: %v", n, err)
+	}
 	res.Body.Close()
 	res.Body = io.NopCloser(b)
-	return b
+	return b, nil
 }
 
 type Value struct {
@@ -458,7 +465,10 @@ func versionNotSupported(body string) bool {
 
 // TODO: Genericize this with passed-in getIPPRequest function and *http.Response for some result field to store into
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
-	cupsBody := getPrintersRequest(version.Major, version.Minor)
+	cupsBody, err := getPrintersRequest(version.Major, version.Minor)
+	if err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printers req: %v", err))
+	}
 	cupsResp, err := sendIPPRequest(scan, cupsBody)
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.CUPSResponse = cupsResp
@@ -466,7 +476,9 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return err
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
-	storeBody(cupsResp, scanner)
+	if err := storeBody(cupsResp, scanner); err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+	}
 	if versionNotSupported(scan.results.CUPSResponse.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
@@ -543,15 +555,19 @@ func isIPP(resp *http.Response) bool {
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
-	// TODO: Log any weird errors coming out of this
-	resp, err := sendIPPRequest(scan, body)
+	body, err := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
+	if err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printer attributes req: %v", err))
+	}
+	resp, scanErr := sendIPPRequest(scan, body)
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
-	if err != nil {
-		return err
+	if scanErr != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not send request: %v", scanErr))
 	}
-	storeBody(resp, scanner)
+	if err := storeBody(resp, scanner); err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+	}
 	if versionNotSupported(scan.results.Response.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
@@ -636,7 +652,9 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 			return ErrRedirLocalhost
 		}
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
-		storeBody(res, scanner)
+		if err := storeBody(res, scanner); err != nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+		}
 
 		if len(via) > scanner.config.MaxRedirects {
 			return ErrTooManyRedirects

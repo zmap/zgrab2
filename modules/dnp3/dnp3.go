@@ -17,6 +17,7 @@ package dnp3
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 
@@ -62,13 +63,15 @@ func init() {
 	linkBatchRequest = makeLinkRequestBatch(0x0000, 1, 0x0000, 100)
 }
 
-func GetDNP3Banner(logStruct *DNP3Log, connection net.Conn) (err error) {
-	connection.Write(linkBatchRequest)
+func GetDNP3Banner(logStruct *DNP3Log, connection net.Conn) error {
+	if n, err := connection.Write(linkBatchRequest); err != nil {
+		return fmt.Errorf("error when writing link batch request after %d bytes: %w", n, err)
+	}
 
 	data, err := zgrab2.ReadAvailable(connection)
 
 	if err != nil && err != io.EOF {
-		return err
+		return fmt.Errorf("could not read link batch response: %w", err)
 	}
 
 	if len(data) >= LINK_MIN_HEADER_LENGTH && binary.BigEndian.Uint16(data[0:2]) == LINK_START_FIELD {

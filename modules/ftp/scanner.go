@@ -194,7 +194,9 @@ func (ftp *Connection) GetFTPBanner() (bool, error) {
 
 // sendCommand sends a command and waits for / reads / returns the response.
 func (ftp *Connection) sendCommand(cmd string) (string, string, error) {
-	ftp.conn.Write([]byte(cmd + "\r\n"))
+	if n, err := ftp.conn.Write([]byte(cmd + "\r\n")); err != nil {
+		return "", "", fmt.Errorf("error when writing command %q after %d bytes: %w", cmd, n, err)
+	}
 	return ftp.readResponse()
 }
 
