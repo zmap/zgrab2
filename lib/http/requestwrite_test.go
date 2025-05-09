@@ -380,12 +380,12 @@ var reqWriteTests = []reqWriteTest{
 		},
 
 		Body: func() io.ReadCloser {
-			err := errors.New("Custom reader error")
+			err := errors.New("custom reader error")
 			errReader := &errorReader{err}
 			return ioutil.NopCloser(io.MultiReader(strings.NewReader("x"), errReader))
 		},
 
-		WantError: errors.New("Custom reader error"),
+		WantError: errors.New("custom reader error"),
 	},
 
 	// Request with a 0 ContentLength and a body without content and an error.
@@ -403,12 +403,12 @@ var reqWriteTests = []reqWriteTest{
 		},
 
 		Body: func() io.ReadCloser {
-			err := errors.New("Custom reader error")
+			err := errors.New("custom reader error")
 			errReader := &errorReader{err}
 			return ioutil.NopCloser(errReader)
 		},
 
-		WantError: errors.New("Custom reader error"),
+		WantError: errors.New("custom reader error"),
 	},
 
 	// Verify that DumpRequest preserves the HTTP version number, doesn't add a Host,

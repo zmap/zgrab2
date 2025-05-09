@@ -11,17 +11,20 @@ import (
 )
 
 // Start a local echo server on port.
-func runEchoServer(t *testing.T, port int) {
+func runEchoServer(t *testing.T, port int) <-chan error {
 	endpoint := fmt.Sprintf("127.0.0.1:%d", port)
 	listener, err := net.Listen("tcp", endpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
+	errChan := make(chan error)
 	go func() {
+		defer close(errChan)
 		defer listener.Close()
 		sock, err := listener.Accept()
 		if err != nil {
-			t.Fatal(err)
+			errChan <- err
+			return
 		}
 		defer sock.Close()
 
@@ -30,12 +33,12 @@ func runEchoServer(t *testing.T, port int) {
 			n, err := sock.Read(buf)
 			if err != nil {
 				if err != io.EOF && !strings.Contains(err.Error(), "connection reset") {
-					t.Fatal(err)
+					errChan <- err
 				}
 				return
 			}
 			sock.SetWriteDeadline(time.Now().Add(time.Millisecond * 250))
-			n, err = sock.Write(buf[0:n])
+			_, err = sock.Write(buf[0:n])
 			if err != nil {
 				if err != io.EOF && !strings.Contains(err.Error(), "connection reset") && !strings.Contains(err.Error(), "broken pipe") {
 					t.Logf("Unexpected error writing to client: %v", err)
@@ -44,6 +47,7 @@ func runEchoServer(t *testing.T, port int) {
 			}
 		}
 	}()
+	return errChan
 }
 
 // Interface for getting a TimeoutConnection; we want to test both the dialer and the direct Dial functions.
@@ -185,7 +189,7 @@ func getTestBuffer(size int) []byte {
 
 // Check that buf is of the type returned by getTestBuffer.
 func checkTestBuffer(buf []byte) bool {
-	if buf == nil || len(buf) == 0 {
+	if len(buf) == 0 {
 		return false
 	}
 	for i, v := range buf {
@@ -344,7 +348,7 @@ func runBytesReadLimitTrial(t *testing.T, connector timeoutConnector, idx int, m
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	port := 0x1234 + idx
-	runEchoServer(t, port)
+	errChan := runEchoServer(t, port)
 	conn, err := connector.connect(ctx, t, port, idx)
 	if err != nil {
 		t.Fatalf("Error dialing: %v", err)
@@ -360,7 +364,19 @@ func runBytesReadLimitTrial(t *testing.T, connector timeoutConnector, idx int, m
 		}
 	}()
 	defer conn.Close()
-	return method(cfg, t, conn, idx)
+	err = method(cfg, t, conn, idx)
+	if err != nil {
+		return err
+	}
+	// Check if the server has any errors
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("Error in server: %v", err)
+		}
+	default:
+	}
+	return nil
 }
 
 // Run a full set of trials on the connector -- ten with a single send, and ten with multiple sends.

@@ -8,12 +8,16 @@ package http_test
 
 import (
 	"bytes"
+	"errors"
+	"strconv"
+
 	//"compress/gzip"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
+
 	//"net/http/httputil"
 	"net/url"
 	"os"
@@ -22,11 +26,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
 	//"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptest"
 )
@@ -56,13 +62,6 @@ func (t *clientServerTest) getURL(u string) string {
 		t.t.Fatal(err)
 	}
 	return string(slurp)
-}
-
-func (t *clientServerTest) scheme() string {
-	if t.h2 {
-		return "https"
-	}
-	return "http"
 }
 
 const (
@@ -675,7 +674,7 @@ func testTrailersServerToClient(t *testing.T, h2, flush bool) {
 		// is able to calculate the length while still sending
 		// trailers afterwards.
 		wantLen = len(body)
-		wantHeader["Content-Length"] = []string{fmt.Sprint(wantLen)}
+		wantHeader["Content-Length"] = []string{strconv.Itoa(wantLen)}
 	}
 	if res.ContentLength != int64(wantLen) {
 		t.Errorf("ContentLength = %v; want %v", res.ContentLength, wantLen)
@@ -1251,7 +1250,7 @@ func testInterruptWithPanic(t *testing.T, h2 bool, panicValue any) {
 			return fmt.Errorf("want no log output; got: %s", gotLog)
 		}
 		if gotLog == "" {
-			return fmt.Errorf("wanted a stack trace logged; got nothing")
+			return errors.New("wanted a stack trace logged; got nothing")
 		}
 		if !strings.Contains(gotLog, "created by ") && strings.Count(gotLog, "\n") < 6 {
 			return fmt.Errorf("output doesn't look like a panic stack trace. Got: %s", gotLog)

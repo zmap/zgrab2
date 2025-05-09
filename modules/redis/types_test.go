@@ -190,25 +190,6 @@ func assertEquals(t *testing.T, actual string, expected string) {
 	}
 }
 
-// Read a value from the connection, or throw a fatal error
-func rawRead(t *testing.T, conn *Connection) RedisValue {
-	ret, err := conn.ReadRedisValue()
-	if err != nil {
-		t.Fatalf("Error reading value: %v", err)
-	}
-	return ret
-}
-
-// Read a value from the connection and convert it to a string for easy comparison
-func read(t *testing.T, conn *Connection) string {
-	ret := rawRead(t, conn)
-	b, ok := ret.(BulkString)
-	if ok {
-		return string(b)
-	}
-	return fmt.Sprintf("%v", ret)
-}
-
 // Encode a value and return a string for easy comparison
 func encode(a RedisValue) string {
 	return string(a.Encode())

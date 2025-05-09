@@ -47,7 +47,7 @@ func GetFlagMapFromMap(mapping map[uint64]string) FlagMap {
 		if ok {
 			return ret, nil
 		}
-		return "", fmt.Errorf("Unknown flag 0x%x", bit)
+		return "", fmt.Errorf("unknown flag 0x%x", bit)
 	}
 }
 

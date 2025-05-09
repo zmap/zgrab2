@@ -708,10 +708,10 @@ func (g *gssAPIWithMICCallback) auth(session []byte, user string, c packetConn, 
 			if err := Unmarshal(packet, userAuthGSSAPIErrorResp); err != nil {
 				return authFailure, nil, err
 			}
-			return authFailure, nil, fmt.Errorf("GSS-API Error:\n"+
+			return authFailure, nil, fmt.Errorf("gss-api error:\n"+
 				"Major Status: %d\n"+
 				"Minor Status: %d\n"+
-				"Error Message: %s\n", userAuthGSSAPIErrorResp.MajorStatus, userAuthGSSAPIErrorResp.MinorStatus,
+				"Error Message: %s", userAuthGSSAPIErrorResp.MajorStatus, userAuthGSSAPIErrorResp.MinorStatus,
 				userAuthGSSAPIErrorResp.Message)
 		case msgUserAuthGSSAPIToken:
 			userAuthGSSAPITokenReq := &userAuthGSSAPIToken{}

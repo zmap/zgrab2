@@ -188,7 +188,7 @@ example.com
 		{IP: net.ParseIP("10.0.0.1"), Port: port},
 	}
 
-	ch := make(chan ScanTarget, 0)
+	ch := make(chan ScanTarget)
 	go func() {
 		err := GetTargetsCSV(strings.NewReader(input), ch)
 		if err != nil {
@@ -196,7 +196,7 @@ example.com
 		}
 		close(ch)
 	}()
-	res := []ScanTarget{}
+	res := make([]ScanTarget, 0, len(ch))
 	for r := range ch {
 		res = append(res, r)
 	}

@@ -20,6 +20,9 @@ test:
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
+	goimports -w -local "github.com/zmap/zgrab2" ./
+	gofmt -s -w ./
+	golangci-lint run
 	black .
 
 zgrab2: $(GO_FILES)

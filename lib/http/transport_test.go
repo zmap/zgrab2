@@ -35,6 +35,7 @@ import (
 	"github.com/zmap/zgrab2/lib/http/httputil"
 	//"github.com/zmap/zgrab2/lib/http/nettrace"
 	"github.com/zmap/zcrypto/tls"
+
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptest"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
@@ -48,7 +49,7 @@ var hostPortHandler = HandlerFunc(func(w ResponseWriter, r *Request) {
 	if r.FormValue("close") == "true" {
 		w.Header().Set("Connection", "close")
 	}
-	w.Header().Set("X-Saw-Close", fmt.Sprint(r.Close))
+	w.Header().Set("X-Saw-Close", strconv.FormatBool(r.Close))
 	w.Write([]byte(r.RemoteAddr))
 })
 
@@ -238,7 +239,7 @@ func TestTransportConnectionCloseOnRequest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error in connectionClose=%v, req #%d, Do: %v", connectionClose, n, err)
 			}
-			if got, want := res.Header.Get("X-Saw-Close"), fmt.Sprint(connectionClose); got != want {
+			if got, want := res.Header.Get("X-Saw-Close"), strconv.FormatBool(connectionClose); got != want {
 				//t.Errorf("For connectionClose = %v; handler's X-Saw-Close was %v; want %v",
 				//	connectionClose, got, !connectionClose)
 			}
@@ -732,6 +733,10 @@ func TestRoundTripGzip(t *testing.T) {
 			req.Header.Set("Accept-Encoding", test.accept)
 		}
 		res, err := DefaultTransport.RoundTrip(req)
+		if err != nil {
+			t.Errorf("could not round trip for test %d: %v", i, err)
+			continue
+		}
 		var body []byte
 		if test.compressed {
 			var r *gzip.Reader

@@ -395,7 +395,7 @@ func (s *Session) NewSessionSetup1Req() (SessionSetup1Req, error) {
 	}
 
 	if s.sessionID != 0 {
-		return SessionSetup1Req{}, errors.New("Bad session ID for session setup 1 message")
+		return SessionSetup1Req{}, errors.New("bad session ID for session setup 1 message")
 	}
 
 	// Initial session setup request
@@ -445,7 +445,7 @@ func (s *Session) NewSessionSetup2Req() (SessionSetup2Req, error) {
 	}
 
 	if s.sessionID == 0 {
-		return SessionSetup2Req{}, errors.New("Bad session ID for session setup 2 message")
+		return SessionSetup2Req{}, errors.New("bad session ID for session setup 2 message")
 	}
 
 	// Session setup request #2

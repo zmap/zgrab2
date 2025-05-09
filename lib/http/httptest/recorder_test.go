@@ -7,6 +7,7 @@ package httptest
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 
 	"github.com/zmap/zgrab2/lib/http"
@@ -259,7 +260,7 @@ func TestRecorder(t *testing.T) {
 			"setting Content-Length header",
 			func(w http.ResponseWriter, r *http.Request) {
 				body := "Some body"
-				contentLength := fmt.Sprintf("%d", len(body))
+				contentLength := strconv.FormatUint(uint64(len(body)), 10)
 				w.Header().Set("Content-Length", contentLength)
 				io.WriteString(w, body)
 			},

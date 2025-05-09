@@ -34,7 +34,6 @@ type Scanner struct {
 
 type Results struct {
 	Fingerprint string `json:"fingerprint"`
-	error       string `json:"error,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -153,7 +152,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	var fingerprint = jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ","))
 
 	if fingerprint == "00000000000000000000000000000000000000000000000000000000000000" {
-		return zgrab2.SCAN_APPLICATION_ERROR, nil, errors.New("Unable to calculate hashes from server")
+		return zgrab2.SCAN_APPLICATION_ERROR, nil, errors.New("unable to calculate hashes from server")
 	}
 
 	return zgrab2.SCAN_SUCCESS, &Results{

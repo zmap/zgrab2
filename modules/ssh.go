@@ -3,11 +3,12 @@ package modules
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/ssh"
@@ -146,7 +147,7 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 	}
 	sshClient := ssh.NewClient(c, chans, reqs)
 	defer func() {
-		err := sshClient.Close()
+		err = sshClient.Close()
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			log.Errorf("error closing SSH client for target %s: %v", t.String(), err)
 		}

@@ -263,7 +263,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocolv1(setup bool) error {
 			Revision:  0,
 			VerString: "SMB 1.0"}
 	} else {
-		return fmt.Errorf("Invalid v1 Protocol ID\n")
+		return errors.New("invalid v1 Protocol ID")
 	}
 
 	negRes := NegotiateResV1{}
@@ -503,7 +503,7 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	}
 	buf, err = encoder.Marshal(ssreq)
 	if err != nil {
-		s.Debug("", err)
+		s.Debug("Raw: \n"+hex.Dump(buf), err)
 		return err
 	}
 

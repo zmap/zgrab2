@@ -225,7 +225,7 @@ func TestNegate(t *testing.T) {
 }
 
 func TestWildcard(t *testing.T) {
-	str := fmt.Sprintf("server*.domain %s", edKeyStr)
+	str := "server*.domain " + edKeyStr
 	db := testDB(t, str)
 
 	want := &KeyError{

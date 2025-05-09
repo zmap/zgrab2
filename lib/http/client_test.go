@@ -27,6 +27,7 @@ import (
 
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
+
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/cookiejar"
 	"github.com/zmap/zgrab2/lib/http/httptest"
@@ -45,7 +46,7 @@ func pedanticReadAll(r io.Reader) (b []byte, err error) {
 	for {
 		n, err := r.Read(buf)
 		if n == 0 && err == nil {
-			return nil, fmt.Errorf("Read: n=0 with err=nil")
+			return nil, errors.New("read: n=0 with err=nil")
 		}
 		b = append(b, buf[:n]...)
 		if err == io.EOF {
@@ -1482,7 +1483,7 @@ func (issue15577Tripper) RoundTrip(*Request) (*Response, error) {
 // Issue 15577: don't assume the roundtripper's response populates its Request field.
 func TestClientRedirectResponseWithoutRequest(t *testing.T) {
 	c := MakeNewClient()
-	c.CheckRedirect = func(*Request, *Response, []*Request) error { return fmt.Errorf("no redirects!") }
+	c.CheckRedirect = func(*Request, *Response, []*Request) error { return errors.New("no redirects") }
 	c.Transport = issue15577Tripper{}
 	// Check that this doesn't crash:
 	c.Get("http://dummy.tld")

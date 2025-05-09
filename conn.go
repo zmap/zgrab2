@@ -70,7 +70,7 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 	// Get the minimum of the context deadline and the timeout
 	minDeadline := int64(math.MaxInt64)
 	if ctxDeadline, ok := c.ctx.Deadline(); ok {
-		minDeadline = int64(ctxDeadline.Sub(time.Now()))
+		minDeadline = int64(time.Until(ctxDeadline))
 	}
 	if c.SessionTimeout > 0 {
 		minDeadline = min(minDeadline, int64(c.SessionTimeout))
@@ -93,7 +93,7 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
 func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
-	if err := c.checkContext(); err != nil {
+	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
 	origSize := len(b)
@@ -125,7 +125,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 
 // TimeoutConnection.Write calls Write() on the underlying connection, using any configured deadlines.
 func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
-	if err := c.checkContext(); err != nil {
+	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
 	c.SaturateTimeoutsToReadAndWriteTimeouts()
@@ -144,7 +144,7 @@ func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
 		return err
 	}
 	if !deadline.IsZero() {
-		c.ReadTimeout = deadline.Sub(time.Now())
+		c.ReadTimeout = time.Until(deadline)
 	}
 	return nil
 }
@@ -156,7 +156,7 @@ func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
 		return err
 	}
 	if !deadline.IsZero() {
-		c.WriteTimeout = deadline.Sub(time.Now())
+		c.WriteTimeout = time.Until(deadline)
 	}
 	return nil
 }
@@ -291,7 +291,7 @@ func (d *Dialer) SetDefaults() *Dialer {
 			d.Dialer = &net.Dialer{}
 			// this may be a single IP address or a comma-separated list of IP addresses
 			ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
-			d.Dialer.Resolver = &net.Resolver{
+			d.Resolver = &net.Resolver{
 				PreferGo: true,
 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 					return d.Dialer.DialContext(ctx, network, ns)

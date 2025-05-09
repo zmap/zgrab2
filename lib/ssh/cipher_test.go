@@ -12,8 +12,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/zmap/zgrab2/lib/ssh/internal/poly1305"
 	"golang.org/x/crypto/chacha20"
+
+	"github.com/zmap/zgrab2/lib/ssh/internal/poly1305"
 )
 
 func TestDefaultCiphersExist(t *testing.T) {

@@ -8,8 +8,9 @@ package dnp3
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )

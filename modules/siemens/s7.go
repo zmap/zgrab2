@@ -3,6 +3,7 @@ package siemens
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 
@@ -30,7 +31,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 		return fmt.Errorf("could not make COTP connection packet bytes: %v", err)
 	}
 	connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
-	if connResponseBytes == nil || len(connResponseBytes) == 0 || err != nil {
+	if len(connResponseBytes) == 0 || err != nil {
 		zgrab2.CloseConnAndHandleError(connection)
 		connection, err = reconnect()
 		if err != nil {
@@ -139,7 +140,9 @@ func makeRequestPacketBytes(pduType byte, parameters []byte, data []byte) ([]byt
 
 // Send a generic packet request and return the response
 func sendRequestReadResponse(connection net.Conn, requestBytes []byte) ([]byte, error) {
-	connection.Write(requestBytes)
+	if n, err := connection.Write(requestBytes); err != nil {
+		return nil, fmt.Errorf("error encountered after writing %d bytes: %w", n, err)
+	}
 	responseBytes, err := zgrab2.ReadAvailable(connection)
 	if err != nil {
 		return nil, err
@@ -287,7 +290,7 @@ type moduleIDData struct {
 // parseModuleIDDataRecord parses a byte slice into a DataRecord.
 func parseModuleIDDataRecord(data []byte) (*moduleIDData, error) {
 	if len(data) < 28 {
-		return nil, fmt.Errorf("data slice too short to contain a valid DataRecord")
+		return nil, errors.New("data slice too short to contain a valid DataRecord")
 	}
 
 	return &moduleIDData{
@@ -328,7 +331,7 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 
 	// Check if the data record length and number of data records are valid
 	if recordLen != s7ModuleIdRecordSize || numRecords*recordLen > len(s7Packet.Data)-offset {
-		return fmt.Errorf("invalid data record length or number of data records")
+		return errors.New("invalid data record length or number of data records")
 	}
 
 	// Now parse the data records, considering each one is 28 bytes long after the header

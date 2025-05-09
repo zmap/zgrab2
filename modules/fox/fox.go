@@ -51,7 +51,7 @@ func init() {
 func GetFoxBanner(logStruct *FoxLog, connection net.Conn) error {
 	bytesWritten, err := connection.Write(queryBytes)
 	if bytesWritten != len(queryBytes) {
-		return errors.New("Unable to write all Fox query bytes...")
+		return errors.New("unable to write all Fox query bytes")
 	}
 	if err != nil {
 		return err

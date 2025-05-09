@@ -714,9 +714,10 @@ func parseRange(s string, size int64) ([]httpRange, error) {
 	if !strings.HasPrefix(s, b) {
 		return nil, errors.New("invalid range")
 	}
-	var ranges []httpRange
+	splitString := strings.Split(s[len(b):], ",")
+	ranges := make([]httpRange, 0, len(splitString))
 	noOverlap := false
-	for _, ra := range strings.Split(s[len(b):], ",") {
+	for _, ra := range splitString {
 		ra = strings.TrimSpace(ra)
 		if ra == "" {
 			continue

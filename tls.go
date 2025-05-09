@@ -4,14 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
-	"github.com/zmap/zcrypto/encoding/asn1"
-	"github.com/zmap/zcrypto/x509/pkix"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zcrypto/encoding/asn1"
+	"github.com/zmap/zcrypto/x509/pkix"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
@@ -168,11 +169,11 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		var baseTime time.Time
 		baseTime, err = time.Parse("20060102150405Z", t.Time)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing time '%s': %s", t.Time, err)
+			return nil, fmt.Errorf("error parsing time '%s': %w", t.Time, err)
 		}
 		startTime := time.Now()
 		ret.Time = func() time.Time {
-			offset := time.Now().Sub(startTime)
+			offset := time.Since(startTime)
 			// Return (now - startTime) + baseTime
 			return baseTime.Add(offset)
 		}
@@ -219,7 +220,8 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 			var intCiphers = make([]uint16, len(strCiphers))
 			for i, s := range strCiphers {
 				s = strings.TrimPrefix(s, "0x")
-				v64, err := strconv.ParseUint(s, 16, 16)
+				var v64 uint64
+				v64, err = strconv.ParseUint(s, 16, 16)
 				if err != nil {
 					log.Fatalf("cipher suites: unable to convert %s to a 16bit integer: %s", s, err)
 				}
@@ -285,26 +287,26 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 	if t.ClientRandom != "" {
 		ret.ClientRandom, err = base64.StdEncoding.DecodeString(t.ClientRandom)
 		if err != nil {
-			return nil, fmt.Errorf("Error decoding --client-random value '%s': %s", t.ClientRandom, err)
+			return nil, fmt.Errorf("error decoding --client-random value '%s': %w", t.ClientRandom, err)
 		}
 	}
 
 	if t.ClientHello != "" {
 		ret.ExternalClientHello, err = base64.StdEncoding.DecodeString(t.ClientHello)
 		if err != nil {
-			return nil, fmt.Errorf("Error decoding --client-hello value '%s': %s", t.ClientHello, err)
+			return nil, fmt.Errorf("error decoding --client-hello value '%s': %w", t.ClientHello, err)
 		}
 	}
 
 	if t.OverrideSH {
 		ret.SignatureAndHashes = []tls.SigAndHash{
-			{0x01, 0x04}, // rsa, sha256
-			{0x03, 0x04}, // ecdsa, sha256
-			{0x01, 0x02}, // rsa, sha1
-			{0x03, 0x02}, // ecdsa, sha1
-			{0x01, 0x04}, // rsa, sha256
-			{0x01, 0x05}, // rsa, sha384
-			{0x01, 0x06}, // rsa, sha512
+			{Signature: 0x01, Hash: 0x04}, // rsa, sha256
+			{Signature: 0x03, Hash: 0x04}, // ecdsa, sha256
+			{Signature: 0x01, Hash: 0x02}, // rsa, sha1
+			{Signature: 0x03, Hash: 0x02}, // ecdsa, sha1
+			{Signature: 0x01, Hash: 0x04}, // rsa, sha256
+			{Signature: 0x01, Hash: 0x05}, // rsa, sha384
+			{Signature: 0x01, Hash: 0x06}, // rsa, sha512
 		}
 	}
 
@@ -333,7 +335,7 @@ func (z *TLSConnection) GetLog() *TLSLog {
 func (z *TLSConnection) Handshake() error {
 	log := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.Conn.GetHandshakeLog()
+		log.HandshakeLog = z.GetHandshakeLog()
 	}()
 	return z.Conn.Handshake()
 
