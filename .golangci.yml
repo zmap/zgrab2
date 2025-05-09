@@ -38,8 +38,9 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - lib/*
 issues:
-  max-same-issues: 50
+  max-issues-per-linter: 50
 formatters:
   exclusions:
     generated: lax
