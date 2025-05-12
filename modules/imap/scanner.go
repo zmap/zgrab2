@@ -197,7 +197,7 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 //  7. If --send-close is sent, send a001 CLOSE and read the result.
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	addr := net.JoinHostPort(target.IP.String(), strconv.FormatUint(uint64(target.Port), 10))
+	addr := net.JoinHostPort(target.IP.String(), strconv.Itoa(int(target.Port)))
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4Dialer set")

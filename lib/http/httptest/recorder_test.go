@@ -260,7 +260,7 @@ func TestRecorder(t *testing.T) {
 			"setting Content-Length header",
 			func(w http.ResponseWriter, r *http.Request) {
 				body := "Some body"
-				contentLength := strconv.FormatUint(uint64(len(body)), 10)
+				contentLength := strconv.Itoa(len(body))
 				w.Header().Set("Content-Length", contentLength)
 				io.WriteString(w, body)
 			},

@@ -9,25 +9,19 @@ package http_test
 import (
 	"bytes"
 	"errors"
-	"strconv"
-
-	//"compress/gzip"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
-
-	//"net/http/httputil"
 	"net/url"
 	"os"
 	"reflect"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
-
-	//"sync/atomic"
 	"testing"
 	"time"
 

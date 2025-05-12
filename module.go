@@ -118,7 +118,7 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 		if config.TLSEnabled {
 			dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 				// TransportAgnosticDialer only connects to a single target
-				address := net.JoinHostPort(target.Host(), strconv.FormatUint(uint64(target.Port), 10))
+				address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
 				return GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)(ctx, target, address)
 			}
 		} else {
@@ -127,13 +127,13 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 			case TransportUDP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 					// TransportAgnosticDialer only connects to a single target
-					address := net.JoinHostPort(target.Host(), strconv.FormatUint(uint64(target.Port), 10))
+					address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
 					return GetDefaultUDPDialer(config.BaseFlags)(ctx, target, address)
 				}
 			case TransportTCP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 					// TransportAgnosticDialer only connects to a single target
-					address := net.JoinHostPort(target.Host(), strconv.FormatUint(uint64(target.Port), 10))
+					address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
 					return GetDefaultTCPDialer(config.BaseFlags)(ctx, target, address)
 				}
 			default:

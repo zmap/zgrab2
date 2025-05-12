@@ -685,7 +685,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	} else {
 		proto = "http"
 	}
-	return proto + "://" + host + ":" + strconv.FormatUint(uint64(port), 10) + endpoint
+	return proto + "://" + host + ":" + strconv.Itoa(int(port)) + endpoint
 }
 
 // Cleanup closes any connections that have been opened during the scan

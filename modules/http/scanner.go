@@ -384,7 +384,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	}
 
 	//For non-default ports, net.JoinHostPort will handle brackets for IPv6 literals
-	return proto + "://" + net.JoinHostPort(host, strconv.FormatUint(uint64(port), 10)) + endpoint
+	return proto + "://" + net.JoinHostPort(host, strconv.Itoa(int(port))) + endpoint
 }
 
 // NewHTTPScan gets a new Scan instance for the given target

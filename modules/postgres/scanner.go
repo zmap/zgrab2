@@ -366,7 +366,7 @@ func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *
 		return nil, zgrab2.DetectScanError(errors.New("l4 dialer is required for postgres"))
 	}
 	// Open a managed connection to the ScanTarget, register it for automatic cleanup
-	if conn, err = l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), strconv.FormatUint(uint64(t.Port), 10))); err != nil {
+	if conn, err = l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), strconv.Itoa(int(t.Port)))); err != nil {
 		return nil, zgrab2.DetectScanError(fmt.Errorf("could not establish connection to %s: %w", t.String(), err))
 	}
 	mgr.addConnection(conn)

@@ -55,7 +55,7 @@ func AddCommand(command string, shortDescription string, longDescription string,
 	if err != nil {
 		return nil, err
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.FormatUint(uint64(port), 10)}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
 	cmd.FindOptionByLongName("name").Default = []string{command}
 	modules[command] = m
 	return cmd, nil

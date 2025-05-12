@@ -100,7 +100,7 @@ func (s *SSHScanner) GetTrigger() string {
 
 func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
-	portStr := strconv.FormatUint(uint64(t.Port), 10)
+	portStr := strconv.Itoa(int(t.Port))
 	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()

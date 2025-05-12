@@ -176,7 +176,7 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 			case DO, DONT:
 				returnOptionType = WONT
 			default:
-				return errors.New("Unsupported telnet IAC option type" + strconv.FormatUint(uint64(optionType), 10))
+				return errors.New("Unsupported telnet IAC option type" + strconv.Itoa(int(optionType)))
 			}
 			retBuffer = append(retBuffer, IAC)
 			retBuffer = append(retBuffer, returnOptionType)

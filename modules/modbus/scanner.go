@@ -173,8 +173,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		log.Fatalf("Unexpected error marshaling modbus packet: %v", err)
 	}
 	w := 0
+	var written int
 	for w < len(data) {
-		var written int
 		written, err = c.getUnderlyingConn().Write(data[w:])
 		w += written
 		if err != nil {
