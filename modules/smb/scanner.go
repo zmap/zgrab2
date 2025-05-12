@@ -5,8 +5,9 @@ package smb
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/smb/smb"

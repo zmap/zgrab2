@@ -20,7 +20,7 @@
 package test
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
@@ -70,7 +70,7 @@ func (ctx *multiAuthTestCtx) kbdIntCb(user, instruction string, questions []stri
 		return []string{ctx.password}, nil
 	}
 
-	return nil, fmt.Errorf("unsupported keyboard-interactive flow")
+	return nil, errors.New("unsupported keyboard-interactive flow")
 }
 
 // TestMultiAuth runs several subtests for different combinations of password, keyboard-interactive and publickey authentication methods

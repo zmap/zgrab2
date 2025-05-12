@@ -133,7 +133,7 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T, stopServer <-chan stru
 		}
 		defer sock.Close()
 		time.Sleep(cfg.serverWriteDelay)
-		if err := _write(sock, cfg.serverToClientPayload); err != nil {
+		if err = _write(sock, cfg.serverToClientPayload); err != nil {
 			errorChan <- serverError(clientTestStepRead, err)
 			return
 		}
@@ -152,7 +152,6 @@ func (cfg *connTimeoutTestConfig) runServer(t *testing.T, stopServer <-chan stru
 			t.Errorf("%s: clientToServerPayload mismatch", cfg.name)
 		}
 		<-stopServer // wait for client to indicate server can exit
-		return
 	}()
 	return errorChan
 }

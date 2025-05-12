@@ -43,10 +43,10 @@ type Options struct {
 
 func validateOptions(opt Options) error {
 	if opt.Host == "" {
-		return errors.New("Missing required option: Host")
+		return errors.New("missing required option: Host")
 	}
 	if opt.Port < 1 || opt.Port > 65535 {
-		return errors.New("Invalid or missing value: Port")
+		return errors.New("invalid or missing value: Port")
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func (s *Session) NegotiateProtocol() error {
 		}
 	}
 	if !hasNTLMSSP {
-		return errors.New("Server does not support NTLMSSP")
+		return errors.New("server does not support NTLMSSP")
 	}
 
 	s.securityMode = negRes.SecurityMode
@@ -171,7 +171,7 @@ func (s *Session) NegotiateProtocol() error {
 	}
 	buf, err = encoder.Marshal(ssreq)
 	if err != nil {
-		s.Debug("", err)
+		s.Debug("Raw: \n"+hex.Dump(buf), err)
 		return err
 	}
 
@@ -229,7 +229,7 @@ func (s *Session) NegotiateProtocol() error {
 	ss2req.Header.Credits = 127
 	buf, err = encoder.Marshal(ss2req)
 	if err != nil {
-		s.Debug("", err)
+		s.Debug("Raw: \n"+hex.Dump(buf), err)
 		return err
 	}
 
@@ -297,7 +297,7 @@ func (s *Session) TreeDisconnect(name string) error {
 	}
 
 	if !pathFound {
-		err := errors.New("Unable to find tree path for disconnect")
+		err := errors.New("unable to find tree path for disconnect")
 		s.Debug("", err)
 		return err
 	}
@@ -364,7 +364,7 @@ func (s *Session) send(req any) (res []byte, err error) {
 		return
 	}
 	if size > 0x00FFFFFF || size < 4 {
-		return nil, errors.New("Invalid NetBIOS Session message")
+		return nil, errors.New("invalid NetBIOS Session message")
 	}
 
 	data := make([]byte, size)
@@ -374,13 +374,13 @@ func (s *Session) send(req any) (res []byte, err error) {
 		return nil, err
 	}
 	if uint32(l) != size {
-		return nil, errors.New("Message size invalid")
+		return nil, errors.New("message size invalid")
 	}
 
 	protID := data[0:4]
 	switch string(protID) {
 	default:
-		return nil, errors.New("Protocol Not Implemented")
+		return nil, errors.New("protocol Not Implemented")
 	case ProtocolSmb:
 	case ProtocolSmb2:
 	}

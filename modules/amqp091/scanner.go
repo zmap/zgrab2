@@ -123,10 +123,10 @@ func (module *Module) Description() string {
 // On failure, returns an error instance describing the error.
 func (flags *Flags) Validate(_ []string) error {
 	if flags.AuthUser != "" && flags.AuthPass == "" {
-		return fmt.Errorf("must provide --auth-pass if --auth-user is set")
+		return errors.New("must provide --auth-pass if --auth-user is set")
 	}
 	if flags.AuthPass != "" && flags.AuthUser == "" {
-		return fmt.Errorf("must provide --auth-user if --auth-pass is set")
+		return errors.New("must provide --auth-user if --auth-pass is set")
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, ok := flags.(*Flags)
 	if !ok {
-		return fmt.Errorf("failed to cast flags to AMQP flags")
+		return errors.New("failed to cast flags to AMQP flags")
 	}
 
 	scanner.config = f

@@ -24,7 +24,7 @@ func interleave(expected, actual []byte) string {
 	a := strings.Split(string(hex.Dump(actual)), "\n")
 	n := max(len(e), len(a))
 	for i := 0; i < n-1; i++ {
-		var ei, ai string = "", ""
+		var ei, ai = "", ""
 		if i < len(e) {
 			ei = e[i]
 		}
@@ -696,14 +696,6 @@ func TestDescriptorGetValue(t *testing.T) {
 			}
 		}
 	}
-}
-
-func removeSpace(s string) string {
-	ret := strings.Replace(s, "\r", "", -1)
-	ret = strings.Replace(ret, "\n", "", -1)
-	ret = strings.Replace(ret, "\t", "", -1)
-	ret = strings.Replace(ret, " ", "", -1)
-	return ret
 }
 
 func stringSlicesEqual(lhs, rhs []string) bool {

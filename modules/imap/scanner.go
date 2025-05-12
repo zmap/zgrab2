@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -196,7 +197,7 @@ func VerifyIMAPContents(banner string) zgrab2.ScanStatus {
 //  7. If --send-close is sent, send a001 CLOSE and read the result.
 //  8. Close the connection.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	addr := net.JoinHostPort(target.IP.String(), fmt.Sprintf("%d", target.Port))
+	addr := net.JoinHostPort(target.IP.String(), strconv.Itoa(int(target.Port)))
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4Dialer set")
@@ -211,7 +212,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	defer zgrab2.CloseConnAndHandleError(c)
 	result := &ScanResults{}
 	if scanner.config.IMAPSecure {
-		tlsConn, err := dialGroup.TLSWrapper(ctx, target, c)
+		var tlsConn *zgrab2.TLSConnection
+		tlsConn, err = dialGroup.TLSWrapper(ctx, target, c)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %v", target.String(), err)
 		}
@@ -227,16 +229,17 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// OR save a valid scan result for later
 	sr := VerifyIMAPContents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, errors.New("Invalid response for IMAP")
+		return sr, nil, errors.New("invalid response for IMAP")
 	}
 	result.Banner = banner
+	var ret string
 	if scanner.config.StartTLS {
-		ret, err := conn.SendCommand("a001 STARTTLS")
+		ret, err = conn.SendCommand("a001 STARTTLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error sending STLS command for IMAP %s: %v", target.String(), err)
 		}
 		result.StartTLS = ret
-		if err := getIMAPError(ret); err != nil {
+		if err = getIMAPError(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %v", target.String(), err)
 		}
 		tlsConn, err := dialGroup.TLSWrapper(ctx, target, c)

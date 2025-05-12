@@ -48,12 +48,6 @@ func NewIniParser() *flags.IniParser {
 	return flags.NewIniParser(parser)
 }
 
-// AddGroup exposes the parser's AddGroup function, allowing extension
-// of the global arguments.
-func AddGroup(shortDescription string, longDescription string, data any) {
-	parser.AddGroup(shortDescription, longDescription, data)
-}
-
 // AddCommand adds a module to the parser and returns a pointer to
 // a flags.command object or an error
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
@@ -61,7 +55,7 @@ func AddCommand(command string, shortDescription string, longDescription string,
 	if err != nil {
 		return nil, err
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.FormatUint(uint64(port), 10)}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
 	cmd.FindOptionByLongName("name").Default = []string{command}
 	modules[command] = m
 	return cmd, nil
@@ -151,7 +145,10 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	// Keep reading until we time out or get an error.
 	for totalDeadline.IsZero() || totalDeadline.After(time.Now()) {
 		deadline := time.Now().Add(readTimeout)
-		conn.SetReadDeadline(deadline)
+		err = conn.SetReadDeadline(deadline)
+		if err != nil {
+			return ret, fmt.Errorf("could not set read deadline on conn: %w", err)
+		}
 		n, err := conn.Read(buf[0:min(maxReadSize, bufferSize)])
 		maxReadSize -= n
 		ret = append(ret, buf[0:n]...)
@@ -169,7 +166,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	return ret, ErrTotalTimeout
 }
 
-var InsufficientBufferError = errors.New("not enough buffer space")
+var ErrInsufficientBuffer = errors.New("not enough buffer space")
 
 // ReadUntilRegex calls connection.Read() until it returns an error, or the cumulatively-read data matches the given regexp
 func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, error) {
@@ -185,7 +182,7 @@ func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, 
 			finished = true
 		}
 		if length == len(res) {
-			return length, InsufficientBufferError
+			return length, ErrInsufficientBuffer
 		}
 		buf = res[length:]
 	}
@@ -254,7 +251,7 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 	// Validate the host part as an IP address.
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return "", fmt.Errorf("invalid IP address")
+		return "", errors.New("invalid IP address")
 	}
 
 	// If the original input does not have a port, specify port 53 as the default

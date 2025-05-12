@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"io"
-	"io/ioutil"
 	"mime"
 	"net"
 	"net/url"
@@ -34,11 +33,11 @@ const (
 var (
 	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
 	// unless FollowLocalhostRedirects is set.
-	ErrRedirLocalhost = errors.New("Redirecting to localhost")
+	ErrRedirLocalhost = errors.New("redirecting to localhost")
 
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
-	ErrTooManyRedirects = errors.New("Too many redirects")
+	ErrTooManyRedirects = errors.New("too many redirects")
 
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
@@ -59,7 +58,6 @@ var (
 
 type scan struct {
 	connections []net.Conn
-	transport   *http.Transport
 	client      *http.Client
 	results     ScanResults
 	url         string
@@ -208,27 +206,34 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
-func storeBody(res *http.Response, scanner *Scanner) {
-	b := bufferFromBody(res, scanner)
+func storeBody(res *http.Response, scanner *Scanner) error {
+	b, err := bufferFromBody(res, scanner)
+	if err != nil {
+		return err
+	}
 	res.BodyText = b.String()
 	if len(res.BodyText) > 0 {
 		m := sha256.New()
 		m.Write(b.Bytes())
 		res.BodySHA256 = m.Sum(nil)
 	}
+	return nil
 }
 
-func bufferFromBody(res *http.Response, scanner *Scanner) *bytes.Buffer {
+func bufferFromBody(res *http.Response, scanner *Scanner) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 	maxReadLen := int64(scanner.config.MaxSize) * 1024
 	readLen := maxReadLen
 	if res.ContentLength >= 0 && res.ContentLength < maxReadLen {
 		readLen = res.ContentLength
 	}
-	io.CopyN(b, res.Body, readLen)
+
+	if n, err := io.CopyN(b, res.Body, readLen); err != nil {
+		return nil, fmt.Errorf("error reading body after reading %d bytes: %v", n, err)
+	}
 	res.Body.Close()
-	res.Body = ioutil.NopCloser(b)
-	return b
+	res.Body = io.NopCloser(b)
+	return b, nil
 }
 
 type Value struct {
@@ -247,15 +252,15 @@ func shouldReturnAttrs(length, soFar, size, upperBound int) (bool, error) {
 		if size >= upperBound {
 			return true, nil
 		}
-		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Reported field length runs out of bounds."))
+		return true, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("reported field length runs out of bounds"))
 
 	}
 	return false, nil
 }
 
 func detectReadBodyError(err error) error {
-	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Fewer body bytes read than expected."))
+	if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("fewer body bytes read than expected"))
 	}
 	return zgrab2.NewScanError(zgrab2.TryGetScanStatus(err), err)
 }
@@ -405,7 +410,7 @@ func (scanner *Scanner) tryReadAttributes(resp *http.Response, scan *scan) *zgra
 	// Reject successful responses which specify non-IPP MIME mediatype (ie: text/html)
 	// RFC 8010's abstract specifies that IPP uses the MIME media type "application/ipp"
 	if !isIPP(resp) {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected."))
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("IPP Content-Type not detected"))
 	}
 
 	attrs, err := readAllAttributes(body, scanner)
@@ -460,7 +465,10 @@ func versionNotSupported(body string) bool {
 
 // TODO: Genericize this with passed-in getIPPRequest function and *http.Response for some result field to store into
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
-	cupsBody := getPrintersRequest(version.Major, version.Minor)
+	cupsBody, err := getPrintersRequest(version.Major, version.Minor)
+	if err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printers req: %v", err))
+	}
 	cupsResp, err := sendIPPRequest(scan, cupsBody)
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.CUPSResponse = cupsResp
@@ -468,7 +476,9 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 		return err
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
-	storeBody(cupsResp, scanner)
+	if err := storeBody(cupsResp, scanner); err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+	}
 	if versionNotSupported(scan.results.CUPSResponse.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
@@ -506,12 +516,12 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 	}
 	// TODO: Examine whether an empty response overall is a connection error; see RFC 8011 Section 4.2.5.2
 	if resp == nil {
-		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("No HTTP response"))
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_CONNECTION_TIMEOUT, errors.New("no HTTP response"))
 	}
 	// Empty body is not allowed in IPP because a response has required parameter
 	// Source: RFC 8011 Section 4.1.1 (https://tools.ietf.org/html/rfc8011#section-4.1.1)
 	if resp.Body == nil {
-		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Empty body."))
+		return resp, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("empty body"))
 	}
 	return resp, nil
 }
@@ -545,15 +555,19 @@ func isIPP(resp *http.Response) bool {
 
 func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	// Send get-printer-attributes request to the host, preferably a print server
-	body := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
-	// TODO: Log any weird errors coming out of this
-	resp, err := sendIPPRequest(scan, body)
+	body, err := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
+	if err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printer attributes req: %v", err))
+	}
+	resp, scanErr := sendIPPRequest(scan, body)
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
-	if err != nil {
-		return err
+	if scanErr != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not send request: %v", scanErr))
 	}
-	storeBody(resp, scanner)
+	if err := storeBody(resp, scanner); err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+	}
 	if versionNotSupported(scan.results.Response.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
 	}
@@ -638,7 +652,9 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 			return ErrRedirLocalhost
 		}
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
-		storeBody(res, scanner)
+		if err := storeBody(res, scanner); err != nil {
+			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+		}
 
 		if len(via) > scanner.config.MaxRedirects {
 			return ErrTooManyRedirects
@@ -653,7 +669,7 @@ func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, d
 	return func(net, addr string) (net.Conn, error) {
 		tlsConn, err := dialGroup.GetTLSDialer(ctx, target)("tcp", addr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to establish TLS connection to %s: %v", addr, err)
+			return nil, fmt.Errorf("failed to establish TLS connection to %s: %w", addr, err)
 		}
 		scan.results.TLSLog = tlsConn.GetLog()
 		return tlsConn, nil
@@ -669,7 +685,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	} else {
 		proto = "http"
 	}
-	return proto + "://" + host + ":" + strconv.FormatUint(uint64(port), 10) + endpoint
+	return proto + "://" + host + ":" + strconv.Itoa(int(port)) + endpoint
 }
 
 // Cleanup closes any connections that have been opened during the scan

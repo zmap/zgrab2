@@ -3,8 +3,11 @@ package socks5
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 
@@ -38,7 +41,6 @@ type Scanner struct {
 
 // Connection holds the state for a single connection to the SOCKS5 server.
 type Connection struct {
-	buffer  [10000]byte
 	config  *Flags
 	results ScanResults
 	conn    net.Conn
@@ -142,7 +144,7 @@ func explainResponse(resp []byte) map[string]string {
 		"Reserved":      fmt.Sprintf("0x%02x", resp[2]),
 		"Address Type":  fmt.Sprintf("0x%02x (%s)", resp[3], getAddressTypeDescription(resp[3])),
 		"Bound Address": fmt.Sprintf("%d.%d.%d.%d", resp[4], resp[5], resp[6], resp[7]),
-		"Bound Port":    fmt.Sprintf("%d", int(resp[8])<<8|int(resp[9])),
+		"Bound Port":    strconv.Itoa(int(resp[8])<<8 | int(resp[9])),
 	}
 }
 
@@ -199,10 +201,10 @@ func (conn *Connection) PerformHandshake() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error reading method selection response: %w", err)
 	}
-	conn.results.MethodSelection = fmt.Sprintf("%x", methodSelResp)
+	conn.results.MethodSelection = hex.EncodeToString(methodSelResp)
 
 	if methodSelResp[1] == 0xFF {
-		return true, fmt.Errorf("no acceptable authentication methods")
+		return true, errors.New("no acceptable authentication methods")
 	}
 
 	return false, nil
@@ -222,7 +224,7 @@ func (conn *Connection) PerformConnectionRequest() error {
 	if err != nil {
 		return fmt.Errorf("error reading connection response: %w", err)
 	}
-	conn.results.ConnectionResponse = fmt.Sprintf("%x", resp)
+	conn.results.ConnectionResponse = hex.EncodeToString(resp)
 	conn.results.ConnectionResponseExplanation = explainResponse(resp)
 
 	if resp[1] > 0x80 {

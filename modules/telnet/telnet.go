@@ -18,9 +18,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/zmap/zgrab2"
@@ -86,7 +86,7 @@ func (opt *TelnetOption) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	if aux.Value < 0 || aux.Value > 255 {
-		return errors.New("Invalid byte value")
+		return errors.New("invalid byte value")
 	}
 	*opt = TelnetOption(byte(aux.Value))
 	return nil
@@ -117,7 +117,7 @@ func GetTelnetBanner(logStruct *TelnetLog, conn net.Conn, maxReadSize int) (err 
 	}
 	// Make sure it is a telnet banner
 	if !logStruct.isTelnet() {
-		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("Invalid response for Telnet"))
+		return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("invalid response for Telnet"))
 	}
 	return nil
 }
@@ -129,7 +129,7 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 	var iacIndex, firstUnreadIndex, numBytes, numDataBytes int
 	var err error
 
-	for finishedNegotiating := false; finishedNegotiating == false; {
+	for finishedNegotiating := false; !finishedNegotiating; {
 		readBuffer = make([]byte, READ_BUFFER_LENGTH)
 		retBuffer = nil
 		numBytes, err = conn.Read(readBuffer)
@@ -140,13 +140,12 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 		}
 
 		if numBytes == len(readBuffer) {
-			return errors.New("Not enough buffer space for telnet options")
+			return errors.New("not enough buffer space for telnet options")
 		}
 
 		// Negotiate options
 
 		for iacIndex = getIACIndex(readBuffer); iacIndex != -1; iacIndex = getIACIndex(readBuffer) {
-			firstUnreadIndex = 0
 			optionType = readBuffer[iacIndex+1]
 			option = readBuffer[iacIndex+2]
 
@@ -154,31 +153,31 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 			if optionType == GO_AHEAD {
 				readBuffer = readBuffer[0:iacIndex]
 				numBytes = iacIndex
-				firstUnreadIndex = 0
 				break
 			}
 
 			// record all offered options
 			opt := TelnetOption(option)
-			if optionType == WILL {
+			switch optionType {
+			case WILL:
 				logStruct.Will = append(logStruct.Will, opt)
-			} else if optionType == DO {
+			case DO:
 				logStruct.Do = append(logStruct.Do, opt)
-			} else if optionType == WONT {
+			case WONT:
 				logStruct.Wont = append(logStruct.Wont, opt)
-			} else if optionType == DONT {
+			case DONT:
 				logStruct.Dont = append(logStruct.Dont, opt)
 			}
 
 			// reject all offered options
-			if optionType == WILL || optionType == WONT {
+			switch optionType {
+			case WILL, WONT:
 				returnOptionType = DONT
-			} else if optionType == DO || optionType == DONT {
+			case DO, DONT:
 				returnOptionType = WONT
-			} else {
-				return errors.New("Unsupported telnet IAC option type" + fmt.Sprintf("%d", optionType))
+			default:
+				return errors.New("Unsupported telnet IAC option type" + strconv.Itoa(int(optionType)))
 			}
-
 			retBuffer = append(retBuffer, IAC)
 			retBuffer = append(retBuffer, returnOptionType)
 			retBuffer = append(retBuffer, option)
@@ -207,8 +206,4 @@ func NegotiateOptions(logStruct *TelnetLog, conn net.Conn) error {
 func getIACIndex(buffer []byte) int {
 	// TODO: This doesn't seem to take into account that a 0xFF data byte is encoded as 0xFF + 0xFF
 	return bytes.IndexByte(buffer, IAC)
-}
-
-func containsIAC(buffer []byte) bool {
-	return getIACIndex(buffer) != -1
 }

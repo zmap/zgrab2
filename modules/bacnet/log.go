@@ -21,7 +21,7 @@ func (log *Log) sendReadProperty(c net.Conn, oid ObjectID, pid PropertyID) ([]by
 	if err != nil {
 		return nil, err, false
 	}
-	if err := SendVLC(c, b); err != nil {
+	if err = SendVLC(c, b); err != nil {
 		return nil, err, false
 	}
 	var body []byte

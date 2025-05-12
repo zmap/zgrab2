@@ -2,8 +2,10 @@ package zgrab2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -68,13 +70,13 @@ type DialerGroupConfig struct {
 // Validate checks for various incompatibilities in the DialerGroupConfig
 func (config *DialerGroupConfig) Validate() error {
 	if config.BaseFlags == nil {
-		return fmt.Errorf("BaseFlags must be set")
+		return errors.New("BaseFlags must be set")
 	}
 	switch config.TransportAgnosticDialerProtocol {
 	case TransportUDP:
 		if config.TLSEnabled {
 			// blocking this for now since it's untested. When a module is added that needs this we can unblock it and test.
-			return fmt.Errorf("TLS-over-UDP (DTLS) is not currently supported")
+			return errors.New("TLS-over-UDP (DTLS) is not currently supported")
 		}
 	case TransportTCP, reservedTransportProtocol:
 		// nothing to validate here
@@ -82,7 +84,7 @@ func (config *DialerGroupConfig) Validate() error {
 		return fmt.Errorf("invalid TransportAgnosticDialerProtocol: %d", config.TransportAgnosticDialerProtocol)
 	}
 	if config.TLSEnabled && config.TLSFlags == nil {
-		return fmt.Errorf("TLS flags must be set if TLSEnabled is true")
+		return errors.New("TLS flags must be set if TLSEnabled is true")
 	}
 	return nil
 }
@@ -116,7 +118,7 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 		if config.TLSEnabled {
 			dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 				// TransportAgnosticDialer only connects to a single target
-				address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
+				address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
 				return GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)(ctx, target, address)
 			}
 		} else {
@@ -125,13 +127,13 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 			case TransportUDP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 					// TransportAgnosticDialer only connects to a single target
-					address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
+					address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
 					return GetDefaultUDPDialer(config.BaseFlags)(ctx, target, address)
 				}
 			case TransportTCP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 					// TransportAgnosticDialer only connects to a single target
-					address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port))
+					address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
 					return GetDefaultTCPDialer(config.BaseFlags)(ctx, target, address)
 				}
 			default:
@@ -165,7 +167,7 @@ type DialerGroup struct {
 // Dial is used to access the transport agnostic dialer
 func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 	if d.TransportAgnosticDialer == nil {
-		return nil, fmt.Errorf("no transport agnostic dialer set")
+		return nil, errors.New("no transport agnostic dialer set")
 	}
 	return d.TransportAgnosticDialer(ctx, target)
 }
@@ -175,14 +177,14 @@ func (d *DialerGroup) Dial(ctx context.Context, target *ScanTarget) (net.Conn, e
 func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(network, addr string) (*TLSConnection, error) {
 	return func(network, addr string) (*TLSConnection, error) {
 		if d.TLSWrapper == nil {
-			return nil, fmt.Errorf("no TLS wrapper set")
+			return nil, errors.New("no TLS wrapper set")
 		}
 		if d.L4Dialer == nil {
-			return nil, fmt.Errorf("no L4 dialer set")
+			return nil, errors.New("no L4 dialer set")
 		}
 		conn, err := d.L4Dialer(t)(ctx, network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %w", err)
 		}
 		return d.TLSWrapper(ctx, t, conn)
 	}

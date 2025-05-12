@@ -13,6 +13,7 @@ package mysql
 
 import (
 	"bufio"
+	"errors"
 
 	"encoding/base64"
 	"encoding/binary"
@@ -22,9 +23,10 @@ import (
 	"net"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"io"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -613,7 +615,7 @@ func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
 	case 0xfe:
 		return c.readOKPacket(body)
 	default:
-		return nil, fmt.Errorf("Unrecognized packet type 0x%02x", header)
+		return nil, fmt.Errorf("unrecognized packet type 0x%02x", header)
 	}
 }
 
@@ -637,7 +639,7 @@ func trunc(body []byte, n int) (result string) {
 		return "<empty>"
 	}
 	if n < 48 {
-		return fmt.Sprintf("%x", body[:n])
+		return hex.EncodeToString(body[:n])
 	}
 	// 16 bytes = 32 bytes hex * 2 + ellipses = 3 * 2 + len("[%d bytes]") = 8 + log10(len - 32)
 	// max len = 24 bits ~= 16 million = 8 digits
@@ -771,9 +773,9 @@ func (c *Connection) Connect(conn net.Conn) error {
 		c.ConnectionLog.Error = packet
 		jsonStr, err := json.Marshal(p)
 		if err != nil {
-			return fmt.Errorf("Server returned unexpected packet type, failed to marshal paclet: %s", err)
+			return fmt.Errorf("server returned unexpected packet type, failed to marshal paclet: %s", err)
 		}
-		return fmt.Errorf("Server returned unexpected packet type after connecting: %s", jsonStr)
+		return fmt.Errorf("server returned unexpected packet type after connecting: %s", jsonStr)
 	}
 	return nil
 }
@@ -798,7 +800,7 @@ func readNulString(body []byte) (string, []byte) {
 func readLenInt(body []byte) (uint64, []byte, error) {
 	bodyLen := len(body)
 	if bodyLen == 0 {
-		return 0, nil, fmt.Errorf("invalid data: empty LEN INT")
+		return 0, nil, errors.New("invalid data: empty LEN INT")
 	}
 	v := body[0]
 	if v < 0xfb {
@@ -833,10 +835,10 @@ func readLenInt(body []byte) (uint64, []byte, error) {
 func readLenString(body []byte) (string, []byte, error) {
 	length, rest, err := readLenInt(body)
 	if err != nil {
-		return "", nil, fmt.Errorf("Error reading string length: %s", err)
+		return "", nil, fmt.Errorf("error reading string length: %s", err)
 	}
 	if uint64(len(rest)) < length {
-		return "", nil, fmt.Errorf("String length 0x%x longer than remaining body size 0x%x", length, len(rest))
+		return "", nil, fmt.Errorf("string length 0x%x longer than remaining body size 0x%x", length, len(rest))
 	}
 	return string(rest[:length]), rest[length+1:], nil
 }

@@ -91,7 +91,7 @@ func (cotpConnPacket *COTPConnectionPacket) Marshal() ([]byte, error) {
 // Unmarshal decodes a COTPConnectionPacket from binary that must be a connection confirmation.
 func (cotpConnPacket *COTPConnectionPacket) Unmarshal(bytes []byte) error {
 
-	if bytes == nil || len(bytes) < 2 {
+	if len(bytes) < 2 {
 		return errInvalidPacket
 	}
 
@@ -100,7 +100,7 @@ func (cotpConnPacket *COTPConnectionPacket) Unmarshal(bytes []byte) error {
 	}
 
 	if pduType := bytes[1]; pduType != 0xd0 {
-		return errors.New("Not a connection confirmation packet")
+		return errors.New("not a connection confirmation packet")
 	}
 
 	// TODO: implement these fields with proper bounds checking
@@ -135,7 +135,7 @@ func (cotpDataPacket *COTPDataPacket) Marshal() ([]byte, error) {
 // Unmarshal decodes a COTPDataPacket from binary.
 func (cotpDataPacket *COTPDataPacket) Unmarshal(bytes []byte) error {
 
-	if bytes == nil || len(bytes) < 1 {
+	if len(bytes) < 1 {
 		return errInvalidPacket
 	}
 
@@ -180,7 +180,7 @@ const s7PacketHeaderLength = 3
 func (s7Packet *S7Packet) Marshal() ([]byte, error) {
 
 	if s7Packet.PDUType != S7_REQUEST && s7Packet.PDUType != S7_REQUEST_USER_DATA {
-		return nil, errors.New("Invalid PDU request type")
+		return nil, errors.New("invalid PDU request type")
 	}
 
 	bytes := make([]byte, 0, s7PacketHeaderLength+len(s7Packet.Data))
@@ -204,7 +204,7 @@ func (s7Packet *S7Packet) Marshal() ([]byte, error) {
 
 // Unmarshal decodes a S7Packet from binary.
 func (s7Packet *S7Packet) Unmarshal(bytes []byte) (err error) {
-	if bytes == nil || len(bytes) < 1 {
+	if len(bytes) < 1 {
 		return errInvalidPacket
 	}
 
@@ -215,12 +215,13 @@ func (s7Packet *S7Packet) Unmarshal(bytes []byte) (err error) {
 	var headerSize int
 	pduType := bytes[1]
 
-	if pduType == S7_ACKNOWLEDGEMENT || pduType == S7_RESPONSE {
+	switch pduType {
+	case S7_ACKNOWLEDGEMENT, S7_RESPONSE:
 		headerSize = 12
 		s7Packet.Error = binary.BigEndian.Uint16(bytes[10:12])
-	} else if pduType == S7_REQUEST || pduType == S7_REQUEST_USER_DATA {
+	case S7_REQUEST, S7_REQUEST_USER_DATA:
 		headerSize = 10
-	} else {
+	default:
 		return errors.New("Unknown PDU type " + string(pduType))
 	}
 

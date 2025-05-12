@@ -12,8 +12,10 @@ package postgres
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"encoding/json"
@@ -345,7 +347,7 @@ func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.
 	var err error
 	tlsWrapper := dialGroup.TLSWrapper
 	if tlsWrapper == nil {
-		return fmt.Errorf("dial group does not have a TLS wrapper")
+		return errors.New("dial group does not have a TLS wrapper")
 	}
 	if conn, err = tlsWrapper(ctx, sql.Target, sql.Connection); err != nil {
 		return fmt.Errorf("could not wrap connection in TLS to %s: %w", sql.Target.String(), err)
@@ -361,10 +363,10 @@ func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *
 	var err error
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
-		return nil, zgrab2.DetectScanError(fmt.Errorf("l4 dialer is required for postgres"))
+		return nil, zgrab2.DetectScanError(errors.New("l4 dialer is required for postgres"))
 	}
 	// Open a managed connection to the ScanTarget, register it for automatic cleanup
-	if conn, err = l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), fmt.Sprintf("%d", t.Port))); err != nil {
+	if conn, err = l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), strconv.Itoa(int(t.Port)))); err != nil {
 		return nil, zgrab2.DetectScanError(fmt.Errorf("could not establish connection to %s: %w", t.String(), err))
 	}
 	mgr.addConnection(conn)

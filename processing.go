@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/zmap/zcrypto/tls"
 	"math/rand"
 	"net"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2/lib/output"
 )
@@ -85,7 +86,7 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 					if err != nil {
 						return nil, err
 					}
-					dialer.Dialer.Resolver = resolver
+					dialer.Resolver = resolver
 				}
 			}
 		}
@@ -106,7 +107,7 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
 		if err != nil {
-			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %v", err)
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %w", err)
 		}
 		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
 	}
@@ -205,7 +206,7 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 			return &Grab{
 				Port:   input.Port,
 				Domain: input.Domain,
-				Error:  fmt.Sprintf("could not resolve %s", input.Domain),
+				Error:  "could not resolve " + input.Domain,
 			}
 		}
 		// filter out IPs that aren't reachable
@@ -276,7 +277,9 @@ func Process(mon *Monitor) {
 		go func(i int) {
 			for _, scannerName := range orderedScanners {
 				scanner := *scanners[scannerName]
-				scanner.InitPerSender(i)
+				if err := scanner.InitPerSender(i); err != nil {
+					log.Fatalf("error initializing sender %d with scanner %s: %v", i, scannerName, err)
+				}
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {

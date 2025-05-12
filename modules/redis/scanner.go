@@ -15,9 +15,9 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -259,10 +259,10 @@ func (scanner *Scanner) getFileContents(file string, output any) error {
 		return err
 	}
 	if fileStat.Size() > scanner.config.MaxInputFileSize {
-		err = fmt.Errorf("input file too large")
+		err = errors.New("input file too large")
 		return err
 	}
-	fileContent, err := ioutil.ReadFile(file)
+	fileContent, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -399,6 +399,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	defer scan.Close()
 	result := scan.result
+	var resp RedisValue
 	pingResponse, err := scan.SendCommand(scanner.commandMappings["PING"])
 	if err != nil {
 		// If the first command fails (as opposed to succeeding but returning an
@@ -409,7 +410,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// we have positively identified that a redis service is present.
 	result.PingResponse = forceToString(pingResponse)
 	if scanner.config.Password != "" {
-		authResponse, err := scan.SendCommand(scanner.commandMappings["AUTH"], scanner.config.Password)
+		var authResponse RedisValue
+		authResponse, err = scan.SendCommand(scanner.commandMappings["AUTH"], scanner.config.Password)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
@@ -476,7 +478,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	result.NonexistentResponse = forceToString(bogusResponse)
 	for i := range scanner.customCommands {
 		fullCmd := strings.Fields(scanner.customCommands[i])
-		resp, err := scan.SendCommand(fullCmd[0], fullCmd[1:]...)
+		resp, err = scan.SendCommand(fullCmd[0], fullCmd[1:]...)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}

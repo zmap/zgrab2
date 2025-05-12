@@ -173,8 +173,9 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		log.Fatalf("Unexpected error marshaling modbus packet: %v", err)
 	}
 	w := 0
+	var written int
 	for w < len(data) {
-		written, err := c.getUnderlyingConn().Write(data[w:])
+		written, err = c.getUnderlyingConn().Write(data[w:])
 		w += written
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
@@ -193,12 +194,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	if res.Function&0x7F != ModbusFunctionEncapsulatedInterface {
 		// The server should always return a response for the same function
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("Invalid response function code 0x%02x (raw = %s)", res.Function, hex.Dump(res.Raw))
+		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("invalid response function code 0x%02x (raw = %s)", res.Function, hex.Dump(res.Raw))
 	}
 	if scanner.config.Strict && (scanner.config.UnitID != 0 && res.UnitID != int(scanner.config.UnitID)) {
 		// response for different unitID.
 		// If request unit ID was 0, don't enforce matching since that may be interpreted as a broadcast.
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("Invalid response unit ID 0x%02x (raw = %s)", res.UnitID, hex.Dump(res.Raw))
+		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("invalid response unit ID 0x%02x (raw = %s)", res.UnitID, hex.Dump(res.Raw))
 	}
 
 	if res.Length != len(res.Data)+2 {
