@@ -930,7 +930,11 @@ func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.Scan
 	// -> tls.Conn.Handshake()
 	tlsClient, err := tlsWrapper(ctx, target, connection.rawConn)
 	if err != nil {
-		return mode, fmt.Errorf("tls handshake failed for encrypt mode %s: %w", mode, err)
+		// no tls client available, but we can still get version
+		connection.tlsConn = nil
+	} else {
+		// we have a TLS client, so we can use it to get the server version
+		connection.tlsConn = tlsClient
 	}
 	// After the SSL handshake has been established, wrap packets before they
 	// are passed into TLS, not after.
@@ -944,6 +948,5 @@ func (connection *Connection) Handshake(ctx context.Context, target *zgrab2.Scan
 	// -> TDSWrappedClient.Read() => rawData
 	connection.tdsConn.enabled = false
 	connection.tdsConn = &tdsConnection{conn: tlsClient, enabled: true, session: connection}
-	connection.tlsConn = tlsClient
 	return mode, nil
 }
