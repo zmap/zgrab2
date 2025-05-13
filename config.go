@@ -1,10 +1,13 @@
 package zgrab2
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -13,26 +16,34 @@ import (
 // Config is the high level framework options that will be parsed
 // from the command line
 type Config struct {
-	OutputFileName     string          `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
-	InputFileName      string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
-	MetaFileName       string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr"`
-	LogFileName        string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
-	Senders            int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
-	Debug              bool            `long:"debug" description:"Include debug fields in the output."`
-	Flush              bool            `long:"flush" description:"Flush after each line of output."`
-	GOMAXPROCS         int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
-	ConnectionsPerHost int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
-	ReadLimitPerHost   int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
-	Prometheus         string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
-	CustomDNS          string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
-	Multiple           MultipleCommand `command:"multiple" description:"Multiple module actions"`
-	inputFile          *os.File
-	outputFile         *os.File
-	metaFile           *os.File
-	logFile            *os.File
-	inputTargets       InputTargetsFunc
-	outputResults      OutputResultsFunc
-	localAddr          *net.TCPAddr
+	OutputFileName        string          `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
+	InputFileName         string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
+	MetaFileName          string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr."`
+	StatusUpdatesFileName string          `short:"u" long:"status-updates-file" default:"-" description:"Status updates filename, use - for stderr."`
+	LogFileName           string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
+	Senders               int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
+	Debug                 bool            `long:"debug" description:"Include debug fields in the output."`
+	Flush                 bool            `long:"flush" description:"Flush after each line of output."`
+	GOMAXPROCS            int             `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
+	ConnectionsPerHost    int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
+	ReadLimitPerHost      int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
+	Prometheus            string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
+	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server(s) for lookups, comma-delimited. Default port is 53. Ex: 1.1.1.1:53,8.8.8.8. Uses the OS-default resolvers if not set."`
+	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
+	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
+	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
+	inputFile             *os.File
+	outputFile            *os.File
+	metaFile              *os.File
+	statusUpdatesFile     *os.File
+	logFile               *os.File
+	inputTargets          InputTargetsFunc
+	outputResults         OutputResultsFunc
+	customDNSNameservers  []string // will be non-empty if user specified custom DNS, we'll check these are reachable before populating
+	localAddrs            []net.IP // will be non-empty if user specified local addresses
+	localPorts            []uint16 // will be non-empty if user specified local ports
+	useIPv4               bool     // true if zgrab should use IPv4 addresses after resolving domains
+	useIPv6               bool
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -87,10 +98,19 @@ func validateFrameworkConfiguration() {
 
 	if config.MetaFileName == "-" {
 		config.metaFile = os.Stderr
-	} else {
+	} else if len(config.MetaFileName) > 0 {
 		var err error
 		if config.metaFile, err = os.Create(config.MetaFileName); err != nil {
-			log.Fatal(err)
+			log.Fatal(fmt.Errorf("error creating meta file: %w", err))
+		}
+	}
+
+	if config.StatusUpdatesFileName == "-" {
+		config.statusUpdatesFile = os.Stderr
+	} else if len(config.StatusUpdatesFileName) > 0 {
+		var err error
+		if config.statusUpdatesFile, err = os.Create(config.StatusUpdatesFileName); err != nil {
+			log.Fatal(fmt.Errorf("error creating status updates file: %w", err))
 		}
 	}
 
@@ -130,13 +150,196 @@ func validateFrameworkConfiguration() {
 		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
 	}
 
-	// Validate custom DNS
+	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
+	if config.LocalAddrString != "" {
+		ips, err := extractIPAddresses(config.LocalAddrString)
+		if err != nil {
+			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
+		}
+		config.localAddrs = ips
+		for _, ip := range ips {
+			if ip == nil {
+				log.Fatalf("could not extract IP addresses from address string: %s", ip)
+			}
+			if ip.To4() != nil {
+				config.useIPv4 = true
+			} else if ip.To16() != nil {
+				config.useIPv6 = true
+			} else {
+				log.Fatalf("invalid local address: %s", ip)
+			}
+		}
+	}
+
+	if !config.useIPv4 && !config.useIPv6 {
+		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs.
+		// The user hasn't specified any local addresses, so we'll detect the system's capabilities.
+		// Simply detecting if the host has a loopback IPv6 is not enough, some systems have IPv6 interfaces, but ISP
+		// won't support.
+		cloudflareIPv4Conn, err := net.Dial("tcp4", "1.1.1.1:53")
+		if err == nil {
+			config.useIPv4 = true
+			cloudflareIPv4Conn.Close()
+		}
+
+		cloudflareIPv6Conn, err := net.Dial("tcp6", "2606:4700:4700::1111:53")
+		if err == nil {
+			config.useIPv6 = true
+			cloudflareIPv6Conn.Close()
+		}
+		if !config.useIPv4 && !config.useIPv6 {
+			log.Fatalf("could not reach any DNS servers, are you connected to the internet?")
+		}
+	}
+
+	// Validate custom DNS must occur after setting useIPv4 and useIPv6
 	if config.CustomDNS != "" {
 		var err error
-		if config.CustomDNS, err = addDefaultPortToDNSServerName(config.CustomDNS); err != nil {
+		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
 			log.Fatalf("invalid DNS server address: %s", err)
 		}
 	}
+
+	// If localPortString is set, parse it into a list of ports to use for source ports
+	if config.LocalPortString != "" {
+		ports, err := extractPorts(config.LocalPortString)
+		if err != nil {
+			log.Fatalf("could not extract ports from port string %s: %s", config.LocalPortString, err)
+		}
+		config.localPorts = ports
+	}
+}
+
+// extractIPAddresses takes in a string of comma-separated IP addresses, ranges, or CIDR blocks and returns a de-duped
+// list of IP addresses, or an error if the string is invalid. Whitespace is trimmed from each address string and the
+// ranges are inclusive.
+// See config_test.go for examples of valid and invalid strings
+func extractIPAddresses(ipString string) ([]net.IP, error) {
+	ipsMap := make(map[string]net.IP)
+	for _, addr := range strings.Split(ipString, ",") {
+		// this addr is either an IP address, ip address range, or a CIDR range
+		addr = strings.TrimSpace(addr) // remove whitespace
+		_, ipnet, err := net.ParseCIDR(addr)
+		if err == nil {
+			// CIDR range, append all constituents
+			for currentIP := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(currentIP); {
+				tempIP := duplicateIP(currentIP)
+				ipsMap[currentIP.String()] = tempIP
+				incrementIP(currentIP)
+				if currentIP.Equal(tempIP) {
+					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
+					break
+				}
+			}
+			continue
+		}
+		if strings.Contains(addr, "-") {
+			// IP range
+			parts := strings.Split(addr, "-")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid IP range %s", addr)
+			}
+			parts[0] = strings.TrimSpace(parts[0])
+			parts[1] = strings.TrimSpace(parts[1])
+			startIP := net.ParseIP(parts[0])
+			endIP := net.ParseIP(parts[1])
+			if startIP == nil {
+				return nil, fmt.Errorf("invalid start IP %s of IP range", parts[0])
+			}
+			if endIP == nil {
+				return nil, fmt.Errorf("invalid end IP %s of IP range", parts[1])
+			}
+			if compareIPs(startIP, endIP) > 0 {
+				return nil, fmt.Errorf("start IP %s is greater than end IP %s of IP range", startIP.String(), endIP.String())
+			}
+			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; {
+				tempIP := duplicateIP(currentIP)
+				ipsMap[currentIP.String()] = tempIP
+				incrementIP(currentIP)
+				if currentIP.Equal(tempIP) {
+					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
+					break
+				}
+			}
+			continue
+		}
+		// single IP
+		castIP := net.ParseIP(addr)
+		if castIP != nil {
+			ipsMap[castIP.String()] = castIP
+		} else {
+			return nil, fmt.Errorf("could not parse IP address %s", addr)
+		}
+	}
+	// build list from de-duped map
+	ips := make([]net.IP, 0, len(ipsMap))
+	for _, i := range ipsMap {
+		ip := i
+		ips = append(ips, ip)
+	}
+	return ips, nil
+}
+
+// extractPorts takes in a string of comma-separated ports or port ranges (80-443) and returns a de-duped list of ports
+// Whitespace is trimmed from each port string, and the port range is inclusive.
+func extractPorts(portString string) ([]uint16, error) {
+	portMap := make(map[uint16]struct{})
+	for _, portStr := range strings.Split(portString, ",") {
+		portStr = strings.TrimSpace(portStr)
+		if strings.Contains(portStr, "-") {
+			// port range
+			parts := strings.Split(portStr, "-")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid port range %s, valid range ex: '80-443'", portStr)
+			}
+			startPort, err := parsePortString(parts[0])
+			if err != nil {
+				return nil, fmt.Errorf("invalid start port %s of port range: %w", parts[0], err)
+			}
+			endPort, err := parsePortString(parts[1])
+			if err != nil {
+				return nil, fmt.Errorf("invalid end port %s of port range: %w", parts[1], err)
+			}
+			if startPort >= endPort {
+				return nil, fmt.Errorf("start port %d must be less than end port %d", startPort, endPort)
+			}
+			// validation complete, add all ports in range
+			for i := startPort; i <= endPort; i++ {
+				portMap[i] = struct{}{}
+			}
+		} else {
+			// single port
+			port, err := parsePortString(portStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid port %s: %w", portStr, err)
+			}
+			portMap[port] = struct{}{}
+		}
+	}
+	// build list from de-duped map
+	ports := make([]uint16, 0, len(portMap))
+	for port := range portMap {
+		ports = append(ports, port)
+	}
+	return ports, nil
+}
+
+// parsePortString converts a string to a uint16 port number after removing whitespace
+// Checks for validity of the port number and returns an error if invalid
+func parsePortString(portStr string) (uint16, error) {
+	minimumPort := uint64(1)     // inclusive
+	maximumPort := uint64(65535) // inclusive
+	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port %s: %v", portStr, err)
+	}
+	if port < minimumPort {
+		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
+	}
+	if port > maximumPort {
+		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
+	}
+	return uint16(port), nil
 }
 
 // GetMetaFile returns the file to which metadata should be output

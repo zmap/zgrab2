@@ -21,10 +21,12 @@
 package oracle
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -100,7 +102,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -130,7 +133,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate(_ []string) error {
 	u16Strings := map[string]string{
 		"global-service-options":   flags.GlobalServiceOptions,
 		"protocol-characteristics": flags.ProtocolCharacterisics,
@@ -165,6 +168,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+		TLSFlags:                        &f.TLSFlags,
+		TLSEnabled:                      f.TCPS,
+	}
 	return nil
 }
 
@@ -186,6 +195,10 @@ func (scanner *Scanner) GetTrigger() string {
 // Protocol returns the protocol identifier of the scan.
 func (scanner *Scanner) Protocol() string {
 	return "oracle"
+}
+
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
 }
 
 func (scanner *Scanner) getTNSDriver() *TNSDriver {
@@ -217,32 +230,21 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //     into the results, then send a Native Security Negotiation Data packet.
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
-func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	var results *ScanResults
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	results := new(ScanResults)
 
-	sock, err := t.Open(&scanner.config.BaseFlags)
+	sock, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
 	}
-	if scanner.config.TCPS {
-		tlsConn, err := scanner.config.TLSFlags.GetTLSConnection(sock)
-		if err != nil {
-			// GetTLSConnection can only fail if the input flags are bad
-			panic(err)
-		}
-		results = new(ScanResults)
+	if tlsConn, ok := sock.(*zgrab2.TLSConnection); ok {
 		results.TLSLog = tlsConn.GetLog()
-		err = tlsConn.Handshake()
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
-		}
-		sock = tlsConn
 	}
 
 	conn := Connection{
 		conn:      sock,
 		scanner:   scanner,
-		target:    &t,
+		target:    t,
 		tnsDriver: scanner.getTNSDriver(),
 	}
 	connectDescriptor := scanner.config.ConnectDescriptor
@@ -255,11 +257,6 @@ func (scanner *Scanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error
 	handshakeLog, err := conn.Connect(connectDescriptor)
 	if handshakeLog != nil {
 		// Ensure that any handshake logs, even if incomplete, get returned.
-		if results == nil {
-			// If the results were not created previously to store the TLS log,
-			// create it now
-			results = new(ScanResults)
-		}
 		results.Handshake = handshakeLog
 	}
 

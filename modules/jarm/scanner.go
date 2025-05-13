@@ -3,13 +3,15 @@
 package jarm
 
 import (
-	_ "fmt"
-	"log"
+	"context"
+	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"time"
 
-	jarm "github.com/hdm/jarm-go"
+	"github.com/hdm/jarm-go"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -26,12 +28,12 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 type Results struct {
 	Fingerprint string `json:"fingerprint"`
-	error       string `json:"error,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -73,6 +75,10 @@ func (scanner *Scanner) Protocol() string {
 	return "jarm"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // InitPerSender initializes the scanner for a given sender.
 func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
@@ -84,7 +90,7 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -97,29 +103,36 @@ func (f *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// Stores raw hashes returned from parsing each protocols Hello message
 	rawhashes := []string{}
 
 	// Loop through each Probe type
 	for _, probe := range jarm.GetProbes(target.Host(), int(scanner.GetPort())) {
+		if zgrab2.HasCtxExpired(ctx) {
+			return zgrab2.SCAN_IO_TIMEOUT, nil, errors.New("scan timed out")
+		}
 		var (
 			conn net.Conn
 			err  error
 			ret  []byte
 		)
-		conn, err = target.Open(&scanner.config.BaseFlags)
+		conn, err = dialGroup.Dial(ctx, target)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, err
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not dial target %s: %w", target.String(), err)
 		}
 
 		_, err = conn.Write(jarm.BuildProbe(probe))
 		if err != nil {
 			rawhashes = append(rawhashes, "")
-			conn.Close()
+			zgrab2.CloseConnAndHandleError(conn)
 			continue
 		}
 
@@ -128,15 +141,21 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 		ans, err := jarm.ParseServerHello(ret, probe)
 		if err != nil {
 			rawhashes = append(rawhashes, "")
-			conn.Close()
+			zgrab2.CloseConnAndHandleError(conn)
 			continue
 		}
 
 		rawhashes = append(rawhashes, ans)
-		conn.Close()
+		zgrab2.CloseConnAndHandleError(conn)
+	}
+
+	var fingerprint = jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ","))
+
+	if fingerprint == "00000000000000000000000000000000000000000000000000000000000000" {
+		return zgrab2.SCAN_APPLICATION_ERROR, nil, errors.New("unable to calculate hashes from server")
 	}
 
 	return zgrab2.SCAN_SUCCESS, &Results{
-		Fingerprint: jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ",")),
+		Fingerprint: fingerprint,
 	}, nil
 }

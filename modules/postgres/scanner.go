@@ -10,14 +10,18 @@
 package postgres
 
 import (
+	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"encoding/json"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -128,7 +132,8 @@ type Flags struct {
 
 // Scanner is the zgrab2 scanner type for the postgres protocol
 type Scanner struct {
-	Config *Flags
+	Config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // Module is the zgrab2 module for the postgres protocol
@@ -286,7 +291,7 @@ func (m *Module) Description() string {
 }
 
 // Validate checks the arguments; on success, returns nil.
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -302,6 +307,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		NeedSeparateL4Dialer:            true,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      true,
+		TLSFlags:                        &f.TLSFlags,
+	}
 	return nil
 }
 
@@ -315,6 +327,10 @@ func (s *Scanner) Protocol() string {
 	return "postgres"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // GetName returns the name from the parameters.
 func (s *Scanner) GetName() string {
 	return s.Config.Name
@@ -326,14 +342,15 @@ func (s *Scanner) GetTrigger() string {
 }
 
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
-func (s *Scanner) DoSSL(sql *Connection) error {
+func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.DialerGroup) error {
 	var conn *zgrab2.TLSConnection
 	var err error
-	if conn, err = s.Config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
-		return err
+	tlsWrapper := dialGroup.TLSWrapper
+	if tlsWrapper == nil {
+		return errors.New("dial group does not have a TLS wrapper")
 	}
-	if err = conn.Handshake(); err != nil {
-		return err
+	if conn, err = tlsWrapper(ctx, sql.Target, sql.Connection); err != nil {
+		return fmt.Errorf("could not wrap connection in TLS to %s: %w", sql.Target.String(), err)
 	}
 	// Replace sql.Connection to allow future calls to go over the secure connection
 	sql.Connection = conn
@@ -341,12 +358,16 @@ func (s *Scanner) DoSSL(sql *Connection) error {
 }
 
 // newConnection opens up a new connection to the ScanTarget, and if necessary, attempts to update the connection to SSL
-func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool) (*Connection, *zgrab2.ScanError) {
+func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool, dialGroup *zgrab2.DialerGroup) (*Connection, *zgrab2.ScanError) {
 	var conn net.Conn
 	var err error
+	l4Dialer := dialGroup.L4Dialer
+	if l4Dialer == nil {
+		return nil, zgrab2.DetectScanError(errors.New("l4 dialer is required for postgres"))
+	}
 	// Open a managed connection to the ScanTarget, register it for automatic cleanup
-	if conn, err = t.Open(&s.Config.BaseFlags); err != nil {
-		return nil, zgrab2.DetectScanError(err)
+	if conn, err = l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), strconv.Itoa(int(t.Port)))); err != nil {
+		return nil, zgrab2.DetectScanError(fmt.Errorf("could not establish connection to %s: %w", t.String(), err))
 	}
 	mgr.addConnection(conn)
 	sql := Connection{Target: t, Connection: conn, Config: s.Config}
@@ -357,7 +378,7 @@ func (s *Scanner) newConnection(t *zgrab2.ScanTarget, mgr *connectionManager, no
 			return nil, sslError
 		}
 		if hasSSL {
-			if err = s.DoSSL(&sql); err != nil {
+			if err = s.DoSSL(ctx, &sql, dialGroup); err != nil {
 				return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 			}
 			sql.IsSSL = true
@@ -396,16 +417,15 @@ func (s *Scanner) getDefaultKVPs() map[string]string {
 //
 //     - NOTE: TLS is only used for the first connection, and then only if
 //     both client and server support it.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var results Results
 
 	mgr := newConnectionManager()
 	defer mgr.cleanUp()
-
 	// Send too-low protocol version (0.0) StartupMessage to get a simple supported-protocols error string
 	// Also do TLS handshake, if configured / supported
 	{
-		sql, connectErr := s.newConnection(&t, mgr, false)
+		sql, connectErr := s.newConnection(ctx, t, mgr, false, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(nil)
 		}
@@ -445,7 +465,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result an
 
 	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
 	{
-		sql, connectErr := s.newConnection(&t, mgr, true)
+		sql, connectErr := s.newConnection(ctx, t, mgr, true, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
@@ -479,7 +499,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result an
 		var err error
 		var response *ServerPacket
 		var readErr *zgrab2.ScanError
-		sql, connectErr := s.newConnection(&t, mgr, true)
+		sql, connectErr := s.newConnection(ctx, t, mgr, true, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
@@ -508,7 +528,7 @@ func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result an
 
 	// If user / database / application_name are provided, do a final scan with those
 	if s.Config.User != "" || s.Config.Database != "" || s.Config.ApplicationName != "" {
-		sql, connectErr := s.newConnection(&t, mgr, false)
+		sql, connectErr := s.newConnection(ctx, t, mgr, false, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}

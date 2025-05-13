@@ -22,16 +22,18 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/ssh/internal/bcrypt_pbkdf"
 	"io"
 	"math/big"
 	"strings"
+
+	"github.com/zmap/zgrab2/lib/ssh/internal/bcrypt_pbkdf"
 
 	"github.com/zmap/zcrypto/dsa"
 
 	"golang.org/x/crypto/ed25519"
 
 	ztoolsX509 "github.com/zmap/zcrypto/x509"
+
 	ztoolsKeys "github.com/zmap/zgrab2/tools/keys"
 )
 
@@ -1274,7 +1276,7 @@ func passphraseProtectedOpenSSHKey(passphrase []byte) openSSHDecryptFunc {
 			ctr.XORKeyStream(privKeyBlock, privKeyBlock)
 		case "aes256-cbc":
 			if len(privKeyBlock)%c.BlockSize() != 0 {
-				return nil, fmt.Errorf("ssh: invalid encrypted private key length, not a multiple of the block size")
+				return nil, errors.New("ssh: invalid encrypted private key length, not a multiple of the block size")
 			}
 			cbc := cipher.NewCBCDecrypter(c, iv)
 			cbc.CryptBlocks(privKeyBlock, privKeyBlock)

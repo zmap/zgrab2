@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -155,7 +156,7 @@ func TestParseHexUint(t *testing.T) {
 		{"00000000000000001", 0, "http chunk length too large"}, // could accept if we wanted
 	}
 	for i := uint64(0); i <= 1234; i++ {
-		tests = append(tests, testCase{in: fmt.Sprintf("%x", i), want: i})
+		tests = append(tests, testCase{in: strconv.FormatUint(i, 16), want: i})
 	}
 	for _, tt := range tests {
 		got, err := parseHexUint([]byte(tt.in))

@@ -5,9 +5,15 @@
 package mysql
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
 	"reflect"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/mysql"
 )
@@ -143,7 +149,8 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule is called by modules/mysql.go to register the scanner.
@@ -171,7 +178,7 @@ func (m *Module) Description() string {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -187,6 +194,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		NeedSeparateL4Dialer:            true,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      true,
+		TLSFlags:                        &f.TLSFlags,
+	}
 	return nil
 }
 
@@ -200,14 +214,18 @@ func (s *Scanner) Protocol() string {
 	return "mysql"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // GetName returns the name from the command line flags.
 func (s *Scanner) GetName() string {
 	return s.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
+func (s *Scanner) GetTrigger() string {
+	return s.config.Trigger
 }
 
 // Scan probles the target for a MySQL server.
@@ -215,39 +233,46 @@ func (scanner *Scanner) GetTrigger() string {
 //  2. If the server supports SSL, send an SSLRequest packet, then
 //     perform the standard TLS actions.
 //  3. Process and return the results.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
-	var tlsConn *zgrab2.TLSConnection
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
+	// check for necessary dialers
+	l4Dialer := dialGroup.L4Dialer
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mysql")
+	}
 	sql := mysql.NewConnection(&mysql.Config{})
 	defer func() {
-		recovered := recover()
-		if recovered != nil {
-			thrown = recovered.(error)
-			status = zgrab2.TryGetScanStatus(thrown)
-			// TODO FIXME: do more to distinguish errors
-		}
 		result = readResultsFromConnectionLog(&sql.ConnectionLog)
-		if tlsConn != nil {
-			result.(*ScanResults).TLSLog = tlsConn.GetLog()
+		// attempt to capture TLS log
+		if tlsConn, ok := sql.Connection.(*zgrab2.TLSConnection); ok {
+			if scanResults, ok := result.(*ScanResults); ok {
+				scanResults.TLSLog = tlsConn.GetLog()
+			}
+		}
+		err := sql.Disconnect()
+		if err != nil {
+			log.Errorf("error disconnecting from target %s: %v", t.String(), err)
 		}
 	}()
-	defer sql.Disconnect()
 	var err error
-	conn, err := t.Open(&s.config.BaseFlags)
+	var tlsConn *zgrab2.TLSConnection
+
+	conn, err := l4Dialer(t)(ctx, "tcp", net.JoinHostPort(t.Host(), strconv.Itoa(int(t.Port))))
 	if err != nil {
-		panic(err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %w", t.String(), err)
 	}
 	if err = sql.Connect(conn); err != nil {
-		panic(err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", t.String(), err)
 	}
 	if sql.SupportsTLS() {
 		if err = sql.NegotiateTLS(); err != nil {
-			panic(err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %w", t.String(), err)
 		}
-		if tlsConn, err = s.config.TLSFlags.GetTLSConnection(sql.Connection); err != nil {
-			panic(err)
+		tlsWrapper := dialGroup.TLSWrapper
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("TLS wrapper required for mysql")
 		}
-		if err = tlsConn.Handshake(); err != nil {
-			panic(err)
+		if tlsConn, err = tlsWrapper(ctx, t, conn); err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", t.String(), err)
 		}
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		sql.Connection = tlsConn

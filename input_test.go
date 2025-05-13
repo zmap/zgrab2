@@ -184,11 +184,11 @@ example.com
 		{IP: net.ParseIP("2.2.2.1"), Tag: "tag"},
 		{IP: net.ParseIP("2.2.2.2"), Tag: "tag"},
 		{IP: net.ParseIP("2.2.2.3"), Tag: "tag"},
-		{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag", Port: &port},
-		{IP: net.ParseIP("10.0.0.1"), Port: &port},
+		{IP: net.ParseIP("10.0.0.1"), Domain: "example.com", Tag: "tag", Port: port},
+		{IP: net.ParseIP("10.0.0.1"), Port: port},
 	}
 
-	ch := make(chan ScanTarget, 0)
+	ch := make(chan ScanTarget)
 	go func() {
 		err := GetTargetsCSV(strings.NewReader(input), ch)
 		if err != nil {
@@ -196,7 +196,7 @@ example.com
 		}
 		close(ch)
 	}()
-	res := []ScanTarget{}
+	res := make([]ScanTarget, 0, len(ch))
 	for r := range ch {
 		res = append(res, r)
 	}
@@ -210,6 +210,69 @@ example.com
 			res[i].Domain != expected[i].Domain ||
 			res[i].Tag != expected[i].Tag {
 			t.Errorf("wrong data in ScanTarget %d (got %v; expected %v)", i, res[i], expected[i])
+		}
+	}
+}
+
+func TestIncrementIP(t *testing.T) {
+	tests := []struct {
+		input    net.IP
+		expected net.IP
+	}{
+		{net.ParseIP("192.168.1.1"), net.ParseIP("192.168.1.2")},
+		{net.ParseIP("192.168.1.255"), net.ParseIP("192.168.2.0")},
+		{net.ParseIP("255.255.255.255"), net.ParseIP("255.255.255.255")}, // Test saturate
+		{net.ParseIP("1:1:1:1:1:1:1:1"), net.ParseIP("1:1:1:1:1:1:1:2")},
+		{net.ParseIP("1:1:1:1:1:1:1:ffff"), net.ParseIP("1:1:1:1:1:1:2:0")},
+		{net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"), net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")}, // saturate IPv6
+	}
+
+	for _, test := range tests {
+		ipCopy := duplicateIP(test.input) // Avoid modifying original input
+		incrementIP(ipCopy)
+		if !ipCopy.Equal(test.expected) {
+			t.Errorf("incrementIP(%s) = %s; want %s", test.input, ipCopy, test.expected)
+		}
+	}
+}
+
+func TestDuplicateIP(t *testing.T) {
+	ip := net.ParseIP("192.168.1.1")
+	dup := duplicateIP(ip)
+
+	if &dup[0] == &ip[0] { // Check if they point to the same memory
+		t.Errorf("duplicateIP() did not create a new copy")
+	}
+
+	if !dup.Equal(ip) {
+		t.Errorf("duplicateIP() modified the original IP")
+	}
+
+	// Modify original IP to ensure it doesn't affect the duplicate
+	ip[0] = 1
+	if ip.Equal(dup) {
+		t.Errorf("duplicateIP() did not create a true copy")
+	}
+}
+
+func TestCompareIPs(t *testing.T) {
+	tests := []struct {
+		ip1      net.IP
+		ip2      net.IP
+		expected int
+	}{
+		{net.ParseIP("192.168.1.1"), net.ParseIP("192.168.1.1"), 0},
+		{net.ParseIP("192.168.1.1"), net.ParseIP("192.168.1.2"), -1},
+		{net.ParseIP("192.168.1.2"), net.ParseIP("192.168.1.1"), 1},
+		{net.ParseIP("::1"), net.ParseIP("::1"), 0},
+		{net.ParseIP("::1"), net.ParseIP("::2"), -1},
+		{net.ParseIP("::2"), net.ParseIP("::1"), 1},
+	}
+
+	for _, test := range tests {
+		result := compareIPs(test.ip1, test.ip2)
+		if result != test.expected {
+			t.Errorf("compareIPs(%s, %s) = %d; want %d", test.ip1, test.ip2, result, test.expected)
 		}
 	}
 }

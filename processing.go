@@ -1,12 +1,16 @@
 package zgrab2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/zmap/zcrypto/tls"
+
 	"github.com/zmap/zgrab2/lib/output"
 )
 
@@ -16,6 +20,7 @@ type Grab struct {
 	Port   uint                    `json:"port,omitempty"`
 	Domain string                  `json:"domain,omitempty"`
 	Data   map[string]ScanResponse `json:"data,omitempty"`
+	Error  string                  `json:"error,omitempty"` // an error that affects the entire grab, preventing any data from being returned
 }
 
 // ScanTarget is the host that will be scanned
@@ -23,7 +28,7 @@ type ScanTarget struct {
 	IP     net.IP
 	Domain string
 	Tag    string
-	Port   *uint
+	Port   uint
 }
 
 func (target ScanTarget) String() string {
@@ -56,78 +61,114 @@ func (target *ScanTarget) Host() string {
 	panic("unreachable")
 }
 
-// Open connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func (target *ScanTarget) Open(flags *BaseFlags) (net.Conn, error) {
-	var port uint
-	// If the port is supplied in ScanTarget, let that override the cmdline option
-	if target.Port != nil {
-		port = *target.Port
-	} else {
-		port = flags.Port
+// GetDefaultTCPDialer returns a TCP dialer suitable for modules with default TCP behavior
+func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	// create dialer once and reuse it
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
+		// If the scan is for a specific IP, and a domain name is provided, we
+		// don't want to just let the http library resolve the domain.  Create
+		// a fake resolver that we will use, that always returns the IP we are
+		// given to scan.
+		if t.IP != nil && t.Domain != "" {
+			host, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				log.Errorf("http/scanner.go dialContext: unable to split host:port '%s'", addr)
+				log.Errorf("No fake resolver, IP address may be incorrect: %s", err)
+			} else {
+				// In the case of redirects, we don't want to blindly use the
+				// IP we were given to scan, however.  Only use the fake
+				// resolver if the domain originally specified for the scan
+				// target matches the current address being looked up in this
+				// DialContext.
+				if host == t.Domain {
+					resolver, err := NewFakeResolver(t.IP.String())
+					if err != nil {
+						return nil, err
+					}
+					dialer.Resolver = resolver
+				}
+			}
+		}
+		err := dialer.SetRandomLocalAddr("tcp", config.localAddrs, config.localPorts)
+		if err != nil {
+			return nil, fmt.Errorf("could not set random local address: %w", err)
+		}
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+		return conn, nil
 	}
-
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-	return DialTimeoutConnection("tcp", address, flags.Timeout, flags.BytesReadLimit)
 }
 
-// OpenTLS connects to the ScanTarget using the configured flags, then performs
-// the TLS handshake. On success error is nil, but the connection can be non-nil
-// even if there is an error (this allows fetching the handshake log).
-func (target *ScanTarget) OpenTLS(baseFlags *BaseFlags, tlsFlags *TLSFlags) (*TLSConnection, error) {
-	conn, err := tlsFlags.Connect(target, baseFlags)
-	if err != nil {
-		return conn, err
+// GetDefaultTLSDialer returns a TLS-over-TCP dialer suitable for modules with default TLS behavior
+func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		l4Conn, err := GetDefaultTCPDialer(flags)(ctx, t, addr)
+		if err != nil {
+			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %w", err)
+		}
+		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
 	}
-	err = conn.Handshake()
-	return conn, err
 }
 
-// OpenUDP connects to the ScanTarget using the configured flags, and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-// Note that the UDP "connection" does not have an associated timeout.
-func (target *ScanTarget) OpenUDP(flags *BaseFlags, udp *UDPFlags) (net.Conn, error) {
-	var port uint
-	// If the port is supplied in ScanTarget, let that override the cmdline option
-	if target.Port != nil {
-		port = *target.Port
-	} else {
-		port = flags.Port
-	}
-	address := net.JoinHostPort(target.Host(), fmt.Sprintf("%d", port))
-	var local *net.UDPAddr
-	if udp != nil && (udp.LocalAddress != "" || udp.LocalPort != 0) {
-		local = &net.UDPAddr{}
-		if udp.LocalAddress != "" && udp.LocalAddress != "*" {
-			local.IP = net.ParseIP(udp.LocalAddress)
+// GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
+func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
+		if err != nil {
+			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
 		}
-		if udp.LocalPort != 0 {
-			local.Port = int(udp.LocalPort)
+		// Set SNI server name on redirects unless --server-name was used (issue #300)
+		//  - t.Domain is always set to the *original* Host so it's not useful for setting SNI
+		//  - host is the current target of the request in this context; this is true for the
+		//    initial request as well as subsequent requests caused by redirects
+		//  - scan.scanner.config.ServerName is the value from --server-name if one was specified
+
+		// If SNI is enabled and --server-name is not set, use the target host for the SNI server name
+		if !tlsFlags.NoSNI && tlsFlags.ServerName == "" {
+			host := t.Domain
+			// RFC4366: Literal IPv4 and IPv6 addresses are not permitted in "HostName"
+			if i := net.ParseIP(host); i == nil {
+				tlsConfig.ServerName = host
+			}
 		}
+		tlsConn := TLSConnection{
+			Conn:  *(tls.Client(conn, tlsConfig)),
+			flags: tlsFlags,
+		}
+		err = tlsConn.Handshake()
+		if err != nil {
+			return nil, fmt.Errorf("could not perform tls handshake for target %s: %w", t.String(), err)
+		}
+		return &tlsConn, err
 	}
-	remote, err := net.ResolveUDPAddr("udp", address)
-	if err != nil {
-		return nil, err
+}
+
+// GetDefaultUDPDialer returns a UDP dialer suitable for modules with default UDP behavior
+func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+	// create dialer once and reuse it
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+		dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
+		if err != nil {
+			return nil, fmt.Errorf("could not set random local address: %w", err)
+		}
+		return dialer.DialContext(ctx, "udp", addr)
 	}
-	conn, err := net.DialUDP("udp", local, remote)
-	if err != nil {
-		return nil, err
-	}
-	return NewTimeoutConnection(nil, conn, flags.Timeout, 0, 0, flags.BytesReadLimit), nil
 }
 
 // BuildGrabFromInputResponse constructs a Grab object for a target, given the
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
 	var ipstr string
-	var port uint
 	if t.IP != nil {
 		ipstr = t.IP.String()
 	}
-	if t.Port != nil {
-		port = *t.Port
-	}
 	return &Grab{
 		IP:     ipstr,
-		Port:   port,
+		Port:   t.Port,
 		Domain: t.Domain,
 		Data:   responses,
 	}
@@ -154,8 +195,37 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 }
 
 // grabTarget calls handler for each action
-func grabTarget(input ScanTarget, m *Monitor) []byte {
+func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
+
+	if len(input.Domain) > 0 && input.IP == nil {
+		// resolve the target's IP here once, so it doesn't need to be resolved in each module
+		dialer := NewDialer(nil)
+		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
+		if err != nil {
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  "could not resolve " + input.Domain,
+			}
+		}
+		// filter out IPs that aren't reachable
+		possibleIPS := make([]string, 0, len(ips))
+		for _, ip := range ips {
+			if config.useIPv4 && ip.To4() != nil ||
+				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
+				possibleIPS = append(possibleIPS, ip.String())
+			}
+		}
+		if len(possibleIPS) == 0 {
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  fmt.Sprintf("no reachable ips for %s were found during name resolution", input.Domain),
+			}
+		}
+		input.IP = net.ParseIP(possibleIPS[rand.Intn(len(possibleIPS))])
+	}
 
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
@@ -170,7 +240,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 				panic(e)
 			}
 		}(scannerName)
-		name, res := RunScanner(*scanner, m, input)
+		name, res := RunScanner(ctx, *scanner, m, input)
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
@@ -180,13 +250,7 @@ func grabTarget(input ScanTarget, m *Monitor) []byte {
 		}
 	}
 
-	raw := BuildGrabFromInputResponse(&input, moduleResult)
-	result, err := EncodeGrab(raw, includeDebugOutput())
-	if err != nil {
-		log.Errorf("unable to marshal data: %s", err)
-	}
-
-	return result
+	return BuildGrabFromInputResponse(&input, moduleResult)
 }
 
 // Process sets up an output encoder, input reader, and starts grab workers.
@@ -213,11 +277,17 @@ func Process(mon *Monitor) {
 		go func(i int) {
 			for _, scannerName := range orderedScanners {
 				scanner := *scanners[scannerName]
-				scanner.InitPerSender(i)
+				if err := scanner.InitPerSender(i); err != nil {
+					log.Fatalf("error initializing sender %d with scanner %s: %v", i, scannerName, err)
+				}
 			}
 			for obj := range processQueue {
 				for run := uint(0); run < uint(config.ConnectionsPerHost); run++ {
-					result := grabTarget(obj, mon)
+					grab := grabTarget(context.Background(), obj, mon)
+					result, err := EncodeGrab(grab, includeDebugOutput())
+					if err != nil {
+						log.Errorf("unable to marshal data: %s", err)
+					}
 					outputQueue <- result
 				}
 			}

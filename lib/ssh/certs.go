@@ -277,7 +277,7 @@ func parseTuples(in []byte) (map[string]string, error) {
 		// according to [PROTOCOL.certkeys], the names must be in
 		// lexical order.
 		if haveLastKey && keyStr <= lastKey {
-			return nil, fmt.Errorf("ssh: certificate options are not in lexical order")
+			return nil, errors.New("ssh: certificate options are not in lexical order")
 		}
 		lastKey, haveLastKey = keyStr, true
 		// the next field is a data field, which if non-empty has a string embedded
@@ -290,7 +290,7 @@ func parseTuples(in []byte) (map[string]string, error) {
 				return nil, errShortRead
 			}
 			if len(extra) > 0 {
-				return nil, fmt.Errorf("ssh: unexpected trailing data after certificate option value")
+				return nil, errors.New("ssh: unexpected trailing data after certificate option value")
 			}
 			tups[keyStr] = string(val)
 		} else {
@@ -484,7 +484,7 @@ func (c *CertChecker) Authenticate(conn ConnMetadata, pubKey PublicKey) (*Permis
 		return nil, fmt.Errorf("ssh: cert has type %d", cert.CertType)
 	}
 	if !c.IsUserAuthority(cert.SignatureKey) {
-		return nil, fmt.Errorf("ssh: certificate signed by unrecognized authority")
+		return nil, errors.New("ssh: certificate signed by unrecognized authority")
 	}
 
 	if err := c.CheckCert(conn.User(), cert); err != nil {
@@ -541,13 +541,13 @@ func (c *CertChecker) CheckCert(principal string, cert *Certificate) error {
 
 	unixNow := clock().Unix()
 	if after := int64(cert.ValidAfter); after < 0 || unixNow < int64(cert.ValidAfter) {
-		return fmt.Errorf("ssh: cert is not yet valid")
+		return errors.New("ssh: cert is not yet valid")
 	}
 	if before := int64(cert.ValidBefore); cert.ValidBefore != uint64(CertTimeInfinity) && (unixNow >= before || before < 0) {
-		return fmt.Errorf("ssh: cert has expired")
+		return errors.New("ssh: cert has expired")
 	}
 	if err := cert.SignatureKey.Verify(cert.bytesForSigning(), cert.Signature); err != nil {
-		return fmt.Errorf("ssh: certificate signature does not verify")
+		return errors.New("ssh: certificate signature does not verify")
 	}
 
 	return nil

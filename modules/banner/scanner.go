@@ -4,6 +4,7 @@
 package banner
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -12,12 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -48,9 +50,10 @@ type Module struct {
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
-	regex  *regexp.Regexp
-	probe  []byte
+	config            *Flags
+	regex             *regexp.Regexp
+	probe             []byte
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // ScanResults instances are returned by the module's Scan function.
@@ -60,10 +63,10 @@ type Results struct {
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 	MD5    string         `json:"md5,omitempty"`
 	SHA1   string         `json:"sha1,omitempty"`
-	SHA256 string         `json:"sha25,omitempty"`
+	SHA256 string         `json:"sha256,omitempty"`
 }
 
-var NoMatchError = errors.New("pattern did not match")
+var ErrNoMatch = errors.New("pattern did not match")
 
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
@@ -94,6 +97,10 @@ func (s *Scanner) Protocol() string {
 	return "banner"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // InitPerSender initializes the scanner for a given sender.
 func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
@@ -105,7 +112,7 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(args []string) error {
+func (f *Flags) Validate(_ []string) error {
 	if f.Probe != "\\n" && f.ProbeFile != "" {
 		log.Fatal("Cannot set both --probe and --probe-file")
 		return zgrab2.ErrInvalidArguments
@@ -132,7 +139,7 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		s.regex = regexp.MustCompile(s.config.Pattern)
 	}
 	if len(f.ProbeFile) != 0 {
-		s.probe, err = ioutil.ReadFile(f.ProbeFile)
+		s.probe, err = os.ReadFile(f.ProbeFile)
 		if err != nil {
 			log.Fatal("Failed to open probe file")
 			return zgrab2.ErrInvalidArguments
@@ -144,39 +151,43 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		}
 		s.probe = []byte(strProbe)
 	}
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      f.UseTLS,
+	}
+	if f.UseTLS {
+		s.dialerGroupConfig.TLSFlags = &f.TLSFlags
+	}
 	return nil
 }
 
-func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
 		conn    net.Conn
-		tlsConn *zgrab2.TLSConnection
 		err     error
 		readErr error
+		results Results
 	)
 
 	for try := 0; try < s.config.MaxTries; try++ {
-		conn, err = target.Open(&s.config.BaseFlags)
+		conn, err = dialGroup.Dial(ctx, target)
 		if err != nil {
-			continue
-		}
-		if s.config.UseTLS {
-			tlsConn, err = s.config.TLSFlags.GetTLSConnection(conn)
-			if err != nil {
-				continue
-			}
-			if err = tlsConn.Handshake(); err != nil {
-				continue
-			}
-			conn = tlsConn
+			continue // try again
 		}
 		break
 	}
-
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to connect to %v: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer func() {
+		// attempt to collect TLS Log
+		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+			results.TLSLog = tlsConn.GetLog()
+		}
+		// cleanup our connection
+		zgrab2.CloseConnAndHandleError(conn)
+	}()
 
 	var data []byte
 
@@ -202,8 +213,6 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error)
 		return zgrab2.TryGetScanStatus(readErr), nil, readErr
 	}
 
-	var results Results
-
 	if s.config.Hex {
 		results.Banner = hex.EncodeToString(data)
 	} else if s.config.Base64 {
@@ -227,9 +236,6 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error)
 			results.SHA256 = hex.EncodeToString(digest[:])
 		}
 	}
-	if tlsConn != nil {
-		results.TLSLog = tlsConn.GetLog()
-	}
 	if s.regex == nil {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
@@ -237,5 +243,5 @@ func (s *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error)
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 
-	return zgrab2.SCAN_PROTOCOL_ERROR, &results, NoMatchError
+	return zgrab2.SCAN_PROTOCOL_ERROR, &results, ErrNoMatch
 }

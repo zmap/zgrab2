@@ -9,16 +9,19 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean gofmt test
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
 test:
-	cd lib/output/test && go test -v ./...
-	cd modules && go test -v ./...
+	go test -v -failfast .
+	cd lib/output/test && go test -v -failfast ./...
+	cd modules && go test -v -failfast ./...
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
+	goimports -w -local "github.com/zmap/zgrab2" ./
+	golangci-lint run
 	black .
 
 zgrab2: $(GO_FILES)

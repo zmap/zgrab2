@@ -13,11 +13,11 @@
 package redis
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -49,9 +49,10 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	config          *Flags
-	commandMappings map[string]string
-	customCommands  []string
+	config            *Flags
+	commandMappings   map[string]string
+	customCommands    []string
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // scan holds the state for the scan of an individual target
@@ -188,7 +189,7 @@ func (module *Module) Description() string {
 }
 
 // Validate checks that the flags are valid
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -204,6 +205,12 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	err := scanner.initCommands()
 	if err != nil {
 		log.Fatal(err)
+	}
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+		TLSFlags:                        &f.TLSFlags,
+		TLSEnabled:                      f.UseTLS,
 	}
 	return nil
 }
@@ -252,10 +259,10 @@ func (scanner *Scanner) getFileContents(file string, output any) error {
 		return err
 	}
 	if fileStat.Size() > scanner.config.MaxInputFileSize {
-		err = fmt.Errorf("input file too large")
+		err = errors.New("input file too large")
 		return err
 	}
-	fileContent, err := ioutil.ReadFile(file)
+	fileContent, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -318,35 +325,10 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it
-func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
-	var (
-		conn    net.Conn
-		tlsConn *zgrab2.TLSConnection
-		err     error
-	)
-
-	isSSL := false
-	conn, err = target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return nil, err
-	}
-
-	if scanner.config.UseTLS {
-		tlsConn, err = scanner.config.TLSFlags.GetTLSConnection(conn)
-		if err != nil {
-			return nil, err
-		}
-		if err := tlsConn.Handshake(); err != nil {
-			return nil, err
-		}
-		conn = tlsConn
-		isSSL = true
-	} else {
-		conn, err = target.Open(&scanner.config.BaseFlags)
-	}
-
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not establish connection to %s: %w", target.String(), err)
 	}
 
 	return &scan{
@@ -355,10 +337,9 @@ func (scanner *Scanner) StartScan(target *zgrab2.ScanTarget) (*scan, error) {
 		result:  &Result{},
 		conn: &Connection{
 			scanner: scanner,
-			isSSL:   isSSL,
 			conn:    conn,
 		},
-		close: func() { conn.Close() },
+		close: func() { zgrab2.CloseConnAndHandleError(conn) },
 	}, nil
 }
 
@@ -388,6 +369,10 @@ func (scanner *Scanner) Protocol() string {
 	return "redis"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Converts the string to a Uint32 if possible. If not, returns 0 (the zero value of a uin32)
 func convToUint32(s string) uint32 {
 	s64, err := strconv.ParseUint(s, 10, 32)
@@ -406,14 +391,15 @@ func convToUint32(s string) uint32 {
 // 6. QUIT
 // The responses for each of these is logged, and if INFO succeeds, the version
 // is scraped from it.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	// ping, info, quit
-	scan, err := scanner.StartScan(&target)
+	scan, err := scanner.StartScan(ctx, target, dialGroup)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	defer scan.Close()
 	result := scan.result
+	var resp RedisValue
 	pingResponse, err := scan.SendCommand(scanner.commandMappings["PING"])
 	if err != nil {
 		// If the first command fails (as opposed to succeeding but returning an
@@ -424,7 +410,8 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	// we have positively identified that a redis service is present.
 	result.PingResponse = forceToString(pingResponse)
 	if scanner.config.Password != "" {
-		authResponse, err := scan.SendCommand(scanner.commandMappings["AUTH"], scanner.config.Password)
+		var authResponse RedisValue
+		authResponse, err = scan.SendCommand(scanner.commandMappings["AUTH"], scanner.config.Password)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
@@ -491,7 +478,7 @@ func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, 
 	result.NonexistentResponse = forceToString(bogusResponse)
 	for i := range scanner.customCommands {
 		fullCmd := strings.Fields(scanner.customCommands[i])
-		resp, err := scan.SendCommand(fullCmd[0], fullCmd[1:]...)
+		resp, err = scan.SendCommand(fullCmd[0], fullCmd[1:]...)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}

@@ -332,10 +332,10 @@ type fixedHostKey struct {
 
 func (f *fixedHostKey) check(hostname string, remote net.Addr, key PublicKey) error {
 	if f.key == nil {
-		return fmt.Errorf("ssh: required host key was nil")
+		return errors.New("ssh: required host key was nil")
 	}
 	if !bytes.Equal(key.Marshal(), f.key.Marshal()) {
-		return fmt.Errorf("ssh: host key mismatch")
+		return errors.New("ssh: host key mismatch")
 	}
 	return nil
 }

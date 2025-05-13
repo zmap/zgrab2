@@ -71,7 +71,15 @@ func ParseCSVTarget(fields []string) (ipnet *net.IPNet, domain string, tag strin
 	return
 }
 
+// incrementIP increments the given IP address by one.
+// If IP is the max IPv4 or IPv6, it will saturate and not increment.
 func incrementIP(ip net.IP) {
+	if ip.Equal(net.ParseIP("255.255.255.255")) {
+		return // saturate
+	}
+	if ip.Equal(net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")) {
+		return // saturate
+	}
 	for j := len(ip) - 1; j >= 0; j-- {
 		ip[j]++
 		if ip[j] > 0 {
@@ -84,6 +92,18 @@ func duplicateIP(ip net.IP) net.IP {
 	dup := make(net.IP, len(ip))
 	copy(dup, ip)
 	return dup
+}
+
+// compareIPs compares two IP addresses: returns -1 if ip1 < ip2, 1 if ip1 > ip2, and 0 if equal
+func compareIPs(ip1, ip2 net.IP) int {
+	for i := 0; i < len(ip1); i++ {
+		if ip1[i] < ip2[i] {
+			return -1
+		} else if ip1[i] > ip2[i] {
+			return 1
+		}
+	}
+	return 0
 }
 
 // InputTargetsCSV is an InputTargetsFunc that calls GetTargetsCSV with
@@ -130,7 +150,7 @@ func GetTargetsCSV(source io.Reader, ch chan<- ScanTarget) error {
 					if port == "" {
 						ch <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag}
 					} else {
-						ch <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag, Port: &port_uint}
+						ch <- ScanTarget{IP: duplicateIP(ip), Domain: domain, Tag: tag, Port: port_uint}
 					}
 				}
 				continue
@@ -141,7 +161,7 @@ func GetTargetsCSV(source io.Reader, ch chan<- ScanTarget) error {
 		if port == "" {
 			ch <- ScanTarget{IP: ip, Domain: domain, Tag: tag}
 		} else {
-			ch <- ScanTarget{IP: ip, Domain: domain, Tag: tag, Port: &port_uint}
+			ch <- ScanTarget{IP: ip, Domain: domain, Tag: tag, Port: port_uint}
 		}
 	}
 	return nil

@@ -230,7 +230,10 @@ func (conn *Connection) readBulkString() (RedisValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	size := _size.(Integer)
+	size, ok := _size.(Integer)
+	if !ok {
+		return nil, fmt.Errorf("could not parse size as integer: %w", ErrInvalidData)
+	}
 	if size == -1 {
 		return NullValue, nil
 	}
@@ -242,7 +245,7 @@ func (conn *Connection) readBulkString() (RedisValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !(body[size] == '\r' && body[size+1] == '\n') {
+	if body[size] != '\r' || body[size+1] != '\n' {
 		return nil, ErrInvalidData
 	}
 	return BulkString(body[:size]), nil
@@ -266,11 +269,15 @@ func (conn *Connection) readSimpleString() (RedisValue, error) {
 func (conn *Connection) readInt() (int64, error) {
 	ret, err := conn.readSimpleString()
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("could not read data as string from conn: %w", err)
 	}
-	parsed, err := strconv.ParseInt(string(ret.(SimpleString)), 10, 64)
+	str, ok := ret.(SimpleString)
+	if !ok {
+		return -1, fmt.Errorf("could not parse data as string: %w", ErrInvalidData)
+	}
+	parsed, err := strconv.ParseInt(string(str), 10, 64)
 	if err != nil {
-		return -1, ErrInvalidData
+		return -1, fmt.Errorf("could not parse string as int: %w", err)
 	}
 	return parsed, nil
 }
@@ -331,7 +338,6 @@ type Connection struct {
 	scanner *Scanner
 	conn    net.Conn
 	buffer  []byte
-	isSSL   bool
 }
 
 // write writes data to the connection, and returns an error if the write fails
@@ -424,10 +430,10 @@ func (conn *Connection) ReadRedisValue() (RedisValue, error) {
 }
 
 func (conn *Connection) GetTLSLog() *zgrab2.TLSLog {
-	if !conn.isSSL {
-		return nil
+	if tlsConn, ok := conn.conn.(*zgrab2.TLSConnection); ok {
+		return tlsConn.GetLog()
 	}
-	return conn.conn.(*zgrab2.TLSConnection).GetLog()
+	return nil
 }
 
 type CustomResponse struct {

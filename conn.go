@@ -3,7 +3,10 @@ package zgrab2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"math"
+	"math/rand"
 	"net"
 	"time"
 
@@ -49,35 +52,57 @@ var ErrReadLimitExceeded = errors.New("read limit exceeded")
 type TimeoutConnection struct {
 	net.Conn
 	ctx                     context.Context
-	Timeout                 time.Duration
-	ReadTimeout             time.Duration
-	WriteTimeout            time.Duration
+	SessionTimeout          time.Duration // used to set the connection deadline, set once
+	ReadTimeout             time.Duration // used to set the read deadline, set fresh for each read
+	WriteTimeout            time.Duration // used to set the write deadline, set fresh for each write
 	BytesRead               int
 	BytesWritten            int
 	BytesReadLimit          int
 	ReadLimitExceededAction ReadLimitExceededAction
 	Cancel                  context.CancelFunc
-	explicitReadDeadline    bool
-	explicitWriteDeadline   bool
-	explicitDeadline        bool
+}
+
+// SaturateTimeoutsToReadAndWriteTimeouts gets the minimum of the context deadline, the timeout, and the read/write timeouts
+// and sets the read/write timeouts accordingly. This is necessary because the underlying connection only supports a
+// deadline on reads and a deadline on writes, so we need to compute the minimum of all these to find what to set the
+// underlying conn's read/write deadlines to.
+func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
+	// Get the minimum of the context deadline and the timeout
+	minDeadline := int64(math.MaxInt64)
+	if ctxDeadline, ok := c.ctx.Deadline(); ok {
+		minDeadline = int64(time.Until(ctxDeadline))
+	}
+	if c.SessionTimeout > 0 {
+		minDeadline = min(minDeadline, int64(c.SessionTimeout))
+	}
+	c.SessionTimeout = time.Duration(minDeadline)
+
+	// Now we'll check read and write timeouts.
+	if c.ReadTimeout > 0 {
+		c.ReadTimeout = time.Duration(min(minDeadline, int64(c.ReadTimeout)))
+	} else {
+		c.ReadTimeout = time.Duration(minDeadline)
+	}
+
+	if c.WriteTimeout > 0 {
+		c.WriteTimeout = time.Duration(min(minDeadline, int64(c.WriteTimeout)))
+	} else {
+		c.WriteTimeout = time.Duration(minDeadline)
+	}
 }
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
 func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
-	if err := c.checkContext(); err != nil {
+	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
 	origSize := len(b)
 	if c.BytesRead+len(b) >= c.BytesReadLimit {
 		b = b[0 : c.BytesReadLimit-c.BytesRead]
 	}
-	if c.explicitReadDeadline || c.explicitDeadline {
-		c.explicitReadDeadline = false
-		c.explicitDeadline = false
-	} else if readTimeout := c.getTimeout(c.ReadTimeout); readTimeout > 0 {
-		if err = c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
-			return 0, err
-		}
+	c.SaturateTimeoutsToReadAndWriteTimeouts()
+	if err = c.Conn.SetReadDeadline(time.Now().Add(c.ReadTimeout)); err != nil {
+		return 0, err
 	}
 	n, err = c.Conn.Read(b)
 	c.BytesRead += n
@@ -100,16 +125,12 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 
 // TimeoutConnection.Write calls Write() on the underlying connection, using any configured deadlines.
 func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
-	if err := c.checkContext(); err != nil {
+	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
-	if c.explicitWriteDeadline || c.explicitDeadline {
-		c.explicitWriteDeadline = false
-		c.explicitDeadline = false
-	} else if writeTimeout := c.getTimeout(c.WriteTimeout); writeTimeout > 0 {
-		if err = c.Conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
-			return 0, err
-		}
+	c.SaturateTimeoutsToReadAndWriteTimeouts()
+	if err = c.Conn.SetWriteDeadline(time.Now().Add(c.WriteTimeout)); err != nil {
+		return 0, err
 	}
 	n, err = c.Conn.Write(b)
 	c.BytesWritten += n
@@ -117,39 +138,31 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 }
 
 // SetReadDeadline sets an explicit ReadDeadline that will override the timeout
-// for one read. Use deadline = 0 to clear the deadline.
+// for one read.
 func (c *TimeoutConnection) SetReadDeadline(deadline time.Time) error {
 	if err := c.checkContext(); err != nil {
 		return err
 	}
 	if !deadline.IsZero() {
-		err := c.Conn.SetReadDeadline(deadline)
-		if err != nil {
-			return err
-		}
+		c.ReadTimeout = time.Until(deadline)
 	}
-	c.explicitReadDeadline = !deadline.IsZero()
 	return nil
 }
 
 // SetWriteDeadline sets an explicit WriteDeadline that will override the
-// WriteDeadline for one write. Use deadline = 0 to clear the deadline.
+// WriteDeadline for one write.
 func (c *TimeoutConnection) SetWriteDeadline(deadline time.Time) error {
 	if err := c.checkContext(); err != nil {
 		return err
 	}
 	if !deadline.IsZero() {
-		err := c.Conn.SetWriteDeadline(deadline)
-		if err != nil {
-			return err
-		}
+		c.WriteTimeout = time.Until(deadline)
 	}
-	c.explicitWriteDeadline = deadline.IsZero()
 	return nil
 }
 
 // SetDeadline sets a read / write deadline that will override the deadline for
-// a single read/write. Use deadline = 0 to clear the deadline.
+// a single read/write.
 func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 	if err := c.checkContext(); err != nil {
 		return err
@@ -160,28 +173,12 @@ func (c *TimeoutConnection) SetDeadline(deadline time.Time) error {
 			return err
 		}
 	}
-	c.explicitDeadline = deadline.IsZero()
 	return nil
-}
-
-// GetTimeoutDialFunc returns a DialFunc that dials with the given timeout
-func GetTimeoutDialFunc(timeout time.Duration) func(string, string) (net.Conn, error) {
-	return func(proto, target string) (net.Conn, error) {
-		return DialTimeoutConnection(proto, target, timeout, 0)
-	}
 }
 
 // Close the underlying connection.
 func (c *TimeoutConnection) Close() error {
 	return c.Conn.Close()
-}
-
-// Get the timeout for the given field, falling back to the global timeout.
-func (c *TimeoutConnection) getTimeout(field time.Duration) time.Duration {
-	if field == 0 {
-		return c.Timeout
-	}
-	return field
 }
 
 // Check if the context has been cancelled, and if so, return an error (either the context error, or
@@ -202,67 +199,30 @@ func (c *TimeoutConnection) checkContext() error {
 	}
 }
 
-// SetDefaults on the connection.
-func (c *TimeoutConnection) SetDefaults() *TimeoutConnection {
-	if c.BytesReadLimit == 0 {
-		c.BytesReadLimit = DefaultBytesReadLimit
-	}
-	if c.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
-		c.ReadLimitExceededAction = DefaultReadLimitExceededAction
-	}
-	if c.Timeout == 0 {
-		c.Timeout = DefaultSessionTimeout
-	}
-	return c
-}
-
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
-func NewTimeoutConnection(ctx context.Context, conn net.Conn, timeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
-	ret := (&TimeoutConnection{
+func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
+	ret := &TimeoutConnection{
+		ctx:            ctx,
 		Conn:           conn,
-		Timeout:        timeout,
+		SessionTimeout: sessionTimeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
-	}).SetDefaults()
-	if ctx == nil {
-		ctx = context.Background()
 	}
-	ret.ctx, ret.Cancel = context.WithTimeout(ctx, timeout)
-	return ret
-}
-
-// DialTimeoutConnectionEx dials the target and returns a net.Conn that uses the configured timeouts for Read/Write operations.
-func DialTimeoutConnectionEx(proto string, target string, dialTimeout, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	var conn net.Conn
-	var err error
-	if dialTimeout > 0 {
-		conn, err = net.DialTimeout(proto, target, dialTimeout)
+	if sessionTimeout > 0 {
+		ret.ctx, ret.Cancel = context.WithTimeout(ctx, sessionTimeout)
 	} else {
-		conn, err = net.DialTimeout(proto, target, sessionTimeout)
+		ret.ctx, ret.Cancel = context.WithCancel(ctx)
 	}
-	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
-		return nil, err
-	}
-	return NewTimeoutConnection(context.Background(), conn, sessionTimeout, readTimeout, writeTimeout, bytesReadLimit), nil
-}
-
-// DialTimeoutConnection dials the target and returns a net.Conn that uses the configured single timeout for all operations.
-func DialTimeoutConnection(proto string, target string, timeout time.Duration, bytesReadLimit int) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, timeout, timeout, timeout, timeout, bytesReadLimit)
+	ret.SaturateTimeoutsToReadAndWriteTimeouts()
+	return ret
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
 type Dialer struct {
-	// Timeout is the maximum time to wait for the entire session, after which any operations on the
-	// connection will fail.
-	Timeout time.Duration
-
-	// ConnectTimeout is the maximum time to wait for a connection.
-	ConnectTimeout time.Duration
+	// SessionTimeout is the maximum time to wait for the entire session, after which any operations on the
+	// connection will fail. Dial-specific timeouts are set on the net.Dialer.
+	SessionTimeout time.Duration
 
 	// ReadTimeout is the maximum time to wait for a Read
 	ReadTimeout time.Duration
@@ -272,7 +232,7 @@ type Dialer struct {
 
 	// Dialer is an auxiliary dialer used for DialContext (the result gets wrapped in a
 	// TimeoutConnection).
-	Dialer *net.Dialer
+	*net.Dialer
 
 	// BytesReadLimit is the maximum number of bytes that connections dialed with this dialer will
 	// read before erroring.
@@ -283,32 +243,22 @@ type Dialer struct {
 	ReadLimitExceededAction ReadLimitExceededAction
 }
 
-func (d *Dialer) getTimeout(field time.Duration) time.Duration {
-	if field == 0 {
-		return d.Timeout
-	}
-	return field
-}
-
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	if d.Timeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, d.Timeout)
+	// potentially the user set the SessionTimeout after calling NewDialer. If so, we'll set the dialer's timeout here
+	if d.SessionTimeout != 0 {
+		if d.Timeout == 0 {
+			d.Timeout = d.SessionTimeout
+		} else {
+			// if both session and dial timeout are set, use the minimum of both
+			d.Timeout = min(d.Timeout, d.SessionTimeout)
+		}
 	}
-	// ensure that our aux dialer is up-to-date; copied from http/transport.go
-	d.Dialer.Timeout = d.getTimeout(d.ConnectTimeout)
-	d.Dialer.KeepAlive = d.Timeout
-
-	// Copy over the source IP if set, or nil
-	d.Dialer.LocalAddr = config.localAddr
-
-	dialContext, cancelDial := context.WithTimeout(ctx, d.Dialer.Timeout)
-	defer cancelDial()
-	conn, err := d.Dialer.DialContext(dialContext, network, address)
+	conn, err := d.Dialer.DialContext(ctx, network, address)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("dial context failed: %v", err)
 	}
-	ret := NewTimeoutConnection(ctx, conn, d.Timeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
@@ -316,19 +266,19 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 // Dial returns a connection with the configured timeout.
 func (d *Dialer) Dial(proto string, target string) (net.Conn, error) {
-	return DialTimeoutConnectionEx(proto, target, d.ConnectTimeout, d.Timeout, d.ReadTimeout, d.WriteTimeout, 0)
+	return d.DialContext(context.Background(), proto, target)
 }
 
 // GetTimeoutConnectionDialer gets a Dialer that dials connections with the given timeout.
-func GetTimeoutConnectionDialer(timeout time.Duration) *Dialer {
-	return NewDialer(&Dialer{Timeout: timeout})
+func GetTimeoutConnectionDialer(dialTimeout, sessionTimeout time.Duration) *Dialer {
+	dialer := NewDialer(nil)
+	dialer.Timeout = dialTimeout
+	dialer.SessionTimeout = sessionTimeout
+	return dialer
 }
 
 // SetDefaults for the Dialer.
 func (d *Dialer) SetDefaults() *Dialer {
-	if d.Timeout == 0 {
-		d.Timeout = DefaultSessionTimeout
-	}
 	if d.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
 		d.ReadLimitExceededAction = DefaultReadLimitExceededAction
 	}
@@ -336,18 +286,15 @@ func (d *Dialer) SetDefaults() *Dialer {
 		d.BytesReadLimit = DefaultBytesReadLimit
 	}
 	if d.Dialer == nil {
-		d.Dialer = &net.Dialer{
-			Timeout:   d.Timeout,
-			KeepAlive: d.Timeout,
-			DualStack: true,
-		}
+		if len(config.customDNSNameservers) > 0 {
 
-		// Use custom DNS as default if set
-		if config.CustomDNS != "" {
-			d.Dialer.Resolver = &net.Resolver{
+			d.Dialer = &net.Dialer{}
+			// this may be a single IP address or a comma-separated list of IP addresses
+			ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
+			d.Resolver = &net.Resolver{
 				PreferGo: true,
 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					return net.Dial(network, config.CustomDNS)
+					return d.Dialer.DialContext(ctx, network, ns)
 				},
 			}
 		}
@@ -359,6 +306,41 @@ func (d *Dialer) SetDefaults() *Dialer {
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
+		value.Dialer = &net.Dialer{}
+	}
+	if value.Dialer == nil {
+		value.Dialer = &net.Dialer{} // initialize defaults to prevent nil pointer dereference
 	}
 	return value.SetDefaults()
+}
+
+// SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
+// the IP or port, respectively, will be un-set and the system will choose.
+func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16) error {
+	var localIP net.IP
+	if len(localIPs) != 0 {
+		localIP = localIPs[rand.Intn(len(localIPs))]
+	}
+	var localPort int
+	if len(localPorts) != 0 {
+		localPort = int(localPorts[rand.Intn(len(localPorts))])
+	}
+	if localIP == nil && localPort == 0 {
+		return nil // nothing to set
+	}
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+		d.LocalAddr = &net.TCPAddr{
+			IP:   localIP,
+			Port: localPort,
+		}
+	case "udp", "udp4", "udp6":
+		d.LocalAddr = &net.UDPAddr{
+			IP:   localIP,
+			Port: localPort,
+		}
+	default:
+		return fmt.Errorf("unsupported network type: %s", network)
+	}
+	return nil
 }

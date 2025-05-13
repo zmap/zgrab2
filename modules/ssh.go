@@ -1,9 +1,12 @@
 package modules
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -30,7 +33,8 @@ type SSHModule struct {
 }
 
 type SSHScanner struct {
-	config *SSHFlags
+	config            *SSHFlags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 func init() {
@@ -54,7 +58,7 @@ func (m *SSHModule) Description() string {
 	return "Fetch an SSH server banner and collect key exchange information"
 }
 
-func (f *SSHFlags) Validate(args []string) error {
+func (f *SSHFlags) Validate(_ []string) error {
 	return nil
 }
 
@@ -75,6 +79,10 @@ func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	if len(s.config.HostKeyAlgorithms) == 0 {
 		s.config.HostKeyAlgorithms = string(strings.Join(sc.HostKeyAlgorithms, ","))
 	}
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
@@ -90,21 +98,13 @@ func (s *SSHScanner) GetTrigger() string {
 	return s.config.Trigger
 }
 
-func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
-
-	var port uint
-	// If the port is supplied in ScanTarget, let that override the cmdline option
-	if t.Port != nil {
-		port = *t.Port
-	} else {
-		port = s.config.Port
-	}
-	portStr := strconv.FormatUint(uint64(port), 10)
+	portStr := strconv.Itoa(int(t.Port))
 	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()
-	sshConfig.Timeout = s.config.Timeout
+	sshConfig.Timeout = s.config.ConnectTimeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	sshConfig.HelloOnly = s.config.HelloOnly
@@ -129,7 +129,30 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 		return nil
 	}
 	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
-	_, err := ssh.Dial("tcp", rhost, sshConfig)
+	// Implementation taken from lib/ssh/client.go
+	conn, err := dialGroup.Dial(ctx, t)
+	if err != nil {
+		err = fmt.Errorf("failed to dial target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
+	if s.config.ConnectTimeout != 0 {
+		err = conn.SetDeadline(time.Now().Add(s.config.ConnectTimeout))
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to set connection deadline: %w", err)
+		}
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, rhost, sshConfig)
+	if err != nil {
+		return zgrab2.SCAN_HANDSHAKE_ERROR, nil, fmt.Errorf("failed to create SSH client connection: %w", err)
+	}
+	sshClient := ssh.NewClient(c, chans, reqs)
+	defer func() {
+		err = sshClient.Close()
+		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+			log.Errorf("error closing SSH client for target %s: %v", t.String(), err)
+		}
+	}()
+
 	// TODO FIXME: Distinguish error types
 	status := zgrab2.TryGetScanStatus(err)
 	return status, data, err
@@ -138,4 +161,8 @@ func (s *SSHScanner) Scan(t zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 // Protocol returns the protocol identifer for the scanner.
 func (s *SSHScanner) Protocol() string {
 	return "ssh"
+}
+
+func (s *SSHScanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return s.dialerGroupConfig
 }

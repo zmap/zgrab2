@@ -14,9 +14,10 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"golang.org/x/sys/unix"
+
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
-	"golang.org/x/sys/unix"
 )
 
 // BEGIN Taken from handshake_server_test.go -- certs for TLS server
@@ -54,13 +55,15 @@ func getTLSConfig() *tls.Config {
 		Time:               func() time.Time { return time.Unix(0, 0) },
 		Certificates:       make([]tls.Certificate, 2),
 		InsecureSkipVerify: true,
-		MinVersion:         tls.VersionSSL30,
-		MaxVersion:         tls.VersionTLS12,
+		// nolint: staticcheck
+		MinVersion: tls.VersionSSL30,
+		MaxVersion: tls.VersionTLS12,
 	}
 	testConfig.Certificates[0].Certificate = [][]byte{testRSACertificate}
 	testConfig.Certificates[0].PrivateKey = testRSAPrivateKey
 	testConfig.Certificates[1].Certificate = [][]byte{testSNICertificate}
 	testConfig.Certificates[1].PrivateKey = testRSAPrivateKey
+	// nolint: staticcheck
 	testConfig.BuildNameToCertificate()
 	return testConfig
 }
@@ -82,7 +85,8 @@ func _write(writer io.Writer, data []byte) error {
 // Content-Length: <bodySize>
 //
 // XXXX....
-func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
+func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) <-chan error {
+	errChan := make(chan error)
 	endpoint := fmt.Sprintf("127.0.0.1:%d", cfg.port)
 	lc := net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
@@ -100,16 +104,17 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	go func() {
+		defer close(errChan)
 		defer listener.Close()
 		sock, err := listener.Accept()
 		if err != nil {
-			t.Fatal(err)
+			errChan <- err
 		}
 		defer sock.Close()
 		if cfg.tls {
 			tlsSock := tls.Server(sock, getTLSConfig())
-			if err := tlsSock.Handshake(); err != nil {
-				t.Fatalf("server handshake error: %v", err)
+			if err = tlsSock.Handshake(); err != nil {
+				errChan <- fmt.Errorf("server handshake error: %w", err)
 			}
 			sock = tlsSock
 		}
@@ -118,7 +123,7 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 		_, err = sock.Read(buf)
 		if err != nil {
 			// any error, including EOF, is unexpected -- the client should send something
-			t.Fatalf("Unexpected error reading from client: %v", err)
+			errChan <- fmt.Errorf("unexpected error reading from client: %w", err)
 		}
 
 		head := "HTTP/1.0 200 OK\r\nBogus-Header: X"
@@ -131,10 +136,10 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 		}
 		size := cfg.headerSize - len(head) - len(headSuffix)
 		if size < 0 {
-			t.Fatalf("Header size %d too small: must be at least %d bytes", cfg.headerSize, len(head)+len(headSuffix))
+			errChan <- fmt.Errorf("header size %d too small: must be at least %d bytes", cfg.headerSize, len(head)+len(headSuffix))
 		}
 		if err := _write(sock, []byte(head)); err != nil {
-			t.Fatalf("write error: %v", err)
+			errChan <- fmt.Errorf("write error: %w", err)
 		}
 		chunkSize := 256
 		sent := len(head)
@@ -154,13 +159,13 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) {
 			t.Logf("Failed writing foot to client: %v", err)
 			return
 		}
-		sent += len(headSuffix)
 		body := strings.Repeat("X", cfg.bodySize)
 		if err := _write(sock, []byte(body)); err != nil {
 			t.Logf("Failed writing body to client: %v", err)
 			return
 		}
 	}()
+	return errChan
 }
 
 // Get an HTTP scanner module with the desired config
@@ -175,7 +180,7 @@ func (cfg *readLimitTestConfig) getScanner(t *testing.T) *Scanner {
 	}
 	flags.MaxSize = cfg.maxBodySize / 1024
 	flags.MaxRedirects = 0
-	flags.Timeout = 1 * time.Second
+	flags.ConnectTimeout = 1 * time.Second
 	flags.Port = uint(cfg.port)
 	flags.UseHTTPS = cfg.tls
 	zgrab2.DefaultBytesReadLimit = cfg.maxReadSize
@@ -384,13 +389,35 @@ func getResponse(result any) *http.Response {
 }
 
 // Run a single test with the given configuration.
-func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
+func (cfg *readLimitTestConfig) runTest(t *testing.T) {
 	scanner := cfg.getScanner(t)
-	cfg.runFakeHTTPServer(t)
+	errChan := cfg.runFakeHTTPServer(t)
+	defer func() {
+		if err := <-errChan; err != nil {
+			t.Fatalf("Error in server: %v", err)
+		}
+	}()
 	target := zgrab2.ScanTarget{
-		IP: net.ParseIP("127.0.0.1"),
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: uint(cfg.port),
 	}
-	status, ret, err := scanner.Scan(target)
+	baseFlags := &zgrab2.BaseFlags{
+		Port:           80,
+		ConnectTimeout: time.Second * 10,
+	}
+	tlsFlags := &zgrab2.TLSFlags{}
+	dialerGroupConfig := zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       baseFlags,
+		TLSFlags:                        tlsFlags,
+		TLSEnabled:                      true,
+		NeedSeparateL4Dialer:            true,
+	}
+	dialerGroup, err := dialerGroupConfig.GetDefaultDialerGroupFromConfig()
+	if err != nil {
+		t.Fatalf("Error getting default dialer group: %v", err)
+	}
+	status, ret, err := scanner.Scan(context.Background(), dialerGroup, &target)
 	response := getResponse(ret)
 
 	if status != cfg.expectedStatus {
@@ -405,7 +432,7 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 	}
 	if cfg.expectedStatus == zgrab2.SCAN_SUCCESS {
 		if response == nil {
-			t.Errorf("Expected response, but got none")
+			t.Fatalf("Expected response, but got none")
 		}
 
 		statusCode := response.Status
@@ -434,10 +461,7 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T, testName string) {
 // TestReadLimitHTTP checks that the HTTP scanner works as expected with the default
 // ReadLimitExeededAction (specifically, ReadLimnitExceededActionTruncate) defined in conn.go.
 func TestReadLimitHTTP(t *testing.T) {
-	if zgrab2.DefaultReadLimitExceededAction != zgrab2.ReadLimitExceededActionTruncate {
-		t.Logf("Warning: DefaultReadLimitExceededAction is %s, not %s", zgrab2.DefaultReadLimitExceededAction, zgrab2.ReadLimitExceededActionTruncate)
-	}
-	for testName, cfg := range readLimitTestConfigs {
-		cfg.runTest(t, testName)
+	for _, cfg := range readLimitTestConfigs {
+		cfg.runTest(t)
 	}
 }

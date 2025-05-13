@@ -2,10 +2,15 @@
 package socks5
 
 import (
+	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -30,12 +35,12 @@ type Module struct {
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // Connection holds the state for a single connection to the SOCKS5 server.
 type Connection struct {
-	buffer  [10000]byte
 	config  *Flags
 	results ScanResults
 	conn    net.Conn
@@ -67,7 +72,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate(args []string) (err error) {
+func (f *Flags) Validate(_ []string) (err error) {
 	return
 }
 
@@ -81,10 +86,18 @@ func (s *Scanner) Protocol() string {
 	return "socks5"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Init initializes the Scanner instance with the flags from the command line.
 func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	s.config = f
+	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
@@ -131,7 +144,7 @@ func explainResponse(resp []byte) map[string]string {
 		"Reserved":      fmt.Sprintf("0x%02x", resp[2]),
 		"Address Type":  fmt.Sprintf("0x%02x (%s)", resp[3], getAddressTypeDescription(resp[3])),
 		"Bound Address": fmt.Sprintf("%d.%d.%d.%d", resp[4], resp[5], resp[6], resp[7]),
-		"Bound Port":    fmt.Sprintf("%d", int(resp[8])<<8|int(resp[9])),
+		"Bound Port":    strconv.Itoa(int(resp[8])<<8 | int(resp[9])),
 	}
 }
 
@@ -188,10 +201,10 @@ func (conn *Connection) PerformHandshake() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error reading method selection response: %w", err)
 	}
-	conn.results.MethodSelection = fmt.Sprintf("%x", methodSelResp)
+	conn.results.MethodSelection = hex.EncodeToString(methodSelResp)
 
 	if methodSelResp[1] == 0xFF {
-		return true, fmt.Errorf("no acceptable authentication methods")
+		return true, errors.New("no acceptable authentication methods")
 	}
 
 	return false, nil
@@ -211,7 +224,7 @@ func (conn *Connection) PerformConnectionRequest() error {
 	if err != nil {
 		return fmt.Errorf("error reading connection response: %w", err)
 	}
-	conn.results.ConnectionResponse = fmt.Sprintf("%x", resp)
+	conn.results.ConnectionResponse = hex.EncodeToString(resp)
 	conn.results.ConnectionResponseExplanation = explainResponse(resp)
 
 	if resp[1] > 0x80 {
@@ -222,20 +235,16 @@ func (conn *Connection) PerformConnectionRequest() error {
 }
 
 // Scan performs the configured scan on the SOCKS5 server.
-func (s *Scanner) Scan(t zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	var err error
+func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
 	var have_auth bool
-	conn, err := t.Open(&s.config.BaseFlags)
+	conn, err := dialGroup.Dial(ctx, t)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection: %w", err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to %s: %w", t.String(), err)
 	}
-	cn := conn
-	defer func() {
-		cn.Close()
-	}()
+	defer zgrab2.CloseConnAndHandleError(conn)
 
 	results := ScanResults{}
-	socks5Conn := Connection{conn: cn, config: s.config, results: results}
+	socks5Conn := Connection{conn: conn, config: s.config, results: results}
 
 	have_auth, err = socks5Conn.PerformHandshake()
 	if err != nil {

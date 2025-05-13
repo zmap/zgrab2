@@ -24,7 +24,7 @@ type testChecker struct {
 
 func (t *testChecker) Check(dialAddr string, addr net.Addr, key PublicKey) error {
 	if dialAddr == "bad" {
-		return fmt.Errorf("dialAddr is bad")
+		return errors.New("dialAddr is bad")
 	}
 
 	if tcpAddr, ok := addr.(*net.TCPAddr); !ok || tcpAddr == nil {

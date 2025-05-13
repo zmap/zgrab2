@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"net/url"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/zmap/zgrab2"
 )
 
 // Writes an "attribute-with-one-value" with the provided "value-tag", "name", and "value" to provided buffer
@@ -22,28 +25,38 @@ import (
 // TODO: Should return an error when fed an invalid valueTag
 func AttributeByteString(valueTag byte, name string, value string, target *bytes.Buffer) error {
 	//special byte denoting value syntax
-	binary.Write(target, binary.BigEndian, valueTag)
+	if err := binary.Write(target, binary.BigEndian, valueTag); err != nil {
+		return fmt.Errorf("could not write value tag: %w", err)
+	}
 
 	if len(name) <= math.MaxInt16 && len(name) >= 0 {
 		//append 16-bit signed int denoting name length
-		binary.Write(target, binary.BigEndian, int16(len(name)))
+		if err := binary.Write(target, binary.BigEndian, int16(len(name))); err != nil {
+			return fmt.Errorf("could not write name length: %w", err)
+		}
 
 		//append name
-		binary.Write(target, binary.BigEndian, []byte(name))
+		if err := binary.Write(target, binary.BigEndian, []byte(name)); err != nil {
+			return fmt.Errorf("could not write name (%s): %w", name, err)
+		}
 	} else {
 		// TODO: Log error somewhere
-		return errors.New("Name wrong length to encode.")
+		return errors.New("name wrong length to encode")
 	}
 
 	if len(value) <= math.MaxInt16 && len(value) >= 0 {
 		//append 16-bit signed int denoting value length
-		binary.Write(target, binary.BigEndian, int16(len(value)))
+		if err := binary.Write(target, binary.BigEndian, int16(len(value))); err != nil {
+			return fmt.Errorf("could not write value length: %w", err)
+		}
 
 		//append value
-		binary.Write(target, binary.BigEndian, []byte(value))
+		if err := binary.Write(target, binary.BigEndian, []byte(value)); err != nil {
+			return fmt.Errorf("could not write value (%s): %w", value, err)
+		}
 	} else {
 		// TODO: Log error somewhere
-		return errors.New("Value wrong length to encode.")
+		return errors.New("value wrong length to encode")
 	}
 
 	return nil
@@ -74,7 +87,7 @@ func ConvertURIToIPP(uriString string, tls bool) string {
 	return uri.String()
 }
 
-func getPrintersRequest(major, minor int8) *bytes.Buffer {
+func getPrintersRequest(major, minor int8) (*bytes.Buffer, *zgrab2.ScanError) {
 	var b bytes.Buffer
 	// Sending too new a version leads to a version-not-supported error, so we'll just send newest
 	//version
@@ -86,22 +99,26 @@ func getPrintersRequest(major, minor int8) *bytes.Buffer {
 	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
-	// TODO: Handle error ocurring in any AttributeByteString call
 	//attributes-charset
-	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
+	if err := AttributeByteString(0x47, "attributes-charset", "utf-8", &b); err != nil {
+		return nil, &zgrab2.ScanError{Status: zgrab2.SCAN_UNKNOWN_ERROR, Err: fmt.Errorf("failed to write AttributeByteString for charset: %v", err)}
+	}
+
 	//attributes-natural-language
-	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
+	if err := AttributeByteString(0x48, "attributes-natural-language", "en-us", &b); err != nil {
+		return nil, &zgrab2.ScanError{Status: zgrab2.SCAN_UNKNOWN_ERROR, Err: fmt.Errorf("failed to write AttributeByteString for natural-language: %v", err)}
+	}
 
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
 
-	return &b
+	return &b, nil
 }
 
 // TODO: Store everything except uri statically?
 // Construct a minimal request that an IPP server will respond to
 // IPP request encoding described at https://tools.ietf.org/html/rfc8010#section-3.1.1
-func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) *bytes.Buffer {
+func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) (*bytes.Buffer, error) {
 	var b bytes.Buffer
 	// Using newest version number, because we must provide a supported major version number
 	// Object must reply to unsupported major version with
@@ -120,18 +137,25 @@ func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) *bytes
 	//operation-attributes-tag = 1 (begins an attribute-group)
 	b.Write([]byte{1})
 
-	// TODO: Handle error ocurring in any AttributeByteString call
 	//attributes-charset
-	AttributeByteString(0x47, "attributes-charset", "utf-8", &b)
+	if err := AttributeByteString(0x47, "attributes-charset", "utf-8", &b); err != nil {
+		return nil, fmt.Errorf("failed to write AttributeByteString for charset: %v", err)
+	}
 	//attributes-natural-language
-	AttributeByteString(0x48, "attributes-natural-language", "en-us", &b)
+	if err := AttributeByteString(0x48, "attributes-natural-language", "en-us", &b); err != nil {
+		return nil, fmt.Errorf("failed to write AttributeByteString for natural-language: %v", err)
+	}
 	//printer-uri
-	AttributeByteString(0x45, "printer-uri", ConvertURIToIPP(uri, tls), &b)
+	if err := AttributeByteString(0x45, "printer-uri", ConvertURIToIPP(uri, tls), &b); err != nil {
+		return nil, fmt.Errorf("failed to write AttributeByteString for printer-uri: %v", err)
+	}
 	//requested-attributes
-	AttributeByteString(0x44, "requested-attributes", "all", &b)
+	if err := AttributeByteString(0x44, "requested-attributes", "all", &b); err != nil {
+		return nil, fmt.Errorf("failed to write AttributeByteString for requested-attributes: %v", err)
+	}
 
 	//end-of-attributes-tag = 3
 	b.Write([]byte{3})
 
-	return &b
+	return &b, nil
 }

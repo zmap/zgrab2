@@ -585,7 +585,7 @@ func TestReverseProxy_NilBody(t *testing.T) {
 // causes the proxy to return StatusBadGateway, or StatusOK otherwise.
 func TestReverseProxyModifyResponse(t *testing.T) {
 	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-Hit-Mod", fmt.Sprintf("%v", r.URL.Path == "/mod"))
+		w.Header().Add("X-Hit-Mod", strconv.FormatBool(r.URL.Path == "/mod"))
 	}))
 	defer backendServer.Close()
 
@@ -594,7 +594,7 @@ func TestReverseProxyModifyResponse(t *testing.T) {
 	rproxy.ErrorLog = log.New(ioutil.Discard, "", 0) // quiet for tests
 	rproxy.ModifyResponse = func(resp *http.Response) error {
 		if resp.Header.Get("X-Hit-Mod") != "true" {
-			return fmt.Errorf("tried to by-pass proxy")
+			return errors.New("tried to by-pass proxy")
 		}
 		return nil
 	}
@@ -627,7 +627,7 @@ func TestReverseProxy_CopyBuffer(t *testing.T) {
 	backendServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		out := "this call was relayed by the reverse proxy"
 		// Coerce a wrong content length to induce io.UnexpectedEOF
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(out)*2))
+		w.Header().Set("Content-Length", strconv.Itoa(len(out)*2))
 		fmt.Fprintln(w, out)
 	}))
 	defer backendServer.Close()

@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -22,18 +23,29 @@ const defaultDNSPort = "53"
 
 func init() {
 	parser = flags.NewParser(&config, flags.Default)
+	desc := []string{
+		// Using a long single line so the terminal can handle wrapping, except for Input/Examples which should be on
+		// separate lines
+		"zgrab2 is fast, modular L7 application-layer scanner. It is commonly used with tools like ZMap which identify " +
+			"\"potential services\", or services we know are active on a given IP + port, and these are fed into ZGrab2 " +
+			"to confirm and provide details of the service. It has support for a number of protocols listed below as " +
+			"'Available commands' including SSH and HTTP. By default, zgrab2 will accept input from stdin and output " +
+			"results to stdout, with updates and logs to stderr. Please see 'zgrab2 <command> --help' for more details " +
+			"on a specific command.",
+		"Input is taken from stdin or --input-file, if specified. Input is CSV-formatted with 'IP, Domain, Tag, Port' " +
+			"or simply 'IP' or 'Domain'. See README.md for more details.",
+		"",
+		"Example usages:",
+		"echo '1.1.1.1' | zgrab2 tls          # Scan 1.1.1.1 with TLS",
+		"echo example.com | zgrab2 http     # Scan example.com with HTTP",
+	}
+	parser.LongDescription = strings.Join(desc, "\n")
 }
 
 // NewIniParser creates and returns a ini parser initialized
 // with the default parser
 func NewIniParser() *flags.IniParser {
 	return flags.NewIniParser(parser)
-}
-
-// AddGroup exposes the parser's AddGroup function, allowing extension
-// of the global arguments.
-func AddGroup(shortDescription string, longDescription string, data any) {
-	parser.AddGroup(shortDescription, longDescription, data)
 }
 
 // AddCommand adds a module to the parser and returns a pointer to
@@ -43,7 +55,7 @@ func AddCommand(command string, shortDescription string, longDescription string,
 	if err != nil {
 		return nil, err
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.FormatUint(uint64(port), 10)}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
 	cmd.FindOptionByLongName("name").Default = []string{command}
 	modules[command] = m
 	return cmd, nil
@@ -77,7 +89,7 @@ func ReadAvailable(conn net.Conn) ([]byte, error) {
 	return ReadAvailableWithOptions(conn, defaultBufferSize, defaultReadTimeout, 0, defaultMaxReadSize)
 }
 
-// Make this implement the net.Error interface so that err.(net.Error).Timeout() works.
+// Make this implement the net.Error interface so that err.(net.Error).SessionTimeout() works.
 type errTotalTimeout string
 
 const (
@@ -102,12 +114,6 @@ func (err errTotalTimeout) Temporary() bool {
 // connection's timeout (or, failing that, 1 second).
 // On failure, returns anything it was able to read along with the error.
 func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Duration, totalTimeout time.Duration, maxReadSize int) ([]byte, error) {
-	min := func(a, b int) int {
-		if a < b {
-			return a
-		}
-		return b
-	}
 	var totalDeadline time.Time
 	if totalTimeout == 0 {
 		// Would be nice if this could be taken from the SetReadDeadline(), but that's not possible in general
@@ -115,7 +121,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 		totalTimeout = defaultTotalTimeout
 		timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
 		if isTimeoutConn {
-			totalTimeout = timeoutConn.Timeout
+			totalTimeout = timeoutConn.SessionTimeout
 		}
 	}
 	if totalTimeout > 0 {
@@ -139,7 +145,10 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	// Keep reading until we time out or get an error.
 	for totalDeadline.IsZero() || totalDeadline.After(time.Now()) {
 		deadline := time.Now().Add(readTimeout)
-		conn.SetReadDeadline(deadline)
+		err = conn.SetReadDeadline(deadline)
+		if err != nil {
+			return ret, fmt.Errorf("could not set read deadline on conn: %w", err)
+		}
 		n, err := conn.Read(buf[0:min(maxReadSize, bufferSize)])
 		maxReadSize -= n
 		ret = append(ret, buf[0:n]...)
@@ -157,7 +166,7 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	return ret, ErrTotalTimeout
 }
 
-var InsufficientBufferError = errors.New("not enough buffer space")
+var ErrInsufficientBuffer = errors.New("not enough buffer space")
 
 // ReadUntilRegex calls connection.Read() until it returns an error, or the cumulatively-read data matches the given regexp
 func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, error) {
@@ -173,7 +182,7 @@ func ReadUntilRegex(connection net.Conn, res []byte, expr *regexp.Regexp) (int, 
 			finished = true
 		}
 		if length == len(res) {
-			return length, InsufficientBufferError
+			return length, ErrInsufficientBuffer
 		}
 		buf = res[length:]
 	}
@@ -242,7 +251,7 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 	// Validate the host part as an IP address.
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return "", fmt.Errorf("invalid IP address")
+		return "", errors.New("invalid IP address")
 	}
 
 	// If the original input does not have a port, specify port 53 as the default
@@ -251,4 +260,42 @@ func addDefaultPortToDNSServerName(inAddr string) (string, error) {
 	}
 
 	return net.JoinHostPort(ip.String(), port), nil
+}
+
+func parseCustomDNSString(customDNS string) ([]string, error) {
+	nameservers := make([]string, 0)
+	customDNS = strings.TrimSpace(customDNS)
+	if customDNS == "" {
+		return nil, nil
+	}
+	for _, ns := range strings.Split(customDNS, ",") {
+		ns = strings.TrimSpace(ns)
+		if ns == "" {
+			continue
+		}
+		nsWithPort, err := addDefaultPortToDNSServerName(ns)
+		if err != nil {
+			return nil, fmt.Errorf("invalid DNS server address: %s", ns)
+		}
+		nameservers = append(nameservers, nsWithPort)
+	}
+	return nameservers, nil
+}
+
+// CloseConnAndHandleError closes the connection and logs an error if it fails. Convenience function for code-reuse.
+func CloseConnAndHandleError(conn net.Conn) {
+	err := conn.Close()
+	if err != nil {
+		logrus.Errorf("could not close connection to %v: %v", conn.RemoteAddr(), err)
+	}
+}
+
+// HasCtxExpired checks if the context has expired. Common function used in various places.
+func HasCtxExpired(ctx context.Context) bool {
+	select {
+	case <-(ctx).Done():
+		return true
+	default:
+		return false
+	}
 }

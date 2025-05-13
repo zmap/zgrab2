@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"os"
 	"runtime/pprof"
+	"strconv"
 	"sync"
 	"time"
 
-	"fmt"
 	"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	flags "github.com/zmap/zflags"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -34,9 +35,9 @@ func getCPUProfileFile() string {
 // YYYYMMDDhhmmss, and {NANOS} as the decimal nanosecond offset.
 func getFormattedFile(formatString string, when time.Time) string {
 	timestamp := when.Format("20060102150405")
-	nanos := fmt.Sprintf("%d", when.Nanosecond())
-	ret := strings.Replace(formatString, "{TIMESTAMP}", timestamp, -1)
-	ret = strings.Replace(ret, "{NANOS}", nanos, -1)
+	nanos := strconv.Itoa(when.Nanosecond())
+	ret := strings.ReplaceAll(formatString, "{TIMESTAMP}", timestamp)
+	ret = strings.ReplaceAll(ret, "{NANOS}", nanos)
 	return ret
 }
 
@@ -127,16 +128,24 @@ func ZGrab2Main() {
 			log.Fatalf("error parsing flags")
 		}
 		for i, fl := range flagsReturned {
-			f, _ := fl.(zgrab2.ScanFlags)
+			f, ok := fl.(zgrab2.ScanFlags)
+			if !ok {
+				log.Fatalf("error parsing flags as ScanFlags")
+			}
 			mod := zgrab2.GetModule(modTypes[i])
 			s := mod.NewScanner()
-			s.Init(f)
+
+			if err = s.Init(f); err != nil {
+				log.Panicf("could not initialize multiple scanner: %v", err)
+			}
 			zgrab2.RegisterScan(s.GetName(), s)
 		}
 	} else {
 		mod := zgrab2.GetModule(moduleType)
 		s := mod.NewScanner()
-		s.Init(flag)
+		if err = s.Init(flag); err != nil {
+			log.Panicf("could not initialize scanner %s: %v", moduleType, err)
+		}
 		zgrab2.RegisterScan(moduleType, s)
 	}
 	wg := sync.WaitGroup{}
@@ -157,8 +166,9 @@ func ZGrab2Main() {
 		EndTime:           end.Format(time.RFC3339),
 		Duration:          end.Sub(start).String(),
 	}
-	enc := json.NewEncoder(zgrab2.GetMetaFile())
-	if err := enc.Encode(&s); err != nil {
-		log.Fatalf("unable to write summary: %s", err.Error())
+	if metadataFile := zgrab2.GetMetaFile(); metadataFile != nil {
+		if err := json.NewEncoder(zgrab2.GetMetaFile()).Encode(&s); err != nil {
+			log.Fatalf("unable to write metadata summary: %s", err.Error())
+		}
 	}
 }

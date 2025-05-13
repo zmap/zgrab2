@@ -196,7 +196,7 @@ func (m *ModbusResponse) getExceptionResponse(strict bool) (*ExceptionResponse, 
 	if len(m.Data) > 0 {
 		exceptionType = m.Data[0]
 	} else if strict {
-		return nil, fmt.Errorf("Empty response body on error for function 0x%02x", exceptionFunction)
+		return nil, fmt.Errorf("empty response body on error for function 0x%02x", exceptionFunction)
 	}
 	return &ExceptionResponse{
 		ExceptionFunction: exceptionFunction,
@@ -206,28 +206,28 @@ func (m *ModbusResponse) getExceptionResponse(strict bool) (*ExceptionResponse, 
 
 func (m *ModbusResponse) getMEIResponse(strict bool) (*MEIResponse, error) {
 	if m.Function != FunctionCodeMEI {
-		return nil, fmt.Errorf("Invalid function code 0x%02x", m.Function)
+		return nil, fmt.Errorf("invalid function code 0x%02x", m.Function)
 	}
 	if len(m.Data) < 6 {
-		return nil, fmt.Errorf("Response too short (%d bytes)", len(m.Data))
+		return nil, fmt.Errorf("response too short (%d bytes)", len(m.Data))
 	}
 	meiType := m.Data[0]
 	if meiType != 0x0E {
-		return nil, fmt.Errorf("Invalid response data (expected 0xee, got 0x%02x)", meiType)
+		return nil, fmt.Errorf("invalid response data (expected 0xee, got 0x%02x)", meiType)
 	}
 	// TODO: Allow different values here
 	readType := m.Data[1]
 	if readType != 1 {
-		return nil, fmt.Errorf("Invalid response data (expected 0x01, got 0x%02x)", readType)
+		return nil, fmt.Errorf("invalid response data (expected 0x01, got 0x%02x)", readType)
 	}
 	conformityLevel := m.Data[2]
 	moreFollows := (m.Data[3] != 0)
 	if strict && m.Data[3] != 0x00 && m.Data[3] != 0xFF {
-		return nil, fmt.Errorf("Invalid response data (expected 0x00 or 0xff for MoreFollows, got 0x%02x)", m.Data[3])
+		return nil, fmt.Errorf("invalid response data (expected 0x00 or 0xff for MoreFollows, got 0x%02x)", m.Data[3])
 	}
 	nextObject := m.Data[4]
 	if strict && (!moreFollows && nextObject != 0) {
-		return nil, fmt.Errorf("For MoreFollows == 0x00, expected NextObjectID == 0x00 (got 0x%02x)", nextObject)
+		return nil, fmt.Errorf("for MoreFollows == 0x00, expected NextObjectID == 0x00 (got 0x%02x)", nextObject)
 	}
 	objectCount := m.Data[5]
 	objects := make([]MEIObject, objectCount)
@@ -329,7 +329,7 @@ func (c *Conn) GetModbusResponse() (*ModbusResponse, error) {
 	header := make([]byte, 7)
 	_, err := io.ReadFull(c.getUnderlyingConn(), header)
 	if err != nil {
-		return nil, fmt.Errorf("modbus: could not get response: %s", err.Error())
+		return nil, fmt.Errorf("modbus: could not get response: %w", err)
 	}
 
 	// first 4 bytes should be known, verify them
@@ -377,13 +377,18 @@ func (c *Conn) GetModbusResponse() (*ModbusResponse, error) {
 	}
 
 	//TODO this really should be done by a more elegant unmarshaling function
-	return &ModbusResponse{
-		Length:   msglen,
-		UnitID:   unitID,
-		Function: FunctionCode(body[0]),
-		Data:     body[1:],
-		Raw:      raw,
-	}, readError
+	resp := &ModbusResponse{
+		Length: msglen,
+		UnitID: unitID,
+		Raw:    raw,
+	}
+	if len(body) > 0 {
+		resp.Function = FunctionCode(body[0])
+	}
+	if len(body) > 1 {
+		resp.Data = body[1:]
+	}
+	return resp, readError
 }
 
 // FunctionCode strips the high bit off of the exception function code, to get the function for which the server is

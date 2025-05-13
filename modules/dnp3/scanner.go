@@ -6,7 +6,12 @@
 package dnp3
 
 import (
+	"context"
+	"fmt"
+	"net"
+
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
@@ -23,7 +28,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -53,7 +59,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -66,6 +72,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
@@ -89,18 +99,24 @@ func (scanner *Scanner) Protocol() string {
 	return "dnp3"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Scan probes for a DNP3 service.
 // Connects to the configured TCP port (default 20000) and reads the banner.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	// TODO: Allow UDP?
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not dial target %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		// cleanup connection
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
 	ret := new(DNP3Log)
-	if err := GetDNP3Banner(ret, conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+	if err = GetDNP3Banner(ret, conn); err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not get DNP3 banner for target %s: %w", target.String(), err)
 	}
 	return zgrab2.SCAN_SUCCESS, ret, nil
 }

@@ -131,13 +131,6 @@ func (r RejectionReason) String() string {
 	return fmt.Sprintf("unknown reason %d", int(r))
 }
 
-func min(a uint32, b int) uint32 {
-	if a < uint32(b) {
-		return a
-	}
-	return uint32(b)
-}
-
 type channelDirection uint8
 
 const (
@@ -249,7 +242,7 @@ func (ch *channel) WriteExtended(data []byte, extendedCode uint32) (n int, err e
 	ch.writeMu.Unlock()
 
 	for len(data) > 0 {
-		space := min(ch.maxRemotePayload, len(data))
+		space := min(ch.maxRemotePayload, uint32(len(data)))
 		if space, err = ch.remoteWin.reserve(space); err != nil {
 			return n, err
 		}

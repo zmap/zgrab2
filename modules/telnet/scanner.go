@@ -12,6 +12,9 @@
 package telnet
 
 import (
+	"context"
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
@@ -32,7 +35,8 @@ type Module struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -62,7 +66,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(args []string) error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -75,6 +79,10 @@ func (flags *Flags) Help() string {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
@@ -98,13 +106,17 @@ func (scanner *Scanner) Protocol() string {
 	return "telnet"
 }
 
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := target.Open(&scanner.config.BaseFlags)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not establish connection to telnet server %s: %w", target.String(), err)
 	}
-	defer conn.Close()
+	defer zgrab2.CloseConnAndHandleError(conn)
 	result := new(TelnetLog)
 	if err := GetTelnetBanner(result, conn, scanner.config.MaxReadSize); err != nil {
 		if scanner.config.Banner && len(result.Banner) > 0 {

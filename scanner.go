@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -8,14 +9,29 @@ import (
 
 var scanners map[string]*Scanner
 var orderedScanners []string
+var defaultDialerGroupToScanners map[string]*DialerGroup
+var defaultDialerGroupConfigToScanners map[string]*DialerGroupConfig
 
 // RegisterScan registers each individual scanner to be ran by the framework
 func RegisterScan(name string, s Scanner) {
 	//add to list and map
-	if scanners[name] != nil {
+	if scanners[name] != nil || defaultDialerGroupToScanners[name] != nil {
 		log.Fatalf("name: %s already used", name)
 	}
 	orderedScanners = append(orderedScanners, name)
+	dialerConfig := s.GetDialerGroupConfig()
+	if dialerConfig == nil {
+		log.Fatalf("no dialer config for %s", name)
+	}
+	if err := dialerConfig.Validate(); err != nil {
+		log.Fatalf("error validating dialer config for %s: %v", name, err)
+	}
+	defaultDialerGroupConfigToScanners[name] = dialerConfig
+	dialerGroup, err := dialerConfig.GetDefaultDialerGroupFromConfig()
+	if err != nil {
+		log.Fatalf("error getting default dialer group for %s: %v", name, err)
+	}
+	defaultDialerGroupToScanners[name] = dialerGroup
 	scanners[name] = &s
 }
 
@@ -27,14 +43,36 @@ func PrintScanners() {
 }
 
 // RunScanner runs a single scan on a target and returns the resulting data
-func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
+func RunScanner(ctx context.Context, s Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
 	t := time.Now()
-	status, res, e := s.Scan(target)
+	dialerGroupConfig, ok := defaultDialerGroupConfigToScanners[s.GetName()]
+	if !ok {
+		log.Fatalf("no default dialer group config for %s", s.GetName())
+	}
+	dialerGroup, ok := defaultDialerGroupToScanners[s.GetName()]
+	if !ok {
+		log.Fatalf("no default dialer group for %s", s.GetName())
+	}
+	// if target's port isn't set, use default. Won't affect the caller's ScanTarget since it's passed by value
+	if target.Port == 0 {
+		target.Port = dialerGroupConfig.BaseFlags.Port
+	}
+	if dialerGroupConfig.BaseFlags.TargetTimeout > 0 {
+		// timeout is set, use it on the context
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(dialerGroupConfig.BaseFlags.TargetTimeout))
+		defer cancel()
+	}
+	status, res, e := s.Scan(ctx, dialerGroup, &target)
 	var err *string
 	if e == nil {
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusSuccess}
 		err = nil
 	} else {
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			// scan timed out
+			e = fmt.Errorf("ctx deadline exceeded: %w", e)
+		}
 		mon.statusesChan <- moduleStatus{name: s.GetName(), st: statusFailure}
 		errString := e.Error()
 		err = &errString
@@ -45,4 +83,6 @@ func RunScanner(s Scanner, mon *Monitor, target ScanTarget) (string, ScanRespons
 
 func init() {
 	scanners = make(map[string]*Scanner)
+	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
+	defaultDialerGroupConfigToScanners = make(map[string]*DialerGroupConfig)
 }

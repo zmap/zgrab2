@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -211,9 +212,9 @@ func (s *server) TryDialWithAddr(config *ssh.ClientConfig, addr string) (*ssh.Cl
 			s.t.Fatal("password missing from sshd_test_pw.so config")
 		}
 		s.cmd.Env = append(os.Environ(),
-			fmt.Sprintf("LD_PRELOAD=%s", s.sshdTestPwSo),
-			fmt.Sprintf("TEST_USER=%s", s.testUser),
-			fmt.Sprintf("TEST_PASSWD=%s", s.testPasswd))
+			"LD_PRELOAD="+s.sshdTestPwSo,
+			"TEST_USER="+s.testUser,
+			"TEST_PASSWD="+s.testPasswd)
 	}
 
 	if err := s.cmd.Start(); err != nil {
@@ -282,7 +283,7 @@ func (s *server) setTestPassword(user, passwd string) error {
 	wd, _ := os.Getwd()
 	wrapper := filepath.Join(wd, "sshd_test_pw.so")
 	if _, err := os.Stat(wrapper); err != nil {
-		s.t.Skip(fmt.Errorf("sshd_test_pw.so is not available"))
+		s.t.Skip(errors.New("sshd_test_pw.so is not available"))
 		return err
 	}
 
