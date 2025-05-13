@@ -37,6 +37,7 @@ var (
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("too many redirects")
+	ErrDoNotRedirect    = errors.New("no redirects configured")
 )
 
 // Flags holds the command-line configuration for the HTTP scan module.
@@ -326,6 +327,13 @@ func redirectsToLocalhost(host string) bool {
 // the redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
+		if scan.scanner.config.MaxRedirects == 0 {
+			return ErrDoNotRedirect
+		}
+		//len-1 because otherwise we'll return a failure on 1 redirect when we specify only 1 redirect. I.e. we are 0
+		if len(via)-1 > scan.scanner.config.MaxRedirects {
+			return ErrTooManyRedirects
+		}
 		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
 			return ErrRedirLocalhost
 		}
@@ -351,10 +359,6 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 				m.Write(b.Bytes())
 				res.BodySHA256 = m.Sum(nil)
 			}
-		}
-
-		if len(via) > scan.scanner.config.MaxRedirects {
-			return ErrTooManyRedirects
 		}
 
 		return nil
@@ -496,6 +500,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 	if err != nil {
 		switch err {
+		case ErrDoNotRedirect:
+			break
 		case ErrRedirLocalhost:
 			break
 		case ErrTooManyRedirects:
