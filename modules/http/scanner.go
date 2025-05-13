@@ -173,6 +173,15 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.config = fl
 	scanner.config.RequestBody = fl.RequestBody
 
+	// Configure default port if unset
+	if fl.Port == 0 {
+		if fl.UseHTTPS {
+			fl.Port = 443
+		} else {
+			fl.Port = 80
+		}
+	}
+
 	// parse out custom headers at initialization so that they can be easily
 	// iterated over when constructing individual scanners
 	if len(fl.CustomHeadersNames) > 0 || len(fl.CustomHeadersValues) > 0 {
@@ -630,9 +639,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 // zgrab2 framework.
 func RegisterModule() {
 	var module Module
-
-	_, err := zgrab2.AddCommand("http", "HTTP Banner Grab", module.Description(), 80, &module)
+	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", module.Description(), 0, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The above AddCommand will set the default port to 0, but we'll set it dynamically in Init(), removing the default
+	cmd.FindOptionByLongName("port").Default = nil
+	// Add custom port description for http vs. https
+	cmd.FindOptionByLongName("port").Description = "Specify port to grab on (default: 80 for HTTP, 443 when used with --use-https)"
 }
