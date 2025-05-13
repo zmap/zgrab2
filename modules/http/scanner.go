@@ -37,7 +37,7 @@ var (
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("too many redirects")
-	ErrDoNotRedirect = errors.New("No redirects configured")
+	ErrDoNotRedirect    = errors.New("no redirects configured")
 )
 
 // Flags holds the command-line configuration for the HTTP scan module.
