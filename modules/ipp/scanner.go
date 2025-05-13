@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-
 	"io"
 	"mime"
 	"net"
@@ -38,6 +37,9 @@ var (
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("too many redirects")
+
+	// ErrDoNotRedirect is returned when the scanner is configured not to follow redirects
+	ErrDoNotRedirect = errors.New("no redirects configured")
 
 	// TODO: Explain this error
 	ErrVersionNotSupported = errors.New("IPP version not supported")
@@ -510,6 +512,8 @@ func sendIPPRequest(scan *scan, body *bytes.Buffer) (*http.Response, *zgrab2.Sca
 			break
 		case ErrTooManyRedirects:
 			return resp, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+		case ErrDoNotRedirect:
+			break
 		default:
 			return resp, zgrab2.DetectScanError(err)
 		}
@@ -648,16 +652,19 @@ func redirectsToLocalhost(host string) bool {
 // Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.Response, []*http.Request) error {
 	return func(req *http.Request, res *http.Response, via []*http.Request) error {
+		if scanner.config.MaxRedirects == 0 {
+			return ErrDoNotRedirect
+		}
+		//len-1 because otherwise we'll return a failure on 1 redirect when we specify only 1 redirect. I.e. we are 0
+		if len(via)-1 > scanner.config.MaxRedirects {
+			return ErrTooManyRedirects
+		}
 		if !scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
 			return ErrRedirLocalhost
 		}
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
 		if err := storeBody(res, scanner); err != nil {
 			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
-		}
-
-		if len(via) > scanner.config.MaxRedirects {
-			return ErrTooManyRedirects
 		}
 
 		return nil
