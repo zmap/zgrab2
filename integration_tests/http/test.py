@@ -80,7 +80,7 @@ def test_binary_contents():
         expected_content = f.read()
     cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/favicon.ico --max-size=200000 --read-limit-per-host=200000 | jq -r '.data.http.result.response.body'"
     actual_content = run_command(cmd)
-    if expected_content != actual_content:
+    if expected_content.strip() != actual_content.strip():
         diff = difflib.unified_diff(
             expected_content.splitlines(), actual_content.splitlines(), lineterm=""
         )

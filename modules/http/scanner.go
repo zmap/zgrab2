@@ -16,6 +16,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/html/charset"
 	"io"
 	"net"
 	"net/url"
@@ -23,9 +25,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/html/charset"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
@@ -543,15 +542,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	}
 
 	if !decodedSuccessfully {
-		// Check if the content is binary, we'll need to base64 encode it
-		if !utf8.ValidString(buf.String()) {
-			// body isn't valid UTF-8, so we need to base64 encode it
-			// without this, binary data gets set as
-			bodyText = base64.StdEncoding.EncodeToString(buf.Bytes())
-		} else {
-			// body is valid UTF-8, so we can just use it as-is
-			bodyText = buf.String()
-		}
+		bodyText = buf.String()
 	}
 
 	// Application-specific logic for retrying HTTP as HTTPS; if condition matches, return protocol error
@@ -596,6 +587,14 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			m.Write(buf.Bytes())
 			scan.results.Response.BodySHA256 = m.Sum(nil)
 		}
+	}
+
+	// Check if the BodyText is binary, we'll need to base64 encode it
+	// This occurs after length enforcement, since readLen is the size of data read on the wire, not encoded
+	if !utf8.ValidString(scan.results.Response.BodyText) {
+		// body isn't valid UTF-8, so we need to base64 encode it
+		// without this, binary data gets set as
+		scan.results.Response.BodyText = base64.StdEncoding.EncodeToString([]byte(scan.results.Response.BodyText))
 	}
 	return nil
 }
