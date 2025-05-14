@@ -16,4 +16,7 @@ RUN curl https://gist.githubusercontent.com/phillip-stephens/3f1a8d2874b4ff33e4f
 WORKDIR /var/lighttpd/htdocs/https
 COPY index-https.html index.html
 
+WORKDIR /var/lighttpd/htdocs/http
+COPY favicon.ico favicon.ico
+
 ENTRYPOINT ["lighttpd", "-f", "/etc/lighttpd/lighttpd.conf", "-D"]
