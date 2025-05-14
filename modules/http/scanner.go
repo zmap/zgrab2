@@ -16,8 +16,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/html/charset"
 	"io"
 	"net"
 	"net/url"
@@ -25,6 +23,9 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/html/charset"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"

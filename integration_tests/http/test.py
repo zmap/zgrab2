@@ -75,6 +75,7 @@ def test_http_body_contents():
     else:
         pass
 
+
 def test_binary_contents():
     with open("./favicon.ico.base64", "r", encoding="utf-8") as f:
         expected_content = f.read()
