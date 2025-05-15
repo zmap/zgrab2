@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"errors"
@@ -21,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
@@ -586,6 +588,14 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			m.Write(buf.Bytes())
 			scan.results.Response.BodySHA256 = m.Sum(nil)
 		}
+	}
+
+	// Check if the BodyText is binary, we'll need to base64 encode it
+	// This occurs after length enforcement, since readLen is the size of data read on the wire, not encoded
+	if !utf8.ValidString(scan.results.Response.BodyText) {
+		// body isn't valid UTF-8, so we need to base64 encode it
+		// without this, binary data gets set as
+		scan.results.Response.BodyText = base64.StdEncoding.EncodeToString([]byte(scan.results.Response.BodyText))
 	}
 	return nil
 }

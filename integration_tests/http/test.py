@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-
+import base64
 import difflib
 import os
 import json
 import requests
 import subprocess
 import sys
-import time
+from hashlib import sha256
 
 
 def run_command(command, output_file=None):
@@ -71,6 +71,34 @@ def test_http_body_contents():
         print(diff)
         raise ValueError(
             "http/body-test: The HTTP body contents do not match the expected contents.\n"
+        )
+    else:
+        pass
+
+
+def test_binary_contents():
+    with open("./favicon.ico.base64", "r", encoding="utf-8") as f:
+        expected_content = f.read()
+    cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/favicon.ico --max-size=200000 --read-limit-per-host=200000 | jq -r '.data.http.result.response'"
+    actual_content = run_command(cmd)
+    # retrieve the body and body_hash
+    actual_body = json.loads(actual_content).get("body", "")
+    actual_body_hash = json.loads(actual_content).get("body_sha256", "")
+    if expected_content.strip() != actual_body.strip():
+        diff = difflib.unified_diff(
+            expected_content.splitlines(), actual_content.splitlines(), lineterm=""
+        )
+        print(diff)
+        raise ValueError(
+            "http/binary-test: The HTTP body contents do not match the expected contents.\n"
+        )
+    else:
+        pass
+    # Check if the body hash matches the expected hash
+    expected_hash = sha256(base64.b64decode(expected_content)).hexdigest()
+    if expected_hash != actual_body_hash:
+        raise ValueError(
+            f"http/binary-test: The HTTP body hash does not match the expected hash.\nExpected: {expected_hash}\nActual: {actual_body_hash}"
         )
     else:
         pass
