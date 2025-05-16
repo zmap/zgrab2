@@ -342,6 +342,9 @@ func extractCIDRRanges(inputs []string) ([]net.IPNet, error) {
 	ipNets := make([]net.IPNet, 0, len(inputs))
 	for _, addr := range inputs {
 		addr = strings.TrimSpace(addr) // remove whitespace
+		if len(addr) == 0 {
+			continue // skip empty strings
+		}
 		// this addr is either an IP address, ip address range, or a CIDR range
 		_, ipnet, err := net.ParseCIDR(addr)
 		if err == nil {
