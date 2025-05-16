@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -152,7 +151,7 @@ func validateFrameworkConfiguration() {
 
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
 	if config.LocalAddrString != "" {
-		ips, err := extractIPAddresses(config.LocalAddrString)
+		ips, err := extractIPAddresses(strings.Split(config.LocalAddrString, ","))
 		if err != nil {
 			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
 		}
@@ -208,138 +207,6 @@ func validateFrameworkConfiguration() {
 		}
 		config.localPorts = ports
 	}
-}
-
-// extractIPAddresses takes in a string of comma-separated IP addresses, ranges, or CIDR blocks and returns a de-duped
-// list of IP addresses, or an error if the string is invalid. Whitespace is trimmed from each address string and the
-// ranges are inclusive.
-// See config_test.go for examples of valid and invalid strings
-func extractIPAddresses(ipString string) ([]net.IP, error) {
-	ipsMap := make(map[string]net.IP)
-	for _, addr := range strings.Split(ipString, ",") {
-		// this addr is either an IP address, ip address range, or a CIDR range
-		addr = strings.TrimSpace(addr) // remove whitespace
-		_, ipnet, err := net.ParseCIDR(addr)
-		if err == nil {
-			// CIDR range, append all constituents
-			for currentIP := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(currentIP); {
-				tempIP := duplicateIP(currentIP)
-				ipsMap[currentIP.String()] = tempIP
-				incrementIP(currentIP)
-				if currentIP.Equal(tempIP) {
-					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
-					break
-				}
-			}
-			continue
-		}
-		if strings.Contains(addr, "-") {
-			// IP range
-			parts := strings.Split(addr, "-")
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("invalid IP range %s", addr)
-			}
-			parts[0] = strings.TrimSpace(parts[0])
-			parts[1] = strings.TrimSpace(parts[1])
-			startIP := net.ParseIP(parts[0])
-			endIP := net.ParseIP(parts[1])
-			if startIP == nil {
-				return nil, fmt.Errorf("invalid start IP %s of IP range", parts[0])
-			}
-			if endIP == nil {
-				return nil, fmt.Errorf("invalid end IP %s of IP range", parts[1])
-			}
-			if compareIPs(startIP, endIP) > 0 {
-				return nil, fmt.Errorf("start IP %s is greater than end IP %s of IP range", startIP.String(), endIP.String())
-			}
-			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; {
-				tempIP := duplicateIP(currentIP)
-				ipsMap[currentIP.String()] = tempIP
-				incrementIP(currentIP)
-				if currentIP.Equal(tempIP) {
-					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
-					break
-				}
-			}
-			continue
-		}
-		// single IP
-		castIP := net.ParseIP(addr)
-		if castIP != nil {
-			ipsMap[castIP.String()] = castIP
-		} else {
-			return nil, fmt.Errorf("could not parse IP address %s", addr)
-		}
-	}
-	// build list from de-duped map
-	ips := make([]net.IP, 0, len(ipsMap))
-	for _, i := range ipsMap {
-		ip := i
-		ips = append(ips, ip)
-	}
-	return ips, nil
-}
-
-// extractPorts takes in a string of comma-separated ports or port ranges (80-443) and returns a de-duped list of ports
-// Whitespace is trimmed from each port string, and the port range is inclusive.
-func extractPorts(portString string) ([]uint16, error) {
-	portMap := make(map[uint16]struct{})
-	for _, portStr := range strings.Split(portString, ",") {
-		portStr = strings.TrimSpace(portStr)
-		if strings.Contains(portStr, "-") {
-			// port range
-			parts := strings.Split(portStr, "-")
-			if len(parts) != 2 {
-				return nil, fmt.Errorf("invalid port range %s, valid range ex: '80-443'", portStr)
-			}
-			startPort, err := parsePortString(parts[0])
-			if err != nil {
-				return nil, fmt.Errorf("invalid start port %s of port range: %w", parts[0], err)
-			}
-			endPort, err := parsePortString(parts[1])
-			if err != nil {
-				return nil, fmt.Errorf("invalid end port %s of port range: %w", parts[1], err)
-			}
-			if startPort >= endPort {
-				return nil, fmt.Errorf("start port %d must be less than end port %d", startPort, endPort)
-			}
-			// validation complete, add all ports in range
-			for i := startPort; i <= endPort; i++ {
-				portMap[i] = struct{}{}
-			}
-		} else {
-			// single port
-			port, err := parsePortString(portStr)
-			if err != nil {
-				return nil, fmt.Errorf("invalid port %s: %w", portStr, err)
-			}
-			portMap[port] = struct{}{}
-		}
-	}
-	// build list from de-duped map
-	ports := make([]uint16, 0, len(portMap))
-	for port := range portMap {
-		ports = append(ports, port)
-	}
-	return ports, nil
-}
-
-// parsePortString converts a string to a uint16 port number after removing whitespace
-// Checks for validity of the port number and returns an error if invalid
-func parsePortString(portStr string) (uint16, error) {
-	minimumPort := uint64(1)     // inclusive
-	maximumPort := uint64(65535) // inclusive
-	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
-	if err != nil {
-		return 0, fmt.Errorf("invalid port %s: %v", portStr, err)
-	}
-	if port < minimumPort {
-		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
-	}
-	if port > maximumPort {
-		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
-	}
-	return uint16(port), nil
 }
 
 // GetMetaFile returns the file to which metadata should be output
