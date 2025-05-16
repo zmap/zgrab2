@@ -376,7 +376,6 @@ func extractCIDRRanges(inputs []string) ([]net.IPNet, error) {
 			isIPv4 := startIP.To4() != nil
 			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; {
 				tempIP := duplicateIP(currentIP)
-				// TODO - this is less than efficient, if we have a large range we could use larger CIDR blocks
 				if isIPv4 {
 					ipNets = append(ipNets, net.IPNet{IP: tempIP, Mask: net.CIDRMask(32, 32)})
 				} else {

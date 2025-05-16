@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/censys/cidranger"
 	"net"
 	"strconv"
 	"time"
@@ -162,6 +163,7 @@ type DialerGroup struct {
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
 	// Cannot be used for QUIC connections, as QUIC connections are not "upgraded" from a L4 connection
 	TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+	Blocklist  *cidranger.Ranger // Blocklist is a list of CIDR ranges that should be blocked
 }
 
 // Dial is used to access the transport agnostic dialer

@@ -2,6 +2,7 @@ package zgrab2
 
 import (
 	"fmt"
+	"github.com/censys/cidranger"
 	"net"
 	"net/http"
 	"os"
@@ -62,6 +63,7 @@ func init() {
 }
 
 var config Config
+var blocklist cidranger.Ranger
 
 func validateFrameworkConfiguration() {
 	// validate files
@@ -207,6 +209,14 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("could not extract ports from port string %s: %s", config.LocalPortString, err)
 		}
 		config.localPorts = ports
+	}
+
+	if len(config.BlocklistFileName) > 0 {
+		var err error
+		blocklist, err = readBlocklist(config.BlocklistFileName)
+		if err != nil {
+			log.Fatalf("could not read blocklist file %s: %s", config.BlocklistFileName, err)
+		}
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 
 // readBlocklist reads a blocklist file that contains CIDR ranges, IPs, or IP ranges
 // It returns a path-compressed trie of CIDR ranges that can be used to check if an IP address is in the blocklist
-func readBlocklist(fileName string) (*cidranger.Ranger, error) {
+func readBlocklist(fileName string) (cidranger.Ranger, error) {
 	data, err := os.ReadFile(fileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read blocklist file: %w", err)
@@ -36,5 +36,5 @@ func readBlocklist(fileName string) (*cidranger.Ranger, error) {
 			return nil, fmt.Errorf("failed to insert CIDR (%s) into ranger: %w", cidr.String(), err)
 		}
 	}
-	return &ranger, nil
+	return ranger, nil
 }

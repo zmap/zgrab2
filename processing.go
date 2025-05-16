@@ -201,6 +201,14 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	if len(input.Domain) > 0 && input.IP == nil {
 		// resolve the target's IP here once, so it doesn't need to be resolved in each module
 		dialer := NewDialer(nil)
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
+		if err != nil {
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  "could not set local addr on resolver",
+			}
+		}
 		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
 		if err != nil {
 			return &Grab{
@@ -211,9 +219,15 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 		}
 		// filter out IPs that aren't reachable
 		possibleIPS := make([]string, 0, len(ips))
+		var isBlocked bool
 		for _, ip := range ips {
+			if isBlocked, err = blocklist.Contains(ip); err != nil && isBlocked {
+				// IP is in blocklist
+				continue
+			}
 			if config.useIPv4 && ip.To4() != nil ||
 				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
+				// IP is reachable
 				possibleIPS = append(possibleIPS, ip.String())
 			}
 		}
