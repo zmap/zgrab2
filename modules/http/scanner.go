@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/censys/cidranger"
 	"io"
 	"net"
 	"net/url"
@@ -32,9 +33,8 @@ import (
 )
 
 var (
-	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
-	// unless FollowLocalhostRedirects is set.
-	ErrRedirLocalhost = errors.New("redirecting to localhost")
+	// ErrRedirLocalhost is returned when an HTTP redirect points to a blocked host
+	ErrRedirBlockedHost = errors.New("redirecting to blocked host")
 
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
@@ -56,10 +56,6 @@ type Flags struct {
 	RetryHTTPS       bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
 	MaxSize          int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
 	MaxRedirects     int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
-
-	// FollowLocalhostRedirects overrides the default behavior to return
-	// ErrRedirLocalhost whenever a redirect points to localhost.
-	FollowLocalhostRedirects bool `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
 
 	// UseHTTPS causes the first request to be over TLS, without requiring a
 	// redirect to HTTPS. It does not change the port used for the connection.
@@ -85,6 +81,9 @@ type Flags struct {
 
 	// Extract the raw header as it is on the wire
 	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
+
+	// TODO need a way to set this
+	Blocklist cidranger.Ranger
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -167,6 +166,10 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+func (scanner *Scanner) WithBlocklist(blocklist cidranger.Ranger) {
+	scanner.config.Blocklist = blocklist
 }
 
 // Init initializes the scanner with the given flags
@@ -313,19 +316,20 @@ func (scan *scan) withDeadlineContext(ctx context.Context) (context.Context, con
 	return ctx, func() {}
 }
 
-// Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
-func redirectsToLocalhost(host string) bool {
+// redirectsToBlockedHost checks if the given host is a blocked host
+func (scan *scan) redirectsToBlockedHost(host string) bool {
+	var isBlocked bool
+	var err error
 	if i := net.ParseIP(host); i != nil {
-		return i.IsLoopback() || i.Equal(net.IPv4zero)
+		if isBlocked, err = scan.scanner.config.Blocklist.Contains(i); err != nil && isBlocked {
+			return true
+		}
 	}
-	if host == "localhost" {
-		return true
-	}
-
-	if addrs, err := net.LookupHost(host); err == nil {
+	var addrs []string
+	if addrs, err = net.LookupHost(host); err == nil {
 		for _, i := range addrs {
 			if ip := net.ParseIP(i); ip != nil {
-				if ip.IsLoopback() || ip.Equal(net.IPv4zero) {
+				if isBlocked, err = scan.scanner.config.Blocklist.Contains(ip); err != nil && isBlocked {
 					return true
 				}
 			}
@@ -345,8 +349,8 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if len(via)-1 > scan.scanner.config.MaxRedirects {
 			return ErrTooManyRedirects
 		}
-		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
-			return ErrRedirLocalhost
+		if scan.redirectsToBlockedHost(req.URL.Hostname()) {
+			return ErrRedirBlockedHost
 		}
 		// We're following a re-direct. The IP that the framework resolved initially is no longer valid. Clearing
 		scan.target.IP = nil
@@ -513,7 +517,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		switch err {
 		case ErrDoNotRedirect:
 			break
-		case ErrRedirLocalhost:
+		case ErrRedirBlockedHost:
 			break
 		case ErrTooManyRedirects:
 			if scan.scanner.config.RedirectsSucceed {
