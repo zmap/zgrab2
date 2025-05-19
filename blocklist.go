@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+func stripComments(line, commentDelimiter string) string {
+	// Remove comments from the line
+	if idx := strings.Index(line, commentDelimiter); idx != -1 {
+		return line[:idx]
+	}
+	return line
+}
+
 // readBlocklist reads a blocklist file that contains CIDR ranges, IPs, or IP ranges
 // It returns a path-compressed trie of CIDR ranges that can be used to check if an IP address is in the blocklist
 func readBlocklist(fileName string) (cidranger.Ranger, error) {
@@ -19,8 +27,8 @@ func readBlocklist(fileName string) (cidranger.Ranger, error) {
 	// Remove comments and empty lines
 	cidrStrings := make([]string, 0)
 	for _, line := range strings.Split(strData, "\n") {
-		line = strings.TrimSuffix(line, "#") // Remove comments
-		line = strings.TrimSpace(line)       // Trim whitespace
+		line = stripComments(line, "#")
+		line = strings.TrimSpace(line) // Trim whitespace
 		if len(line) > 0 {
 			cidrStrings = append(cidrStrings, line)
 		}
