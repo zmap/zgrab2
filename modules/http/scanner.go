@@ -321,7 +321,7 @@ func (scan *scan) redirectsToBlockedHost(host string) bool {
 	var isBlocked bool
 	var err error
 	if i := net.ParseIP(host); i != nil {
-		if isBlocked, err = scan.scanner.config.Blocklist.Contains(i); err != nil && isBlocked {
+		if isBlocked, err = scan.scanner.config.Blocklist.Contains(i); err == nil && isBlocked {
 			return true
 		}
 	}
@@ -329,7 +329,7 @@ func (scan *scan) redirectsToBlockedHost(host string) bool {
 	if addrs, err = net.LookupHost(host); err == nil {
 		for _, i := range addrs {
 			if ip := net.ParseIP(i); ip != nil {
-				if isBlocked, err = scan.scanner.config.Blocklist.Contains(ip); err != nil && isBlocked {
+				if isBlocked, err = scan.scanner.config.Blocklist.Contains(ip); err == nil && isBlocked {
 					return true
 				}
 			}
@@ -518,7 +518,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		case ErrDoNotRedirect:
 			break
 		case ErrRedirBlockedHost:
-			break
+			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 		case ErrTooManyRedirects:
 			if scan.scanner.config.RedirectsSucceed {
 				return nil

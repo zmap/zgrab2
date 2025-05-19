@@ -221,15 +221,16 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 		possibleIPS := make([]string, 0, len(ips))
 		var isBlocked bool
 		for _, ip := range ips {
-			if isBlocked, err = blocklist.Contains(ip); err != nil && isBlocked {
+			if isBlocked, err = blocklist.Contains(ip); err == nil && isBlocked {
 				// IP is in blocklist
 				continue
 			}
-			if config.useIPv4 && ip.To4() != nil ||
-				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
-				// IP is reachable
-				possibleIPS = append(possibleIPS, ip.String())
+			if !(config.useIPv4 && ip.To4() != nil ||
+				config.useIPv6 && ip.To4() == nil && ip.To16() != nil) {
+				// IP is not reachable
+				continue
 			}
+			possibleIPS = append(possibleIPS, ip.String())
 		}
 		if len(possibleIPS) == 0 {
 			return &Grab{
@@ -286,7 +287,8 @@ func Process(mon *Monitor) {
 			log.Fatal(err)
 		}
 	}()
-	// Set the blocklist for any module that needs it
+	// Set the blocklist for any module that needs it (where needs it is defined by implementing the BlocklistScanner
+	// interface)
 	for _, scannerName := range orderedScanners {
 		scanner := *scanners[scannerName]
 		bl, ok := scanner.(BlocklistScanner)
