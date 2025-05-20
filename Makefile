@@ -29,6 +29,18 @@ zgrab2: $(GO_FILES)
 	rm -f zgrab2
 	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
+install:
+	cd cmd/zgrab2 && go install && cd ../..
+	# create config dir, if not present
+	sudo mkdir -p "/etc/zgrab2"
+	sudo cp ./blocklist.conf /etc/zgrab2/blocklist.conf
+
+uninstall:
+	@rm -f $(shell which zgrab2) # remove the binary
+	sudo rm -rf "/etc/zgrab2"
+
+
+
 integration-test:
 	make integration-test-build
 	sleep 15  # Wait for services to start
