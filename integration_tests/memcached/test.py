@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 
+
 def run_command(command, output_file=None):
     """Run a shell command and optionally redirect output to a file."""
     try:
@@ -27,16 +28,19 @@ def run_command(command, output_file=None):
         print(f"Command failed: {e}", file=sys.stderr)
         sys.exit(1)
 
+
 zgrab_root = run_command("git rev-parse --show-toplevel")
 zgrab_output = os.path.join(zgrab_root, "zgrab-output")
 output_root = os.path.join(zgrab_output, "memcached")
+
 
 def test_memcached(version):
     print("Memcached test")
     run_command(
         f"CONTAINER_NAME=zgrab_memcached-{version} {zgrab_root}/docker-runner/docker-run.sh memcached",
-        output_file=os.path.join(output_root, f"memcached-{version}.json")
-    ) # TODO placeholder that will fail CI so we don't forget to implement integration tests
+        output_file=os.path.join(output_root, f"memcached-{version}.json"),
+    )  # TODO placeholder that will fail CI so we don't forget to implement integration tests
+
 
 def check_version(version):
     fp = open(os.path.join(output_root, f"memcached-{version}.json"))
@@ -46,9 +50,12 @@ def check_version(version):
     # os.remove(fp.name)
     result_version = result_json["data"]["memcached"]["result"]["version"]
     result_version = result_version.strip()
-    if (str(result_version) != str(version)):
-        print(f"Versions do not match!\nContainer version:{version}\nMeasured version:{result_version}")
+    if str(result_version) != str(version):
+        print(
+            f"Versions do not match!\nContainer version:{version}\nMeasured version:{result_version}"
+        )
         # exit(1)
+
 
 if __name__ == "__main__":
     os.makedirs(os.path.join(zgrab_output, "memcached"), exist_ok=True)
@@ -56,4 +63,3 @@ if __name__ == "__main__":
     for version in versions:
         test_memcached(version)
         check_version(version)
-
