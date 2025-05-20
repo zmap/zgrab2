@@ -61,7 +61,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate([]string) error {
 	return nil
 }
 
@@ -265,9 +265,10 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 				field.SetString(split_result[1])
 			}
 		}
-		if split_result[0] == "version" {
+		switch split_result[0] {
+		case "version":
 			result_struct.Version = split_result[1]
-		} else if split_result[0] == "libevent" {
+		case "libevent":
 			result_struct.LibeventVersion = split_result[1]
 		}
 	}
@@ -284,7 +285,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
-	var message []byte = []byte("stats")
+	var message = []byte("stats")
 	message = append(message, byte(0x0D))
 	message = append(message, byte(0x0A))
 	_, err = conn.Write(message)
