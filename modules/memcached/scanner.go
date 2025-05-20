@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -109,184 +109,166 @@ type MemcachedResult struct {
 	Version         string               `json:"version"`
 	LibeventVersion string               `json:"libevent_version"`
 	SupportsAscii   bool                 `json:"supports_ascii"` // true if the server supports plain-text ASCII protocol
-	PointerSize     int                  `json:"pointer_size"`   // move to stats
 	Stats           MemcachedResultStats `json:"stats"`
 
 	// TODO - Add more fields as needed
 }
 
 type MemcachedResultStats struct {
-	// Unsure of what to put in Stats vs Result
-	PID                  int     `json:"pid"`
-	Uptime               int     `json:"uptime"`
-	Time                 int     `json:"time"`
-	RUsageUser           float64 `json:"rusuage_user"`
-	RUsageSystem         float64 `json:"rusuage_system"`
-	CurrConnections      int     `json:"curr_connections"`
-	TotalConnections     int     `json:"total_connections"`
-	ConnectionStructures int     `json:"connection_structures"`
-	ReservedFds          int     `json:"reserved_fds"`
-	CmdGet               int     `json:"cmd_get"`
-	CmdSet               int     `json:"cmd_set"`
-	CmdFlush             int     `json:"cmd_flush"`
-	CmdTouch             int     `json:"cmd_touch"`
-	GetHits              int     `json:"get_hits"`
-	GetMisses            int     `json:"get_misses"`
-	DeleteMisses         int     `json:"delete_misses"`
-	DeleteHits           int     `json:"delete_hits"`
-	IncrMisses           int     `json:"incr_misses"`
-	IncrHits             int     `json:"incr_hits"`
-	DecrMisses           int     `json:"decr_misses"`
-	DecrHits             int     `json:"decr_hits"`
-	CasMisses            int     `json:"cas_misses"`
-	CasHits              int     `json:"cas_hits"`
-	CasBadval            int     `json:"cas_badval"`
-	TouchHits            int     `json:"touch_hits"`
-	TouchMisses          int     `json:"touch_misses"`
-	AuthCmds             int     `json:"auth_cmds"`
-	AuthErrors           int     `json:"auth_errors"`
-	BytesRead            int     `json:"bytes_read"`
-	BytesWritten         int     `json:"bytes_written"`
-	LimitMaxBytes        int     `json:"limit_maxbytes"`
-	AcceptingConns       bool    `json:"accepting_conns"`
-	ListenDisabledNum    int     `json:"listen_disabled_num"`
-	Threads              int     `json:"threads"`
-	ConnYields           int     `json:"conn_yields"`
-	HashPowerLevel       int     `json:"hash_power_level"`
-	HashBytes            int     `json:"hash_bytes"`
-	HashIsExpanding      bool    `json:"hash_is_expanding"`
-	Bytes                int     `json:"bytes"`
-	CurrItems            int     `json:"curr_items"`
-	TotalItems           int     `json:"total_items"`
-	ExpiredUnfetched     int     `json:"expired_unfetched"`
-	EvictedUnfetched     int     `json:"evicted_unfetched"`
-	Evictions            int     `json:"evictions"`
-	Reclaimed            int     `json:"reclaimed"`
+	Pid                       uint32  `json:"pid"`
+	Uptime                    uint32  `json:"uptime"`
+	Time                      uint32  `json:"time"`
+	PointerSize               int32   `json:"pointer_size"`
+	RusageUser                float64 `json:"rusage_user"`
+	RusageSystem              float64 `json:"rusage_system"`
+	CurrItems                 uint64  `json:"curr_items"`
+	TotalItems                uint64  `json:"total_items"`
+	Bytes                     uint64  `json:"bytes"`
+	MaxConnections            uint32  `json:"max_connections"`
+	CurrConnections           uint32  `json:"curr_connections"`
+	TotalConnections          uint32  `json:"total_connections"`
+	RejectedConnections       uint64  `json:"rejected_connections"`
+	ConnectionStructures      uint32  `json:"connected_structures"`
+	ResponseObjOom            uint64  `json:"response_obj_oom"`
+	ResponseObjCount          uint64  `json:"response_obj_count"`
+	ResponseObjBytes          uint64  `json:"response_obj_bytes"`
+	ReadBufCount              uint64  `json:"read_buf_count"`
+	ReadBufBytes              uint64  `json:"read_buf_bytes"`
+	ReadBufBytesFree          uint64  `json:"read_buf_bytes_free"`
+	ReadBufOom                uint64  `json:"read_buf_oom"`
+	ReservedFds               uint32  `json:"reserved_fds"`
+	ProxyConnRequests         uint64  `json:"proxy_conn_requests"`
+	ProxyConnErrors           uint64  `json:"proxy_conn_errors"`
+	ProxyConnOom              uint64  `json:"proxy_conn_oom"`
+	ProxyReqActive            uint64  `json:"proxy_req_active"`
+	ProxyReqAwait             uint64  `json:"proxy_req_await"`
+	CmdGet                    uint64  `json:"cmd_get"`
+	CmdSet                    uint64  `json:"cmd_set"`
+	CmdFlush                  uint64  `json:"cmd_flush"`
+	CmdTouch                  uint64  `json:"cmd_touch"`
+	GetHits                   uint64  `json:"get_hits"`
+	GetMisses                 uint64  `json:"get_misses"`
+	GetExpired                uint64  `json:"get_expired"`
+	GetFlushed                uint64  `json:"get_flushed"`
+	DeleteMisses              uint64  `json:"delete_misses"`
+	DeleteHits                uint64  `json:"delete_hits"`
+	IncrMisses                uint64  `json:"incr_misses"`
+	IncrHits                  uint64  `json:"incr_hits"`
+	DecrMisses                uint64  `json:"decr_misses"`
+	DecrHits                  uint64  `json:"decr_hits"`
+	CasMisses                 uint64  `json:"cas_misses"`
+	CasHits                   uint64  `json:"cas_hits"`
+	CasBadval                 uint64  `json:"cas_badval"`
+	TouchHits                 uint64  `json:"touch_hits"`
+	TouchMisses               uint64  `json:"touch_misses"`
+	StoreTooLarge             uint64  `json:"store_too_large"`
+	StoreNoMemory             uint64  `json:"store_no_memory"`
+	AuthCmds                  uint64  `json:"auth_cmds"`
+	AuthErrors                uint64  `json:"auth_errors"`
+	IdleKicks                 uint64  `json:"idle_kicks"`
+	Evictions                 uint64  `json:"evictions"`
+	Reclaimed                 uint64  `json:"reclaimed"`
+	BytesRead                 uint64  `json:"bytes_read"`
+	BytesWritten              uint64  `json:"bytes_written"`
+	LimitMaxbytes             uint64  `json:"limit_maxbytes"`
+	AcceptingConns            bool    `json:"accepting_conns"`
+	ListenDisabledNum         uint64  `json:"listen_disabled_num"`
+	TimeInListenDisabledUs    uint64  `json:"time_in_listen_disabled_us"`
+	Threads                   uint32  `json:"threads"`
+	ConnYields                uint64  `json:"conn_yields"`
+	HashPowerLevel            uint32  `json:"hash_power_level"`
+	HashBytes                 uint64  `json:"hash_bytes"`
+	HashIsExpanding           bool    `json:"hash_is_expanding"`
+	ExpiredUnfetched          uint64  `json:"expired_unfetched"`
+	EvictedUnfetched          uint64  `json:"evicted_unfetched"`
+	EvictedActive             uint64  `json:"evicted_active"`
+	SlabReassignRunning       bool    `json:"slab_reassign_running"`
+	SlabsMoved                uint64  `json:"slabs_moved"`
+	CrawlerReclaimed          uint64  `json:"crawler_reclaimed"`
+	CrawlerItemsChecked       uint64  `json:"crawler_items_checked"`
+	LrutailReflocked          uint64  `json:"lrutail_reflocked"`
+	MovesToCold               uint64  `json:"moves_to_cold"`
+	MovesToWarm               uint64  `json:"moves_to_warm"`
+	MovesWithinLru            uint64  `json:"moves_within_lru"`
+	DirectReclaims            uint64  `json:"direct_reclaims"`
+	LruCrawlerStarts          uint64  `json:"lru_crawler_starts"`
+	LruMaintainerJuggles      uint64  `json:"lru_maintainer_juggles"`
+	SlabGlobalPagePool        uint32  `json:"slab_global_page_pool"`
+	SlabReassignRescues       uint64  `json:"slab_reassign_rescues"`
+	SlabReassignChunkRescues  uint64  `json:"slab_reassign_chunk_rescues"`
+	SlabReassignInlineReclaim uint64  `json:"slab_reassign_inline_reclaim"`
+	SlabReassignBusyItems     uint64  `json:"slab_reassign_busy_items"`
+	SlabReassignBusyNomem     uint64  `json:"slab_reassign_busy_nomem"`
+	SlabReassignBusyDeletes   uint64  `json:"slab_reassign_busy_deletes"`
+	LogWorkerDropped          uint64  `json:"log_worker_dropped"`
+	LogWorkerWritten          uint64  `json:"log_worker_written"`
+	LogWatcherSkipped         uint64  `json:"log_watcher_skipped"`
+	LogWatcherSent            uint64  `json:"log_watcher_sent"`
+	LogWatchers               uint64  `json:"log_watchers"`
+	UnexpectedNapiIds         uint64  `json:"unexpected_napi_ids"`
+	RoundRobinFallback        uint64  `json:"round_robin_fallback"`
+}
 
-	// TODO - Add fields for memcached stats
+func SnakeToCamel(original string) (result string) {
+	split := strings.Split(original, "_")
+	for _, word := range split {
+		result += strings.ToUpper(string(word[0])) + word[1:]
+	}
+	return result
 }
 
 // TODO - Add more commands ex. stats settings
 // TODO - Figure out supports ASCII
-// USE Reflect to access struct field by string
-// Function to convert snake case into camel case
-// TODO - Change size of variables
+
+// TODO - For next time - Cleanup
+// TODO - make 2 different docker containers for 2 verisons
+// TODO - Run zgrab using CONTAINER_NAME=zgrab_memcached ./docker-runner/docker-run.sh memcached
+// match version in python file Choose version: 1.6.38 and 1.6.37
+// TODO - figure out binary
+
 func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
+	result_struct.SupportsAscii = true
 	result_struct.Version = trimmed_results[0]
 	var memcached_stats MemcachedResultStats
 	for _, result := range trimmed_results {
 		split_result := strings.Split(result, " ")
+		// println(split_result)
 		var value float64
 		var err error
-		// println(result)
-		// println(split_result[0] == "version" || split_result[0] == "libevent")
+		// var int_val int64
 		if split_result[0] != "version" || split_result[0] != "libevent" {
-			value, err = strconv.ParseFloat(split_result[1], 32)
+			string_val := string(split_result[1])
+			string_val = strings.TrimSpace(string_val)
+			value, err = strconv.ParseFloat(string(string_val), 64)
+			// int_val, err = strconv.ParseInt(string(split_result[1]), 10, 64)
 		}
 		if err == strconv.ErrSyntax {
 			return
 		}
-		switch split_result[0] {
-		case "pid":
-			memcached_stats.PID = int(value)
-		case "uptime":
-			memcached_stats.Uptime = int(value)
-		case "time":
-			memcached_stats.Time = int(value)
-		case "version":
+		result_camel := SnakeToCamel(split_result[0])
+		// println(string(split_result[1]))
+		// println(value, int_val)
+		v := reflect.ValueOf(&memcached_stats).Elem()
+		field := v.FieldByName(result_camel)
+		if field.IsValid() && field.CanSet() {
+			if field.Type() == reflect.TypeOf(uint64(1)) {
+				field.Set(reflect.ValueOf(uint64(value)))
+			} else if field.Type() == reflect.TypeOf(uint32(1)) {
+				field.Set(reflect.ValueOf(uint32(value)))
+			} else if field.Type() == reflect.TypeOf(int32(1)) {
+				field.Set(reflect.ValueOf(int32(value)))
+			} else if field.Type() == reflect.TypeOf(float64(0.5)) {
+				field.SetFloat(float64(value))
+			} else if field.Type() == reflect.TypeOf(true) {
+				field.SetBool(value == 1)
+			} else if field.Type() == reflect.TypeOf("") {
+				field.SetString(split_result[1])
+			}
+		}
+		if split_result[0] == "version" {
 			result_struct.Version = split_result[1]
-		case "libevent":
+		} else if split_result[0] == "libevent" {
 			result_struct.LibeventVersion = split_result[1]
-		case "pointer_size":
-			result_struct.PointerSize = int(value)
-		case "rusuage_user":
-			memcached_stats.RUsageUser = value
-		case "rusage_system":
-			memcached_stats.RUsageSystem = value
-		case "curr_connections":
-			memcached_stats.CurrConnections = int(value)
-		case "total_connections":
-			memcached_stats.TotalConnections = int(value)
-		case "connection_structures":
-			memcached_stats.ConnectionStructures = int(value)
-		case "reserved_fds":
-			memcached_stats.ReservedFds = int(value)
-		case "cmd_get":
-			memcached_stats.CmdGet = int(value)
-		case "cmd_set":
-			memcached_stats.CmdSet = int(value)
-		case "cmd_flush":
-			memcached_stats.CmdFlush = int(value)
-		case "cmd_touch":
-			memcached_stats.CmdTouch = int(value)
-		case "get_hits":
-			memcached_stats.GetHits = int(value)
-		case "get_misses":
-			memcached_stats.GetMisses = int(value)
-		case "delete_misses":
-			memcached_stats.DeleteMisses = int(value)
-		case "delete_hits":
-			memcached_stats.DeleteHits = int(value)
-		case "incr_misses":
-			memcached_stats.IncrMisses = int(value)
-		case "incr_hits":
-			memcached_stats.IncrHits = int(value)
-		case "decr_misses":
-			memcached_stats.DecrMisses = int(value)
-		case "decr_hits":
-			memcached_stats.DecrHits = int(value)
-		case "cas_misses":
-			memcached_stats.CasMisses = int(value)
-		case "cas_hits":
-			memcached_stats.CasHits = int(value)
-		case "cas_badval":
-			memcached_stats.CasBadval = int(value)
-		case "touch_hits":
-			memcached_stats.TouchHits = int(value)
-		case "touch_misses":
-			memcached_stats.TouchMisses = int(value)
-		case "auth_cmds":
-			memcached_stats.AuthCmds = int(value)
-		case "auth_errors":
-			memcached_stats.AuthErrors = int(value)
-		case "bytes_read":
-			memcached_stats.BytesRead = int(value)
-		case "bytes_written":
-			memcached_stats.BytesWritten = int(value)
-		case "limit_maxbytes":
-			memcached_stats.LimitMaxBytes = int(value)
-		case "accepting_conns":
-			memcached_stats.AcceptingConns = int(value) == 1
-		case "listen_disabled_num":
-			memcached_stats.ListenDisabledNum = int(value)
-		case "threads":
-			memcached_stats.Threads = int(value)
-		case "conn_yields":
-			memcached_stats.ConnYields = int(value)
-		case "hash_power_level":
-			memcached_stats.HashPowerLevel = int(value)
-		case "hash_bytes":
-			memcached_stats.HashBytes = int(value)
-		case "hash_is_expanding":
-			memcached_stats.HashIsExpanding = int(value) == 1
-		case "bytes":
-			memcached_stats.Bytes = int(value)
-		case "curr_items":
-			memcached_stats.CurrItems = int(value)
-		case "total_items":
-			memcached_stats.TotalItems = int(value)
-		case "expired_unfetched":
-			memcached_stats.ExpiredUnfetched = int(value)
-		case "evicted_unfetched":
-			memcached_stats.EvictedUnfetched = int(value)
-		case "evictions":
-			memcached_stats.Evictions = int(value)
-		case "reclaimed":
-			memcached_stats.Reclaimed = int(value)
-		default:
-			// If we get back a key we don't know what to do with, put in JSON file
-			// of what we don't know what to handle
-			fmt.Println(os.Stderr, "ERROR: No matching field in struct for value")
 		}
 	}
 	result_struct.Stats = memcached_stats
@@ -299,45 +281,24 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 // DO NOT USE stats sizes
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
-	// Write stats
 	var message []byte = []byte("stats")
 	message = append(message, byte(0x0D))
 	message = append(message, byte(0x0A))
 	_, err = conn.Write(message)
-	// println(message)
-	// println(target.Port)
-	// Want read to get data
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
 
-	// var results []byte
-	// TODO: Fix Length
-	// 0d 0a ends reply
 	results := make([]byte, 2000)
 	_, err = conn.Read(results)
-	// print("error", err)
-	// println("Results", results)
-	// print("Results (string)", string(results))
+
 	split_results := strings.Split(string(results), "\n")
 	trimmed_results := make([]string, 0, len(split_results))
 	for _, result := range split_results[:len(split_results)-2] {
-		// fmt.Println(string(result) == "END\n")
-		// if len(result) > 4 { // Don't include after END
-		// Break if we hit END, prefixContains
+
 		trimmed_results = append(trimmed_results, strings.TrimPrefix(result, "STAT "))
-		// }
 	}
-	// for i, result := range trimmed_results {
-	// 	fmt.Println(i, result)
-	// 	if i == 48 {
-	// 		println(result)
-	// 		println([]byte(string(result)))
-	// 		println([]byte(result)[0], []byte(result)[1], []byte(result)[2], []byte(result)[3])
-	// 		println(string(0x14000014c0c))
-	// 		println(len(result))
-	// }
-	// }
+
 	defer func(conn net.Conn) {
 		// cleanup conn
 		zgrab2.CloseConnAndHandleError(conn)
