@@ -438,16 +438,6 @@ func (when *NTPShort) Decode(buf []byte) error {
 	return nil
 }
 
-// decodeNTPShort decodes an NTPShort from the first 4 bytes of buf
-func decodeNTPShort(buf []byte) (*NTPShort, error) {
-	if len(buf) < 4 {
-		return nil, ErrBufferTooSmall
-	}
-	ret := NTPShort{}
-	err := ret.Decode(buf)
-	return &ret, err
-}
-
 // Encode encodes the NTPShort according to RFC5905 -- upper 16 bits the seconds, lower 16 bits the fractional seconds (big endian)
 func (when *NTPShort) Encode() []byte {
 	ret := make([]byte, 4)
@@ -529,16 +519,6 @@ func (when *NTPLong) Decode(buf []byte) error {
 	when.Seconds = binary.BigEndian.Uint32(buf[0:4])
 	when.Fraction = binary.BigEndian.Uint32(buf[4:8])
 	return nil
-}
-
-// decodeNTPLong decodes an NTPShort from the first 8 bytes of buf
-func decodeNTPLong(buf []byte) (*NTPLong, error) {
-	if len(buf) < 8 {
-		return nil, ErrBufferTooSmall
-	}
-	ret := NTPLong{}
-	err := ret.Decode(buf)
-	return &ret, err
 }
 
 // Encode encodes the NTPShort according to RFC5905 -- upper 32 bits the seconds, lower 32 bits the fractional seconds (big endian)
@@ -839,7 +819,7 @@ func (module *Module) Description() string {
 }
 
 // Validate checks that the flags are valid
-func (cfg *Flags) Validate() error {
+func (cfg *Flags) Validate(_ []string) error {
 	return nil
 }
 

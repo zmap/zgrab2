@@ -27,8 +27,10 @@ package pop3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -119,7 +121,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	if flags.StartTLS && flags.POP3Secure {
 		log.Error("Cannot send both --starttls and --pop3s")
 		return zgrab2.ErrInvalidArguments
@@ -214,13 +216,13 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// check for necessary dialers
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mysql")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mysql")
 	}
 	tlsWrapper := dialGroup.TLSWrapper
 	if tlsWrapper == nil && (scanner.config.StartTLS || scanner.config.POP3Secure) {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("TLS wrapper is required for mysql with --starttls or --pop3s")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("TLS wrapper is required for mysql with --starttls or --pop3s")
 	}
-	c, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
+	c, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port))))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", target.String(), err)
 	}
@@ -245,42 +247,43 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// OR save it to return later
 	sr := VerifyPOP3Contents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
-		return sr, nil, fmt.Errorf("Invalid POP3 banner: %s", banner)
+		return sr, nil, fmt.Errorf("invalid POP3 banner: %s", banner)
 	}
 	result.Banner = banner
+	var ret string
 	if scanner.config.SendHELP {
-		ret, err := conn.SendCommand("HELP")
+		ret, err = conn.SendCommand("HELP")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.HELP = ret
 	}
 	if scanner.config.SendNOOP {
-		ret, err := conn.SendCommand("NOOP")
+		ret, err = conn.SendCommand("NOOP")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.NOOP = ret
 	}
 	if scanner.config.StartTLS {
-		ret, err := conn.SendCommand("STLS")
+		ret, err = conn.SendCommand("STLS")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		result.StartTLS = ret
-		if err := getPOP3Error(ret); err != nil {
+		if err = getPOP3Error(ret); err != nil {
 			return zgrab2.TryGetScanStatus(err), result, err
 		}
 		var tlsConn *zgrab2.TLSConnection
-		tlsConn, err = tlsWrapper(ctx, target, c)
+		tlsConn, err = tlsWrapper(ctx, target, conn.Conn)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
 		}
 		result.TLSLog = tlsConn.GetLog()
-		c = tlsConn
+		conn.Conn = tlsConn
 	}
 	if scanner.config.SendQUIT {
-		ret, err := conn.SendCommand("QUIT")
+		ret, err = conn.SendCommand("QUIT")
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}

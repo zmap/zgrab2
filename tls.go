@@ -4,18 +4,25 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/encoding/asn1"
+	"github.com/zmap/zcrypto/x509/pkix"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
-	"github.com/zmap/zcrypto/x509/pkix"
 )
+
+func init() {
+	asn1.AllowPermissiveParsing = true
+	pkix.LegacyNameString = true
+}
 
 // Shared code for TLS scans.
 // Example usage:
@@ -67,6 +74,52 @@ type TLSFlags struct {
 	OverrideSH  bool   `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 }
 
+// rootCAsStore is a struct to hold the value of the last x509.CertPool fetched using the RootCAs flag in TLSFlags
+// In CLI usage, this value is constant across all targets, and so doesn't make sense to lookup every time
+type rootCAsCache struct {
+	sync.RWMutex
+	rootCAs         string         // the flag value of what folder to find root cas
+	rootCAsCertPool *x509.CertPool // the Root CAs cert pool itself
+}
+
+// Fetch returns the x509.CertPool from the cache if the rootCAs string matches or from the filesystem if not
+func (s *rootCAsCache) Fetch(rootCAs string) *x509.CertPool {
+	var fd *os.File
+	var err error
+	var pool *x509.CertPool
+	s.RLock() // optimistic reader lock, most cases will just require a read lock since in CLI usage, the rootCAs value is constant
+	if s.rootCAs == rootCAs {
+		certPool := s.rootCAsCertPool
+		s.RUnlock()
+		return certPool
+	}
+	s.RUnlock()
+	s.Lock() // lock for writing, it's possible that another thread has changed the rootCAs value in between the RUnlock and Lock
+	defer s.Unlock()
+	if s.rootCAs == rootCAs { // ensure no one else has changed it
+		certPool := s.rootCAsCertPool
+		return certPool
+	}
+	if fd, err = os.Open(rootCAs); err != nil {
+		log.Fatal(err)
+	}
+	caBytes, readErr := io.ReadAll(fd)
+	if readErr != nil {
+		log.Fatal(err)
+	}
+	pool = x509.NewCertPool()
+	ok := pool.AppendCertsFromPEM(caBytes)
+	if !ok {
+		log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
+	}
+
+	s.rootCAs = rootCAs
+	s.rootCAsCertPool = pool
+	return s.rootCAsCertPool
+}
+
+var casCache rootCAsCache
+
 func getCSV(arg string) []string {
 	// TODO: Find standard way to pass array-valued options
 	reader := csv.NewReader(strings.NewReader(arg))
@@ -116,11 +169,11 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		var baseTime time.Time
 		baseTime, err = time.Parse("20060102150405Z", t.Time)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing time '%s': %s", t.Time, err)
+			return nil, fmt.Errorf("error parsing time '%s': %w", t.Time, err)
 		}
 		startTime := time.Now()
 		ret.Time = func() time.Time {
-			offset := time.Now().Sub(startTime)
+			offset := time.Since(startTime)
 			// Return (now - startTime) + baseTime
 			return baseTime.Add(offset)
 		}
@@ -134,23 +187,8 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 		log.Fatalf("--certificate-map not implemented")
 	}
 	if t.RootCAs != "" {
-		var fd *os.File
-		if fd, err = os.Open(t.RootCAs); err != nil {
-			log.Fatal(err)
-		}
-		caBytes, readErr := ioutil.ReadAll(fd)
-		if readErr != nil {
-			log.Fatal(err)
-		}
-		ret.RootCAs = x509.NewCertPool()
-		ok := ret.RootCAs.AppendCertsFromPEM(caBytes)
-		if !ok {
-			log.Fatalf("Could not read certificates from PEM file. Invalid PEM?")
-		}
+		ret.RootCAs = casCache.Fetch(t.RootCAs)
 	}
-
-	asn1.AllowPermissiveParsing = true
-	pkix.LegacyNameString = true
 
 	if t.NextProtos != "" {
 		// TODO: Different format?
@@ -182,7 +220,8 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 			var intCiphers = make([]uint16, len(strCiphers))
 			for i, s := range strCiphers {
 				s = strings.TrimPrefix(s, "0x")
-				v64, err := strconv.ParseUint(s, 16, 16)
+				var v64 uint64
+				v64, err = strconv.ParseUint(s, 16, 16)
 				if err != nil {
 					log.Fatalf("cipher suites: unable to convert %s to a 16bit integer: %s", s, err)
 				}
@@ -248,26 +287,26 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 	if t.ClientRandom != "" {
 		ret.ClientRandom, err = base64.StdEncoding.DecodeString(t.ClientRandom)
 		if err != nil {
-			return nil, fmt.Errorf("Error decoding --client-random value '%s': %s", t.ClientRandom, err)
+			return nil, fmt.Errorf("error decoding --client-random value '%s': %w", t.ClientRandom, err)
 		}
 	}
 
 	if t.ClientHello != "" {
 		ret.ExternalClientHello, err = base64.StdEncoding.DecodeString(t.ClientHello)
 		if err != nil {
-			return nil, fmt.Errorf("Error decoding --client-hello value '%s': %s", t.ClientHello, err)
+			return nil, fmt.Errorf("error decoding --client-hello value '%s': %w", t.ClientHello, err)
 		}
 	}
 
 	if t.OverrideSH {
 		ret.SignatureAndHashes = []tls.SigAndHash{
-			{0x01, 0x04}, // rsa, sha256
-			{0x03, 0x04}, // ecdsa, sha256
-			{0x01, 0x02}, // rsa, sha1
-			{0x03, 0x02}, // ecdsa, sha1
-			{0x01, 0x04}, // rsa, sha256
-			{0x01, 0x05}, // rsa, sha384
-			{0x01, 0x06}, // rsa, sha512
+			{Signature: 0x01, Hash: 0x04}, // rsa, sha256
+			{Signature: 0x03, Hash: 0x04}, // ecdsa, sha256
+			{Signature: 0x01, Hash: 0x02}, // rsa, sha1
+			{Signature: 0x03, Hash: 0x02}, // ecdsa, sha1
+			{Signature: 0x01, Hash: 0x04}, // rsa, sha256
+			{Signature: 0x01, Hash: 0x05}, // rsa, sha384
+			{Signature: 0x01, Hash: 0x06}, // rsa, sha512
 		}
 	}
 
@@ -296,7 +335,7 @@ func (z *TLSConnection) GetLog() *TLSLog {
 func (z *TLSConnection) Handshake() error {
 	log := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.Conn.GetHandshakeLog()
+		log.HandshakeLog = z.GetHandshakeLog()
 	}()
 	return z.Conn.Handshake()
 

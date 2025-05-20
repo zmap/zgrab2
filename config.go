@@ -28,7 +28,7 @@ type Config struct {
 	ConnectionsPerHost    int             `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
 	ReadLimitPerHost      int             `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 	Prometheus            string          `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
-	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server for lookups. Default port is 53."`
+	CustomDNS             string          `long:"dns" description:"Address of a custom DNS server(s) for lookups, comma-delimited. Default port is 53. Ex: 1.1.1.1:53,8.8.8.8. Uses the OS-default resolvers if not set."`
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
@@ -39,9 +39,11 @@ type Config struct {
 	logFile               *os.File
 	inputTargets          InputTargetsFunc
 	outputResults         OutputResultsFunc
-	localAddr             *net.TCPAddr
+	customDNSNameservers  []string // will be non-empty if user specified custom DNS, we'll check these are reachable before populating
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
+	useIPv4               bool     // true if zgrab should use IPv4 addresses after resolving domains
+	useIPv6               bool
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -99,7 +101,7 @@ func validateFrameworkConfiguration() {
 	} else if len(config.MetaFileName) > 0 {
 		var err error
 		if config.metaFile, err = os.Create(config.MetaFileName); err != nil {
-			log.Fatal(fmt.Errorf("error creating meta file: %s", err))
+			log.Fatal(fmt.Errorf("error creating meta file: %w", err))
 		}
 	}
 
@@ -108,7 +110,7 @@ func validateFrameworkConfiguration() {
 	} else if len(config.StatusUpdatesFileName) > 0 {
 		var err error
 		if config.statusUpdatesFile, err = os.Create(config.StatusUpdatesFileName); err != nil {
-			log.Fatal(fmt.Errorf("error creating status updates file: %v", err))
+			log.Fatal(fmt.Errorf("error creating status updates file: %w", err))
 		}
 	}
 
@@ -148,14 +150,6 @@ func validateFrameworkConfiguration() {
 		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
 	}
 
-	// Validate custom DNS
-	if config.CustomDNS != "" {
-		var err error
-		if config.CustomDNS, err = addDefaultPortToDNSServerName(config.CustomDNS); err != nil {
-			log.Fatalf("invalid DNS server address: %s", err)
-		}
-	}
-
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
 	if config.LocalAddrString != "" {
 		ips, err := extractIPAddresses(config.LocalAddrString)
@@ -163,6 +157,47 @@ func validateFrameworkConfiguration() {
 			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
 		}
 		config.localAddrs = ips
+		for _, ip := range ips {
+			if ip == nil {
+				log.Fatalf("could not extract IP addresses from address string: %s", ip)
+			}
+			if ip.To4() != nil {
+				config.useIPv4 = true
+			} else if ip.To16() != nil {
+				config.useIPv6 = true
+			} else {
+				log.Fatalf("invalid local address: %s", ip)
+			}
+		}
+	}
+
+	if !config.useIPv4 && !config.useIPv6 {
+		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs.
+		// The user hasn't specified any local addresses, so we'll detect the system's capabilities.
+		// Simply detecting if the host has a loopback IPv6 is not enough, some systems have IPv6 interfaces, but ISP
+		// won't support.
+		cloudflareIPv4Conn, err := net.Dial("tcp4", "1.1.1.1:53")
+		if err == nil {
+			config.useIPv4 = true
+			cloudflareIPv4Conn.Close()
+		}
+
+		cloudflareIPv6Conn, err := net.Dial("tcp6", "2606:4700:4700::1111:53")
+		if err == nil {
+			config.useIPv6 = true
+			cloudflareIPv6Conn.Close()
+		}
+		if !config.useIPv4 && !config.useIPv6 {
+			log.Fatalf("could not reach any DNS servers, are you connected to the internet?")
+		}
+	}
+
+	// Validate custom DNS must occur after setting useIPv4 and useIPv6
+	if config.CustomDNS != "" {
+		var err error
+		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
+			log.Fatalf("invalid DNS server address: %s", err)
+		}
 	}
 
 	// If localPortString is set, parse it into a list of ports to use for source ports
@@ -259,11 +294,11 @@ func extractPorts(portString string) ([]uint16, error) {
 			}
 			startPort, err := parsePortString(parts[0])
 			if err != nil {
-				return nil, fmt.Errorf("invalid start port %s of port range: %v", parts[0], err)
+				return nil, fmt.Errorf("invalid start port %s of port range: %w", parts[0], err)
 			}
 			endPort, err := parsePortString(parts[1])
 			if err != nil {
-				return nil, fmt.Errorf("invalid end port %s of port range: %v", parts[1], err)
+				return nil, fmt.Errorf("invalid end port %s of port range: %w", parts[1], err)
 			}
 			if startPort >= endPort {
 				return nil, fmt.Errorf("start port %d must be less than end port %d", startPort, endPort)
@@ -276,7 +311,7 @@ func extractPorts(portString string) ([]uint16, error) {
 			// single port
 			port, err := parsePortString(portStr)
 			if err != nil {
-				return nil, fmt.Errorf("invalid port %s: %v", portStr, err)
+				return nil, fmt.Errorf("invalid port %s: %w", portStr, err)
 			}
 			portMap[port] = struct{}{}
 		}

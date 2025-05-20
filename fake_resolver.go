@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/net/dns/dnsmessage"
 	"net"
 	"time"
+
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 // Fake DNS Resolver, to force a DNS lookup to return a pinned address
@@ -19,7 +20,7 @@ import (
 func NewFakeResolver(ipstr string) (*net.Resolver, error) {
 	ip := net.ParseIP(ipstr)
 	if len(ip) < 4 {
-		return nil, fmt.Errorf("Fake resolver can't use non-IP '%s'", ipstr)
+		return nil, fmt.Errorf("fake resolver can't use non-IP '%s'", ipstr)
 	}
 	fDNS := FakeDNSServer{
 		IP: ip,
@@ -86,7 +87,7 @@ func (f *FakeDNSServer) fakeDNS(s string, dmsg dnsmessage.Message) (r dnsmessage
 			},
 		}
 	default:
-		r.Header.RCode = dnsmessage.RCodeNameError
+		r.RCode = dnsmessage.RCodeNameError
 	}
 
 	return r, nil
@@ -124,7 +125,7 @@ func (fc *fakeDNSConn) Read(b []byte) (int, error) {
 	bb := make([]byte, 2, 514)
 	bb, err = resp.AppendPack(bb)
 	if err != nil {
-		return 0, fmt.Errorf("cannot marshal DNS message: %v", err)
+		return 0, fmt.Errorf("cannot marshal DNS message: %w", err)
 	}
 
 	bb = bb[2:]

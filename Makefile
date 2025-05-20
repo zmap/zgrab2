@@ -14,12 +14,14 @@ all: zgrab2
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
 test:
-	go test -v .
-	cd lib/output/test && go test -v ./...
-	cd modules && go test -v ./...
+	go test -v -failfast .
+	cd lib/output/test && go test -v -failfast ./...
+	cd modules && go test -v -failfast ./...
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
+	goimports -w -local "github.com/zmap/zgrab2" ./
+	golangci-lint run
 	black .
 
 zgrab2: $(GO_FILES)

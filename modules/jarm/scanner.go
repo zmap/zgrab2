@@ -34,7 +34,6 @@ type Scanner struct {
 
 type Results struct {
 	Fingerprint string `json:"fingerprint"`
-	error       string `json:"error,omitempty"`
 }
 
 // RegisterModule is called by modules/banner.go to register the scanner.
@@ -91,7 +90,7 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 }
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate() error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -117,6 +116,9 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	// Loop through each Probe type
 	for _, probe := range jarm.GetProbes(target.Host(), int(scanner.GetPort())) {
+		if zgrab2.HasCtxExpired(ctx) {
+			return zgrab2.SCAN_IO_TIMEOUT, nil, errors.New("scan timed out")
+		}
 		var (
 			conn net.Conn
 			err  error
@@ -150,7 +152,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	var fingerprint = jarm.RawHashToFuzzyHash(strings.Join(rawhashes, ","))
 
 	if fingerprint == "00000000000000000000000000000000000000000000000000000000000000" {
-		return zgrab2.SCAN_APPLICATION_ERROR, nil, errors.New("Unable to calculate hashes from server")
+		return zgrab2.SCAN_APPLICATION_ERROR, nil, errors.New("unable to calculate hashes from server")
 	}
 
 	return zgrab2.SCAN_SUCCESS, &Results{

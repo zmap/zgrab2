@@ -1,0 +1,50 @@
+# This code is licensed under the terms of the MIT license https://opensource.org/license/mit
+# Copyright (c) 2021 Marat Reymers
+
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - fatcontext
+    - govet
+    - ineffassign
+    - perfsprint
+    - prealloc
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+      settings:
+        shadow:
+          strict: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - lib/*
+issues:
+  max-issues-per-linter: 50
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

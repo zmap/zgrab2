@@ -3,11 +3,12 @@ package modules
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/ssh"
@@ -57,7 +58,7 @@ func (m *SSHModule) Description() string {
 	return "Fetch an SSH server banner and collect key exchange information"
 }
 
-func (f *SSHFlags) Validate() error {
+func (f *SSHFlags) Validate(_ []string) error {
 	return nil
 }
 
@@ -99,11 +100,11 @@ func (s *SSHScanner) GetTrigger() string {
 
 func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
-	portStr := strconv.FormatUint(uint64(t.Port), 10)
+	portStr := strconv.Itoa(int(t.Port))
 	rhost := net.JoinHostPort(t.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()
-	sshConfig.Timeout = s.config.Timeout
+	sshConfig.Timeout = s.config.ConnectTimeout
 	sshConfig.ConnLog = data
 	sshConfig.ClientVersion = s.config.ClientID
 	sshConfig.HelloOnly = s.config.HelloOnly
@@ -134,8 +135,8 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 		err = fmt.Errorf("failed to dial target %s: %w", t.String(), err)
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	if s.config.Timeout != 0 {
-		err = conn.SetDeadline(time.Now().Add(s.config.Timeout))
+	if s.config.ConnectTimeout != 0 {
+		err = conn.SetDeadline(time.Now().Add(s.config.ConnectTimeout))
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to set connection deadline: %w", err)
 		}
@@ -146,7 +147,7 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 	}
 	sshClient := ssh.NewClient(c, chans, reqs)
 	defer func() {
-		err := sshClient.Close()
+		err = sshClient.Close()
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			log.Errorf("error closing SSH client for target %s: %v", t.String(), err)
 		}

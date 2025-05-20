@@ -133,7 +133,7 @@ func (module *Module) Description() string {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	u16Strings := map[string]string{
 		"global-service-options":   flags.GlobalServiceOptions,
 		"protocol-characteristics": flags.ProtocolCharacterisics,
@@ -231,7 +231,7 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	var results *ScanResults
+	results := new(ScanResults)
 
 	sock, err := dialGroup.Dial(ctx, t)
 	if err != nil {
@@ -257,11 +257,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	handshakeLog, err := conn.Connect(connectDescriptor)
 	if handshakeLog != nil {
 		// Ensure that any handshake logs, even if incomplete, get returned.
-		if results == nil {
-			// If the results were not created previously to store the TLS log,
-			// create it now
-			results = new(ScanResults)
-		}
 		results.Handshake = handshakeLog
 	}
 

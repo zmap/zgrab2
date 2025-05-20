@@ -247,7 +247,7 @@ func (processor *Processor) copyByteSlice(v reflect.Value) reflect.Value {
 // length and capacity).
 func (processor *Processor) processSlice(v reflect.Value) reflect.Value {
 	if v.IsNil() {
-		panic(fmt.Errorf("Slice %#v (%s) is nil?\n", v, processor.getPath()))
+		panic(fmt.Errorf("slice %#v (%s) is nil", v, processor.getPath()))
 	}
 	if v.Type().Elem().Kind() == reflect.Uint8 {
 		return processor.copyByteSlice(v)

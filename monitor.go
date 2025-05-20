@@ -2,9 +2,10 @@ package zgrab2
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Monitor is a collection of states per scans and a channel to communicate

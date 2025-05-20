@@ -888,7 +888,7 @@ func (gex *dhGEXSHA) Client(c packetConn, randSource io.Reader, magics *handshak
 	// Check if g is safe by verifying that 1 < g < p-1
 	pMinusOne := new(big.Int).Sub(msg.P, bigOne)
 	if msg.G.Cmp(bigOne) <= 0 || msg.G.Cmp(pMinusOne) >= 0 {
-		return nil, fmt.Errorf("ssh: server provided gex g is not safe")
+		return nil, errors.New("ssh: server provided gex g is not safe")
 	}
 
 	// Send GexInit
@@ -937,7 +937,7 @@ func (gex *dhGEXSHA) Client(c packetConn, randSource io.Reader, magics *handshak
 
 	// Check if k is safe by verifying that k > 1 and k < p - 1
 	if kInt.Cmp(bigOne) <= 0 || kInt.Cmp(pMinusOne) >= 0 {
-		return nil, fmt.Errorf("ssh: derived k is not safe")
+		return nil, errors.New("ssh: derived k is not safe")
 	}
 
 	h := gex.hashFunc.New()

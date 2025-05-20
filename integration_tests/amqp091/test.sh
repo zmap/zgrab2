@@ -24,7 +24,7 @@ function doTest() {
   CONTAINER_NAME="zgrab_amqp091-${MQ_VERSION}"
   OUTPUT_FILE="$ZGRAB_OUTPUT/amqp091/${MQ_VERSION}${SUFFIX}.json"
   echo "amqp091/test: Testing RabbitMQ Version ${MQ_VERSION}${SUFFIX}..."
-  CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh amqp091 $AUTH_ARGS --timeout 10s >$OUTPUT_FILE
+  CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh amqp091 $AUTH_ARGS --target-timeout 10s >$OUTPUT_FILE
   SERVER_VERSION=$(jp -u data.amqp091.result.server_properties.version <$OUTPUT_FILE)
   if [[ "$SERVER_VERSION" == "$MQ_VERSION" ]]; then
     echo "amqp091/test: Server version matches expected version: $SERVER_VERSION == $MQ_VERSION"

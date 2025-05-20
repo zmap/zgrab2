@@ -3,6 +3,7 @@ package mqtt
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -74,7 +75,7 @@ func (m *Module) Description() string {
 }
 
 // Validate flags
-func (f *Flags) Validate() error {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -178,7 +179,7 @@ func (mqtt *Connection) ReadMQTTv3Packet() error {
 
 	// Check if the response is a valid CONNACK packet
 	if response[0] != 0x20 || response[1] != 0x02 {
-		return fmt.Errorf("invalid CONNACK packet")
+		return errors.New("invalid CONNACK packet")
 	}
 
 	mqtt.results.SessionPresent = (response[2] & 0x01) == 0x01
@@ -234,7 +235,7 @@ func (mqtt *Connection) ReadMQTTv5Packet() error {
 
 func (mqtt *Connection) processConnAck(packet []byte) error {
 	if len(packet) < 4 {
-		return fmt.Errorf("invalid CONNACK packet length")
+		return errors.New("invalid CONNACK packet length")
 	}
 
 	mqtt.results.SessionPresent = (packet[2] & 0x01) == 0x01
@@ -247,7 +248,7 @@ func (mqtt *Connection) processConnAck(packet []byte) error {
 		propertiesEnd := propertiesStart + int(propertiesLength)
 
 		if propertiesEnd > len(packet) {
-			return fmt.Errorf("invalid properties length in CONNACK")
+			return errors.New("invalid properties length in CONNACK")
 		}
 	}
 
@@ -256,7 +257,7 @@ func (mqtt *Connection) processConnAck(packet []byte) error {
 
 func (mqtt *Connection) processDisconnect(packet []byte) error {
 	if len(packet) < 2 {
-		return fmt.Errorf("invalid DISCONNECT packet length")
+		return errors.New("invalid DISCONNECT packet length")
 	}
 
 	// Process properties if present
@@ -266,7 +267,7 @@ func (mqtt *Connection) processDisconnect(packet []byte) error {
 		propertiesEnd := propertiesStart + int(propertiesLength)
 
 		if propertiesEnd > len(packet) {
-			return fmt.Errorf("invalid properties length in DISCONNECT")
+			return errors.New("invalid properties length in DISCONNECT")
 		}
 	}
 
@@ -287,7 +288,7 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 		}
 	}
 	if len(result) == 4 && result[3]&0x80 != 0 {
-		return nil, fmt.Errorf("invalid variable byte integer")
+		return nil, errors.New("invalid variable byte integer")
 	}
 	return result, nil
 }
@@ -307,7 +308,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 		mqtt.results.TLSLog = tlsConn.GetLog()
 	}
 
-	if err := mqtt.SendMQTTConnectPacket(s.config.V5); err != nil {
+	if err = mqtt.SendMQTTConnectPacket(s.config.V5); err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CONNECT packet to target %s: %w", t.String(), err)
 	}
 

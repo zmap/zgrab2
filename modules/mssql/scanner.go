@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -81,7 +82,7 @@ func (module *Module) Description() string {
 }
 
 // Validate does nothing in this module.
-func (flags *Flags) Validate() error {
+func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
@@ -141,11 +142,11 @@ func (scanner *Scanner) GetTrigger() string {
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	l4Dialer := dialGroup.L4Dialer
 	if l4Dialer == nil {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, fmt.Errorf("l4 dialer is required for mssql")
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mssql")
 	}
-	conn, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), fmt.Sprintf("%d", target.Port)))
+	conn, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port))))
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %v", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %w", target.String(), err)
 	}
 	sql := NewConnection(conn)
 	defer func(sql *Connection) {
@@ -180,7 +181,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 
 	if handshakeErr != nil {
-		if sql.PreloginOptions == nil && sql.readValidTDSPacket == false {
+		if sql.PreloginOptions == nil && !sql.readValidTDSPacket {
 			// If we received no PreloginOptions and none of the packets we've
 			// read appeared to be a valid TDS header, then the inference is
 			// that we found no MSSQL service on the target.

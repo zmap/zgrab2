@@ -11,6 +11,7 @@ RUN cat ssl.key ssl.cer > ssl.pem
 
 WORKDIR /var/lighttpd/htdocs/http
 COPY index-http.html index.html
+COPY favicon.ico favicon.ico
 RUN curl https://gist.githubusercontent.com/phillip-stephens/3f1a8d2874b4ff33e4fc46035810b7f9/raw/5bd8ed7fb1b923607c26807ea8ea0643825e6e16/index-very-large-http.html > large.html
 
 WORKDIR /var/lighttpd/htdocs/https

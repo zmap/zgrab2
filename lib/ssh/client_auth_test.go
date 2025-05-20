@@ -21,7 +21,7 @@ import (
 type keyboardInteractive map[string]string
 
 func (cr keyboardInteractive) Challenge(user string, instruction string, questions []string, echos []bool) ([]string, error) {
-	var answers []string
+	answers := make([]string, 0, len(questions))
 	for _, q := range questions {
 		answers = append(answers, cr[q])
 	}
@@ -313,7 +313,7 @@ func TestMethodInvalidAlgorithm(t *testing.T) {
 	found := false
 	want := "algorithm \"invalid\""
 
-	var errStrings []string
+	errStrings := make([]string, 0, len(serverErrors))
 	for _, err := range serverErrors {
 		found = found || (err != nil && strings.Contains(err.Error(), want))
 		errStrings = append(errStrings, err.Error())
@@ -825,7 +825,7 @@ func TestAuthMethodGSSAPIWithMIC(t *testing.T) {
 			},
 			gssConfig: &GSSAPIWithMICConfig{
 				AllowLogin: func(conn ConnMetadata, srcName string) (*Permissions, error) {
-					return nil, fmt.Errorf("user is not allowed to login")
+					return nil, errors.New("user is not allowed to login")
 				},
 				Server: &FakeServer{
 					exchanges: []*exchange{
