@@ -236,7 +236,7 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 		var value float64
 		var err error
 		// var int_val int64
-		if split_result[0] != "version" || split_result[0] != "libevent" {
+		if split_result[0] != "version" && split_result[0] != "libevent" {
 			string_val := string(split_result[1])
 			string_val = strings.TrimSpace(string_val)
 			value, err = strconv.ParseFloat(string(string_val), 64)
@@ -281,16 +281,23 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 // DO NOT USE stats sizes
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialGroup.Dial(ctx, target)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
+	}
 	var message []byte = []byte("stats")
 	message = append(message, byte(0x0D))
 	message = append(message, byte(0x0A))
 	_, err = conn.Write(message)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
 
 	results := make([]byte, 2000)
 	_, err = conn.Read(results)
+
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
+	}
 
 	split_results := strings.Split(string(results), "\n")
 	trimmed_results := make([]string, 0, len(split_results))
