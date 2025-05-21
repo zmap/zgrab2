@@ -34,8 +34,16 @@ install: setup-config
 
 CONFIG_DIR=$(HOME)/.config/zgrab2
 uninstall:
-	rm -rf $(CONFIG_DIR)
-	@rm -f $(shell which zgrab2)  # remove the binary
+	@echo "This will remove the zgrab2 configuration directory at $(CONFIG_DIR) and the zgrab2 binary."
+	@read -p "Do you wish to continue? (y/N): " choice; \
+	if [[ $$choice != [yY] ]]; then \
+		echo "Uninstallation aborted"; \
+		exit 0; \
+	else \
+		echo "Removing zgrab2 configuration directory at $(CONFIG_DIR) and the zgrab2 binary."; \
+		rm -rf $(CONFIG_DIR); \
+		rm -f $(shell which zgrab2); \
+	fi
 
 setup-config:
 	mkdir -p $(CONFIG_DIR)
