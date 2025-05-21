@@ -2,12 +2,13 @@ package zgrab2
 
 import (
 	"fmt"
-	"github.com/censys/cidranger"
 	"net"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/censys/cidranger"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -19,7 +20,7 @@ type Config struct {
 	OutputFileName        string          `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
 	InputFileName         string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName          string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr."`
-	BlocklistFileName     string          `short:"b" long:"blocklist-file" default:"/etc/zgrab2/blocklist.conf" description:"Blocklist filename"`
+	BlocklistFileName     string          `short:"b" long:"blocklist-file" default:"-" description:"Blocklist filename. Default location is $(HOME)/.config/zgrab2/blocklist.conf"`
 	StatusUpdatesFileName string          `short:"u" long:"status-updates-file" default:"-" description:"Status updates filename, use - for stderr."`
 	LogFileName           string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	Senders               int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
@@ -210,8 +211,11 @@ func validateFrameworkConfiguration() {
 		}
 		config.localPorts = ports
 	}
-
 	if len(config.BlocklistFileName) > 0 {
+		if config.BlocklistFileName == "-" {
+			// use the default location
+			config.BlocklistFileName = os.Getenv("HOME") + "/.config/zgrab2/blocklist.conf"
+		}
 		var err error
 		blocklist, err = readBlocklist(config.BlocklistFileName)
 		if err != nil {
