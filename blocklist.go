@@ -2,10 +2,11 @@ package zgrab2
 
 import (
 	"fmt"
-	"github.com/censys/cidranger"
 	"net"
 	"os"
 	"strings"
+
+	"github.com/censys/cidranger"
 )
 
 func stripComments(line, commentDelimiter string) string {

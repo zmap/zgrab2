@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/censys/cidranger"
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/censys/cidranger"
 )
 
 // Scanner is an interface that represents all functions necessary to run a scan

@@ -16,7 +16,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/censys/cidranger"
 	"io"
 	"net"
 	"net/url"
@@ -24,6 +23,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/censys/cidranger"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
