@@ -33,7 +33,7 @@ install:
 	cd cmd/zgrab2 && go install && cd ../..
 	# create config dir, if not present
 	sudo mkdir -p "/etc/zgrab2"
-	sudo cp ./blocklist.conf /etc/zgrab2/blocklist.conf
+	sudo cp ./conf/blocklist.conf /etc/zgrab2/blocklist.conf
 
 uninstall:
 	@rm -f $(shell which zgrab2) # remove the binary

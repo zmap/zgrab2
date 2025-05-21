@@ -19,7 +19,7 @@ type Config struct {
 	OutputFileName        string          `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
 	InputFileName         string          `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
 	MetaFileName          string          `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr."`
-	BlocklistFileName     string          `short:"b" long:"blocklist-file" default:"./blocklist.conf" description:"Blocklist filename"`
+	BlocklistFileName     string          `short:"b" long:"blocklist-file" default:"/etc/zgrab2/blocklist.conf" description:"Blocklist filename"`
 	StatusUpdatesFileName string          `short:"u" long:"status-updates-file" default:"-" description:"Status updates filename, use - for stderr."`
 	LogFileName           string          `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
 	Senders               int             `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
