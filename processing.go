@@ -225,8 +225,9 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 				// IP is in blocklist
 				continue
 			}
-			if !(config.useIPv4 && ip.To4() != nil) &&
-				!(config.useIPv6 && ip.To4() == nil && ip.To16() != nil) {
+			isIPv4Reachable := config.useIPv4 && ip.To4() != nil
+			isIPv6Reachable := config.useIPv6 && ip.To4() == nil && ip.To16() != nil
+			if !isIPv4Reachable && !isIPv6Reachable {
 				// IP is not reachable
 				continue
 			}
