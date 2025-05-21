@@ -216,7 +216,7 @@ func validateFrameworkConfiguration() {
 			}
 		}
 		if !config.useIPv4 && !config.useIPv6 {
-			log.Fatalf("could not reach one.one.one.one by either IPv4/v6 to detect IP capability, are you connected to the internet?")
+			log.Fatalf("could not reach one.one.one.one by either IPv4/IPv6 to detect IP capability, are you connected to the internet?")
 		}
 	}
 
