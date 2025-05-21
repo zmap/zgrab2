@@ -8,9 +8,16 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	IPVersionCapabilityTimeout     = 10 * time.Second
+	IPVersionCapabilityIPv4Address = "1.1.1.1:80"              // Cloudflare has this IP/Port redirect to https://one.one.one.one. We can use it to test if this host has IPv4 connectivity
+	IPVersionCapabilityIPv6Address = "2606:4700:4700::1111:80" // Same as above for IPv6
 )
 
 // Config is the high level framework options that will be parsed
@@ -176,19 +183,40 @@ func validateFrameworkConfiguration() {
 		// The user hasn't specified any local addresses, so we'll detect the system's capabilities.
 		// Simply detecting if the host has a loopback IPv6 is not enough, some systems have IPv6 interfaces, but ISP
 		// won't support.
-		cloudflareIPv4Conn, err := net.Dial("tcp4", "1.1.1.1:53")
-		if err == nil {
-			config.useIPv4 = true
-			cloudflareIPv4Conn.Close()
+		// Note on Local Addresses: If the user specifies local addresses to use, we can detect IP capability from those
+		// and we won't enter this. Just wanted to callout we're not leaking the user's local addresses to the internet
+		// by not using them here.
+		supportsIPv4 := make(chan bool)
+		supportsIPv6 := make(chan bool)
+		detectIPSupportFunc := func(network, address string, c chan bool) {
+			conn, err := net.DialTimeout(network, address, IPVersionCapabilityTimeout)
+			if err == nil {
+				c <- true // notify that we can reach the address
+				conn.Close()
+			}
+			close(c)
 		}
+		go detectIPSupportFunc("tcp4", IPVersionCapabilityIPv4Address, supportsIPv4)
+		go detectIPSupportFunc("tcp6", IPVersionCapabilityIPv6Address, supportsIPv6)
 
-		cloudflareIPv6Conn, err := net.Dial("tcp6", "2606:4700:4700::1111:53")
-		if err == nil {
-			config.useIPv6 = true
-			cloudflareIPv6Conn.Close()
+		// Wait for the results
+		heardFromIPv4, heardFromIPv6 := false, false
+		for !heardFromIPv4 || !heardFromIPv6 { // we expect a result from both channels
+			select {
+			case ipv4, ok := <-supportsIPv4:
+				if ok && ipv4 {
+					config.useIPv4 = true
+				}
+				heardFromIPv4 = true
+			case ipv6, ok := <-supportsIPv6:
+				if ok && ipv6 {
+					config.useIPv6 = true
+				}
+				heardFromIPv6 = true
+			}
 		}
 		if !config.useIPv4 && !config.useIPv6 {
-			log.Fatalf("could not reach any DNS servers, are you connected to the internet?")
+			log.Fatalf("could not reach one.one.one.one by either IPv4/v6 to detect IP capability, are you connected to the internet?")
 		}
 	}
 
