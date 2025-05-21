@@ -9,7 +9,7 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test install uninstall
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
@@ -24,20 +24,23 @@ lint:
 	golangci-lint run
 	black .
 
-zgrab2: $(GO_FILES)
+zgrab2: $(GO_FILES) setup-config
 	cd cmd/zgrab2 && go build && cd ../..
 	rm -f zgrab2
 	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
-install:
+install: setup-config
 	cd cmd/zgrab2 && go install && cd ../..
-	# create config dir, if not present
-	sudo mkdir -p "/etc/zgrab2"
-	sudo cp ./conf/blocklist.conf /etc/zgrab2/blocklist.conf
 
+CONFIG_DIR=$(HOME)/.config/zgrab2
 uninstall:
-	@rm -f $(shell which zgrab2) # remove the binary
-	sudo rm -rf "/etc/zgrab2"
+	rm -rf $(CONFIG_DIR)
+	@rm -f $(shell which zgrab2)  # remove the binary
+
+setup-config:
+	mkdir -p $(CONFIG_DIR)
+	# Copy the default config file if it doesn't exist
+	cp -n ./conf/blocklist.conf $(CONFIG_DIR)/blocklist.conf || true
 
 
 
