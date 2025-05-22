@@ -82,9 +82,6 @@ type Flags struct {
 
 	// Extract the raw header as it is on the wire
 	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
-
-	// TODO need a way to set this
-	Blocklist cidranger.Ranger
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -114,6 +111,7 @@ type Scanner struct {
 	customHeaders     map[string]string
 	decodedHashFn     func([]byte) string
 	dialerGroupConfig *zgrab2.DialerGroupConfig
+	blocklist         cidranger.Ranger
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -170,7 +168,7 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 }
 
 func (scanner *Scanner) WithBlocklist(blocklist cidranger.Ranger) {
-	scanner.config.Blocklist = blocklist
+	scanner.blocklist = blocklist
 }
 
 // Init initializes the scanner with the given flags
@@ -322,7 +320,7 @@ func (scan *scan) redirectsToBlockedHost(host string) bool {
 	var isBlocked bool
 	var err error
 	if i := net.ParseIP(host); i != nil {
-		if isBlocked, err = scan.scanner.config.Blocklist.Contains(i); err == nil && isBlocked {
+		if isBlocked, err = scan.scanner.blocklist.Contains(i); err == nil && isBlocked {
 			return true
 		}
 	}
@@ -330,7 +328,7 @@ func (scan *scan) redirectsToBlockedHost(host string) bool {
 	if addrs, err = net.LookupHost(host); err == nil {
 		for _, i := range addrs {
 			if ip := net.ParseIP(i); ip != nil {
-				if isBlocked, err = scan.scanner.config.Blocklist.Contains(ip); err == nil && isBlocked {
+				if isBlocked, err = scan.scanner.blocklist.Contains(ip); err == nil && isBlocked {
 					return true
 				}
 			}
