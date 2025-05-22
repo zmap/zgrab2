@@ -315,7 +315,8 @@ func (scan *scan) withDeadlineContext(ctx context.Context) (context.Context, con
 	return ctx, func() {}
 }
 
-// redirectsToBlockedHost checks if the given host is a blocked host
+// redirectsToBlockedHost checks if the given host resolves to a blocked IP since we can't control what IP net.Dial
+// will pick, if any of the resolved IPs are blocked, we'll error
 func (scan *scan) redirectsToBlockedHost(host string) bool {
 	var isBlocked bool
 	var err error

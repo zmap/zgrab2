@@ -221,6 +221,9 @@ func validateFrameworkConfiguration() {
 		if err != nil {
 			log.Fatalf("could not read blocklist file %s: %s", config.BlocklistFileName, err)
 		}
+	} else {
+		// initialize to empty blocklist
+		blocklist = cidranger.NewPCTrieRanger()
 	}
 }
 
