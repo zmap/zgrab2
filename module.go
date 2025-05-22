@@ -7,6 +7,8 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/censys/cidranger"
 )
 
 // Scanner is an interface that represents all functions necessary to run a scan
@@ -34,6 +36,10 @@ type Scanner interface {
 	// GetDialerGroupConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
 	// desired dialer configuration.
 	GetDialerGroupConfig() *DialerGroupConfig
+}
+
+type BlocklistScanner interface {
+	WithBlocklist(ranger cidranger.Ranger)
 }
 
 // TransportProtocol is an enum for the transport layer protocol of a module
@@ -162,6 +168,7 @@ type DialerGroup struct {
 	// modules that need to start with a TCP connection and then upgrade to TLS later as part of the protocol.
 	// Cannot be used for QUIC connections, as QUIC connections are not "upgraded" from a L4 connection
 	TLSWrapper func(ctx context.Context, target *ScanTarget, l4Conn net.Conn) (*TLSConnection, error)
+	Blocklist  *cidranger.Ranger // Blocklist is a list of CIDR ranges that should be blocked
 }
 
 // Dial is used to access the transport agnostic dialer
