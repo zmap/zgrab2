@@ -262,7 +262,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	}
 	conn, err := d.Dialer.DialContext(ctx, network, address)
 	if err != nil {
-		return nil, fmt.Errorf("dial context failed: %v", err)
+		return nil, fmt.Errorf("dial context failed: %w", err)
 	}
 	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
 	ret.BytesReadLimit = d.BytesReadLimit
@@ -321,7 +321,10 @@ func (d *Dialer) SetDefaults() *Dialer {
 				return fmt.Errorf("invalid IP address: %s", ip)
 			}
 			if contains, _ := d.Blocklist.Contains(parsedIP); contains {
-				return fmt.Errorf("dialing blocked IP: %s", ip)
+				return &ScanError{
+					Status: SCAN_BLOCKLISTED_TARGET,
+					Err:    fmt.Errorf("dialing blocked IP: %s", ip),
+				}
 			}
 			return nil
 		}
