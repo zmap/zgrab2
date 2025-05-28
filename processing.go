@@ -288,16 +288,6 @@ func Process(mon *Monitor) {
 			log.Fatal(err)
 		}
 	}()
-	// Set the blocklist for any module that needs it (where needs it is defined by implementing the BlocklistScanner
-	// interface)
-	for _, scannerName := range orderedScanners {
-		scanner := *scanners[scannerName]
-		bl, ok := scanner.(BlocklistScanner)
-		if ok {
-			log.Warnf("Scanner %s is using blocklist", scannerName) // TODO remove this
-			bl.WithBlocklist(blocklist)
-		}
-	}
 	//Start all the workers
 	for i := 0; i < workers; i++ {
 		go func(i int) {

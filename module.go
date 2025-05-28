@@ -38,10 +38,6 @@ type Scanner interface {
 	GetDialerGroupConfig() *DialerGroupConfig
 }
 
-type BlocklistScanner interface {
-	WithBlocklist(ranger cidranger.Ranger)
-}
-
 // TransportProtocol is an enum for the transport layer protocol of a module
 type TransportProtocol uint
 

@@ -24,8 +24,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/censys/cidranger"
-
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
 
@@ -34,9 +32,6 @@ import (
 )
 
 var (
-	// ErrRedirLocalhost is returned when an HTTP redirect points to a blocked host
-	ErrRedirBlockedHost = errors.New("redirecting to blocked host")
-
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("too many redirects")
@@ -111,7 +106,6 @@ type Scanner struct {
 	customHeaders     map[string]string
 	decodedHashFn     func([]byte) string
 	dialerGroupConfig *zgrab2.DialerGroupConfig
-	blocklist         cidranger.Ranger
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -165,10 +159,6 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
-}
-
-func (scanner *Scanner) WithBlocklist(blocklist cidranger.Ranger) {
-	scanner.blocklist = blocklist
 }
 
 // Init initializes the scanner with the given flags
@@ -491,8 +481,6 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		switch err {
 		case ErrDoNotRedirect:
 			break
-		case ErrRedirBlockedHost:
-			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 		case ErrTooManyRedirects:
 			if scan.scanner.config.RedirectsSucceed {
 				return nil
