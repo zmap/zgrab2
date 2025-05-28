@@ -144,7 +144,7 @@ func (flags *Flags) Validate(_ []string) error {
 	for name, value := range u16Strings {
 		v, err := strconv.ParseUint(value, 0, 32)
 		if err != nil {
-			return fmt.Errorf("%s: %s is not a valid 16-bit integer: %v", name, value, err)
+			return fmt.Errorf("%s: %s is not a valid 16-bit integer: %w", name, value, err)
 		}
 		if v > 0xffff {
 			return fmt.Errorf("%s: %s is larger than 16 bits", name, value)

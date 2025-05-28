@@ -101,12 +101,12 @@ func getPrintersRequest(major, minor int8) (*bytes.Buffer, *zgrab2.ScanError) {
 
 	//attributes-charset
 	if err := AttributeByteString(0x47, "attributes-charset", "utf-8", &b); err != nil {
-		return nil, &zgrab2.ScanError{Status: zgrab2.SCAN_UNKNOWN_ERROR, Err: fmt.Errorf("failed to write AttributeByteString for charset: %v", err)}
+		return nil, &zgrab2.ScanError{Status: zgrab2.SCAN_UNKNOWN_ERROR, Err: fmt.Errorf("failed to write AttributeByteString for charset: %w", err)}
 	}
 
 	//attributes-natural-language
 	if err := AttributeByteString(0x48, "attributes-natural-language", "en-us", &b); err != nil {
-		return nil, &zgrab2.ScanError{Status: zgrab2.SCAN_UNKNOWN_ERROR, Err: fmt.Errorf("failed to write AttributeByteString for natural-language: %v", err)}
+		return nil, &zgrab2.ScanError{Status: zgrab2.SCAN_UNKNOWN_ERROR, Err: fmt.Errorf("failed to write AttributeByteString for natural-language: %w", err)}
 	}
 
 	//end-of-attributes-tag = 3
@@ -139,19 +139,19 @@ func getPrinterAttributesRequest(major, minor int8, uri string, tls bool) (*byte
 
 	//attributes-charset
 	if err := AttributeByteString(0x47, "attributes-charset", "utf-8", &b); err != nil {
-		return nil, fmt.Errorf("failed to write AttributeByteString for charset: %v", err)
+		return nil, fmt.Errorf("failed to write AttributeByteString for charset: %w", err)
 	}
 	//attributes-natural-language
 	if err := AttributeByteString(0x48, "attributes-natural-language", "en-us", &b); err != nil {
-		return nil, fmt.Errorf("failed to write AttributeByteString for natural-language: %v", err)
+		return nil, fmt.Errorf("failed to write AttributeByteString for natural-language: %w", err)
 	}
 	//printer-uri
 	if err := AttributeByteString(0x45, "printer-uri", ConvertURIToIPP(uri, tls), &b); err != nil {
-		return nil, fmt.Errorf("failed to write AttributeByteString for printer-uri: %v", err)
+		return nil, fmt.Errorf("failed to write AttributeByteString for printer-uri: %w", err)
 	}
 	//requested-attributes
 	if err := AttributeByteString(0x44, "requested-attributes", "all", &b); err != nil {
-		return nil, fmt.Errorf("failed to write AttributeByteString for requested-attributes: %v", err)
+		return nil, fmt.Errorf("failed to write AttributeByteString for requested-attributes: %w", err)
 	}
 
 	//end-of-attributes-tag = 3

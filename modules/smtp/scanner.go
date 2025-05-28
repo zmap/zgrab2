@@ -312,7 +312,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if shouldSendSTARTTLS && !scanner.config.SMTPSecure {
 		ret, err := smtpConn.SendCommand("STARTTLS")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send STARTTLS command: %v", err)
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send STARTTLS command: %w", err)
 		}
 		result.StartTLS = ret
 		code, err := getSMTPCode(ret)

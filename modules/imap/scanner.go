@@ -215,7 +215,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		var tlsConn *zgrab2.TLSConnection
 		tlsConn, err = dialGroup.TLSWrapper(ctx, target, c)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %w", target.String(), err)
 		}
 		result.TLSLog = tlsConn.GetLog()
 		c = tlsConn
@@ -236,15 +236,15 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if scanner.config.StartTLS {
 		ret, err = conn.SendCommand("a001 STARTTLS")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error sending STLS command for IMAP %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error sending STLS command for IMAP %s: %w", target.String(), err)
 		}
 		result.StartTLS = ret
 		if err = getIMAPError(ret); err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %w", target.String(), err)
 		}
 		tlsConn, err := dialGroup.TLSWrapper(ctx, target, c)
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %w", target.String(), err)
 		}
 		result.TLSLog = tlsConn.GetLog()
 		conn.Conn = tlsConn
@@ -252,7 +252,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if scanner.config.SendCLOSE {
 		ret, err := conn.SendCommand("a001 CLOSE")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CLOSE command for IMAP %s: %v", target.String(), err)
+			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CLOSE command for IMAP %s: %w", target.String(), err)
 		}
 		result.CLOSE = ret
 	}

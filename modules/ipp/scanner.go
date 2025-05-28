@@ -231,7 +231,7 @@ func bufferFromBody(res *http.Response, scanner *Scanner) (*bytes.Buffer, error)
 	}
 
 	if n, err := io.CopyN(b, res.Body, readLen); err != nil {
-		return nil, fmt.Errorf("error reading body after reading %d bytes: %v", n, err)
+		return nil, fmt.Errorf("error reading body after reading %d bytes: %w", n, err)
 	}
 	res.Body.Close()
 	res.Body = io.NopCloser(b)
@@ -469,7 +469,7 @@ func versionNotSupported(body string) bool {
 func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarget, version *version) *zgrab2.ScanError {
 	cupsBody, err := getPrintersRequest(version.Major, version.Minor)
 	if err != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printers req: %v", err))
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printers req: %w", err))
 	}
 	cupsResp, err := sendIPPRequest(scan, cupsBody)
 	//Store response regardless of error in request, because we may have gotten something back
@@ -479,7 +479,7 @@ func (scanner *Scanner) augmentWithCUPSData(scan *scan, target *zgrab2.ScanTarge
 	}
 	// Store data into BodyText and BodySHA256 of cupsResp
 	if err := storeBody(cupsResp, scanner); err != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %w", err))
 	}
 	if versionNotSupported(scan.results.CUPSResponse.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
@@ -561,7 +561,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	// Send get-printer-attributes request to the host, preferably a print server
 	body, err := getPrinterAttributesRequest(version.Major, version.Minor, scan.url, scan.tls)
 	if err != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printer attributes req: %v", err))
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not get printer attributes req: %w", err))
 	}
 	resp, scanErr := sendIPPRequest(scan, body)
 	//Store response regardless of error in request, because we may have gotten something back
@@ -570,7 +570,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not send request: %v", scanErr))
 	}
 	if err := storeBody(resp, scanner); err != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %w", err))
 	}
 	if versionNotSupported(scan.results.Response.BodyText) {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, ErrVersionNotSupported)
@@ -664,7 +664,7 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 		}
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)
 		if err := storeBody(res, scanner); err != nil {
-			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %v", err))
+			return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %w", err))
 		}
 
 		return nil
