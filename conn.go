@@ -8,7 +8,10 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"syscall"
 	"time"
+
+	"github.com/censys/cidranger"
 
 	"github.com/sirupsen/logrus"
 )
@@ -241,6 +244,9 @@ type Dialer struct {
 	// ReadLimitExceededAction describes how connections dialed with this dialer deal with exceeding
 	// the BytesReadLimit.
 	ReadLimitExceededAction ReadLimitExceededAction
+
+	// Blocklist of IPs we should not dial.
+	Blocklist cidranger.Ranger
 }
 
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
@@ -299,17 +305,41 @@ func (d *Dialer) SetDefaults() *Dialer {
 			}
 		}
 	}
+	if d.Control == nil && d.Blocklist != nil {
+		// If the dialer does not have an existing Control function and we have a blocklist, we'll set a Control fn to
+		// handle blocklisting here.
+		// Control functions are used to run logic before the connection is established, but post-DNS resolution.
+		// Limitation - if this errors, the dial will fail. This is only an issue with dialing hostnames that resolve to
+		// multiple IPs and only some are blocked. In this case, we will not retry with another IP.
+		d.Control = func(network, address string, c syscall.RawConn) error {
+			ip, _, err := net.SplitHostPort(address)
+			if err != nil {
+				ip = address // if no port is specified, use the whole address
+			}
+			parsedIP := net.ParseIP(ip)
+			if parsedIP == nil {
+				return fmt.Errorf("invalid IP address: %s", ip)
+			}
+			if contains, _ := d.Blocklist.Contains(parsedIP); contains {
+				return fmt.Errorf("dialing blocked IP: %s", ip)
+			}
+			return nil
+		}
+	}
 	return d
 }
 
 // NewDialer creates a new Dialer with default settings.
+// Blocklist, if provided, is used to prevent dialing certain IPs.
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
-		value.Dialer = &net.Dialer{}
 	}
 	if value.Dialer == nil {
 		value.Dialer = &net.Dialer{} // initialize defaults to prevent nil pointer dereference
+	}
+	if value.Blocklist == nil {
+		value.Blocklist = blocklist
 	}
 	return value.SetDefaults()
 }
