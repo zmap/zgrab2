@@ -464,7 +464,7 @@ func parsePortString(portStr string) (uint16, error) {
 	maximumPort := uint64(65535) // inclusive
 	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
 	if err != nil {
-		return 0, fmt.Errorf("invalid port %s: %v", portStr, err)
+		return 0, fmt.Errorf("invalid port %s: %w", portStr, err)
 	}
 	if port < minimumPort {
 		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
