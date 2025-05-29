@@ -5,7 +5,8 @@ else
 endif
 
 GO_FILES = $(shell find . -type f -name '*.go')
-TEST_MODULES ?= 
+TEST_MODULES ?=
+.DEFAULT_GOAL := install
 
 all: zgrab2
 
@@ -46,17 +47,20 @@ uninstall:
 	fi
 
 setup-config:
+	@echo "Setting up zgrab2 configuration directory at $(CONFIG_DIR) and installing ZGrab2"
+# Make sure the config directory exists
 	mkdir -p $(CONFIG_DIR)
-	# Copy the default config file if it doesn't exist
+# Copy the default config file if it doesn't exist
 	cp -n ./conf/blocklist.conf $(CONFIG_DIR)/blocklist.conf || true
 
 
 
 integration-test:
 	make integration-test-build
-	sleep 15  # Wait for services to start
+# Wait for services to start
+	sleep 15
 	make integration-test-run
-	# Shut off the services
+# Shut off the services
 	make integration-test-clean
 
 integration-test-build:
