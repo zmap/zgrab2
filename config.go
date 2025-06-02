@@ -41,8 +41,8 @@ type Config struct {
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
-	UserIPv4Choice        *bool           `long:"user-i-pv-4-choice" description:"Use IPv4 for resolving domains (accept A records) and for initiating connections. True by default, use only --use-ipv6 to use only IPv6. If used with --use-ipv6, will use both IPv4 and IPv6."`
-	UserIPv6Choice        *bool           `long:"user-i-pv-6-choice" description:"Use IPv6 for resolving domains (accept AAAA records) and for initiating connections. If --use-ipv4 is not set, will only use IPv6."`
+	UserIPv4Choice        *bool           `long:"use-ipv4" description:"Use IPv4 for resolving domains (accept A records) and for initiating connections. True by default, use only --use-ipv6 for just IPv6. If used with --use-ipv6, will use both IPv4 and IPv6."`
+	UserIPv6Choice        *bool           `long:"use-ipv6" description:"Use IPv6 for resolving domains (accept AAAA records) and for initiating connections. IPv6 is disabled by default. If --use-ipv4 is not set, will only use IPv6. If used with --use-ipv4, will use both IPv4 and IPv6."`
 	inputFile             *os.File
 	outputFile            *os.File
 	metaFile              *os.File
