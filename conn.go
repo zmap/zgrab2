@@ -10,6 +10,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/censys/cidranger"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -241,6 +243,9 @@ type Dialer struct {
 	// ReadLimitExceededAction describes how connections dialed with this dialer deal with exceeding
 	// the BytesReadLimit.
 	ReadLimitExceededAction ReadLimitExceededAction
+
+	// Blocklist of IPs we should not dial.
+	Blocklist cidranger.Ranger
 }
 
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
@@ -254,14 +259,117 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			d.Timeout = min(d.Timeout, d.SessionTimeout)
 		}
 	}
-	conn, err := d.Dialer.DialContext(ctx, network, address)
+	// Determine if address is a domain or an IP address
+	var conn net.Conn
+	host, port, err := net.SplitHostPort(address)
+	if err == nil && net.ParseIP(host) == nil {
+		// address is a domain
+		conn, err = d.dialContextDomain(ctx, network, host, port)
+	} else {
+		// address is an IP, check blocklist
+		if d.Blocklist != nil {
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return nil, fmt.Errorf("invalid IP address: %s", host)
+			}
+			if contains, _ := d.Blocklist.Contains(ip); contains {
+				return nil, &ScanError{
+					Status: SCAN_BLOCKLISTED_TARGET,
+					Err:    fmt.Errorf("dialing blocked IP: %s", host),
+				}
+			}
+		}
+		// can proceed with dialing the IP address, not blocklisted
+		conn, err = d.Dialer.DialContext(ctx, network, address)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("dial context failed: %v", err)
+		return nil, fmt.Errorf("dial context failed: %w", err)
 	}
 	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
+}
+
+// dialContextDomain emulates what net.Dialer.DialContext does for domains, but with additional logic to handle not
+// connecting to unreachable IPs (defined as IPs that are not reachable due to IPv4/IPv6 settings) and blocklisted IPs.
+// We'll:
+// 1. Perform a DNS lookup for the domain to get all IPs.
+// 2. Filter out IPs that are not reachable due to IPv4/IPv6 settings.
+// 3. Filter out blocklisted IPs.
+// 4. Calculate a timeout sharing mechanism to give each reachable IP an equal share of the timeout overall.
+func (d *Dialer) dialContextDomain(ctx context.Context, network, host, port string) (net.Conn, error) {
+	// Lookup name
+	usableIPs, err := d.lookupIPs(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup IPs for domain %s: %w", host, err)
+	}
+
+	// Time-sharing mechanism across all IPs
+	timeout := d.Timeout // How long to wait for all IPs
+	if ctxDeadline, ok := ctx.Deadline(); ok {
+		timeout = min(timeout, time.Until(ctxDeadline))
+	}
+	singleIPTimeout := timeout / time.Duration(len(usableIPs)) // Give each IP an equal share of the timeout
+	originalDialerTimeout := d.Timeout
+	defer func() {
+		d.Timeout = originalDialerTimeout // Restore the original timeout after dialing
+	}()
+	d.Timeout = singleIPTimeout // Dialer will only wait for this amount of time for each IP
+	for _, ip := range usableIPs {
+		conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+	}
+	return nil, &ScanError{
+		Status: SCAN_CONNECTION_TIMEOUT,
+		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout", host),
+	}
+
+}
+
+func (d *Dialer) lookupIPs(ctx context.Context, host string) ([]net.IP, error) {
+	ips, err := d.Resolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve domain %s: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IPs found for domain %s", host)
+	}
+	// Remove Unreachable IPs
+	filteredIPs := make([]net.IP, 0, len(ips))
+	for _, ip := range ips {
+		isIPv4 := ip.To4() != nil
+		isIPv6 := !isIPv4 && ip.To16() != nil
+		if config.useIPv4 && isIPv4 {
+			filteredIPs = append(filteredIPs, ip)
+		} else if config.useIPv6 && isIPv6 {
+			filteredIPs = append(filteredIPs, ip)
+		}
+		// Else, skip
+	}
+	if len(filteredIPs) == 0 {
+		return nil, fmt.Errorf("no reachable IPs found for domain %s with IPv4=%t, IPv6=%t", host, config.useIPv4, config.useIPv6)
+	}
+	// Filter out blocklisted IPs
+	if d.Blocklist != nil {
+		newFilteredIPs := make([]net.IP, 0, len(filteredIPs))
+		for _, ip := range filteredIPs {
+			if contains, _ := d.Blocklist.Contains(ip); !contains {
+				newFilteredIPs = append(newFilteredIPs, ip)
+			}
+		}
+		filteredIPs = newFilteredIPs
+	}
+	if len(filteredIPs) == 0 {
+		return nil, &ScanError{
+			Status: SCAN_BLOCKLISTED_TARGET,
+			Err:    fmt.Errorf("no reachable IPs found for domain %s after filtering blocklisted IPs", host),
+		}
+	}
+	return filteredIPs, nil
 }
 
 // Dial returns a connection with the configured timeout.
@@ -303,13 +411,16 @@ func (d *Dialer) SetDefaults() *Dialer {
 }
 
 // NewDialer creates a new Dialer with default settings.
+// Blocklist, if provided, is used to prevent dialing certain IPs.
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
-		value.Dialer = &net.Dialer{}
 	}
 	if value.Dialer == nil {
 		value.Dialer = &net.Dialer{} // initialize defaults to prevent nil pointer dereference
+	}
+	if value.Blocklist == nil {
+		value.Blocklist = blocklist
 	}
 	return value.SetDefaults()
 }

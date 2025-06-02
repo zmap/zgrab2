@@ -32,10 +32,6 @@ import (
 )
 
 var (
-	// ErrRedirLocalhost is returned when an HTTP redirect points to localhost,
-	// unless FollowLocalhostRedirects is set.
-	ErrRedirLocalhost = errors.New("redirecting to localhost")
-
 	// ErrTooManyRedirects is returned when the number of HTTP redirects exceeds
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("too many redirects")
@@ -56,10 +52,6 @@ type Flags struct {
 	RetryHTTPS       bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
 	MaxSize          int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
 	MaxRedirects     int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
-
-	// FollowLocalhostRedirects overrides the default behavior to return
-	// ErrRedirLocalhost whenever a redirect points to localhost.
-	FollowLocalhostRedirects bool `long:"follow-localhost-redirects" description:"Follow HTTP redirects to localhost"`
 
 	// UseHTTPS causes the first request to be over TLS, without requiring a
 	// redirect to HTTPS. It does not change the port used for the connection.
@@ -313,27 +305,6 @@ func (scan *scan) withDeadlineContext(ctx context.Context) (context.Context, con
 	return ctx, func() {}
 }
 
-// Taken from zgrab/zlib/grabber.go -- check if the URL points to localhost
-func redirectsToLocalhost(host string) bool {
-	if i := net.ParseIP(host); i != nil {
-		return i.IsLoopback() || i.Equal(net.IPv4zero)
-	}
-	if host == "localhost" {
-		return true
-	}
-
-	if addrs, err := net.LookupHost(host); err == nil {
-		for _, i := range addrs {
-			if ip := net.ParseIP(i); ip != nil {
-				if ip.IsLoopback() || ip.Equal(net.IPv4zero) {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
 // Taken from zgrab/zlib/grabber.go -- get a CheckRedirect callback that uses
 // the redirectToLocalhost and MaxRedirects config
 func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http.Request) error {
@@ -344,9 +315,6 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		//len-1 because otherwise we'll return a failure on 1 redirect when we specify only 1 redirect. I.e. we are 0
 		if len(via)-1 > scan.scanner.config.MaxRedirects {
 			return ErrTooManyRedirects
-		}
-		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
-			return ErrRedirLocalhost
 		}
 		// We're following a re-direct. The IP that the framework resolved initially is no longer valid. Clearing
 		scan.target.IP = nil
@@ -512,8 +480,6 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		switch err {
 		case ErrDoNotRedirect:
-			break
-		case ErrRedirLocalhost:
 			break
 		case ErrTooManyRedirects:
 			if scan.scanner.config.RedirectsSucceed {

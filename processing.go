@@ -199,32 +199,26 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
 
 	if len(input.Domain) > 0 && input.IP == nil {
-		// resolve the target's IP here once, so it doesn't need to be resolved in each module
+		//	// resolve the target's IP here once, so it doesn't need to be resolved in each module
 		dialer := NewDialer(nil)
-		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
 		if err != nil {
 			return &Grab{
 				Port:   input.Port,
 				Domain: input.Domain,
-				Error:  "could not resolve " + input.Domain,
+				Error:  "could not set local addr on resolver",
 			}
 		}
-		// filter out IPs that aren't reachable
-		possibleIPS := make([]string, 0, len(ips))
-		for _, ip := range ips {
-			if config.useIPv4 && ip.To4() != nil ||
-				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
-				possibleIPS = append(possibleIPS, ip.String())
-			}
-		}
-		if len(possibleIPS) == 0 {
+		var reachableIPs []net.IP
+		reachableIPs, err = dialer.lookupIPs(ctx, input.Domain)
+		if err != nil {
 			return &Grab{
 				Port:   input.Port,
 				Domain: input.Domain,
-				Error:  fmt.Sprintf("no reachable ips for %s were found during name resolution", input.Domain),
+				Error:  fmt.Sprintf("could not resolve domain %s: %v", input.Domain, err),
 			}
 		}
-		input.IP = net.ParseIP(possibleIPS[rand.Intn(len(possibleIPS))])
+		input.IP = reachableIPs[rand.Intn(len(reachableIPs))]
 	}
 
 	for _, scannerName := range orderedScanners {

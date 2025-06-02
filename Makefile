@@ -5,11 +5,12 @@ else
 endif
 
 GO_FILES = $(shell find . -type f -name '*.go')
-TEST_MODULES ?= 
+TEST_MODULES ?=
+.DEFAULT_GOAL := install
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test install uninstall
 
 # Test currently only runs on the modules folder because some of the 
 # third-party libraries in lib (e.g. http) are failing.
@@ -24,16 +25,42 @@ lint:
 	golangci-lint run
 	black .
 
-zgrab2: $(GO_FILES)
+zgrab2: $(GO_FILES) setup-config
 	cd cmd/zgrab2 && go build && cd ../..
 	rm -f zgrab2
 	ln -s cmd/zgrab2/zgrab2$(EXECUTABLE_EXTENSION) zgrab2
 
+install: setup-config
+	cd cmd/zgrab2 && go install && cd ../..
+
+CONFIG_DIR=$(HOME)/.config/zgrab2
+uninstall:
+	@echo "This will remove the zgrab2 configuration directory at $(CONFIG_DIR) and the zgrab2 binary."
+	@read -p "Do you wish to continue? (y/N): " choice; \
+	if [[ $$choice != [yY] ]]; then \
+		echo "Uninstallation aborted"; \
+		exit 0; \
+	else \
+		echo "Removing zgrab2 configuration directory at $(CONFIG_DIR) and the zgrab2 binary."; \
+		rm -rf $(CONFIG_DIR); \
+		rm -f $(shell which zgrab2); \
+	fi
+
+setup-config:
+	@echo "Setting up zgrab2 configuration directory at $(CONFIG_DIR) and installing ZGrab2"
+# Make sure the config directory exists
+	mkdir -p $(CONFIG_DIR)
+# Copy the default config file if it doesn't exist
+	cp -n ./conf/blocklist.conf $(CONFIG_DIR)/blocklist.conf || true
+
+
+
 integration-test:
 	make integration-test-build
-	sleep 15  # Wait for services to start
+# Wait for services to start
+	sleep 15
 	make integration-test-run
-	# Shut off the services
+# Shut off the services
 	make integration-test-clean
 
 integration-test-build:

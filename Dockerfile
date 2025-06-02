@@ -16,8 +16,11 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux make all
 
 ## Runtime image ##
-FROM scratch
+FROM alpine:latest
 
 COPY --from=build /usr/src/zgrab2/cmd/zgrab2/zgrab2 /usr/bin/zgrab2
+RUN mkdir -p /root/.config/zgrab2
+COPY --from=build /usr/src/zgrab2/conf/blocklist.conf /root/.config/zgrab2/blocklist.conf
 
-ENTRYPOINT ["/usr/bin/zgrab2"]
+WORKDIR /usr/bin/
+ENTRYPOINT ["zgrab2"]
