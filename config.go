@@ -41,6 +41,8 @@ type Config struct {
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
+	UserIPv4Choice        *bool           `long:"user-i-pv-4-choice" description:"Use IPv4 for resolving domains (accept A records) and for initiating connections. True by default, use only --use-ipv6 to use only IPv6. If used with --use-ipv6, will use both IPv4 and IPv6."`
+	UserIPv6Choice        *bool           `long:"user-i-pv-6-choice" description:"Use IPv6 for resolving domains (accept AAAA records) and for initiating connections. If --use-ipv4 is not set, will only use IPv6."`
 	inputFile             *os.File
 	outputFile            *os.File
 	metaFile              *os.File
@@ -51,7 +53,7 @@ type Config struct {
 	customDNSNameservers  []string // will be non-empty if user specified custom DNS, we'll check these are reachable before populating
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
-	useIPv4               bool     // true if zgrab should use IPv4 addresses after resolving domains
+	useIPv4               bool     // true if IPv4 is enabled, false if only IPv6 is enabled. Guaranteed to be set, whereas UserIPv4Choice may be nil if unset by the user
 	useIPv6               bool
 }
 
@@ -160,67 +162,54 @@ func validateFrameworkConfiguration() {
 		DefaultBytesReadLimit = config.ReadLimitPerHost * 1024
 	}
 
+	// If user specifies nothing, default to IPv4
+	// If only --use-ipv6 is set, => IPv6
+	// if only --use-ipv4 is set, => IPv4
+	// if both are set, => both IPv4 and IPv6
+	// Cannot use neither IPv4 nor IPv6, for obvious reasons
+	userSpecifiedUseIPv4 := config.UserIPv4Choice != nil && *config.UserIPv4Choice
+	userSpecifiedUseIPv6 := config.UserIPv6Choice != nil && *config.UserIPv6Choice
+	if !userSpecifiedUseIPv4 && !userSpecifiedUseIPv6 {
+		// If both are unset, default to using IPv4
+		config.useIPv4 = true
+		config.useIPv6 = false
+	} else if userSpecifiedUseIPv4 && !userSpecifiedUseIPv6 {
+		// If only IPv4 is set, use IPv4
+		config.useIPv4 = true
+		config.useIPv6 = false
+	} else if !userSpecifiedUseIPv4 && userSpecifiedUseIPv6 {
+		// If only IPv6 is set, use IPv6
+		config.useIPv4 = false
+		config.useIPv6 = true
+	} else {
+		// If both are set, use both IPv4 and IPv6
+		config.useIPv4 = true
+		config.useIPv6 = true
+	}
+
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
 	if config.LocalAddrString != "" {
 		ips, err := extractIPAddresses(strings.Split(config.LocalAddrString, ","))
 		if err != nil {
 			log.Fatalf("could not extract IP addresses from address string %s: %s", config.LocalAddrString, err)
 		}
-		config.localAddrs = ips
 		for _, ip := range ips {
 			if ip == nil {
-				log.Fatalf("could not extract IP addresses from address string: %s", ip)
+				log.Fatalf("could not extract IP addresses from address string: %s", config.LocalAddrString)
 			}
-			if ip.To4() != nil {
-				config.useIPv4 = true
-			} else if ip.To16() != nil {
-				config.useIPv6 = true
-			} else {
-				log.Fatalf("invalid local address: %s", ip)
+			if ip.To4() != nil && !config.useIPv4 {
+				log.Fatalf("specified an IPv4 local address %s, but --use-ipv4 is not set", ip.String())
+			}
+			ipIsIPv6 := ip.To16() != nil && ip.To4() == nil
+			if ipIsIPv6 && !config.useIPv6 {
+				log.Fatalf("specified an IPv6 local address %s, but --use-ipv6 is not set", ip.String())
 			}
 		}
+		config.localAddrs = ips
 	}
 
 	if !config.useIPv4 && !config.useIPv6 {
-		// We need to decide whether we'll request A and/or AAAA records when resolving domains to IPs.
-		// The user hasn't specified any local addresses, so we'll detect the system's capabilities.
-		// Simply detecting if the host has a loopback IPv6 is not enough, some systems have IPv6 interfaces, but ISP
-		// won't support.
-		// Note on Local Addresses: If the user specifies local addresses to use, we can detect IP capability from those
-		// and we won't enter this. Just wanted to callout we're not leaking the user's local addresses to the internet
-		// by not using them here.
-		supportsIPv4 := make(chan bool)
-		supportsIPv6 := make(chan bool)
-		detectIPSupportFunc := func(network, address string, c chan bool) {
-			conn, err := net.DialTimeout(network, address, IPVersionCapabilityTimeout)
-			if err == nil {
-				c <- true // notify that we can reach the address
-				conn.Close()
-			}
-			close(c)
-		}
-		go detectIPSupportFunc("tcp4", IPVersionCapabilityIPv4Address, supportsIPv4)
-		go detectIPSupportFunc("tcp6", IPVersionCapabilityIPv6Address, supportsIPv6)
-
-		// Wait for the results
-		heardFromIPv4, heardFromIPv6 := false, false
-		for !heardFromIPv4 || !heardFromIPv6 { // we expect a result from both channels
-			select {
-			case ipv4, ok := <-supportsIPv4:
-				if ok && ipv4 {
-					config.useIPv4 = true
-				}
-				heardFromIPv4 = true
-			case ipv6, ok := <-supportsIPv6:
-				if ok && ipv6 {
-					config.useIPv6 = true
-				}
-				heardFromIPv6 = true
-			}
-		}
-		if !config.useIPv4 && !config.useIPv6 {
-			log.Fatalf("could not reach one.one.one.one by either IPv4/IPv6 to detect IP capability, are you connected to the internet?")
-		}
+		log.Fatalf("must use either IPv4 or IPv6, or both. Use --use-ipv4 and/or --use-ipv6 to enable them.")
 	}
 
 	// Validate custom DNS must occur after setting useIPv4 and useIPv6
