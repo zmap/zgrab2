@@ -262,8 +262,7 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 	return result_struct
 }
 
-// Scan probes for a memcached service.
-func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
@@ -282,18 +281,31 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	result := MemcachedResult{}
 	if err == nil {
-		split_results := strings.Split(string(results), "\n")
-		trimmed_results := make([]string, 0, len(split_results))
-		for _, result := range split_results[:len(split_results)-2] {
-
-			trimmed_results = append(trimmed_results, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
-		}
-		result = PopulateResults(trimmed_results)
-		result.SupportsAscii = true
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
+	split_results := strings.Split(string(results), "\n")
+	trimmed_results := make([]string, 0, len(split_results))
+	for _, result := range split_results[:len(split_results)-2] {
 
-	// Send Binary version request to check that server supports binary
+		trimmed_results = append(trimmed_results, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
+	}
+	result = PopulateResults(trimmed_results)
+	result.SupportsAscii = true
+	defer func(conn net.Conn) {
+		// cleanup conn
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
+
+	return zgrab2.TryGetScanStatus(err), &result, err
+}
+
+func scan_binary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
+	result := MemcachedResult{}
+
 	binary_conn, err := dialGroup.Dial(ctx, target)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
+	}
 
 	var binaryMessage []byte
 	binaryMessage = append(binaryMessage, byte(0x80))
@@ -305,34 +317,40 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 
 	_, err = binary_conn.Write(binaryMessage)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
+	}
 
 	binary_results := make([]byte, 2000)
-	// _, err = conn.Read(binary_results)
 	binary_results, err = zgrab2.ReadAvailableWithOptions(binary_conn, len(binary_results), 500*time.Millisecond, 0, len(binary_results))
-	if err == nil {
-		version_string := string(binary_results[24:])
-		re := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-		if re.MatchString(version_string) {
-			result.SupportsBinary = true
-		}
-		println(version_string)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
-
-	// Get version
-
+	version_string := string(binary_results[24:])
+	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+	if re.MatchString(version_string) {
+		result.SupportsBinary = true
+	}
 	defer func(conn net.Conn) {
-		// cleanup conn
-		zgrab2.CloseConnAndHandleError(conn)
-	}(conn)
-
-	defer func(conn net.Conn) {
-		// cleanup conn
 		zgrab2.CloseConnAndHandleError(conn)
 	}(binary_conn)
+	return zgrab2.TryGetScanStatus(err), &result, err
+}
 
-	if !result.SupportsAscii && !result.SupportsBinary {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("Target supports neither ASCII or binary (%s): %w", target.String(), err)
+// Scan probes for a memcached service.
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	_, ascii_result, ascii_err := scan_ascii(ctx, dialGroup, target)
+	_, binary_result, binary_err := scan_binary(ctx, dialGroup, target)
+
+	if ascii_result == nil && binary_result == nil {
+		return zgrab2.TryGetScanStatus(ascii_err), nil, fmt.Errorf("target supports neither ascii or binary (%s): %w", target.String(), ascii_err)
 	}
-
-	return zgrab2.TryGetScanStatus(err), result, err
+	if ascii_result == nil && binary_result != nil {
+		return zgrab2.TryGetScanStatus(binary_err), *binary_result, binary_err
+	} else if ascii_result != nil && binary_result == nil {
+		return zgrab2.TryGetScanStatus(ascii_err), *ascii_result, ascii_err
+	} else {
+		ascii_result.SupportsBinary = binary_result.SupportsBinary
+		return zgrab2.TryGetScanStatus(ascii_err), *ascii_result, ascii_err
+	}
 }
