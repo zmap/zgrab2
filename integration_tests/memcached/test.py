@@ -39,22 +39,19 @@ def test_memcached(version):
     run_command(
         f"CONTAINER_NAME=zgrab_memcached-{version} {zgrab_root}/docker-runner/docker-run.sh memcached",
         output_file=os.path.join(output_root, f"memcached-{version}.json"),
-    )  # TODO placeholder that will fail CI so we don't forget to implement integration tests
+    )
 
 
 def check_version(version):
     fp = open(os.path.join(output_root, f"memcached-{version}.json"))
     result_json = json.load(fp)
-    # print(result_json)
     print(fp.name)
-    # os.remove(fp.name)
     result_version = result_json["data"]["memcached"]["result"]["version"]
     result_version = result_version.strip()
     if str(result_version) != str(version):
         print(
             f"Versions do not match!\nContainer version:{version}\nMeasured version:{result_version}"
         )
-        # exit(1)
 
 
 if __name__ == "__main__":
