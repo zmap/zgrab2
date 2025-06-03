@@ -267,6 +267,7 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 // This function scans a memcached database using the ascii protocol
 func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	conn, err := dialGroup.Dial(ctx, target)
+
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
@@ -280,11 +281,10 @@ func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 	}
 
 	results := make([]byte, 2000)
-	results, err = zgrab2.ReadAvailableWithOptions(conn, len(results), 500*time.Millisecond, 0, len(results))
-
+	results, err = zgrab2.ReadAvailableWithOptions(conn, len(results), 500*time.Millisecond, time.Second, len(results))
 	result := MemcachedResult{}
-	if err == nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
 	}
 	split_results := strings.Split(string(results), "\n")
 	trimmed_results := make([]string, 0, len(split_results))
@@ -298,7 +298,6 @@ func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 		// cleanup conn
 		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
-
 	return zgrab2.TryGetScanStatus(err), &result, err
 }
 
@@ -345,7 +344,6 @@ func scan_binary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgr
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	_, ascii_result, ascii_err := scan_ascii(ctx, dialGroup, target)
 	_, binary_result, binary_err := scan_binary(ctx, dialGroup, target)
-
 	if ascii_result == nil && binary_result == nil {
 		return zgrab2.TryGetScanStatus(ascii_err), nil, fmt.Errorf("target supports neither ascii or binary (%s): %w", target.String(), ascii_err)
 	}
