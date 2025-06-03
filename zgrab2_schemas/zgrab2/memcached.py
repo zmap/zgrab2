@@ -18,7 +18,7 @@ response = SubRecord(
                 "supports_ascii": Boolean(
                     doc="Whether the server supports plain-text ASCII commands"
                 ),
-                "supports_binary": Boolean (
+                "supports_binary": Boolean(
                     doc="Whether the server supports binary commands"
                 ),
                 "stats": SubRecord(
