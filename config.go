@@ -41,8 +41,8 @@ type Config struct {
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
-	UserIPv4Choice        *bool           `long:"use-ipv4" description:"Use IPv4 for resolving domains (accept A records) and for initiating connections. True by default, use only --use-ipv6 for just IPv6. If used with --use-ipv6, will use both IPv4 and IPv6."`
-	UserIPv6Choice        *bool           `long:"use-ipv6" description:"Use IPv6 for resolving domains (accept AAAA records) and for initiating connections. IPv6 is disabled by default. If --use-ipv4 is not set, will only use IPv6. If used with --use-ipv4, will use both IPv4 and IPv6."`
+	UserIPv4Choice        *bool           `long:"resolve-ipv4" description:"Use IPv4 for resolving domains (accept A records). True by default, use only --resolve-ipv6 for IPv6 only resolution. If used with --resolve-ipv6, will use both IPv4 and IPv6."`
+	UserIPv6Choice        *bool           `long:"resolve-ipv6" description:"Use IPv6 for resolving domains (accept AAAA records). IPv6 is disabled by default. If --resolve-ipv4 is not set and --resolve-ipv6 is, will only use IPv6. If used with --resolve-ipv4, will use both IPv4 and IPv6."`
 	inputFile             *os.File
 	outputFile            *os.File
 	metaFile              *os.File
@@ -53,8 +53,8 @@ type Config struct {
 	customDNSNameservers  []string // will be non-empty if user specified custom DNS, we'll check these are reachable before populating
 	localAddrs            []net.IP // will be non-empty if user specified local addresses
 	localPorts            []uint16 // will be non-empty if user specified local ports
-	useIPv4               bool     // true if IPv4 is enabled, false if only IPv6 is enabled. Guaranteed to be set, whereas UserIPv4Choice may be nil if unset by the user
-	useIPv6               bool
+	resolveIPv4           bool     // true if IPv4 is enabled, false if only IPv6 is enabled. Guaranteed to be set, whereas UserIPv4Choice may be nil if unset by the user
+	resolveIPv6           bool
 }
 
 // SetInputFunc sets the target input function to the provided function.
@@ -171,20 +171,20 @@ func validateFrameworkConfiguration() {
 	userSpecifiedUseIPv6 := config.UserIPv6Choice != nil && *config.UserIPv6Choice
 	if !userSpecifiedUseIPv4 && !userSpecifiedUseIPv6 {
 		// If both are unset, default to using IPv4
-		config.useIPv4 = true
-		config.useIPv6 = false
+		config.resolveIPv4 = true
+		config.resolveIPv6 = false
 	} else if userSpecifiedUseIPv4 && !userSpecifiedUseIPv6 {
 		// If only IPv4 is set, use IPv4
-		config.useIPv4 = true
-		config.useIPv6 = false
+		config.resolveIPv4 = true
+		config.resolveIPv6 = false
 	} else if !userSpecifiedUseIPv4 && userSpecifiedUseIPv6 {
 		// If only IPv6 is set, use IPv6
-		config.useIPv4 = false
-		config.useIPv6 = true
+		config.resolveIPv4 = false
+		config.resolveIPv6 = true
 	} else {
 		// If both are set, use both IPv4 and IPv6
-		config.useIPv4 = true
-		config.useIPv6 = true
+		config.resolveIPv4 = true
+		config.resolveIPv6 = true
 	}
 
 	// If localAddrString is set, parse it into a list of IP addresses to use for source IPs
@@ -197,22 +197,15 @@ func validateFrameworkConfiguration() {
 			if ip == nil {
 				log.Fatalf("could not extract IP addresses from address string: %s", config.LocalAddrString)
 			}
-			if ip.To4() != nil && !config.useIPv4 {
-				log.Fatalf("specified an IPv4 local address %s, but --use-ipv4 is not set", ip.String())
-			}
-			ipIsIPv6 := ip.To16() != nil && ip.To4() == nil
-			if ipIsIPv6 && !config.useIPv6 {
-				log.Fatalf("specified an IPv6 local address %s, but --use-ipv6 is not set", ip.String())
-			}
 		}
 		config.localAddrs = ips
 	}
 
-	if !config.useIPv4 && !config.useIPv6 {
+	if !config.resolveIPv4 && !config.resolveIPv6 {
 		log.Fatalf("must use either IPv4 or IPv6, or both. Use --use-ipv4 and/or --use-ipv6 to enable them.")
 	}
 
-	// Validate custom DNS must occur after setting useIPv4 and useIPv6
+	// Validate custom DNS must occur after setting resolveIPv4 and resolveIPv6
 	if config.CustomDNS != "" {
 		var err error
 		if config.customDNSNameservers, err = parseCustomDNSString(config.CustomDNS); err != nil {
