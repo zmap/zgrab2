@@ -210,6 +210,7 @@ type MemcachedResultStats struct {
 	RoundRobinFallback        uint64  `json:"round_robin_fallback"`
 }
 
+// SnakeToCamel turns a snake case string to a camel case string
 func SnakeToCamel(original string) (result string) {
 	split := strings.Split(original, "_")
 	for _, word := range split {
@@ -218,6 +219,7 @@ func SnakeToCamel(original string) (result string) {
 	return result
 }
 
+// This function populates the MemcachedResult struct
 func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 	result_struct.Version = trimmed_results[0]
 	var memcached_stats MemcachedResultStats
@@ -262,6 +264,7 @@ func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
 	return result_struct
 }
 
+// This function scans a memcached database using the ascii protocol
 func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
@@ -299,6 +302,7 @@ func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 	return zgrab2.TryGetScanStatus(err), &result, err
 }
 
+// This function scans a memcached database using the binary protocol
 func scan_binary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	result := MemcachedResult{}
 
@@ -327,7 +331,7 @@ func scan_binary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgr
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
 	version_string := string(binary_results[24:])
-	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`) // This regex is used to get the memcached version
 	if re.MatchString(version_string) {
 		result.SupportsBinary = true
 	}
