@@ -41,6 +41,7 @@ type Config struct {
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
+	DNSResolutionTimeout  time.Duration   `long:"dns-resolution-timeout" default:"10s" description:"Timeout for DNS resolution of target hostnames. Default is 10 seconds."`
 	inputFile             *os.File
 	outputFile            *os.File
 	metaFile              *os.File
