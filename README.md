@@ -34,6 +34,11 @@ make install
 zgrab2 http --help # to see the http module's help message
 ```
 
+If you're facing issues with your shell not recognizing the `zgrab2` command, ensure that your `$GOPATH/bin` is in your `PATH`. You can do this by adding the following line to your shell configuration file (e.g., `.bashrc`, `.zshrc`):
+```shell
+export PATH=$PATH:$GOPATH/bin
+```
+
 Starting in Go 1.21, Go added [support](https://go.dev/doc/toolchain) for auto-downloading the appropriate toolchain for building a given module.
 
 This will let you build ZGrab2 using Go 1.21.X or 1.22.X without needing to manually install another version.
@@ -66,6 +71,85 @@ To retrieve detailed command-line usage and options for a specific module, appen
 This will display the module-specific options, as well as the application-wide options, including usage examples, available flags, and descriptions for each option. 
 
 Module specific options must be included after the module. Application specific options can be specified at any time.
+
+## Supported Protocol Modules
+
+### HTTP
+The HTTP module supports scanning HTTP and HTTPS services. It can perform GET/PUT/etc requests, follow redirects, and extract various HTTP headers.
+
+Send an HTTP GET request to the root endpoint of a website on port 80:
+```shell
+echo "example.com" | zgrab2 http
+````
+
+Websites will often redirect to HTTPS, so we'll want to follow redirects to the final destination:
+Send a GET request for a specific endpoint and follow up to 1 HTTP redirect:
+```shell
+echo "en.wikipedia.org" | zgrab2 http --max-redirects=1 --endpoint="/wiki/New_York_City"
+```
+
+HTTP in particular will need to resolve many domain names to IP addresses. If you're not seeing good performance, take a look at our [Performance Tuning](https://github.com/zmap/zgrab2/wiki/Performance-Tuning) guide.
+
+### SSH
+
+The SSH module supports scanning SSH servers and can gather SSH version, supported key exchange algorithms, server host key, and more.
+
+```shell
+echo "my.example.ssh.host" | zgrab2 ssh
+```
+
+Adding the `--userauth` flag will show what user authentication modes the server supports.
+
+```shell
+echo "my.example.ssh.host" | zgrab2 ssh --userauth
+```
+
+### TLS
+The TLS module is less specific to a given application protocol. It establishes a TLS-over-TCP connection and retrieves all information about the TLS handshake, including the server's certificate chain, selected cipher suite, and TLS version.
+
+```shell
+echo "example.com" | zgrab2 tls
+```
+
+### amqp091
+The AMQP (Advanced Message Queueing Protocol) 0.9.1 module supports scanning AMQP (ex. RabbitMQ) servers.
+
+Below we're scanning for 1,000 IP addresses on port 5672 and using the `zgrab2 amqp091` module to perform a follow-up `amqp091` handshake.
+```shell
+sudo zmap -p 5672 -N 1000 | zgrab2 amqp091
+```
+
+One of the successful scans included:
+```json
+
+
+```
+### bacnet
+### banner
+### dnp3
+### fox
+### ftp
+### imap
+### ipp
+### jarm
+### modbus
+### mongodb
+### mqtt
+### mssql
+### mysql
+### ntp
+### oracle
+### pop3
+### postgres
+### pptp
+### redis
+### siemens
+### smb
+### smtp
+### socks5
+### telnet
+
+
 
 ## Input Format
 

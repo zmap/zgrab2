@@ -14,6 +14,7 @@ package telnet
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -60,7 +61,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 
 // Description returns an overview of this module.
 func (module *Module) Description() string {
-	return "Fetch a telnet banner"
+	desc := []string{
+		"Scans for telnet daemons and attempts to grab the banner.",
+		"Ex: echo '1.2.3.4' | zgrab2 telnet",
+	}
+	return strings.Join(desc, "\n")
 }
 
 // Validate checks that the flags are valid.
