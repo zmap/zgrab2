@@ -199,7 +199,7 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
 
 	if len(input.Domain) > 0 && input.IP == nil {
-		//	// resolve the target's IP here once, so it doesn't need to be resolved in each module
+		// resolve the target's IP here once, so it doesn't need to be resolved in each module
 		dialer := NewDialer(nil)
 		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
 		if err != nil {

@@ -343,15 +343,15 @@ func (d *Dialer) lookupIPs(ctx context.Context, host string) ([]net.IP, error) {
 	for _, ip := range ips {
 		isIPv4 := ip.To4() != nil
 		isIPv6 := !isIPv4 && ip.To16() != nil
-		if config.useIPv4 && isIPv4 {
+		if config.resolveIPv4 && isIPv4 {
 			filteredIPs = append(filteredIPs, ip)
-		} else if config.useIPv6 && isIPv6 {
+		} else if config.resolveIPv6 && isIPv6 {
 			filteredIPs = append(filteredIPs, ip)
 		}
 		// Else, skip
 	}
 	if len(filteredIPs) == 0 {
-		return nil, fmt.Errorf("no reachable IPs found for domain %s with IPv4=%t, IPv6=%t", host, config.useIPv4, config.useIPv6)
+		return nil, fmt.Errorf("no reachable IPs found for domain %s with IPv4=%t, IPv6=%t", host, config.resolveIPv4, config.resolveIPv6)
 	}
 	// Filter out blocklisted IPs
 	if d.Blocklist != nil {
