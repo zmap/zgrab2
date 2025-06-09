@@ -57,25 +57,18 @@ def test_http_with_redirect():
         output_file=os.path.join(output_root, "http-no-follow-redirect.json"),
     )
     # Check scan is successful but status code is 301, location header set to /index-redirect-2.html
-    response = json.loads(actual_content)
-    status_code = (
-        response.get("data", {})
+    response = (
+        json.loads(actual_content)
+        .get("data", {})
         .get("http", {})
         .get("result", {})
         .get("response", {})
-        .get("status_code")
     )
+    status_code = response.get("status_code")
     assert (
         status_code == 301
     ), f"Expected status code 301 since we aren't following re-directs, got {status_code}"
-    location = (
-        response.get("data", {})
-        .get("http", {})
-        .get("result", {})
-        .get("response", {})
-        .get("headers", {})
-        .get("location")
-    )
+    location = response.get("headers", {}).get("location")
     assert (
         location[0] == "/index-redirect-2.html"
     ), f"Expected Location header to be /index-redirect-2.html, got {location}"
@@ -87,35 +80,20 @@ def test_http_with_redirect():
         output_file=os.path.join(output_root, "http-follow-redirect.json"),
     )
     # Check scan is successful and status code is 200, location header set to /index-redirect-2.html
-    response = json.loads(actual_content)
-    status_code = (
-        response.get("data", {})
-        .get("http", {})
-        .get("result", {})
-        .get("response", {})
-        .get("status_code")
+    response = (
+        json.loads(actual_content).get("data", {}).get("http", {}).get("result", {})
     )
+    status_code = response.get("response", {}).get("status_code")
     assert (
         status_code == 200
     ), f"Expected status code 200 after following re-directs, got {status_code}"
-    actual_body = (
-        response.get("data", {})
-        .get("http", {})
-        .get("result", {})
-        .get("response", {})
-        .get("body")
-    )
+    actual_body = response.get("response", {}).get("body")
     expected_body = "<html><body>HTTP REDIRECT 2 INDEX</body></html>"
     assert (
         actual_body == expected_body
     ), f"Expected body to be '{expected_body}', got '{actual_body}'"
     # Check that the referring request is documented
-    actual_referrer_chain = (
-        response.get("data", {})
-        .get("http", {})
-        .get("result", {})
-        .get("redirect_response_chain", {})
-    )
+    actual_referrer_chain = response.get("redirect_response_chain", {})
     assert (
         len(actual_referrer_chain) == 1
     ), f"Expected 1 redirect response, got {len(actual_referrer_chain)}"
