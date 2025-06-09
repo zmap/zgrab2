@@ -109,6 +109,11 @@ def test_http_with_redirect():
     assert (
         actual_body == expected_body
     ), f"Expected body to be '{expected_body}', got '{actual_body}'"
+    # Check that the referring request is documented
+    actual_referrer_chain = (response.get("data", {}).get("http", {}).get("result", {}).get("redirect_response_chain", {}))
+    assert len(actual_referrer_chain) == 1, f"Expected 1 redirect response, got {len(actual_referrer_chain)}"
+    # check the referring request location is set
+    assert actual_referrer_chain[0].get("headers").get("location")[0] == "/index-redirect-2.html", f"Expected referring request location to be '/index-redirect-2.html', got {actual_referrer_chain[0].get('headers').get('location')[0]}"
 
 
 def test_basic_https():
