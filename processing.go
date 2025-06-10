@@ -197,30 +197,35 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 // grabTarget calls handler for each action
 func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
-
 	if len(input.Domain) > 0 && input.IP == nil {
+		// If there's an issue with resolving the target, then no module will be able to scan it.
+		onResolutionFailure := func(input ScanTarget, mon *Monitor, err error) *Grab {
+			for _, scannerName := range orderedScanners {
+				// send a failure to the monitor for each scanner
+				mon.statusesChan <- moduleStatus{name: scannerName, st: statusFailure}
+			}
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  err.Error(),
+			}
+		}
 		// resolve the target's IP here once, so it doesn't need to be resolved in each module
 		dialer := NewDialer(nil)
 		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
 		if err != nil {
-			return &Grab{
-				Port:   input.Port,
-				Domain: input.Domain,
-				Error:  "could not set local addr on resolver",
-			}
+			return onResolutionFailure(input, m, fmt.Errorf("could not set random local address: %w", err))
 		}
 		var reachableIPs []net.IP
-		reachableIPs, err = dialer.lookupIPs(ctx, input.Domain)
+		// only use special timeout if it's set, otherwise use the default context timeout
+		lookupCtx, cancel := context.WithTimeout(ctx, config.DNSResolutionTimeout)
+		defer cancel()
+		reachableIPs, err = dialer.lookupIPs(lookupCtx, input.Domain)
 		if err != nil {
-			return &Grab{
-				Port:   input.Port,
-				Domain: input.Domain,
-				Error:  fmt.Sprintf("could not resolve domain %s: %v", input.Domain, err),
-			}
+			return onResolutionFailure(input, m, fmt.Errorf("could not resolve domain %s: %w", input.Domain, err))
 		}
 		input.IP = reachableIPs[rand.Intn(len(reachableIPs))]
 	}
-
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
 		trigger := (*scanner).GetTrigger()
