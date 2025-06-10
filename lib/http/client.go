@@ -597,6 +597,13 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			}
 			return nil, uerr(err)
 		}
+
+		var shouldRedirect bool
+		redirectMethod, shouldRedirect, includeBody = redirectBehavior(req.Method, resp, reqs[0])
+		if !shouldRedirect {
+			return resp, nil
+		}
+
 		err = c.checkRedirect(req, resp, reqs)
 
 		// Sentinel error to let users select the
@@ -612,12 +619,6 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			ue := uerr(err)
 			ue.(*url.Error).URL = loc
 			return resp, err
-		}
-
-		var shouldRedirect bool
-		redirectMethod, shouldRedirect, includeBody = redirectBehavior(req.Method, resp, reqs[0])
-		if !shouldRedirect {
-			return resp, nil
 		}
 
 		req.closeBody()
