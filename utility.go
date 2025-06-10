@@ -284,10 +284,7 @@ func parseCustomDNSString(customDNS string) ([]string, error) {
 
 // CloseConnAndHandleError closes the connection and logs an error if it fails. Convenience function for code-reuse.
 func CloseConnAndHandleError(conn net.Conn) {
-	err := conn.Close()
-	if err != nil {
-		logrus.Errorf("could not close connection to %v: %v", conn.RemoteAddr(), err)
-	}
+	conn.Close()
 }
 
 // HasCtxExpired checks if the context has expired. Common function used in various places.
