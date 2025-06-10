@@ -41,6 +41,7 @@ type Config struct {
 	Multiple              MultipleCommand `command:"multiple" description:"Multiple module actions"`
 	LocalAddrString       string          `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString       string          `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
+	DNSResolutionTimeout  time.Duration   `long:"dns-resolution-timeout" default:"10s" description:"Timeout for DNS resolution of target hostnames. Default is 10 seconds."`
 	UserIPv4Choice        *bool           `long:"resolve-ipv4" description:"Use IPv4 for resolving domains (accept A records). True by default, use only --resolve-ipv6 for IPv6 only resolution. If used with --resolve-ipv6, will use both IPv4 and IPv6."`
 	UserIPv6Choice        *bool           `long:"resolve-ipv6" description:"Use IPv6 for resolving domains (accept AAAA records). IPv6 is disabled by default. If --resolve-ipv4 is not set and --resolve-ipv6 is, will only use IPv6. If used with --resolve-ipv4, will use both IPv4 and IPv6."`
 	inputFile             *os.File
