@@ -220,60 +220,62 @@ func SnakeToCamel(original string) (result string) {
 }
 
 // This function populates the MemcachedResult struct
-func PopulateResults(trimmed_results []string) (result_struct MemcachedResult) {
-	result_struct.Version = trimmed_results[0]
-	var memcached_stats MemcachedResultStats
-	for _, result := range trimmed_results {
-		split_result := strings.Split(result, " ")
+func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
+	resultStruct.Version = trimmedResults[0]
+	var memcachedStats MemcachedResultStats
+	for _, result := range trimmedResults {
+		splitResult := strings.Split(result, " ")
 		var value float64
 		var err error
-		if split_result[0] != "version" && split_result[0] != "libevent" {
-			string_val := string(split_result[1])
-			string_val = strings.TrimSpace(string_val)
-			value, err = strconv.ParseFloat(string(string_val), 64)
+		if splitResult[0] != "version" && splitResult[0] != "libevent" {
+			stringVal := string(splitResult[1])
+			stringVal = strings.TrimSpace(stringVal)
+			value, err = strconv.ParseFloat(string(stringVal), 64)
 		}
 		if err == strconv.ErrSyntax {
 			return
 		}
-		result_camel := SnakeToCamel(split_result[0])
-		v := reflect.ValueOf(&memcached_stats).Elem()
-		field := v.FieldByName(result_camel)
+		resultCamel := SnakeToCamel(splitResult[0])
+		v := reflect.ValueOf(&memcachedStats).Elem()
+		field := v.FieldByName(resultCamel)
 		if field.IsValid() && field.CanSet() {
-			if field.Type() == reflect.TypeOf(uint64(1)) {
+			switch field.Kind() {
+			case reflect.Uint64:
 				field.Set(reflect.ValueOf(uint64(value)))
-			} else if field.Type() == reflect.TypeOf(uint32(1)) {
+			case reflect.Uint32:
 				field.Set(reflect.ValueOf(uint32(value)))
-			} else if field.Type() == reflect.TypeOf(int32(1)) {
+			case reflect.Int32:
 				field.Set(reflect.ValueOf(int32(value)))
-			} else if field.Type() == reflect.TypeOf(float64(0.5)) {
+			case reflect.Float64:
 				field.SetFloat(float64(value))
-			} else if field.Type() == reflect.TypeOf(true) {
+			case reflect.Bool:
 				field.SetBool(value == 1)
-			} else if field.Type() == reflect.TypeOf("") {
-				field.SetString(split_result[1])
+			case reflect.String:
+				field.SetString(splitResult[1])
+			default:
+
 			}
 		}
-		switch split_result[0] {
+		switch splitResult[0] {
 		case "version":
-			result_struct.Version = split_result[1]
+			resultStruct.Version = splitResult[1]
 		case "libevent":
-			result_struct.LibeventVersion = split_result[1]
+			resultStruct.LibeventVersion = splitResult[1]
 		}
 	}
-	result_struct.Stats = memcached_stats
-	return result_struct
+	resultStruct.Stats = memcachedStats
+	return resultStruct
 }
 
 // This function scans a memcached database using the ascii protocol
-func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
+func ScanAscii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	conn, err := dialGroup.Dial(ctx, target)
 
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
 	var message = []byte("stats")
-	message = append(message, byte(0x0D))
-	message = append(message, byte(0x0A))
+	message = append(message, 0x0D, 0x0A)
 
 	_, err = conn.Write(message)
 	if err != nil {
@@ -286,13 +288,13 @@ func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
 	}
-	split_results := strings.Split(string(results), "\n")
-	trimmed_results := make([]string, 0, len(split_results))
-	for _, result := range split_results[:len(split_results)-2] {
+	splitResults := strings.Split(string(results), "\n")
+	trimmedResults := make([]string, 0, len(splitResults))
+	for _, result := range splitResults[:len(splitResults)-2] {
 
-		trimmed_results = append(trimmed_results, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
+		trimmedResults = append(trimmedResults, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
 	}
-	result = PopulateResults(trimmed_results)
+	result = PopulateResults(trimmedResults)
 	result.SupportsAscii = true
 	defer func(conn net.Conn) {
 		// cleanup conn
@@ -302,57 +304,58 @@ func scan_ascii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 }
 
 // This function scans a memcached database using the binary protocol
-func scan_binary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
+func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	result := MemcachedResult{}
 
-	binary_conn, err := dialGroup.Dial(ctx, target)
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
 
-	var binaryMessage []byte
-	binaryMessage = append(binaryMessage, byte(0x80))
-	binaryMessage = append(binaryMessage, byte(0x0b))
-	binaryMessage = append(binaryMessage, byte(0x00))
-	binaryMessage = append(binaryMessage, byte(0x00))
+	// Send the binary "version" command - From https://docs.memcached.org/protocols/binary/#version
+	var message []byte
+	message = append(message, 0x80, 0x0b, 0x00, 0x00)
+
+	// Add padding to make message necessary length of 24 bytes
+	message = append(message, make([]byte, 20)...)
 	for i := 0; i < 20; i++ {
-		binaryMessage = append(binaryMessage, byte(0x00))
+		message = append(message, byte(0x00))
 	}
 
-	_, err = binary_conn.Write(binaryMessage)
+	_, err = conn.Write(message)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
 
-	binary_results := make([]byte, 2000)
-	binary_results, err = zgrab2.ReadAvailableWithOptions(binary_conn, len(binary_results), 500*time.Millisecond, 0, len(binary_results))
+	results := make([]byte, 2000)
+	results, err = zgrab2.ReadAvailableWithOptions(conn, len(results), 500*time.Millisecond, 0, len(results))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
-	version_string := string(binary_results[24:])
+	versionString := string(results[24:])
 	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`) // This regex is used to get the memcached version
-	if re.MatchString(version_string) {
+	if re.MatchString(versionString) {
 		result.SupportsBinary = true
 	}
 	defer func(conn net.Conn) {
 		zgrab2.CloseConnAndHandleError(conn)
-	}(binary_conn)
+	}(conn)
 	return zgrab2.TryGetScanStatus(err), &result, err
 }
 
 // Scan probes for a memcached service.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	_, ascii_result, ascii_err := scan_ascii(ctx, dialGroup, target)
-	_, binary_result, binary_err := scan_binary(ctx, dialGroup, target)
-	if ascii_result == nil && binary_result == nil {
-		return zgrab2.TryGetScanStatus(ascii_err), nil, fmt.Errorf("target supports neither ascii or binary (%s): %w", target.String(), ascii_err)
+	_, asciiResult, asciiErr := ScanAscii(ctx, dialGroup, target)
+	_, binaryResult, binaryErr := ScanBinary(ctx, dialGroup, target)
+	if asciiResult == nil && binaryResult == nil {
+		return zgrab2.TryGetScanStatus(asciiErr), nil, fmt.Errorf("target supports neither ascii or binary (%s): %w", target.String(), asciiErr)
 	}
-	if ascii_result == nil && binary_result != nil {
-		return zgrab2.TryGetScanStatus(binary_err), *binary_result, binary_err
-	} else if ascii_result != nil && binary_result == nil {
-		return zgrab2.TryGetScanStatus(ascii_err), *ascii_result, ascii_err
+	if asciiResult == nil && binaryResult != nil {
+		return zgrab2.TryGetScanStatus(binaryErr), *binaryResult, binaryErr
+	} else if asciiResult != nil && binaryResult == nil {
+		return zgrab2.TryGetScanStatus(asciiErr), *asciiResult, asciiErr
 	} else {
-		ascii_result.SupportsBinary = binary_result.SupportsBinary
-		return zgrab2.TryGetScanStatus(ascii_err), *ascii_result, ascii_err
+		asciiResult.SupportsBinary = binaryResult.SupportsBinary
+		return zgrab2.TryGetScanStatus(asciiErr), *asciiResult, asciiErr
 	}
 }
