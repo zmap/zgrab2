@@ -6,7 +6,7 @@ endif
 
 GO_FILES = $(shell find . -type f -name '*.go')
 TEST_MODULES ?=
-.DEFAULT_GOAL := install
+.DEFAULT_GOAL := zgrab2
 
 all: zgrab2
 
