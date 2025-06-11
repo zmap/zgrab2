@@ -47,7 +47,7 @@ uninstall:
 	fi
 
 setup-config:
-	@echo "Setting up zgrab2 configuration directory at $(CONFIG_DIR) and installing ZGrab2"
+	@echo "Setting up zgrab2 configuration directory at $(CONFIG_DIR)"
 # Make sure the config directory exists
 	mkdir -p $(CONFIG_DIR)
 # Copy the default config file if it doesn't exist
