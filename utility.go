@@ -284,10 +284,7 @@ func parseCustomDNSString(customDNS string) ([]string, error) {
 
 // CloseConnAndHandleError closes the connection and logs an error if it fails. Convenience function for code-reuse.
 func CloseConnAndHandleError(conn net.Conn) {
-	err := conn.Close()
-	if err != nil {
-		logrus.Errorf("could not close connection to %v: %v", conn.RemoteAddr(), err)
-	}
+	conn.Close()
 }
 
 // HasCtxExpired checks if the context has expired. Common function used in various places.
@@ -298,4 +295,179 @@ func HasCtxExpired(ctx context.Context) bool {
 	default:
 		return false
 	}
+}
+
+// extractIPAddresses takes in a slice containing strings of IP addresses, ranges, or CIDR blocks and returns a de-duped
+// list of IP addresses, or an error if the string is invalid. Whitespace is trimmed from each address string and the
+// ranges are inclusive.
+// See config_test.go for examples of valid and invalid strings
+func extractIPAddresses(input []string) ([]net.IP, error) {
+	ipNets, err := extractCIDRRanges(input)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse IP address string %v: %w", input, err)
+	}
+	ips := make([]net.IP, 0, len(ipNets))
+	// need to expand the CIDR ranges into IP addresses
+	for _, ipnet := range ipNets {
+		for currentIP := ipnet.IP.Mask(ipnet.Mask); ipnet.Contains(currentIP); {
+			tempIP := duplicateIP(currentIP)
+			ips = append(ips, tempIP)
+			incrementIP(currentIP)
+			if currentIP.Equal(tempIP) {
+				// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
+				break
+			}
+		}
+	}
+	// de-dupe
+	lookupMap := make(map[string]struct{})
+	dedupedIPs := make([]net.IP, 0, len(ips))
+	for _, i := range ips {
+		ipString := i.String()
+		if _, ok := lookupMap[ipString]; !ok {
+			lookupMap[ipString] = struct{}{}
+			dedupedIPs = append(dedupedIPs, i)
+		}
+	}
+	return dedupedIPs, nil
+
+}
+
+// extractCIDRRanges takes in a slice containing strings of IP addresses, ranges, or CIDR blocks and returns a de-duped
+// list of CIDR ranges, or an error if the string is invalid. Whitespace is trimmed from each address string
+func extractCIDRRanges(inputs []string) ([]net.IPNet, error) {
+	ipNets := make([]net.IPNet, 0, len(inputs))
+	for _, addr := range inputs {
+		addr = strings.TrimSpace(addr) // remove whitespace
+		if len(addr) == 0 {
+			continue // skip empty strings
+		}
+		// this addr is either an IP address, ip address range, or a CIDR range
+		_, ipnet, err := net.ParseCIDR(addr)
+		if err == nil {
+			ipNets = append(ipNets, *ipnet)
+			continue
+		}
+		if strings.Contains(addr, "-") {
+			// IP range
+			parts := strings.Split(addr, "-")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid IP range %s", addr)
+			}
+			parts[0] = strings.TrimSpace(parts[0])
+			parts[1] = strings.TrimSpace(parts[1])
+			startIP := net.ParseIP(parts[0])
+			endIP := net.ParseIP(parts[1])
+			if startIP == nil {
+				return nil, fmt.Errorf("invalid start IP %s of IP range", parts[0])
+			}
+			if endIP == nil {
+				return nil, fmt.Errorf("invalid end IP %s of IP range", parts[1])
+			}
+			if compareIPs(startIP, endIP) > 0 {
+				return nil, fmt.Errorf("start IP %s is greater than end IP %s of IP range", startIP.String(), endIP.String())
+			}
+			if (startIP.To4() == nil) != (endIP.To4() == nil) {
+				return nil, fmt.Errorf("start IP %s and end IP %s of IP range are not the same type", startIP.String(), endIP.String())
+			}
+			isIPv4 := startIP.To4() != nil
+			for currentIP := startIP; compareIPs(currentIP, endIP) <= 0; {
+				tempIP := duplicateIP(currentIP)
+				if isIPv4 {
+					ipNets = append(ipNets, net.IPNet{IP: tempIP, Mask: net.CIDRMask(32, 32)})
+				} else {
+					ipNets = append(ipNets, net.IPNet{IP: tempIP, Mask: net.CIDRMask(128, 128)})
+				}
+				incrementIP(currentIP)
+				if currentIP.Equal(tempIP) {
+					// our IP is the largest IPv4 or IPv6 addr possible, and has saturated
+					break
+				}
+			}
+			continue
+		}
+		// single IP
+		castIP := net.ParseIP(addr)
+		if castIP == nil {
+			return nil, fmt.Errorf("could not parse IP address %s", addr)
+		}
+		if castIP.To4() != nil {
+			ipNets = append(ipNets, net.IPNet{IP: castIP, Mask: net.CIDRMask(32, 32)})
+		} else {
+			ipNets = append(ipNets, net.IPNet{IP: castIP, Mask: net.CIDRMask(128, 128)})
+		}
+	}
+	// de-dupe
+	lookupMap := make(map[string]struct{})
+	dedupedIPNets := make([]net.IPNet, 0, len(ipNets))
+	for _, i := range ipNets {
+		str := i.String()
+		if _, ok := lookupMap[str]; !ok {
+			lookupMap[str] = struct{}{}
+			dedupedIPNets = append(dedupedIPNets, i)
+		}
+	}
+	return dedupedIPNets, nil
+}
+
+// extractPorts takes in a string of comma-separated ports or port ranges (80-443) and returns a de-duped list of ports
+// Whitespace is trimmed from each port string, and the port range is inclusive.
+func extractPorts(portString string) ([]uint16, error) {
+	portMap := make(map[uint16]struct{})
+	for _, portStr := range strings.Split(portString, ",") {
+		portStr = strings.TrimSpace(portStr)
+		if strings.Contains(portStr, "-") {
+			// port range
+			parts := strings.Split(portStr, "-")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid port range %s, valid range ex: '80-443'", portStr)
+			}
+			startPort, err := parsePortString(parts[0])
+			if err != nil {
+				return nil, fmt.Errorf("invalid start port %s of port range: %w", parts[0], err)
+			}
+			endPort, err := parsePortString(parts[1])
+			if err != nil {
+				return nil, fmt.Errorf("invalid end port %s of port range: %w", parts[1], err)
+			}
+			if startPort >= endPort {
+				return nil, fmt.Errorf("start port %d must be less than end port %d", startPort, endPort)
+			}
+			// validation complete, add all ports in range
+			for i := startPort; i <= endPort; i++ {
+				portMap[i] = struct{}{}
+			}
+		} else {
+			// single port
+			port, err := parsePortString(portStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid port %s: %w", portStr, err)
+			}
+			portMap[port] = struct{}{}
+		}
+	}
+	// build list from de-duped map
+	ports := make([]uint16, 0, len(portMap))
+	for port := range portMap {
+		ports = append(ports, port)
+	}
+	return ports, nil
+}
+
+// parsePortString converts a string to a uint16 port number after removing whitespace
+// Checks for validity of the port number and returns an error if invalid
+func parsePortString(portStr string) (uint16, error) {
+	minimumPort := uint64(1)     // inclusive
+	maximumPort := uint64(65535) // inclusive
+	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port %s: %w", portStr, err)
+	}
+	if port < minimumPort {
+		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
+	}
+	if port > maximumPort {
+		return 0, fmt.Errorf("port %s must be in the range [%d,%d]", portStr, minimumPort, maximumPort)
+	}
+	return uint16(port), nil
 }

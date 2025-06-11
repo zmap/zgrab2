@@ -30,8 +30,8 @@ ZGrab2 requires Go 1.23 or later to build from source.
 ```shell
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
-make
-./zgrab2 http --help # to see the http module's help message
+make install
+zgrab2 http --help # to see the http module's help message
 ```
 
 Starting in Go 1.21, Go added [support](https://go.dev/doc/toolchain) for auto-downloading the appropriate toolchain for building a given module.
@@ -45,7 +45,7 @@ $ go version go1.21.13 linux/arm64
 export GOTOOLCHAIN=auto
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
-make # Go will download the required 1.23 toolchain automatically
+make install # Go will download the required 1.23 toolchain automatically
 ./zgrab2 http --help # to see the http module's help message
 ```
 

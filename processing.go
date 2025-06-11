@@ -197,36 +197,35 @@ func EncodeGrab(raw *Grab, includeDebug bool) ([]byte, error) {
 // grabTarget calls handler for each action
 func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	moduleResult := make(map[string]ScanResponse)
-
 	if len(input.Domain) > 0 && input.IP == nil {
+		// If there's an issue with resolving the target, then no module will be able to scan it.
+		onResolutionFailure := func(input ScanTarget, mon *Monitor, err error) *Grab {
+			for _, scannerName := range orderedScanners {
+				// send a failure to the monitor for each scanner
+				mon.statusesChan <- moduleStatus{name: scannerName, st: statusFailure}
+			}
+			return &Grab{
+				Port:   input.Port,
+				Domain: input.Domain,
+				Error:  err.Error(),
+			}
+		}
 		// resolve the target's IP here once, so it doesn't need to be resolved in each module
 		dialer := NewDialer(nil)
-		ips, err := dialer.Resolver.LookupIP(ctx, "ip", input.Domain)
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
 		if err != nil {
-			return &Grab{
-				Port:   input.Port,
-				Domain: input.Domain,
-				Error:  "could not resolve " + input.Domain,
-			}
+			return onResolutionFailure(input, m, fmt.Errorf("could not set random local address: %w", err))
 		}
-		// filter out IPs that aren't reachable
-		possibleIPS := make([]string, 0, len(ips))
-		for _, ip := range ips {
-			if config.useIPv4 && ip.To4() != nil ||
-				config.useIPv6 && ip.To4() == nil && ip.To16() != nil {
-				possibleIPS = append(possibleIPS, ip.String())
-			}
+		var reachableIPs []net.IP
+		// only use special timeout if it's set, otherwise use the default context timeout
+		lookupCtx, cancel := context.WithTimeout(ctx, config.DNSResolutionTimeout)
+		defer cancel()
+		reachableIPs, err = dialer.lookupIPs(lookupCtx, input.Domain)
+		if err != nil {
+			return onResolutionFailure(input, m, fmt.Errorf("could not resolve domain %s: %w", input.Domain, err))
 		}
-		if len(possibleIPS) == 0 {
-			return &Grab{
-				Port:   input.Port,
-				Domain: input.Domain,
-				Error:  fmt.Sprintf("no reachable ips for %s were found during name resolution", input.Domain),
-			}
-		}
-		input.IP = net.ParseIP(possibleIPS[rand.Intn(len(possibleIPS))])
+		input.IP = reachableIPs[rand.Intn(len(reachableIPs))]
 	}
-
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
 		trigger := (*scanner).GetTrigger()

@@ -26,6 +26,7 @@ const (
 	SCAN_PROTOCOL_ERROR     = ScanStatus("protocol-error")     // Received data incompatible with the target protocol
 	SCAN_APPLICATION_ERROR  = ScanStatus("application-error")  // The application reported an error
 	SCAN_INVALID_INPUTS     = ScanStatus("invalid-inputs")     // The inputs to the scan were invalid
+	SCAN_BLOCKLISTED_TARGET = ScanStatus("blocklisted-target") // The target was blocklisted
 	SCAN_UNKNOWN_ERROR      = ScanStatus("unknown-error")      // Catch-all for unrecognized errors
 )
 

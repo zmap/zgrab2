@@ -28,7 +28,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	var connPacketBytes, connResponseBytes []byte
 	connPacketBytes, err := makeCOTPConnectionPacketBytes(uint16(0x102), uint16(0x100))
 	if err != nil {
-		return fmt.Errorf("could not make COTP connection packet bytes: %v", err)
+		return fmt.Errorf("could not make COTP connection packet bytes: %w", err)
 	}
 	connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
 	if len(connResponseBytes) == 0 || err != nil {
@@ -40,7 +40,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 
 		connPacketBytes, err = makeCOTPConnectionPacketBytes(uint16(0x200), uint16(0x100))
 		if err != nil {
-			return fmt.Errorf("could not make COTP connection packet bytes: %v", err)
+			return fmt.Errorf("could not make COTP connection packet bytes: %w", err)
 		}
 		connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
 		if err != nil {
@@ -338,7 +338,7 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 	for i := 0; i < int(numRecords); i++ {
 		record, err := parseModuleIDDataRecord(s7Packet.Data[offset : offset+recordLen])
 		if err != nil {
-			return fmt.Errorf("failed parsing data record %d: %v", i, err)
+			return fmt.Errorf("failed parsing data record %d: %w", i, err)
 		}
 
 		switch record.Index {
