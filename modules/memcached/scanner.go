@@ -253,7 +253,7 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 			case reflect.String:
 				field.SetString(splitResult[1])
 			default:
-
+				continue
 			}
 		}
 		switch splitResult[0] {
@@ -261,6 +261,8 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 			resultStruct.Version = splitResult[1]
 		case "libevent":
 			resultStruct.LibeventVersion = splitResult[1]
+		default:
+			continue
 		}
 	}
 	resultStruct.Stats = memcachedStats
