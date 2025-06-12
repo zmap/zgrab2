@@ -585,7 +585,6 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			resp.Body.Close()
 		}
 
-		reqs = append(reqs, req)
 		var err error
 		var didTimeout func() bool
 		if resp, didTimeout, err = c.send(req, deadline); err != nil {
@@ -618,8 +617,9 @@ func (c *Client) Do(req *Request) (resp *Response, err error) {
 			// See https://golang.org/issue/3795
 			ue := uerr(err)
 			ue.(*url.Error).URL = loc
-			return resp, err
+			return resp, ue
 		}
+		reqs = append(reqs, req)
 
 		req.closeBody()
 	}
