@@ -139,7 +139,7 @@ var reqTests = []reqTest{
 		nil,
 		noBodyStr,
 		noTrailer,
-		"parse ../../../../etc/passwd: invalid URI for request",
+		`parse "../../../../etc/passwd": invalid URI for request`,
 	},
 
 	// Tests missing URL:
@@ -149,7 +149,7 @@ var reqTests = []reqTest{
 		nil,
 		noBodyStr,
 		noTrailer,
-		"parse : empty url",
+		`parse "": empty url`,
 	},
 
 	// Tests chunked body with trailer:
@@ -434,6 +434,7 @@ func TestReadRequest(t *testing.T) {
 		tt := &reqTests[i]
 		req, err := ReadRequest(bufio.NewReader(strings.NewReader(tt.Raw)))
 		if err != nil {
+			fmt.Printf("Got: %v\nWant: %v\n", err, tt.Error)
 			if err.Error() != tt.Error {
 				t.Errorf("#%d: error %q, want error %q", i, err.Error(), tt.Error)
 			}
