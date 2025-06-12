@@ -6,11 +6,11 @@ package memcached
 // Package memcached provides a zgrab2 module that scans for memcache servers.
 // Default port: 11211 (TCP)
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -221,7 +221,6 @@ func SnakeToCamel(original string) (result string) {
 
 // This function populates the MemcachedResult struct
 func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
-	resultStruct.Version = trimmedResults[0]
 	var memcachedStats MemcachedResultStats
 	for _, result := range trimmedResults {
 		splitResult := strings.Split(result, " ")
@@ -269,6 +268,40 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 	return resultStruct
 }
 
+// This function gets the first occurence of an integer in a string
+func FirstInteger(str string) int {
+	val := min(uint32(strings.IndexAny(str, "0")),
+		uint32(strings.IndexAny(str, "1")),
+		uint32(strings.IndexAny(str, "2")),
+		uint32(strings.IndexAny(str, "3")),
+		uint32(strings.IndexAny(str, "4")),
+		uint32(strings.IndexAny(str, "5")),
+		uint32(strings.IndexAny(str, "6")),
+		uint32(strings.IndexAny(str, "7")),
+		uint32(strings.IndexAny(str, "8")),
+		uint32(strings.IndexAny(str, "9")))
+
+	return int(val)
+}
+
+func CleanBinary(results []byte) []string {
+	var trimmedResults []string
+
+	// 24 00 bytes between every stat
+	results = results[24:]
+	for len(results) > 24 {
+		// Every stat/header always ends with 0x81
+		endIndex := bytes.IndexByte(results, 0x81)
+		stat := string(results[0:endIndex])
+		results = results[24+endIndex:]
+		firstInt := FirstInteger(stat)
+		// Split stat at integer and add space so it works with PopulateResults
+		stat = stat[0:firstInt] + " " + stat[firstInt:]
+		trimmedResults = append(trimmedResults, stat)
+	}
+	return trimmedResults
+}
+
 // This function scans a memcached database using the ascii protocol
 func ScanAscii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	conn, err := dialGroup.Dial(ctx, target)
@@ -292,6 +325,7 @@ func ScanAscii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab
 	}
 	splitResults := strings.Split(string(results), "\n")
 	trimmedResults := make([]string, 0, len(splitResults))
+	// Ignore empty last line of results and END message
 	for _, result := range splitResults[:len(splitResults)-2] {
 
 		trimmedResults = append(trimmedResults, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
@@ -305,18 +339,17 @@ func ScanAscii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab
 	return zgrab2.TryGetScanStatus(err), &result, err
 }
 
-// This function scans a memcached database using the binary protocol
 func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
 	result := MemcachedResult{}
 
 	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
 
-	// Send the binary "version" command - From https://docs.memcached.org/protocols/binary/#version
+	// Send the binary "stat" command - From https://docs.memcached.org/protocols/binary/#version
 	var message []byte
-	message = append(message, 0x80, 0x0b, 0x00, 0x00)
+	message = append(message, 0x80, 0x10, 0x00, 0x00)
 
 	// Add padding to make message necessary length of 24 bytes
 	message = append(message, make([]byte, 20)...)
@@ -332,23 +365,65 @@ func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 	results := make([]byte, 2000)
 	results, err = zgrab2.ReadAvailableWithOptions(conn, len(results), 500*time.Millisecond, 0, len(results))
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
 	}
-	versionString := string(results[24:])
-	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`) // This regex is used to get the memcached version
-	if re.MatchString(versionString) {
-		result.SupportsBinary = true
-	}
+
+	trimmedResults := CleanBinary(results)
+	result = PopulateResults(trimmedResults)
+	result.SupportsBinary = true
+
 	defer func(conn net.Conn) {
 		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
 	return zgrab2.TryGetScanStatus(err), &result, err
 }
 
+// This function scans a memcached database using the binary protocol
+// func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, *MemcachedResult, error) {
+// 	result := MemcachedResult{}
+
+// 	conn, err := dialGroup.Dial(ctx, target)
+// 	if err != nil {
+// 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
+// 	}
+
+// 	// Send the binary "version" command - From https://docs.memcached.org/protocols/binary/#version
+// 	var message []byte
+
+// 	message = append(message, 0x80, 0x0b, 0x00, 0x00)
+
+// 	// Add padding to make message necessary length of 24 bytes
+// 	message = append(message, make([]byte, 20)...)
+// 	for i := 0; i < 20; i++ {
+// 		message = append(message, byte(0x00))
+// 	}
+
+// 	_, err = conn.Write(message)
+// 	if err != nil {
+// 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
+// 	}
+
+// 	results := make([]byte, 2000)
+// 	results, err = zgrab2.ReadAvailableWithOptions(conn, len(results), 500*time.Millisecond, 0, len(results))
+// 	if err != nil {
+// 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
+// 	}
+// 	versionString := string(results[24:])
+// 	re := regexp.MustCompile(`^\d+\.\d+\.\d+$`) // This regex is used to get the memcached version
+// 	if re.MatchString(versionString) {
+// 		result.SupportsBinary = true
+// 	}
+// 	defer func(conn net.Conn) {
+// 		zgrab2.CloseConnAndHandleError(conn)
+// 	}(conn)
+// 	return zgrab2.TryGetScanStatus(err), &result, err
+// }
+
 // Scan probes for a memcached service.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	_, asciiResult, asciiErr := ScanAscii(ctx, dialGroup, target)
 	_, binaryResult, binaryErr := ScanBinary(ctx, dialGroup, target)
+
 	if asciiResult == nil && binaryResult == nil {
 		return zgrab2.TryGetScanStatus(asciiErr), nil, fmt.Errorf("target supports neither ascii or binary (%s): %w", target.String(), asciiErr)
 	}
