@@ -7,10 +7,8 @@ package httptest
 import (
 	"fmt"
 	"io"
-	"strconv"
+	"net/http"
 	"testing"
-
-	"github.com/zmap/zgrab2/lib/http"
 )
 
 func TestRecorder(t *testing.T) {
@@ -25,10 +23,31 @@ func TestRecorder(t *testing.T) {
 			return nil
 		}
 	}
-	hasResultStatus := func(wantCode int) checkFunc {
+	hasResultStatus := func(want string) checkFunc {
+		return func(rec *ResponseRecorder) error {
+			if rec.Result().Status != want {
+				return fmt.Errorf("Result().Status = %q; want %q", rec.Result().Status, want)
+			}
+			return nil
+		}
+	}
+	hasResultStatusCode := func(wantCode int) checkFunc {
 		return func(rec *ResponseRecorder) error {
 			if rec.Result().StatusCode != wantCode {
 				return fmt.Errorf("Result().StatusCode = %d; want %d", rec.Result().StatusCode, wantCode)
+			}
+			return nil
+		}
+	}
+	hasResultContents := func(want string) checkFunc {
+		return func(rec *ResponseRecorder) error {
+			contentBytes, err := io.ReadAll(rec.Result().Body)
+			if err != nil {
+				return err
+			}
+			contents := string(contentBytes)
+			if contents != want {
+				return fmt.Errorf("Result().Body = %s; want %s", contents, want)
 			}
 			return nil
 		}
@@ -105,7 +124,7 @@ func TestRecorder(t *testing.T) {
 		}
 	}
 
-	tests := []struct {
+	for _, tt := range [...]struct {
 		name   string
 		h      func(w http.ResponseWriter, r *http.Request)
 		checks []checkFunc
@@ -201,8 +220,7 @@ func TestRecorder(t *testing.T) {
 			"Trailer headers are correctly recorded",
 			func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Non-Trailer", "correct")
-				w.Header().Set("Trailer", "Trailer-A")
-				w.Header().Add("Trailer", "Trailer-B")
+				w.Header().Set("Trailer", "Trailer-A, Trailer-B")
 				w.Header().Add("Trailer", "Trailer-C")
 				io.WriteString(w, "<html>")
 				w.Header().Set("Non-Trailer", "incorrect")
@@ -237,7 +255,8 @@ func TestRecorder(t *testing.T) {
 				hasOldHeader("X-Foo", "1"),
 				hasStatus(0),
 				hasHeader("X-Foo", "1"),
-				hasResultStatus(200),
+				hasResultStatus("200 OK"),
+				hasResultStatusCode(200),
 			),
 		},
 		{
@@ -260,22 +279,93 @@ func TestRecorder(t *testing.T) {
 			"setting Content-Length header",
 			func(w http.ResponseWriter, r *http.Request) {
 				body := "Some body"
-				contentLength := strconv.Itoa(len(body))
+				contentLength := fmt.Sprintf("%d", len(body))
 				w.Header().Set("Content-Length", contentLength)
 				io.WriteString(w, body)
 			},
 			check(hasStatus(200), hasContents("Some body"), hasContentLength(9)),
 		},
-	}
-	r, _ := http.NewRequest("GET", "http://foo.com/", nil)
-	for _, tt := range tests {
-		h := http.HandlerFunc(tt.h)
-		rec := NewRecorder()
-		h.ServeHTTP(rec, r)
-		for _, check := range tt.checks {
-			if err := check(rec); err != nil {
-				t.Errorf("%s: %v", tt.name, err)
+		{
+			"nil ResponseRecorder.Body", // Issue 26642
+			func(w http.ResponseWriter, r *http.Request) {
+				w.(*ResponseRecorder).Body = nil
+				io.WriteString(w, "hi")
+			},
+			check(hasResultContents("")), // check we don't crash reading the body
+
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := http.NewRequest("GET", "http://foo.com/", nil)
+			h := http.HandlerFunc(tt.h)
+			rec := NewRecorder()
+			h.ServeHTTP(rec, r)
+			for _, check := range tt.checks {
+				if err := check(rec); err != nil {
+					t.Error(err)
+				}
 			}
+		})
+	}
+}
+
+// issue 39017 - disallow Content-Length values such as "+3"
+func TestParseContentLength(t *testing.T) {
+	tests := []struct {
+		cl   string
+		want int64
+	}{
+		{
+			cl:   "3",
+			want: 3,
+		},
+		{
+			cl:   "+3",
+			want: -1,
+		},
+		{
+			cl:   "-3",
+			want: -1,
+		},
+		{
+			// max int64, for safe conversion before returning
+			cl:   "9223372036854775807",
+			want: 9223372036854775807,
+		},
+		{
+			cl:   "9223372036854775808",
+			want: -1,
+		},
+	}
+
+	for _, tt := range tests {
+		if got := parseContentLength(tt.cl); got != tt.want {
+			t.Errorf("%q:\n\tgot=%d\n\twant=%d", tt.cl, got, tt.want)
 		}
+	}
+}
+
+// Ensure that httptest.Recorder panics when given a non-3 digit (XXX)
+// status HTTP code. See https://golang.org/issues/45353
+func TestRecorderPanicsOnNonXXXStatusCode(t *testing.T) {
+	badCodes := []int{
+		-100, 0, 99, 1000, 20000,
+	}
+	for _, badCode := range badCodes {
+		badCode := badCode
+		t.Run(fmt.Sprintf("Code=%d", badCode), func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatal("Expected a panic")
+				}
+			}()
+
+			handler := func(rw http.ResponseWriter, _ *http.Request) {
+				rw.WriteHeader(badCode)
+			}
+			r, _ := http.NewRequest("GET", "http://example.org/", nil)
+			rw := NewRecorder()
+			handler(rw, r)
+		})
 	}
 }

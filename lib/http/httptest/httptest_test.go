@@ -5,49 +5,67 @@
 package httptest
 
 import (
+	"context"
+	"crypto/tls"
 	"io"
-	"io/ioutil"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/zmap/zcrypto/tls"
-
-	"github.com/zmap/zgrab2/lib/http"
 )
 
 func TestNewRequest(t *testing.T) {
-	tests := [...]struct {
+	got := NewRequest("GET", "/", nil)
+	want := &http.Request{
+		Method:     "GET",
+		Host:       "example.com",
+		URL:        &url.URL{Path: "/"},
+		Header:     http.Header{},
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		RemoteAddr: "192.0.2.1:1234",
+		RequestURI: "/",
+	}
+	got.Body = nil // before DeepEqual
+	want = want.WithContext(context.Background())
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Request mismatch:\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
+func TestNewRequestWithContext(t *testing.T) {
+	for _, tt := range [...]struct {
+		name string
+
 		method, uri string
 		body        io.Reader
 
 		want     *http.Request
 		wantBody string
 	}{
-		// Empty method means GET:
-		0: {
+		{
+			name:   "Empty method means GET",
 			method: "",
 			uri:    "/",
 			body:   nil,
 			want: &http.Request{
-				Method: "GET",
-				Host:   "example.com",
-				URL:    &url.URL{Path: "/"},
-				Header: http.Header{},
-				Protocol: http.Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				Method:     "GET",
+				Host:       "example.com",
+				URL:        &url.URL{Path: "/"},
+				Header:     http.Header{},
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
 				RemoteAddr: "192.0.2.1:1234",
 				RequestURI: "/",
 			},
 			wantBody: "",
 		},
 
-		// GET with full URL:
-		1: {
+		{
+			name:   "GET with full URL",
 			method: "GET",
 			uri:    "http://foo.com/path/%2f/bar/",
 			body:   nil,
@@ -60,20 +78,18 @@ func TestNewRequest(t *testing.T) {
 					RawPath: "/path/%2f/bar/",
 					Host:    "foo.com",
 				},
-				Header: http.Header{},
-				Protocol: http.Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				Header:     http.Header{},
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
 				RemoteAddr: "192.0.2.1:1234",
 				RequestURI: "http://foo.com/path/%2f/bar/",
 			},
 			wantBody: "",
 		},
 
-		// GET with full https URL:
-		2: {
+		{
+			name:   "GET with full https URL",
 			method: "GET",
 			uri:    "https://foo.com/path/",
 			body:   nil,
@@ -85,12 +101,10 @@ func TestNewRequest(t *testing.T) {
 					Path:   "/path/",
 					Host:   "foo.com",
 				},
-				Header: http.Header{},
-				Protocol: http.Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				Header:     http.Header{},
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
 				RemoteAddr: "192.0.2.1:1234",
 				RequestURI: "https://foo.com/path/",
 				TLS: &tls.ConnectionState{
@@ -102,90 +116,86 @@ func TestNewRequest(t *testing.T) {
 			wantBody: "",
 		},
 
-		// Post with known length
-		3: {
+		{
+			name:   "Post with known length",
 			method: "POST",
 			uri:    "/",
 			body:   strings.NewReader("foo"),
 			want: &http.Request{
-				Method: "POST",
-				Host:   "example.com",
-				URL:    &url.URL{Path: "/"},
-				Header: http.Header{},
-				Protocol: http.Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				Method:        "POST",
+				Host:          "example.com",
+				URL:           &url.URL{Path: "/"},
+				Header:        http.Header{},
+				Proto:         "HTTP/1.1",
 				ContentLength: 3,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				RemoteAddr:    "192.0.2.1:1234",
 				RequestURI:    "/",
 			},
 			wantBody: "foo",
 		},
 
-		// Post with unknown length
-		4: {
+		{
+			name:   "Post with unknown length",
 			method: "POST",
 			uri:    "/",
 			body:   struct{ io.Reader }{strings.NewReader("foo")},
 			want: &http.Request{
-				Method: "POST",
-				Host:   "example.com",
-				URL:    &url.URL{Path: "/"},
-				Header: http.Header{},
-				Protocol: http.Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				Method:        "POST",
+				Host:          "example.com",
+				URL:           &url.URL{Path: "/"},
+				Header:        http.Header{},
+				Proto:         "HTTP/1.1",
 				ContentLength: -1,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				RemoteAddr:    "192.0.2.1:1234",
 				RequestURI:    "/",
 			},
 			wantBody: "foo",
 		},
 
-		// OPTIONS *
-		5: {
+		{
+			name:   "OPTIONS *",
 			method: "OPTIONS",
 			uri:    "*",
 			want: &http.Request{
-				Method: "OPTIONS",
-				Host:   "example.com",
-				URL:    &url.URL{Path: "*"},
-				Header: http.Header{},
-				Protocol: http.Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				Method:     "OPTIONS",
+				Host:       "example.com",
+				URL:        &url.URL{Path: "*"},
+				Header:     http.Header{},
+				Proto:      "HTTP/1.1",
+				ProtoMajor: 1,
+				ProtoMinor: 1,
 				RemoteAddr: "192.0.2.1:1234",
 				RequestURI: "*",
 			},
 		},
-	}
-	for i, tt := range tests {
-		got := NewRequest(tt.method, tt.uri, tt.body)
-		slurp, err := ioutil.ReadAll(got.Body)
-		if err != nil {
-			t.Errorf("%d. ReadAll: %v", i, err)
-		}
-		if string(slurp) != tt.wantBody {
-			t.Errorf("%d. Body = %q; want %q", i, slurp, tt.wantBody)
-		}
-		got.Body = nil // before DeepEqual
-		if !reflect.DeepEqual(got.URL, tt.want.URL) {
-			t.Errorf("%d. Request.URL mismatch:\n got: %#v\nwant: %#v", i, got.URL, tt.want.URL)
-		}
-		if !reflect.DeepEqual(got.Header, tt.want.Header) {
-			t.Errorf("%d. Request.Header mismatch:\n got: %#v\nwant: %#v", i, got.Header, tt.want.Header)
-		}
-		if !reflect.DeepEqual(got.TLS, tt.want.TLS) {
-			t.Errorf("%d. Request.TLS mismatch:\n got: %#v\nwant: %#v", i, got.TLS, tt.want.TLS)
-		}
-		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%d. Request mismatch:\n got: %#v\nwant: %#v", i, got, tt.want)
-		}
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NewRequestWithContext(context.Background(), tt.method, tt.uri, tt.body)
+			slurp, err := io.ReadAll(got.Body)
+			if err != nil {
+				t.Errorf("ReadAll: %v", err)
+			}
+			if string(slurp) != tt.wantBody {
+				t.Errorf("Body = %q; want %q", slurp, tt.wantBody)
+			}
+			tt.want = tt.want.WithContext(context.Background())
+			got.Body = nil // before DeepEqual
+			if !reflect.DeepEqual(got.URL, tt.want.URL) {
+				t.Errorf("Request.URL mismatch:\n got: %#v\nwant: %#v", got.URL, tt.want.URL)
+			}
+			if !reflect.DeepEqual(got.Header, tt.want.Header) {
+				t.Errorf("Request.Header mismatch:\n got: %#v\nwant: %#v", got.Header, tt.want.Header)
+			}
+			if !reflect.DeepEqual(got.TLS, tt.want.TLS) {
+				t.Errorf("Request.TLS mismatch:\n got: %#v\nwant: %#v", got.TLS, tt.want.TLS)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Request mismatch:\n got: %#v\nwant: %#v", got, tt.want)
+			}
+		})
 	}
 }

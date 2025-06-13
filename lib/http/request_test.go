@@ -7,19 +7,24 @@ package http_test
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"math"
 	"mime/multipart"
+	"net/http"
+	. "net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
 	"regexp"
 	"strings"
 	"testing"
-
-	. "github.com/zmap/zgrab2/lib/http"
 )
 
 func TestQuery(t *testing.T) {
@@ -30,9 +35,26 @@ func TestQuery(t *testing.T) {
 	}
 }
 
+// Issue #25192: Test that ParseForm fails but still parses the form when a URL
+// containing a semicolon is provided.
+func TestParseFormSemicolonSeparator(t *testing.T) {
+	for _, method := range []string{"POST", "PATCH", "PUT", "GET"} {
+		req, _ := NewRequest(method, "http://www.google.com/search?q=foo;q=bar&a=1",
+			strings.NewReader("q"))
+		err := req.ParseForm()
+		if err == nil {
+			t.Fatalf(`for method %s, ParseForm expected an error, got success`, method)
+		}
+		wantForm := url.Values{"a": []string{"1"}}
+		if !reflect.DeepEqual(req.Form, wantForm) {
+			t.Fatalf("for method %s, ParseForm expected req.Form = %v, want %v", method, req.Form, wantForm)
+		}
+	}
+}
+
 func TestParseFormQuery(t *testing.T) {
 	req, _ := NewRequest("POST", "http://www.google.com/search?q=foo&q=bar&both=x&prio=1&orphan=nope&empty=not",
-		strings.NewReader("z=post&both=y&prio=2&=nokey&orphan;empty=&"))
+		strings.NewReader("z=post&both=y&prio=2&=nokey&orphan&empty=&"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
 
 	if q := req.FormValue("q"); q != "foo" {
@@ -83,35 +105,37 @@ func TestParseFormQueryMethods(t *testing.T) {
 	}
 }
 
-type stringMap map[string][]string
-type parseContentTypeTest struct {
-	shouldError bool
-	contentType stringMap
-}
-
-var parseContentTypeTests = []parseContentTypeTest{
-	{false, stringMap{"Content-Type": {"text/plain"}}},
-	// Empty content type is legal - should be treated as
-	// application/octet-stream (RFC 2616, section 7.2.1)
-	{false, stringMap{}},
-	{true, stringMap{"Content-Type": {"text/plain; boundary="}}},
-	{false, stringMap{"Content-Type": {"application/unknown"}}},
-}
-
 func TestParseFormUnknownContentType(t *testing.T) {
-	for i, test := range parseContentTypeTests {
-		req := &Request{
-			Method: "POST",
-			Header: Header(test.contentType),
-			Body:   ioutil.NopCloser(strings.NewReader("body")),
-		}
-		err := req.ParseForm()
-		switch {
-		case err == nil && test.shouldError:
-			t.Errorf("test %d should have returned error", i)
-		case err != nil && !test.shouldError:
-			t.Errorf("test %d should not have returned error, got %v", i, err)
-		}
+	for _, test := range []struct {
+		name        string
+		wantErr     string
+		contentType Header
+	}{
+		{"text", "", Header{"Content-Type": {"text/plain"}}},
+		// Empty content type is legal - may be treated as
+		// application/octet-stream (RFC 7231, section 3.1.1.5)
+		{"empty", "", Header{}},
+		{"boundary", "mime: invalid media parameter", Header{"Content-Type": {"text/plain; boundary="}}},
+		{"unknown", "", Header{"Content-Type": {"application/unknown"}}},
+	} {
+		t.Run(test.name,
+			func(t *testing.T) {
+				req := &Request{
+					Method: "POST",
+					Header: test.contentType,
+					Body:   io.NopCloser(strings.NewReader("body")),
+				}
+				err := req.ParseForm()
+				switch {
+				case err == nil && test.wantErr != "":
+					t.Errorf("unexpected success; want error %q", test.wantErr)
+				case err != nil && test.wantErr == "":
+					t.Errorf("want success, got error: %v", err)
+				case test.wantErr != "" && test.wantErr != fmt.Sprint(err):
+					t.Errorf("got error %q; want %q", err, test.wantErr)
+				}
+			},
+		)
 	}
 }
 
@@ -133,20 +157,31 @@ func TestParseFormInitializeOnError(t *testing.T) {
 }
 
 func TestMultipartReader(t *testing.T) {
-	req := &Request{
-		Method: "POST",
-		Header: Header{"Content-Type": {`multipart/form-data; boundary="foo123"`}},
-		Body:   ioutil.NopCloser(new(bytes.Buffer)),
-	}
-	multipart, err := req.MultipartReader()
-	if multipart == nil {
-		t.Errorf("expected multipart; error: %v", err)
+	tests := []struct {
+		shouldError bool
+		contentType string
+	}{
+		{false, `multipart/form-data; boundary="foo123"`},
+		{false, `multipart/mixed; boundary="foo123"`},
+		{true, `text/plain`},
 	}
 
-	req.Header = Header{"Content-Type": {"text/plain"}}
-	multipart, _ = req.MultipartReader()
-	if multipart != nil {
-		t.Error("unexpected multipart for text/plain")
+	for i, test := range tests {
+		req := &Request{
+			Method: "POST",
+			Header: Header{"Content-Type": {test.contentType}},
+			Body:   io.NopCloser(new(bytes.Buffer)),
+		}
+		multipart, err := req.MultipartReader()
+		if test.shouldError {
+			if err == nil || multipart != nil {
+				t.Errorf("test %d: unexpectedly got nil-error (%v) or non-nil-multipart (%v)", i, err, multipart)
+			}
+			continue
+		}
+		if err != nil || multipart == nil {
+			t.Errorf("test %d: unexpectedly got error (%v) or nil-multipart (%v)", i, err, multipart)
+		}
 	}
 }
 
@@ -172,7 +207,7 @@ binary data
 	req := &Request{
 		Method: "POST",
 		Header: Header{"Content-Type": {`multipart/form-data; boundary=xxx`}},
-		Body:   ioutil.NopCloser(strings.NewReader(postData)),
+		Body:   io.NopCloser(strings.NewReader(postData)),
 	}
 
 	initialFormItems := map[string]string{
@@ -216,7 +251,7 @@ func TestParseMultipartForm(t *testing.T) {
 	req := &Request{
 		Method: "POST",
 		Header: Header{"Content-Type": {`multipart/form-data; boundary="foo123"`}},
-		Body:   ioutil.NopCloser(new(bytes.Buffer)),
+		Body:   io.NopCloser(new(bytes.Buffer)),
 	}
 	err := req.ParseMultipartForm(25)
 	if err == nil {
@@ -230,12 +265,76 @@ func TestParseMultipartForm(t *testing.T) {
 	}
 }
 
-func TestRedirect_h1(t *testing.T) { testRedirect(t, h1Mode) }
+// Issue 45789: multipart form should not include directory path in filename
+func TestParseMultipartFormFilename(t *testing.T) {
+	postData :=
+		`--xxx
+Content-Disposition: form-data; name="file"; filename="../usr/foobar.txt/"
+Content-Type: text/plain
 
-// func TestRedirect_h2(t *testing.T) { testRedirect(t, h2Mode) }
-func testRedirect(t *testing.T, h2 bool) {
-	defer afterTest(t)
-	cst := newClientServerTest(t, h2, HandlerFunc(func(w ResponseWriter, r *Request) {
+--xxx--
+`
+	req := &Request{
+		Method: "POST",
+		Header: Header{"Content-Type": {`multipart/form-data; boundary=xxx`}},
+		Body:   io.NopCloser(strings.NewReader(postData)),
+	}
+	_, hdr, err := req.FormFile("file")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hdr.Filename != "foobar.txt" {
+		t.Errorf("expected only the last element of the path, got %q", hdr.Filename)
+	}
+}
+
+// Issue #40430: Test that if maxMemory for ParseMultipartForm when combined with
+// the payload size and the internal leeway buffer size of 10MiB overflows, that we
+// correctly return an error.
+func TestMaxInt64ForMultipartFormMaxMemoryOverflow(t *testing.T) {
+	run(t, testMaxInt64ForMultipartFormMaxMemoryOverflow)
+}
+func testMaxInt64ForMultipartFormMaxMemoryOverflow(t *testing.T, mode testMode) {
+	payloadSize := 1 << 10
+	cst := newClientServerTest(t, mode, HandlerFunc(func(rw ResponseWriter, req *Request) {
+		// The combination of:
+		//      MaxInt64 + payloadSize + (internal spare of 10MiB)
+		// triggers the overflow. See issue https://golang.org/issue/40430/
+		if err := req.ParseMultipartForm(math.MaxInt64); err != nil {
+			Error(rw, err.Error(), StatusBadRequest)
+			return
+		}
+	})).ts
+	fBuf := new(bytes.Buffer)
+	mw := multipart.NewWriter(fBuf)
+	mf, err := mw.CreateFormFile("file", "myfile.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mf.Write(bytes.Repeat([]byte("abc"), payloadSize)); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req, err := NewRequest("POST", cst.URL, fBuf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	res, err := cst.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if g, w := res.StatusCode, StatusOK; g != w {
+		t.Fatalf("Status code mismatch: got %d, want %d", g, w)
+	}
+}
+
+func TestRequestRedirect(t *testing.T) { run(t, testRequestRedirect) }
+func testRequestRedirect(t *testing.T, mode testMode) {
+	cst := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
 		switch r.URL.Path {
 		case "/":
 			w.Header().Set("Location", "/foo/")
@@ -246,7 +345,6 @@ func testRedirect(t *testing.T, h2 bool) {
 			w.WriteHeader(StatusBadRequest)
 		}
 	}))
-	defer cst.close()
 
 	var end = regexp.MustCompile("/foo/$")
 	r, err := cst.c.Get(cst.ts.URL)
@@ -281,6 +379,18 @@ func TestMultipartRequest(t *testing.T) {
 	if err := req.ParseMultipartForm(25); err != nil {
 		t.Fatal("ParseMultipartForm second call:", err)
 	}
+	validateTestMultipartContents(t, req, false)
+}
+
+// Issue #25192: Test that ParseMultipartForm fails but still parses the
+// multi-part form when a URL containing a semicolon is provided.
+func TestParseMultipartFormSemicolonSeparator(t *testing.T) {
+	req := newTestMultipartRequest(t)
+	req.URL = &url.URL{RawQuery: "q=foo;q=bar"}
+	if err := req.ParseMultipartForm(25); err == nil {
+		t.Fatal("ParseMultipartForm expected error due to invalid semicolon, got nil")
+	}
+	defer req.MultipartForm.RemoveAll()
 	validateTestMultipartContents(t, req, false)
 }
 
@@ -375,10 +485,6 @@ var readRequestErrorTests = []struct {
 	1: {"GET / HTTP/1.1\r\nheader:foo\r\n", io.ErrUnexpectedEOF.Error(), nil},
 	2: {"", io.EOF.Error(), nil},
 	3: {
-		in:  "HEAD / HTTP/1.1\r\nContent-Length:4\r\n\r\n",
-		err: "http: method cannot contain a Content-Length",
-	},
-	4: {
 		in:     "HEAD / HTTP/1.1\r\n\r\n",
 		header: Header{},
 	},
@@ -386,30 +492,34 @@ var readRequestErrorTests = []struct {
 	// Multiple Content-Length values should either be
 	// deduplicated if same or reject otherwise
 	// See Issue 16490.
-	5: {
+	4: {
 		in:  "POST / HTTP/1.1\r\nContent-Length: 10\r\nContent-Length: 0\r\n\r\nGopher hey\r\n",
 		err: "cannot contain multiple Content-Length headers",
 	},
-	6: {
+	5: {
 		in:  "POST / HTTP/1.1\r\nContent-Length: 10\r\nContent-Length: 6\r\n\r\nGopher\r\n",
 		err: "cannot contain multiple Content-Length headers",
 	},
-	7: {
+	6: {
 		in:     "PUT / HTTP/1.1\r\nContent-Length: 6 \r\nContent-Length: 6\r\nContent-Length:6\r\n\r\nGopher\r\n",
 		err:    "",
 		header: Header{"Content-Length": {"6"}},
 	},
-	8: {
+	7: {
 		in:  "PUT / HTTP/1.1\r\nContent-Length: 1\r\nContent-Length: 6 \r\n\r\n",
 		err: "cannot contain multiple Content-Length headers",
 	},
-	9: {
+	8: {
 		in:  "POST / HTTP/1.1\r\nContent-Length:\r\nContent-Length: 3\r\n\r\n",
 		err: "cannot contain multiple Content-Length headers",
 	},
-	10: {
+	9: {
 		in:     "HEAD / HTTP/1.1\r\nContent-Length:0\r\nContent-Length: 0\r\n\r\n",
 		header: Header{"Content-Length": {"0"}},
+	},
+	10: {
+		in:  "HEAD / HTTP/1.1\r\nHost: foo\r\nHost: bar\r\n\r\n\r\n\r\n",
+		err: "too many Host headers",
 	},
 }
 
@@ -525,10 +635,10 @@ var parseHTTPVersionTests = []struct {
 	major, minor int
 	ok           bool
 }{
+	{"HTTP/0.0", 0, 0, true},
 	{"HTTP/0.9", 0, 9, true},
 	{"HTTP/1.0", 1, 0, true},
 	{"HTTP/1.1", 1, 1, true},
-	{"HTTP/3.14", 3, 14, true},
 
 	{"HTTP", 0, 0, false},
 	{"HTTP/one.one", 0, 0, false},
@@ -537,6 +647,12 @@ var parseHTTPVersionTests = []struct {
 	{"HTTP/0,-1", 0, 0, false},
 	{"HTTP/", 0, 0, false},
 	{"HTTP/1,1", 0, 0, false},
+	{"HTTP/+1.1", 0, 0, false},
+	{"HTTP/1.+1", 0, 0, false},
+	{"HTTP/0000000001.1", 0, 0, false},
+	{"HTTP/1.0000000001", 0, 0, false},
+	{"HTTP/3.14", 0, 0, false},
+	{"HTTP/12.3", 0, 0, false},
 }
 
 func TestParseHTTPVersion(t *testing.T) {
@@ -598,6 +714,11 @@ var parseBasicAuthTests = []struct {
 	ok                         bool
 }{
 	{"Basic " + base64.StdEncoding.EncodeToString([]byte("Aladdin:open sesame")), "Aladdin", "open sesame", true},
+
+	// Case doesn't matter:
+	{"BASIC " + base64.StdEncoding.EncodeToString([]byte("Aladdin:open sesame")), "Aladdin", "open sesame", true},
+	{"basic " + base64.StdEncoding.EncodeToString([]byte("Aladdin:open sesame")), "Aladdin", "open sesame", true},
+
 	{"Basic " + base64.StdEncoding.EncodeToString([]byte("Aladdin:open:sesame")), "Aladdin", "open:sesame", true},
 	{"Basic " + base64.StdEncoding.EncodeToString([]byte(":")), "", "", true},
 	{"Basic" + base64.StdEncoding.EncodeToString([]byte("Aladdin:open sesame")), "", "", false},
@@ -649,19 +770,38 @@ func TestRequestWriteBufferedWriter(t *testing.T) {
 	}
 }
 
-func TestRequestBadHost(t *testing.T) {
+func TestRequestBadHostHeader(t *testing.T) {
 	got := []string{}
 	req, err := NewRequest("GET", "http://foo/after", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Host = "foo.com with spaces"
-	req.URL.Host = "foo.com with spaces"
+	req.Host = "foo.com\nnewline"
+	req.URL.Host = "foo.com\nnewline"
 	req.Write(logWrites{t, &got})
 	want := []string{
 		"GET /after HTTP/1.1\r\n",
-		"Host: foo.com\r\n",
+		"Host: \r\n",
 		"User-Agent: " + DefaultUserAgent + "\r\n",
+		"\r\n",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Writes = %q\n  Want = %q", got, want)
+	}
+}
+
+func TestRequestBadUserAgent(t *testing.T) {
+	got := []string{}
+	req, err := NewRequest("GET", "http://foo/after", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("User-Agent", "evil\r\nX-Evil: evil")
+	req.Write(logWrites{t, &got})
+	want := []string{
+		"GET /after HTTP/1.1\r\n",
+		"Host: foo\r\n",
+		"User-Agent: evil  X-Evil: evil\r\n",
 		"\r\n",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -690,7 +830,7 @@ func TestStarRequest(t *testing.T) {
 	clientReq := *req
 	clientReq.Body = nil
 
-	var out bytes.Buffer
+	var out strings.Builder
 	if err := clientReq.Write(&out); err != nil {
 		t.Fatal(err)
 	}
@@ -698,7 +838,7 @@ func TestStarRequest(t *testing.T) {
 	if strings.Contains(out.String(), "chunked") {
 		t.Error("wrote chunked request; want no body")
 	}
-	back, err := ReadRequest(bufio.NewReader(bytes.NewReader(out.Bytes())))
+	back, err := ReadRequest(bufio.NewReader(strings.NewReader(out.String())))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,7 +850,7 @@ func TestStarRequest(t *testing.T) {
 		t.Errorf("Original request doesn't match Request read back.")
 		t.Logf("Original: %#v", req)
 		t.Logf("Original.URL: %#v", req.URL)
-		t.Logf("Wrote: %s", out.Bytes())
+		t.Logf("Wrote: %s", out.String())
 		t.Logf("Read back (doesn't match Original): %#v", back)
 	}
 }
@@ -737,10 +877,10 @@ func (dr delayedEOFReader) Read(p []byte) (n int, err error) {
 }
 
 func TestIssue10884_MaxBytesEOF(t *testing.T) {
-	dst := ioutil.Discard
+	dst := io.Discard
 	_, err := io.Copy(dst, MaxBytesReader(
 		responseWriterJustWriter{dst},
-		ioutil.NopCloser(delayedEOFReader{strings.NewReader("12345")}),
+		io.NopCloser(delayedEOFReader{strings.NewReader("12345")}),
 		5))
 	if err != nil {
 		t.Fatal(err)
@@ -780,10 +920,183 @@ func TestMaxBytesReaderStickyError(t *testing.T) {
 		2: {101, 100},
 	}
 	for i, tt := range tests {
-		rc := MaxBytesReader(nil, ioutil.NopCloser(bytes.NewReader(make([]byte, tt.readable))), tt.limit)
+		rc := MaxBytesReader(nil, io.NopCloser(bytes.NewReader(make([]byte, tt.readable))), tt.limit)
 		if err := isSticky(rc); err != nil {
 			t.Errorf("%d. error: %v", i, err)
 		}
+	}
+}
+
+// Issue 45101: maxBytesReader's Read panicked when n < -1. This test
+// also ensures that Read treats negative limits as equivalent to 0.
+func TestMaxBytesReaderDifferentLimits(t *testing.T) {
+	const testStr = "1234"
+	tests := [...]struct {
+		limit   int64
+		lenP    int
+		wantN   int
+		wantErr bool
+	}{
+		0: {
+			limit:   -123,
+			lenP:    0,
+			wantN:   0,
+			wantErr: false, // Ensure we won't return an error when the limit is negative, but we don't need to read.
+		},
+		1: {
+			limit:   -100,
+			lenP:    32 * 1024,
+			wantN:   0,
+			wantErr: true,
+		},
+		2: {
+			limit:   -2,
+			lenP:    1,
+			wantN:   0,
+			wantErr: true,
+		},
+		3: {
+			limit:   -1,
+			lenP:    2,
+			wantN:   0,
+			wantErr: true,
+		},
+		4: {
+			limit:   0,
+			lenP:    3,
+			wantN:   0,
+			wantErr: true,
+		},
+		5: {
+			limit:   1,
+			lenP:    4,
+			wantN:   1,
+			wantErr: true,
+		},
+		6: {
+			limit:   2,
+			lenP:    5,
+			wantN:   2,
+			wantErr: true,
+		},
+		7: {
+			limit:   3,
+			lenP:    2,
+			wantN:   2,
+			wantErr: false,
+		},
+		8: {
+			limit:   int64(len(testStr)),
+			lenP:    len(testStr),
+			wantN:   len(testStr),
+			wantErr: false,
+		},
+		9: {
+			limit:   100,
+			lenP:    6,
+			wantN:   len(testStr),
+			wantErr: false,
+		},
+		10: { /* Issue 54408 */
+			limit:   int64(1<<63 - 1),
+			lenP:    len(testStr),
+			wantN:   len(testStr),
+			wantErr: false,
+		},
+	}
+	for i, tt := range tests {
+		rc := MaxBytesReader(nil, io.NopCloser(strings.NewReader(testStr)), tt.limit)
+
+		n, err := rc.Read(make([]byte, tt.lenP))
+
+		if n != tt.wantN {
+			t.Errorf("%d. n: %d, want n: %d", i, n, tt.wantN)
+		}
+
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%d. error: %v", i, err)
+		}
+	}
+}
+
+func TestWithContextNilURL(t *testing.T) {
+	req, err := NewRequest("POST", "https://golang.org/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Issue 20601
+	req.URL = nil
+	reqCopy := req.WithContext(context.Background())
+	if reqCopy.URL != nil {
+		t.Error("expected nil URL in cloned request")
+	}
+}
+
+// Ensure that Request.Clone creates a deep copy of TransferEncoding.
+// See issue 41907.
+func TestRequestCloneTransferEncoding(t *testing.T) {
+	body := strings.NewReader("body")
+	req, _ := NewRequest("POST", "https://example.org/", body)
+	req.TransferEncoding = []string{
+		"encoding1",
+	}
+
+	clonedReq := req.Clone(context.Background())
+	// modify original after deep copy
+	req.TransferEncoding[0] = "encoding2"
+
+	if req.TransferEncoding[0] != "encoding2" {
+		t.Error("expected req.TransferEncoding to be changed")
+	}
+	if clonedReq.TransferEncoding[0] != "encoding1" {
+		t.Error("expected clonedReq.TransferEncoding to be unchanged")
+	}
+}
+
+// Ensure that Request.Clone works correctly with PathValue.
+// See issue 64911.
+func TestRequestClonePathValue(t *testing.T) {
+	req, _ := http.NewRequest("GET", "https://example.org/", nil)
+	req.SetPathValue("p1", "orig")
+
+	clonedReq := req.Clone(context.Background())
+	clonedReq.SetPathValue("p2", "copy")
+
+	// Ensure that any modifications to the cloned
+	// request do not pollute the original request.
+	if g, w := req.PathValue("p2"), ""; g != w {
+		t.Fatalf("p2 mismatch got %q, want %q", g, w)
+	}
+	if g, w := req.PathValue("p1"), "orig"; g != w {
+		t.Fatalf("p1 mismatch got %q, want %q", g, w)
+	}
+
+	// Assert on the changes to the cloned request.
+	if g, w := clonedReq.PathValue("p1"), "orig"; g != w {
+		t.Fatalf("p1 mismatch got %q, want %q", g, w)
+	}
+	if g, w := clonedReq.PathValue("p2"), "copy"; g != w {
+		t.Fatalf("p2 mismatch got %q, want %q", g, w)
+	}
+}
+
+// Issue 34878: verify we don't panic when including basic auth (Go 1.13 regression)
+func TestNoPanicOnRoundTripWithBasicAuth(t *testing.T) { run(t, testNoPanicWithBasicAuth) }
+func testNoPanicWithBasicAuth(t *testing.T, mode testMode) {
+	cst := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {}))
+
+	u, err := url.Parse(cst.ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword("foo", "bar")
+	req := &Request{
+		URL:    u,
+		Method: "GET",
+	}
+	if _, err := cst.c.Do(req); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 }
 
@@ -810,7 +1123,7 @@ func TestNewRequestGetBody(t *testing.T) {
 			t.Errorf("test[%d]: GetBody = nil", i)
 			continue
 		}
-		slurp1, err := ioutil.ReadAll(req.Body)
+		slurp1, err := io.ReadAll(req.Body)
 		if err != nil {
 			t.Errorf("test[%d]: ReadAll(Body) = %v", i, err)
 		}
@@ -818,7 +1131,7 @@ func TestNewRequestGetBody(t *testing.T) {
 		if err != nil {
 			t.Errorf("test[%d]: GetBody = %v", i, err)
 		}
-		slurp2, err := ioutil.ReadAll(newBody)
+		slurp2, err := io.ReadAll(newBody)
 		if err != nil {
 			t.Errorf("test[%d]: ReadAll(GetBody()) = %v", i, err)
 		}
@@ -842,7 +1155,7 @@ func testMissingFile(t *testing.T, req *Request) {
 }
 
 func newTestMultipartRequest(t *testing.T) *Request {
-	b := strings.NewReader(strings.Replace(message, "\n", "\r\n", -1))
+	b := strings.NewReader(strings.ReplaceAll(message, "\n", "\r\n"))
 	req, err := NewRequest("POST", "/", b)
 	if err != nil {
 		t.Fatal("NewRequest:", err)
@@ -892,7 +1205,7 @@ func testMultipartFile(t *testing.T, req *Request, key, expectFilename, expectCo
 	if fh.Filename != expectFilename {
 		t.Errorf("filename = %q, want %q", fh.Filename, expectFilename)
 	}
-	var b bytes.Buffer
+	var b strings.Builder
 	_, err = io.Copy(&b, f)
 	if err != nil {
 		t.Fatal("copying contents:", err)
@@ -901,6 +1214,117 @@ func testMultipartFile(t *testing.T, req *Request, key, expectFilename, expectCo
 		t.Errorf("contents = %q, want %q", g, expectContent)
 	}
 	return f
+}
+
+// Issue 53181: verify Request.Cookie return the correct Cookie.
+// Return ErrNoCookie instead of the first cookie when name is "".
+func TestRequestCookie(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		value       string
+		expectedErr error
+	}{
+		{
+			name:        "foo",
+			value:       "bar",
+			expectedErr: nil,
+		},
+		{
+			name:        "",
+			expectedErr: ErrNoCookie,
+		},
+	} {
+		req, err := NewRequest("GET", "http://example.com/", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.AddCookie(&Cookie{Name: tt.name, Value: tt.value})
+		c, err := req.Cookie(tt.name)
+		if err != tt.expectedErr {
+			t.Errorf("got %v, want %v", err, tt.expectedErr)
+		}
+
+		// skip if error occurred.
+		if err != nil {
+			continue
+		}
+		if c.Value != tt.value {
+			t.Errorf("got %v, want %v", c.Value, tt.value)
+		}
+		if c.Name != tt.name {
+			t.Errorf("got %s, want %v", tt.name, c.Name)
+		}
+	}
+}
+
+func TestRequestCookiesByName(t *testing.T) {
+	tests := []struct {
+		in     []*Cookie
+		filter string
+		want   []*Cookie
+	}{
+		{
+			in: []*Cookie{
+				{Name: "foo", Value: "foo-1"},
+				{Name: "bar", Value: "bar"},
+			},
+			filter: "foo",
+			want:   []*Cookie{{Name: "foo", Value: "foo-1"}},
+		},
+		{
+			in: []*Cookie{
+				{Name: "foo", Value: "foo-1"},
+				{Name: "foo", Value: "foo-2"},
+				{Name: "bar", Value: "bar"},
+			},
+			filter: "foo",
+			want: []*Cookie{
+				{Name: "foo", Value: "foo-1"},
+				{Name: "foo", Value: "foo-2"},
+			},
+		},
+		{
+			in: []*Cookie{
+				{Name: "bar", Value: "bar"},
+			},
+			filter: "foo",
+			want:   []*Cookie{},
+		},
+		{
+			in: []*Cookie{
+				{Name: "bar", Value: "bar"},
+			},
+			filter: "",
+			want:   []*Cookie{},
+		},
+		{
+			in:     []*Cookie{},
+			filter: "foo",
+			want:   []*Cookie{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.filter, func(t *testing.T) {
+			req, err := NewRequest("GET", "http://example.com/", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, c := range tt.in {
+				req.AddCookie(c)
+			}
+
+			got := req.CookiesNamed(tt.filter)
+
+			if !reflect.DeepEqual(got, tt.want) {
+				asStr := func(v any) string {
+					blob, _ := json.MarshalIndent(v, "", "  ")
+					return string(blob)
+				}
+				t.Fatalf("Result mismatch\n\tGot: %s\n\tWant: %s", asStr(got), asStr(tt.want))
+			}
+		})
+	}
 }
 
 const (
@@ -934,8 +1358,8 @@ Content-Disposition: form-data; name="textb"
 `
 
 func benchmarkReadRequest(b *testing.B, request string) {
-	request = request + "\n"                             // final \n
-	request = strings.Replace(request, "\n", "\r\n", -1) // expand \n to \r\n
+	request = request + "\n"                            // final \n
+	request = strings.ReplaceAll(request, "\n", "\r\n") // expand \n to \r\n
 	b.SetBytes(int64(len(request)))
 	r := bufio.NewReader(&infiniteReader{buf: []byte(request)})
 	b.ReportAllocs()
@@ -1009,4 +1433,233 @@ func BenchmarkReadRequestWrk(b *testing.B) {
 	benchmarkReadRequest(b, `GET / HTTP/1.1
 Host: localhost:8080
 `)
+}
+
+func BenchmarkFileAndServer_1KB(b *testing.B) {
+	benchmarkFileAndServer(b, 1<<10)
+}
+
+func BenchmarkFileAndServer_16MB(b *testing.B) {
+	benchmarkFileAndServer(b, 1<<24)
+}
+
+func BenchmarkFileAndServer_64MB(b *testing.B) {
+	benchmarkFileAndServer(b, 1<<26)
+}
+
+func benchmarkFileAndServer(b *testing.B, n int64) {
+	f, err := os.CreateTemp(os.TempDir(), "go-bench-http-file-and-server")
+	if err != nil {
+		b.Fatalf("Failed to create temp file: %v", err)
+	}
+
+	defer func() {
+		f.Close()
+		os.RemoveAll(f.Name())
+	}()
+
+	if _, err := io.CopyN(f, rand.Reader, n); err != nil {
+		b.Fatalf("Failed to copy %d bytes: %v", n, err)
+	}
+
+	run(b, func(b *testing.B, mode testMode) {
+		runFileAndServerBenchmarks(b, mode, f, n)
+	}, []testMode{http1Mode, https1Mode, http2Mode})
+}
+
+func runFileAndServerBenchmarks(b *testing.B, mode testMode, f *os.File, n int64) {
+	handler := HandlerFunc(func(rw ResponseWriter, req *Request) {
+		defer req.Body.Close()
+		nc, err := io.Copy(io.Discard, req.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		if nc != n {
+			panic(fmt.Errorf("Copied %d Wanted %d bytes", nc, n))
+		}
+	})
+
+	cst := newClientServerTest(b, mode, handler).ts
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Perform some setup.
+		b.StopTimer()
+		if _, err := f.Seek(0, 0); err != nil {
+			b.Fatalf("Failed to seek back to file: %v", err)
+		}
+
+		b.StartTimer()
+		req, err := NewRequest("PUT", cst.URL, io.NopCloser(f))
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		req.ContentLength = n
+		// Prevent mime sniffing by setting the Content-Type.
+		req.Header.Set("Content-Type", "application/octet-stream")
+		res, err := cst.Client().Do(req)
+		if err != nil {
+			b.Fatalf("Failed to make request to backend: %v", err)
+		}
+
+		res.Body.Close()
+		b.SetBytes(n)
+	}
+}
+
+func TestErrNotSupported(t *testing.T) {
+	if !errors.Is(ErrNotSupported, errors.ErrUnsupported) {
+		t.Error("errors.Is(ErrNotSupported, errors.ErrUnsupported) failed")
+	}
+}
+
+func TestPathValueNoMatch(t *testing.T) {
+	// Check that PathValue and SetPathValue work on a Request that was never matched.
+	var r Request
+	if g, w := r.PathValue("x"), ""; g != w {
+		t.Errorf("got %q, want %q", g, w)
+	}
+	r.SetPathValue("x", "a")
+	if g, w := r.PathValue("x"), "a"; g != w {
+		t.Errorf("got %q, want %q", g, w)
+	}
+}
+
+func TestPathValueAndPattern(t *testing.T) {
+	for _, test := range []struct {
+		pattern string
+		url     string
+		want    map[string]string
+	}{
+		{
+			"/{a}/is/{b}/{c...}",
+			"/now/is/the/time/for/all",
+			map[string]string{
+				"a": "now",
+				"b": "the",
+				"c": "time/for/all",
+				"d": "",
+			},
+		},
+		{
+			"/names/{name}/{other...}",
+			"/names/%2fjohn/address",
+			map[string]string{
+				"name":  "/john",
+				"other": "address",
+			},
+		},
+		{
+			"/names/{name}/{other...}",
+			"/names/john%2Fdoe/there/is%2F/more",
+			map[string]string{
+				"name":  "john/doe",
+				"other": "there/is//more",
+			},
+		},
+		{
+			"/names/{name}/{other...}",
+			"/names/n/*",
+			map[string]string{
+				"name":  "n",
+				"other": "*",
+			},
+		},
+	} {
+		mux := NewServeMux()
+		mux.HandleFunc(test.pattern, func(w ResponseWriter, r *Request) {
+			for name, want := range test.want {
+				got := r.PathValue(name)
+				if got != want {
+					t.Errorf("%q, %q: got %q, want %q", test.pattern, name, got, want)
+				}
+			}
+			if r.Pattern != test.pattern {
+				t.Errorf("pattern: got %s, want %s", r.Pattern, test.pattern)
+			}
+		})
+		server := httptest.NewServer(mux)
+		defer server.Close()
+		res, err := Get(server.URL + test.url)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+	}
+}
+
+func TestSetPathValue(t *testing.T) {
+	mux := NewServeMux()
+	mux.HandleFunc("/a/{b}/c/{d...}", func(_ ResponseWriter, r *Request) {
+		kvs := map[string]string{
+			"b": "X",
+			"d": "Y",
+			"a": "Z",
+		}
+		for k, v := range kvs {
+			r.SetPathValue(k, v)
+		}
+		for k, w := range kvs {
+			if g := r.PathValue(k); g != w {
+				t.Errorf("got %q, want %q", g, w)
+			}
+		}
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	res, err := Get(server.URL + "/a/b/c/d/e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+}
+
+func TestStatus(t *testing.T) {
+	// The main purpose of this test is to check 405 responses and the Allow header.
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	mux := NewServeMux()
+	mux.Handle("GET /g", h)
+	mux.Handle("POST /p", h)
+	mux.Handle("PATCH /p", h)
+	mux.Handle("PUT /r", h)
+	mux.Handle("GET /r/", h)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	for _, test := range []struct {
+		method, path string
+		wantStatus   int
+		wantAllow    string
+	}{
+		{"GET", "/g", 200, ""},
+		{"HEAD", "/g", 200, ""},
+		{"POST", "/g", 405, "GET, HEAD"},
+		{"GET", "/x", 404, ""},
+		{"GET", "/p", 405, "PATCH, POST"},
+		{"GET", "/./p", 405, "PATCH, POST"},
+		{"GET", "/r/", 200, ""},
+		{"GET", "/r", 200, ""}, // redirected
+		{"HEAD", "/r/", 200, ""},
+		{"HEAD", "/r", 200, ""}, // redirected
+		{"PUT", "/r/", 405, "GET, HEAD"},
+		{"PUT", "/r", 200, ""},
+	} {
+		req, err := http.NewRequest(test.method, server.URL+test.path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if g, w := res.StatusCode, test.wantStatus; g != w {
+			t.Errorf("%s %s: got %d, want %d", test.method, test.path, g, w)
+		}
+		if g, w := res.Header.Get("Allow"), test.wantAllow; g != w {
+			t.Errorf("%s %s, Allow: got %q, want %q", test.method, test.path, g, w)
+		}
+	}
 }

@@ -7,16 +7,14 @@ package http_test
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
+	. "net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/zmap/zcrypto/tls"
-
-	. "github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func TestNextProtoUpgrade(t *testing.T) {
@@ -45,16 +43,12 @@ func TestNextProtoUpgrade(t *testing.T) {
 
 	// Normal request, without NPN.
 	{
-		tr := newTLSTransport(t, ts)
-		defer tr.CloseIdleConnections()
-		c := MakeNewClient()
-		c.Transport = tr
-
+		c := ts.Client()
 		res, err := c.Get(ts.URL)
 		if err != nil {
 			t.Fatal(err)
 		}
-		body, err := ioutil.ReadAll(res.Body)
+		body, err := io.ReadAll(res.Body)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,11 +60,18 @@ func TestNextProtoUpgrade(t *testing.T) {
 	// Request to an advertised but unhandled NPN protocol.
 	// Server will hang up.
 	{
-		tr := newTLSTransport(t, ts)
-		tr.TLSClientConfig.NextProtos = []string{"unhandled-proto"}
+		certPool := x509.NewCertPool()
+		certPool.AddCert(ts.Certificate())
+		tr := &Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    certPool,
+				NextProtos: []string{"unhandled-proto"},
+			},
+		}
 		defer tr.CloseIdleConnections()
-		c := &Client{Transport: tr}
-
+		c := &Client{
+			Transport: tr,
+		}
 		res, err := c.Get(ts.URL)
 		if err == nil {
 			defer res.Body.Close()
@@ -83,14 +84,15 @@ func TestNextProtoUpgrade(t *testing.T) {
 	// Request using the "tls-0.9" protocol, which we register here.
 	// It is HTTP/0.9 over TLS.
 	{
-		tlsConfig := newTLSTransport(t, ts).TLSClientConfig
+		c := ts.Client()
+		tlsConfig := c.Transport.(*Transport).TLSClientConfig
 		tlsConfig.NextProtos = []string{"tls-0.9"}
 		conn, err := tls.Dial("tcp", ts.Listener.Addr().String(), tlsConfig)
 		if err != nil {
 			t.Fatal(err)
 		}
 		conn.Write([]byte("GET /foo\n"))
-		body, err := ioutil.ReadAll(conn)
+		body, err := io.ReadAll(conn)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -114,11 +116,9 @@ func handleTLSProtocol09(srv *Server, conn *tls.Conn, h Handler) {
 		return
 	}
 	req, _ := NewRequest("GET", path, nil)
-	req.Protocol = Protocol{
-		Name:  "HTTP/0.9",
-		Major: 0,
-		Minor: 9,
-	}
+	req.Proto = "HTTP/0.9"
+	req.ProtoMajor = 0
+	req.ProtoMinor = 9
 	rw := &http09Writer{conn, make(Header)}
 	h.ServeHTTP(rw, req)
 }

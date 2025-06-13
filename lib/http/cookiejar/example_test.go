@@ -7,11 +7,10 @@ package cookiejar_test
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/url"
-
-	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/cookiejar"
-	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func ExampleNew() {
@@ -37,8 +36,9 @@ func ExampleNew() {
 		log.Fatal(err)
 	}
 
-	client := http.MakeNewClient()
-	client.Jar = jar
+	client := &http.Client{
+		Jar: jar,
+	}
 
 	if _, err = client.Get(u.String()); err != nil {
 		log.Fatal(err)
