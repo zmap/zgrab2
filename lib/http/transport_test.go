@@ -20,10 +20,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	. "github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
-	"github.com/zmap/zgrab2/lib/http/httputil"
 	"go/token"
 	"io"
 	"log"
@@ -44,6 +40,10 @@ import (
 
 	"golang.org/x/net/http/httpguts"
 
+	. "github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
+	"github.com/zmap/zgrab2/lib/http/httputil"
 	"github.com/zmap/zgrab2/lib/http/internal/testcert"
 )
 
@@ -4853,7 +4853,7 @@ func testTransportResponseHeaderLength(t *testing.T, mode testMode) {
 	}
 }
 
-// The
+//
 //func TestTransportEventTrace(t *testing.T) {
 //	run(t, func(t *testing.T, mode testMode) {
 //		testTransportEventTrace(t, mode, false)
@@ -5132,55 +5132,56 @@ func skipIfDNSHijacked(t *testing.T) {
 	}
 }
 
-func TestTransportEventTraceRealDNS(t *testing.T) {
-	skipIfDNSHijacked(t)
-	defer afterTest(t)
-	tr := &Transport{}
-	defer tr.CloseIdleConnections()
-	c := &Client{Transport: tr}
-
-	var mu sync.Mutex // guards buf
-	var buf strings.Builder
-	logf := func(format string, args ...any) {
-		mu.Lock()
-		defer mu.Unlock()
-		fmt.Fprintf(&buf, format, args...)
-		buf.WriteByte('\n')
-	}
-
-	req, _ := NewRequest("GET", "http://dns-should-not-resolve.golang:80", nil)
-	trace := &httptrace.ClientTrace{
-		DNSStart:     func(e httptrace.DNSStartInfo) { logf("DNSStart: %+v", e) },
-		DNSDone:      func(e httptrace.DNSDoneInfo) { logf("DNSDone: %+v", e) },
-		ConnectStart: func(network, addr string) { logf("ConnectStart: %s %s", network, addr) },
-		ConnectDone:  func(network, addr string, err error) { logf("ConnectDone: %s %s %v", network, addr, err) },
-	}
-	req = req.WithContext(httptrace.WithClientTrace(context.Background(), trace))
-
-	resp, err := c.Do(req)
-	if err == nil {
-		resp.Body.Close()
-		t.Fatal("expected error during DNS lookup")
-	}
-
-	mu.Lock()
-	got := buf.String()
-	mu.Unlock()
-
-	wantSub := func(sub string) {
-		if !strings.Contains(got, sub) {
-			t.Errorf("expected substring %q in output.", sub)
-		}
-	}
-	wantSub("DNSStart: {Host:dns-should-not-resolve.golang}")
-	wantSub("DNSDone: {Addrs:[] Err:")
-	if strings.Contains(got, "ConnectStart") || strings.Contains(got, "ConnectDone") {
-		t.Errorf("should not see Connect events")
-	}
-	if t.Failed() {
-		t.Errorf("Output:\n%s", got)
-	}
-}
+// Functionality relies on nettrace, an internal library we can't use externally.
+//func TestTransportEventTraceRealDNS(t *testing.T) {
+//	skipIfDNSHijacked(t)
+//	defer afterTest(t)
+//	tr := &Transport{}
+//	defer tr.CloseIdleConnections()
+//	c := &Client{Transport: tr}
+//
+//	var mu sync.Mutex // guards buf
+//	var buf strings.Builder
+//	logf := func(format string, args ...any) {
+//		mu.Lock()
+//		defer mu.Unlock()
+//		fmt.Fprintf(&buf, format, args...)
+//		buf.WriteByte('\n')
+//	}
+//
+//	req, _ := NewRequest("GET", "http://dns-should-not-resolve.golang:80", nil)
+//	trace := &httptrace.ClientTrace{
+//		DNSStart:     func(e httptrace.DNSStartInfo) { logf("DNSStart: %+v", e) },
+//		DNSDone:      func(e httptrace.DNSDoneInfo) { logf("DNSDone: %+v", e) },
+//		ConnectStart: func(network, addr string) { logf("ConnectStart: %s %s", network, addr) },
+//		ConnectDone:  func(network, addr string, err error) { logf("ConnectDone: %s %s %v", network, addr, err) },
+//	}
+//	req = req.WithContext(httptrace.WithClientTrace(context.Background(), trace))
+//
+//	resp, err := c.Do(req)
+//	if err == nil {
+//		resp.Body.Close()
+//		t.Fatal("expected error during DNS lookup")
+//	}
+//
+//	mu.Lock()
+//	got := buf.String()
+//	mu.Unlock()
+//
+//	wantSub := func(sub string) {
+//		if !strings.Contains(got, sub) {
+//			t.Errorf("expected substring %q in output.", sub)
+//		}
+//	}
+//	wantSub("DNSStart: {Host:dns-should-not-resolve.golang}")
+//	wantSub("DNSDone: {Addrs:[] Err:")
+//	if strings.Contains(got, "ConnectStart") || strings.Contains(got, "ConnectDone") {
+//		t.Errorf("should not see Connect events")
+//	}
+//	if t.Failed() {
+//		t.Errorf("Output:\n%s", got)
+//	}
+//}
 
 // Issue 14353: port can only contain digits.
 func TestTransportRejectsAlphaPort(t *testing.T) {
@@ -5248,6 +5249,7 @@ func testTLSHandshakeTrace(t *testing.T, mode testMode) {
 	}
 }
 
+//
 //func TestTransportMaxIdleConns(t *testing.T) {
 //	run(t, testTransportMaxIdleConns, []testMode{http1Mode})
 //}

@@ -38,7 +38,6 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 	trace.compose(old)
 
 	ctx = context.WithValue(ctx, clientEventContextKey{}, trace)
-	// Can't use nettrace package here outside the std library
 	//if trace.hasNetHooks() {
 	//	nt := &nettrace.Trace{
 	//		ConnectStart: trace.ConnectStart,

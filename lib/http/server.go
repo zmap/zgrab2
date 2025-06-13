@@ -1179,7 +1179,7 @@ func relevantCaller() runtime.Frame {
 	var frame runtime.Frame
 	for {
 		frame, more := frames.Next()
-		if !strings.HasPrefix(frame.Function, "net/http.") {
+		if !strings.HasPrefix(frame.Function, "github.com/zmap/zgrab2/lib/http.") {
 			return frame
 		}
 		if !more {
