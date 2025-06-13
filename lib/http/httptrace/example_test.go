@@ -6,9 +6,9 @@ package httptrace_test
 
 import (
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"log"
-	"net/http"
-	"net/http/httptrace"
 )
 
 func Example() {

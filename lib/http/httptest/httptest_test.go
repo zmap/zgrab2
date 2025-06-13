@@ -7,8 +7,8 @@ package httptest
 import (
 	"context"
 	"crypto/tls"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
-	"net/http"
 	"net/url"
 	"reflect"
 	"strings"

@@ -5,9 +5,9 @@
 package http_test
 
 import (
+	"github.com/zmap/zgrab2/lib/http"
 	"io/fs"
 	"log"
-	"net/http"
 	"strings"
 )
 

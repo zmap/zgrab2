@@ -7,10 +7,11 @@ package cookiejar_test
 import (
 	"fmt"
 	"log"
-	"net/http"
-	"net/http/cookiejar"
-	"net/http/httptest"
 	"net/url"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/cookiejar"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func ExampleNew() {

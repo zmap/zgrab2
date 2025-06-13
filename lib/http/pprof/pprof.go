@@ -15,7 +15,7 @@
 //	import _ "net/http/pprof"
 //
 // If your application is not already running an http server, you
-// need to start one. Add "net/http" and "log" to your imports and
+// need to start one. Add "github.com/zmap/zgrab2/lib/http" and "log" to your imports and
 // the following code to your main function:
 //
 //	go func() {
@@ -75,12 +75,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"html"
-	"internal/godebug"
 	"internal/profile"
 	"io"
 	"log"
-	"net/http"
 	"net/url"
 	"os"
 	"runtime"
@@ -94,9 +93,9 @@ import (
 
 func init() {
 	prefix := ""
-	if godebug.New("httpmuxgo121").Value() != "1" {
-		prefix = "GET "
-	}
+	//if godebug.New("httpmuxgo121").Value() != "1" {
+	//	prefix = "GET "
+	//}
 	http.HandleFunc(prefix+"/debug/pprof/", Index)
 	http.HandleFunc(prefix+"/debug/pprof/cmdline", Cmdline)
 	http.HandleFunc(prefix+"/debug/pprof/profile", Profile)

@@ -7,8 +7,6 @@
 package http
 
 import (
-	"bytes"
-	"internal/testenv"
 	"io/fs"
 	"net/url"
 	"os"
@@ -52,58 +50,61 @@ func TestForeachHeaderElement(t *testing.T) {
 // This catches accidental dependencies between the HTTP transport and
 // server code.
 func TestCmdGoNoHTTPServer(t *testing.T) {
-	t.Parallel()
-	goBin := testenv.GoToolPath(t)
-	out, err := testenv.Command(t, goBin, "tool", "nm", goBin).CombinedOutput()
-	if err != nil {
-		t.Fatalf("go tool nm: %v: %s", err, out)
-	}
-	wantSym := map[string]bool{
-		// Verify these exist: (sanity checking this test)
-		"net/http.(*Client).do":           true,
-		"net/http.(*Transport).RoundTrip": true,
-
-		// Verify these don't exist:
-		"net/http.http2Server":           false,
-		"net/http.(*Server).Serve":       false,
-		"net/http.(*ServeMux).ServeHTTP": false,
-		"net/http.DefaultServeMux":       false,
-	}
-	for sym, want := range wantSym {
-		got := bytes.Contains(out, []byte(sym))
-		if !want && got {
-			t.Errorf("cmd/go unexpectedly links in HTTP server code; found symbol %q in cmd/go", sym)
-		}
-		if want && !got {
-			t.Errorf("expected to find symbol %q in cmd/go; not found", sym)
-		}
-	}
+	// Phillip - Have to remove this test, we can't access the internal/testenv package
+	//t.Parallel()
+	//goBin := testenv.GoToolPath(t)
+	//out, err := testenv.Command(t, goBin, "tool", "nm", goBin).CombinedOutput()
+	//if err != nil {
+	//	t.Fatalf("go tool nm: %v: %s", err, out)
+	//}
+	//wantSym := map[string]bool{
+	//	// Verify these exist: (sanity checking this test)
+	//	"net/http.(*Client).do":           true,
+	//	"net/http.(*Transport).RoundTrip": true,
+	//
+	//	// Verify these don't exist:
+	//	"net/http.http2Server":           false,
+	//	"net/http.(*Server).Serve":       false,
+	//	"net/http.(*ServeMux).ServeHTTP": false,
+	//	"net/http.DefaultServeMux":       false,
+	//}
+	//for sym, want := range wantSym {
+	//	got := bytes.Contains(out, []byte(sym))
+	//	if !want && got {
+	//		t.Errorf("cmd/go unexpectedly links in HTTP server code; found symbol %q in cmd/go", sym)
+	//	}
+	//	if want && !got {
+	//		t.Errorf("expected to find symbol %q in cmd/go; not found", sym)
+	//	}
+	//}
 }
 
 // Tests that the nethttpomithttp2 build tag doesn't rot too much,
 // even if there's not a regular builder on it.
 func TestOmitHTTP2(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode")
-	}
-	t.Parallel()
-	goTool := testenv.GoToolPath(t)
-	out, err := testenv.Command(t, goTool, "test", "-short", "-tags=nethttpomithttp2", "net/http").CombinedOutput()
-	if err != nil {
-		t.Fatalf("go test -short failed: %v, %s", err, out)
-	}
+	// Phillip - Have to remove this test, we can't access the internal/testenv package
+	//if testing.Short() {
+	//	t.Skip("skipping in short mode")
+	//}
+	//t.Parallel()
+	//goTool := testenv.GoToolPath(t)
+	//out, err := testenv.Command(t, goTool, "test", "-short", "-tags=nethttpomithttp2", "github.com/zmap/zgrab2/lib/http").CombinedOutput()
+	//if err != nil {
+	//	t.Fatalf("go test -short failed: %v, %s", err, out)
+	//}
 }
 
 // Tests that the nethttpomithttp2 build tag at least type checks
 // in short mode.
 // The TestOmitHTTP2 test above actually runs tests (in long mode).
 func TestOmitHTTP2Vet(t *testing.T) {
-	t.Parallel()
-	goTool := testenv.GoToolPath(t)
-	out, err := testenv.Command(t, goTool, "vet", "-tags=nethttpomithttp2", "net/http").CombinedOutput()
-	if err != nil {
-		t.Fatalf("go vet failed: %v, %s", err, out)
-	}
+	// Phillip - Have to remove this test, we can't access the internal/testenv package
+	//t.Parallel()
+	//goTool := testenv.GoToolPath(t)
+	//out, err := testenv.Command(t, goTool, "vet", "-tags=nethttpomithttp2", "github.com/zmap/zgrab2/lib/http").CombinedOutput()
+	//if err != nil {
+	//	t.Fatalf("go vet failed: %v, %s", err, out)
+	//}
 }
 
 var valuesCount int
@@ -151,9 +152,9 @@ var forbiddenStringsFunctions = map[string]bool{
 // strings and bytes package functions. HTTP is mostly ASCII based, and doing
 // Unicode-aware case folding or space stripping can introduce vulnerabilities.
 func TestNoUnicodeStrings(t *testing.T) {
-	if !testenv.HasSrc() {
-		t.Skip("source code not available")
-	}
+	//if !testenv.HasSrc() {
+	//	t.Skip("source code not available")
+	//}
 
 	re := regexp.MustCompile(`(strings|bytes).([A-Za-z]+)`)
 	if err := fs.WalkDir(os.DirFS("."), ".", func(path string, d fs.DirEntry, err error) error {

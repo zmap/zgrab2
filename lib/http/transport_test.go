@@ -20,17 +20,15 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	. "github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
+	"github.com/zmap/zgrab2/lib/http/httputil"
 	"go/token"
-	"internal/nettrace"
 	"io"
 	"log"
 	mrand "math/rand"
 	"net"
-	. "net/http"
-	"net/http/httptest"
-	"net/http/httptrace"
-	"net/http/httputil"
-	"net/http/internal/testcert"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -45,6 +43,8 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpguts"
+
+	"github.com/zmap/zgrab2/lib/http/internal/testcert"
 )
 
 // TODO: test 5 pipelined requests with responses: 1) OK, 2) OK, Connection: Close
@@ -4853,200 +4853,201 @@ func testTransportResponseHeaderLength(t *testing.T, mode testMode) {
 	}
 }
 
-func TestTransportEventTrace(t *testing.T) {
-	run(t, func(t *testing.T, mode testMode) {
-		testTransportEventTrace(t, mode, false)
-	}, testNotParallel)
-}
-
-// test a non-nil httptrace.ClientTrace but with all hooks set to zero.
-func TestTransportEventTrace_NoHooks(t *testing.T) {
-	run(t, func(t *testing.T, mode testMode) {
-		testTransportEventTrace(t, mode, true)
-	}, testNotParallel)
-}
-
-func testTransportEventTrace(t *testing.T, mode testMode, noHooks bool) {
-	const resBody = "some body"
-	gotWroteReqEvent := make(chan struct{}, 500)
-	cst := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
-		if r.Method == "GET" {
-			// Do nothing for the second request.
-			return
-		}
-		if _, err := io.ReadAll(r.Body); err != nil {
-			t.Error(err)
-		}
-		if !noHooks {
-			<-gotWroteReqEvent
-		}
-		io.WriteString(w, resBody)
-	}), func(tr *Transport) {
-		if tr.TLSClientConfig != nil {
-			tr.TLSClientConfig.InsecureSkipVerify = true
-		}
-	})
-	defer cst.close()
-
-	cst.tr.ExpectContinueTimeout = 1 * time.Second
-
-	var mu sync.Mutex // guards buf
-	var buf strings.Builder
-	logf := func(format string, args ...any) {
-		mu.Lock()
-		defer mu.Unlock()
-		fmt.Fprintf(&buf, format, args...)
-		buf.WriteByte('\n')
-	}
-
-	addrStr := cst.ts.Listener.Addr().String()
-	ip, port, err := net.SplitHostPort(addrStr)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Install a fake DNS server.
-	ctx := context.WithValue(context.Background(), nettrace.LookupIPAltResolverKey{}, func(ctx context.Context, network, host string) ([]net.IPAddr, error) {
-		if host != "dns-is-faked.golang" {
-			t.Errorf("unexpected DNS host lookup for %q/%q", network, host)
-			return nil, nil
-		}
-		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
-	})
-
-	body := "some body"
-	req, _ := NewRequest("POST", cst.scheme()+"://dns-is-faked.golang:"+port, strings.NewReader(body))
-	req.Header["X-Foo-Multiple-Vals"] = []string{"bar", "baz"}
-	trace := &httptrace.ClientTrace{
-		GetConn:              func(hostPort string) { logf("Getting conn for %v ...", hostPort) },
-		GotConn:              func(ci httptrace.GotConnInfo) { logf("got conn: %+v", ci) },
-		GotFirstResponseByte: func() { logf("first response byte") },
-		PutIdleConn:          func(err error) { logf("PutIdleConn = %v", err) },
-		DNSStart:             func(e httptrace.DNSStartInfo) { logf("DNS start: %+v", e) },
-		DNSDone:              func(e httptrace.DNSDoneInfo) { logf("DNS done: %+v", e) },
-		ConnectStart:         func(network, addr string) { logf("ConnectStart: Connecting to %s %s ...", network, addr) },
-		ConnectDone: func(network, addr string, err error) {
-			if err != nil {
-				t.Errorf("ConnectDone: %v", err)
-			}
-			logf("ConnectDone: connected to %s %s = %v", network, addr, err)
-		},
-		WroteHeaderField: func(key string, value []string) {
-			logf("WroteHeaderField: %s: %v", key, value)
-		},
-		WroteHeaders: func() {
-			logf("WroteHeaders")
-		},
-		Wait100Continue: func() { logf("Wait100Continue") },
-		Got100Continue:  func() { logf("Got100Continue") },
-		WroteRequest: func(e httptrace.WroteRequestInfo) {
-			logf("WroteRequest: %+v", e)
-			gotWroteReqEvent <- struct{}{}
-		},
-	}
-	if mode == http2Mode {
-		trace.TLSHandshakeStart = func() { logf("tls handshake start") }
-		trace.TLSHandshakeDone = func(s tls.ConnectionState, err error) {
-			logf("tls handshake done. ConnectionState = %v \n err = %v", s, err)
-		}
-	}
-	if noHooks {
-		// zero out all func pointers, trying to get some path to crash
-		*trace = httptrace.ClientTrace{}
-	}
-	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
-
-	req.Header.Set("Expect", "100-continue")
-	res, err := cst.c.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	logf("got roundtrip.response")
-	slurp, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	logf("consumed body")
-	if string(slurp) != resBody || res.StatusCode != 200 {
-		t.Fatalf("Got %q, %v; want %q, 200 OK", slurp, res.Status, resBody)
-	}
-	res.Body.Close()
-
-	if noHooks {
-		// Done at this point. Just testing a full HTTP
-		// requests can happen with a trace pointing to a zero
-		// ClientTrace, full of nil func pointers.
-		return
-	}
-
-	mu.Lock()
-	got := buf.String()
-	mu.Unlock()
-
-	wantOnce := func(sub string) {
-		if strings.Count(got, sub) != 1 {
-			t.Errorf("expected substring %q exactly once in output.", sub)
-		}
-	}
-	wantOnceOrMore := func(sub string) {
-		if strings.Count(got, sub) == 0 {
-			t.Errorf("expected substring %q at least once in output.", sub)
-		}
-	}
-	wantOnce("Getting conn for dns-is-faked.golang:" + port)
-	wantOnce("DNS start: {Host:dns-is-faked.golang}")
-	wantOnce("DNS done: {Addrs:[{IP:" + ip + " Zone:}] Err:<nil> Coalesced:false}")
-	wantOnce("got conn: {")
-	wantOnceOrMore("Connecting to tcp " + addrStr)
-	wantOnceOrMore("connected to tcp " + addrStr + " = <nil>")
-	wantOnce("Reused:false WasIdle:false IdleTime:0s")
-	wantOnce("first response byte")
-	if mode == http2Mode {
-		wantOnce("tls handshake start")
-		wantOnce("tls handshake done")
-	} else {
-		wantOnce("PutIdleConn = <nil>")
-		wantOnce("WroteHeaderField: User-Agent: [Go-http-client/1.1]")
-		// TODO(meirf): issue 19761. Make these agnostic to h1/h2. (These are not h1 specific, but the
-		// WroteHeaderField hook is not yet implemented in h2.)
-		wantOnce(fmt.Sprintf("WroteHeaderField: Host: [dns-is-faked.golang:%s]", port))
-		wantOnce(fmt.Sprintf("WroteHeaderField: Content-Length: [%d]", len(body)))
-		wantOnce("WroteHeaderField: X-Foo-Multiple-Vals: [bar baz]")
-		wantOnce("WroteHeaderField: Accept-Encoding: [gzip]")
-	}
-	wantOnce("WroteHeaders")
-	wantOnce("Wait100Continue")
-	wantOnce("Got100Continue")
-	wantOnce("WroteRequest: {Err:<nil>}")
-	if strings.Contains(got, " to udp ") {
-		t.Errorf("should not see UDP (DNS) connections")
-	}
-	if t.Failed() {
-		t.Errorf("Output:\n%s", got)
-	}
-
-	// And do a second request:
-	req, _ = NewRequest("GET", cst.scheme()+"://dns-is-faked.golang:"+port, nil)
-	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
-	res, err = cst.c.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.StatusCode != 200 {
-		t.Fatal(res.Status)
-	}
-	res.Body.Close()
-
-	mu.Lock()
-	got = buf.String()
-	mu.Unlock()
-
-	sub := "Getting conn for dns-is-faked.golang:"
-	if gotn, want := strings.Count(got, sub), 2; gotn != want {
-		t.Errorf("substring %q appeared %d times; want %d. Log:\n%s", sub, gotn, want, got)
-	}
-
-}
+// The
+//func TestTransportEventTrace(t *testing.T) {
+//	run(t, func(t *testing.T, mode testMode) {
+//		testTransportEventTrace(t, mode, false)
+//	}, testNotParallel)
+//}
+//
+//// test a non-nil httptrace.ClientTrace but with all hooks set to zero.
+//func TestTransportEventTrace_NoHooks(t *testing.T) {
+//	run(t, func(t *testing.T, mode testMode) {
+//		testTransportEventTrace(t, mode, true)
+//	}, testNotParallel)
+//}
+//
+//func testTransportEventTrace(t *testing.T, mode testMode, noHooks bool) {
+//	const resBody = "some body"
+//	gotWroteReqEvent := make(chan struct{}, 500)
+//	cst := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
+//		if r.Method == "GET" {
+//			// Do nothing for the second request.
+//			return
+//		}
+//		if _, err := io.ReadAll(r.Body); err != nil {
+//			t.Error(err)
+//		}
+//		if !noHooks {
+//			<-gotWroteReqEvent
+//		}
+//		io.WriteString(w, resBody)
+//	}), func(tr *Transport) {
+//		if tr.TLSClientConfig != nil {
+//			tr.TLSClientConfig.InsecureSkipVerify = true
+//		}
+//	})
+//	defer cst.close()
+//
+//	cst.tr.ExpectContinueTimeout = 1 * time.Second
+//
+//	var mu sync.Mutex // guards buf
+//	var buf strings.Builder
+//	logf := func(format string, args ...any) {
+//		mu.Lock()
+//		defer mu.Unlock()
+//		fmt.Fprintf(&buf, format, args...)
+//		buf.WriteByte('\n')
+//	}
+//
+//	addrStr := cst.ts.Listener.Addr().String()
+//	ip, port, err := net.SplitHostPort(addrStr)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	// Install a fake DNS server.
+//	ctx := context.WithValue(context.Background(), nettrace.LookupIPAltResolverKey{}, func(ctx context.Context, network, host string) ([]net.IPAddr, error) {
+//		if host != "dns-is-faked.golang" {
+//			t.Errorf("unexpected DNS host lookup for %q/%q", network, host)
+//			return nil, nil
+//		}
+//		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
+//	})
+//
+//	body := "some body"
+//	req, _ := NewRequest("POST", cst.scheme()+"://dns-is-faked.golang:"+port, strings.NewReader(body))
+//	req.Header["X-Foo-Multiple-Vals"] = []string{"bar", "baz"}
+//	trace := &httptrace.ClientTrace{
+//		GetConn:              func(hostPort string) { logf("Getting conn for %v ...", hostPort) },
+//		GotConn:              func(ci httptrace.GotConnInfo) { logf("got conn: %+v", ci) },
+//		GotFirstResponseByte: func() { logf("first response byte") },
+//		PutIdleConn:          func(err error) { logf("PutIdleConn = %v", err) },
+//		DNSStart:             func(e httptrace.DNSStartInfo) { logf("DNS start: %+v", e) },
+//		DNSDone:              func(e httptrace.DNSDoneInfo) { logf("DNS done: %+v", e) },
+//		ConnectStart:         func(network, addr string) { logf("ConnectStart: Connecting to %s %s ...", network, addr) },
+//		ConnectDone: func(network, addr string, err error) {
+//			if err != nil {
+//				t.Errorf("ConnectDone: %v", err)
+//			}
+//			logf("ConnectDone: connected to %s %s = %v", network, addr, err)
+//		},
+//		WroteHeaderField: func(key string, value []string) {
+//			logf("WroteHeaderField: %s: %v", key, value)
+//		},
+//		WroteHeaders: func() {
+//			logf("WroteHeaders")
+//		},
+//		Wait100Continue: func() { logf("Wait100Continue") },
+//		Got100Continue:  func() { logf("Got100Continue") },
+//		WroteRequest: func(e httptrace.WroteRequestInfo) {
+//			logf("WroteRequest: %+v", e)
+//			gotWroteReqEvent <- struct{}{}
+//		},
+//	}
+//	if mode == http2Mode {
+//		trace.TLSHandshakeStart = func() { logf("tls handshake start") }
+//		trace.TLSHandshakeDone = func(s tls.ConnectionState, err error) {
+//			logf("tls handshake done. ConnectionState = %v \n err = %v", s, err)
+//		}
+//	}
+//	if noHooks {
+//		// zero out all func pointers, trying to get some path to crash
+//		*trace = httptrace.ClientTrace{}
+//	}
+//	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
+//
+//	req.Header.Set("Expect", "100-continue")
+//	res, err := cst.c.Do(req)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	logf("got roundtrip.response")
+//	slurp, err := io.ReadAll(res.Body)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	logf("consumed body")
+//	if string(slurp) != resBody || res.StatusCode != 200 {
+//		t.Fatalf("Got %q, %v; want %q, 200 OK", slurp, res.Status, resBody)
+//	}
+//	res.Body.Close()
+//
+//	if noHooks {
+//		// Done at this point. Just testing a full HTTP
+//		// requests can happen with a trace pointing to a zero
+//		// ClientTrace, full of nil func pointers.
+//		return
+//	}
+//
+//	mu.Lock()
+//	got := buf.String()
+//	mu.Unlock()
+//
+//	wantOnce := func(sub string) {
+//		if strings.Count(got, sub) != 1 {
+//			t.Errorf("expected substring %q exactly once in output.", sub)
+//		}
+//	}
+//	wantOnceOrMore := func(sub string) {
+//		if strings.Count(got, sub) == 0 {
+//			t.Errorf("expected substring %q at least once in output.", sub)
+//		}
+//	}
+//	wantOnce("Getting conn for dns-is-faked.golang:" + port)
+//	wantOnce("DNS start: {Host:dns-is-faked.golang}")
+//	wantOnce("DNS done: {Addrs:[{IP:" + ip + " Zone:}] Err:<nil> Coalesced:false}")
+//	wantOnce("got conn: {")
+//	wantOnceOrMore("Connecting to tcp " + addrStr)
+//	wantOnceOrMore("connected to tcp " + addrStr + " = <nil>")
+//	wantOnce("Reused:false WasIdle:false IdleTime:0s")
+//	wantOnce("first response byte")
+//	if mode == http2Mode {
+//		wantOnce("tls handshake start")
+//		wantOnce("tls handshake done")
+//	} else {
+//		wantOnce("PutIdleConn = <nil>")
+//		wantOnce("WroteHeaderField: User-Agent: [Go-http-client/1.1]")
+//		// TODO(meirf): issue 19761. Make these agnostic to h1/h2. (These are not h1 specific, but the
+//		// WroteHeaderField hook is not yet implemented in h2.)
+//		wantOnce(fmt.Sprintf("WroteHeaderField: Host: [dns-is-faked.golang:%s]", port))
+//		wantOnce(fmt.Sprintf("WroteHeaderField: Content-Length: [%d]", len(body)))
+//		wantOnce("WroteHeaderField: X-Foo-Multiple-Vals: [bar baz]")
+//		wantOnce("WroteHeaderField: Accept-Encoding: [gzip]")
+//	}
+//	wantOnce("WroteHeaders")
+//	wantOnce("Wait100Continue")
+//	wantOnce("Got100Continue")
+//	wantOnce("WroteRequest: {Err:<nil>}")
+//	if strings.Contains(got, " to udp ") {
+//		t.Errorf("should not see UDP (DNS) connections")
+//	}
+//	if t.Failed() {
+//		t.Errorf("Output:\n%s", got)
+//	}
+//
+//	// And do a second request:
+//	req, _ = NewRequest("GET", cst.scheme()+"://dns-is-faked.golang:"+port, nil)
+//	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
+//	res, err = cst.c.Do(req)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	if res.StatusCode != 200 {
+//		t.Fatal(res.Status)
+//	}
+//	res.Body.Close()
+//
+//	mu.Lock()
+//	got = buf.String()
+//	mu.Unlock()
+//
+//	sub := "Getting conn for dns-is-faked.golang:"
+//	if gotn, want := strings.Count(got, sub), 2; gotn != want {
+//		t.Errorf("substring %q appeared %d times; want %d. Log:\n%s", sub, gotn, want, got)
+//	}
+//
+//}
 
 func TestTransportEventTraceTLSVerify(t *testing.T) {
 	run(t, testTransportEventTraceTLSVerify, []testMode{https1Mode, http2Mode})
@@ -5247,59 +5248,59 @@ func testTLSHandshakeTrace(t *testing.T, mode testMode) {
 	}
 }
 
-func TestTransportMaxIdleConns(t *testing.T) {
-	run(t, testTransportMaxIdleConns, []testMode{http1Mode})
-}
-func testTransportMaxIdleConns(t *testing.T, mode testMode) {
-	ts := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
-		// No body for convenience.
-	})).ts
-	c := ts.Client()
-	tr := c.Transport.(*Transport)
-	tr.MaxIdleConns = 4
-
-	ip, port, err := net.SplitHostPort(ts.Listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := context.WithValue(context.Background(), nettrace.LookupIPAltResolverKey{}, func(ctx context.Context, _, host string) ([]net.IPAddr, error) {
-		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
-	})
-
-	hitHost := func(n int) {
-		req, _ := NewRequest("GET", fmt.Sprintf("http://host-%d.dns-is-faked.golang:"+port, n), nil)
-		req = req.WithContext(ctx)
-		res, err := c.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		res.Body.Close()
-	}
-	for i := 0; i < 4; i++ {
-		hitHost(i)
-	}
-	want := []string{
-		"|http|host-0.dns-is-faked.golang:" + port,
-		"|http|host-1.dns-is-faked.golang:" + port,
-		"|http|host-2.dns-is-faked.golang:" + port,
-		"|http|host-3.dns-is-faked.golang:" + port,
-	}
-	if got := tr.IdleConnKeysForTesting(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("idle conn keys mismatch.\n got: %q\nwant: %q\n", got, want)
-	}
-
-	// Now hitting the 5th host should kick out the first host:
-	hitHost(4)
-	want = []string{
-		"|http|host-1.dns-is-faked.golang:" + port,
-		"|http|host-2.dns-is-faked.golang:" + port,
-		"|http|host-3.dns-is-faked.golang:" + port,
-		"|http|host-4.dns-is-faked.golang:" + port,
-	}
-	if got := tr.IdleConnKeysForTesting(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("idle conn keys mismatch after 5th host.\n got: %q\nwant: %q\n", got, want)
-	}
-}
+//func TestTransportMaxIdleConns(t *testing.T) {
+//	run(t, testTransportMaxIdleConns, []testMode{http1Mode})
+//}
+//func testTransportMaxIdleConns(t *testing.T, mode testMode) {
+//	ts := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
+//		// No body for convenience.
+//	})).ts
+//	c := ts.Client()
+//	tr := c.Transport.(*Transport)
+//	tr.MaxIdleConns = 4
+//
+//	ip, port, err := net.SplitHostPort(ts.Listener.Addr().String())
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	ctx := context.WithValue(context.Background(), nettrace.LookupIPAltResolverKey{}, func(ctx context.Context, _, host string) ([]net.IPAddr, error) {
+//		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
+//	})
+//
+//	hitHost := func(n int) {
+//		req, _ := NewRequest("GET", fmt.Sprintf("http://host-%d.dns-is-faked.golang:"+port, n), nil)
+//		req = req.WithContext(ctx)
+//		res, err := c.Do(req)
+//		if err != nil {
+//			t.Fatal(err)
+//		}
+//		res.Body.Close()
+//	}
+//	for i := 0; i < 4; i++ {
+//		hitHost(i)
+//	}
+//	want := []string{
+//		"|http|host-0.dns-is-faked.golang:" + port,
+//		"|http|host-1.dns-is-faked.golang:" + port,
+//		"|http|host-2.dns-is-faked.golang:" + port,
+//		"|http|host-3.dns-is-faked.golang:" + port,
+//	}
+//	if got := tr.IdleConnKeysForTesting(); !reflect.DeepEqual(got, want) {
+//		t.Fatalf("idle conn keys mismatch.\n got: %q\nwant: %q\n", got, want)
+//	}
+//
+//	// Now hitting the 5th host should kick out the first host:
+//	hitHost(4)
+//	want = []string{
+//		"|http|host-1.dns-is-faked.golang:" + port,
+//		"|http|host-2.dns-is-faked.golang:" + port,
+//		"|http|host-3.dns-is-faked.golang:" + port,
+//		"|http|host-4.dns-is-faked.golang:" + port,
+//	}
+//	if got := tr.IdleConnKeysForTesting(); !reflect.DeepEqual(got, want) {
+//		t.Fatalf("idle conn keys mismatch after 5th host.\n got: %q\nwant: %q\n", got, want)
+//	}
+//}
 
 func TestTransportIdleConnTimeout(t *testing.T) { run(t, testTransportIdleConnTimeout) }
 func testTransportIdleConnTimeout(t *testing.T, mode testMode) {
@@ -5485,75 +5486,76 @@ func TestTransportReturnsPeekError(t *testing.T) {
 	}
 }
 
-// Issue 13835: international domain names should work
-func TestTransportIDNA(t *testing.T) { run(t, testTransportIDNA) }
-func testTransportIDNA(t *testing.T, mode testMode) {
-	const uniDomain = "гофер.го"
-	const punyDomain = "xn--c1ae0ajs.xn--c1aw"
-
-	var port string
-	cst := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
-		want := punyDomain + ":" + port
-		if r.Host != want {
-			t.Errorf("Host header = %q; want %q", r.Host, want)
-		}
-		if mode == http2Mode {
-			if r.TLS == nil {
-				t.Errorf("r.TLS == nil")
-			} else if r.TLS.ServerName != punyDomain {
-				t.Errorf("TLS.ServerName = %q; want %q", r.TLS.ServerName, punyDomain)
-			}
-		}
-		w.Header().Set("Hit-Handler", "1")
-	}), func(tr *Transport) {
-		if tr.TLSClientConfig != nil {
-			tr.TLSClientConfig.InsecureSkipVerify = true
-		}
-	})
-
-	ip, port, err := net.SplitHostPort(cst.ts.Listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Install a fake DNS server.
-	ctx := context.WithValue(context.Background(), nettrace.LookupIPAltResolverKey{}, func(ctx context.Context, network, host string) ([]net.IPAddr, error) {
-		if host != punyDomain {
-			t.Errorf("got DNS host lookup for %q/%q; want %q", network, host, punyDomain)
-			return nil, nil
-		}
-		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
-	})
-
-	req, _ := NewRequest("GET", cst.scheme()+"://"+uniDomain+":"+port, nil)
-	trace := &httptrace.ClientTrace{
-		GetConn: func(hostPort string) {
-			want := net.JoinHostPort(punyDomain, port)
-			if hostPort != want {
-				t.Errorf("getting conn for %q; want %q", hostPort, want)
-			}
-		},
-		DNSStart: func(e httptrace.DNSStartInfo) {
-			if e.Host != punyDomain {
-				t.Errorf("DNSStart Host = %q; want %q", e.Host, punyDomain)
-			}
-		},
-	}
-	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
-
-	res, err := cst.tr.RoundTrip(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.Header.Get("Hit-Handler") != "1" {
-		out, err := httputil.DumpResponse(res, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Errorf("Response body wasn't from Handler. Got:\n%s\n", out)
-	}
-}
+//
+//// Issue 13835: international domain names should work
+//func TestTransportIDNA(t *testing.T) { run(t, testTransportIDNA) }
+//func testTransportIDNA(t *testing.T, mode testMode) {
+//	const uniDomain = "гофер.го"
+//	const punyDomain = "xn--c1ae0ajs.xn--c1aw"
+//
+//	var port string
+//	cst := newClientServerTest(t, mode, HandlerFunc(func(w ResponseWriter, r *Request) {
+//		want := punyDomain + ":" + port
+//		if r.Host != want {
+//			t.Errorf("Host header = %q; want %q", r.Host, want)
+//		}
+//		if mode == http2Mode {
+//			if r.TLS == nil {
+//				t.Errorf("r.TLS == nil")
+//			} else if r.TLS.ServerName != punyDomain {
+//				t.Errorf("TLS.ServerName = %q; want %q", r.TLS.ServerName, punyDomain)
+//			}
+//		}
+//		w.Header().Set("Hit-Handler", "1")
+//	}), func(tr *Transport) {
+//		if tr.TLSClientConfig != nil {
+//			tr.TLSClientConfig.InsecureSkipVerify = true
+//		}
+//	})
+//
+//	ip, port, err := net.SplitHostPort(cst.ts.Listener.Addr().String())
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//
+//	// Install a fake DNS server.
+//	ctx := context.WithValue(context.Background(), nettrace.LookupIPAltResolverKey{}, func(ctx context.Context, network, host string) ([]net.IPAddr, error) {
+//		if host != punyDomain {
+//			t.Errorf("got DNS host lookup for %q/%q; want %q", network, host, punyDomain)
+//			return nil, nil
+//		}
+//		return []net.IPAddr{{IP: net.ParseIP(ip)}}, nil
+//	})
+//
+//	req, _ := NewRequest("GET", cst.scheme()+"://"+uniDomain+":"+port, nil)
+//	trace := &httptrace.ClientTrace{
+//		GetConn: func(hostPort string) {
+//			want := net.JoinHostPort(punyDomain, port)
+//			if hostPort != want {
+//				t.Errorf("getting conn for %q; want %q", hostPort, want)
+//			}
+//		},
+//		DNSStart: func(e httptrace.DNSStartInfo) {
+//			if e.Host != punyDomain {
+//				t.Errorf("DNSStart Host = %q; want %q", e.Host, punyDomain)
+//			}
+//		},
+//	}
+//	req = req.WithContext(httptrace.WithClientTrace(ctx, trace))
+//
+//	res, err := cst.tr.RoundTrip(req)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	defer res.Body.Close()
+//	if res.Header.Get("Hit-Handler") != "1" {
+//		out, err := httputil.DumpResponse(res, true)
+//		if err != nil {
+//			t.Fatal(err)
+//		}
+//		t.Errorf("Response body wasn't from Handler. Got:\n%s\n", out)
+//	}
+//}
 
 // Issue 13290: send User-Agent in proxy CONNECT
 func TestTransportProxyConnectHeader(t *testing.T) {

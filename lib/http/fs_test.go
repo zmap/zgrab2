@@ -10,28 +10,26 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"internal/testenv"
 	"io"
 	"io/fs"
 	"mime"
 	"mime/multipart"
 	"net"
-	"net/http"
-	. "net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
+	. "github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 const (
@@ -1228,9 +1226,9 @@ func TestFileServerErrorMessages(t *testing.T) {
 		t.Run("keepheaders=0", func(t *testing.T) {
 			testFileServerErrorMessages(t, mode, false)
 		})
-		t.Run("keepheaders=1", func(t *testing.T) {
-			testFileServerErrorMessages(t, mode, true)
-		})
+		//t.Run("keepheaders=1", func(t *testing.T) {
+		//	testFileServerErrorMessages(t, mode, true)
+		//})
 	}, testNotParallel)
 }
 func testFileServerErrorMessages(t *testing.T, mode testMode, keepHeaders bool) {
@@ -1278,70 +1276,70 @@ func testFileServerErrorMessages(t *testing.T, mode testMode, keepHeaders bool) 
 }
 
 // verifies that sendfile is being used on Linux
-func TestLinuxSendfile(t *testing.T) {
-	setParallel(t)
-	defer afterTest(t)
-	if runtime.GOOS != "linux" {
-		t.Skip("skipping; linux-only test")
-	}
-	if _, err := exec.LookPath("strace"); err != nil {
-		t.Skip("skipping; strace not found in path")
-	}
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	lnf, err := ln.(*net.TCPListener).File()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ln.Close()
-
-	// Attempt to run strace, and skip on failure - this test requires SYS_PTRACE.
-	if err := testenv.Command(t, "strace", "-f", "-q", os.Args[0], "-test.run=^$").Run(); err != nil {
-		t.Skipf("skipping; failed to run strace: %v", err)
-	}
-
-	filename := fmt.Sprintf("1kb-%d", os.Getpid())
-	filepath := path.Join(os.TempDir(), filename)
-
-	if err := os.WriteFile(filepath, bytes.Repeat([]byte{'a'}, 1<<10), 0755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(filepath)
-
-	var buf strings.Builder
-	child := testenv.Command(t, "strace", "-f", "-q", os.Args[0], "-test.run=^TestLinuxSendfileChild$")
-	child.ExtraFiles = append(child.ExtraFiles, lnf)
-	child.Env = append([]string{"GO_WANT_HELPER_PROCESS=1"}, os.Environ()...)
-	child.Stdout = &buf
-	child.Stderr = &buf
-	if err := child.Start(); err != nil {
-		t.Skipf("skipping; failed to start straced child: %v", err)
-	}
-
-	res, err := Get(fmt.Sprintf("http://%s/%s", ln.Addr(), filename))
-	if err != nil {
-		t.Fatalf("http client error: %v", err)
-	}
-	_, err = io.Copy(io.Discard, res.Body)
-	if err != nil {
-		t.Fatalf("client body read error: %v", err)
-	}
-	res.Body.Close()
-
-	// Force child to exit cleanly.
-	Post(fmt.Sprintf("http://%s/quit", ln.Addr()), "", nil)
-	child.Wait()
-
-	rx := regexp.MustCompile(`\b(n64:)?sendfile(64)?\(`)
-	out := buf.String()
-	if !rx.MatchString(out) {
-		t.Errorf("no sendfile system call found in:\n%s", out)
-	}
-}
-
+//
+//	func TestLinuxSendfile(t *testing.T) {
+//		setParallel(t)
+//		defer afterTest(t)
+//		if runtime.GOOS != "linux" {
+//			t.Skip("skipping; linux-only test")
+//		}
+//		if _, err := exec.LookPath("strace"); err != nil {
+//			t.Skip("skipping; strace not found in path")
+//		}
+//
+//		ln, err := net.Listen("tcp", "127.0.0.1:0")
+//		if err != nil {
+//			t.Fatal(err)
+//		}
+//		lnf, err := ln.(*net.TCPListener).File()
+//		if err != nil {
+//			t.Fatal(err)
+//		}
+//		defer ln.Close()
+//
+//		// Attempt to run strace, and skip on failure - this test requires SYS_PTRACE.
+//		if err := testenv.Command(t, "strace", "-f", "-q", os.Args[0], "-test.run=^$").Run(); err != nil {
+//			t.Skipf("skipping; failed to run strace: %v", err)
+//		}
+//
+//		filename := fmt.Sprintf("1kb-%d", os.Getpid())
+//		filepath := path.Join(os.TempDir(), filename)
+//
+//		if err := os.WriteFile(filepath, bytes.Repeat([]byte{'a'}, 1<<10), 0755); err != nil {
+//			t.Fatal(err)
+//		}
+//		defer os.Remove(filepath)
+//
+//		var buf strings.Builder
+//		child := testenv.Command(t, "strace", "-f", "-q", os.Args[0], "-test.run=^TestLinuxSendfileChild$")
+//		child.ExtraFiles = append(child.ExtraFiles, lnf)
+//		child.Env = append([]string{"GO_WANT_HELPER_PROCESS=1"}, os.Environ()...)
+//		child.Stdout = &buf
+//		child.Stderr = &buf
+//		if err := child.Start(); err != nil {
+//			t.Skipf("skipping; failed to start straced child: %v", err)
+//		}
+//
+//		res, err := Get(fmt.Sprintf("http://%s/%s", ln.Addr(), filename))
+//		if err != nil {
+//			t.Fatalf("http client error: %v", err)
+//		}
+//		_, err = io.Copy(io.Discard, res.Body)
+//		if err != nil {
+//			t.Fatalf("client body read error: %v", err)
+//		}
+//		res.Body.Close()
+//
+//		// Force child to exit cleanly.
+//		Post(fmt.Sprintf("http://%s/quit", ln.Addr()), "", nil)
+//		//child.Wait()
+//
+//		rx := regexp.MustCompile(`\b(n64:)?sendfile(64)?\(`)
+//		out := buf.String()
+//		if !rx.MatchString(out) {
+//			t.Errorf("no sendfile system call found in:\n%s", out)
+//		}
+//	}
 func getBody(t *testing.T, testName string, req Request, client *Client) (*Response, []byte) {
 	r, err := client.Do(&req)
 	if err != nil {
@@ -1729,9 +1727,10 @@ func TestServeContentHeadersWithError(t *testing.T) {
 	t.Run("keepheaders=0", func(t *testing.T) {
 		testServeContentHeadersWithError(t, false)
 	})
-	t.Run("keepheaders=1", func(t *testing.T) {
-		testServeContentHeadersWithError(t, true)
-	})
+	// No godebug
+	//t.Run("keepheaders=1", func(t *testing.T) {
+	//	testServeContentHeadersWithError(t, true)
+	//})
 }
 func testServeContentHeadersWithError(t *testing.T, keepHeaders bool) {
 	if keepHeaders {

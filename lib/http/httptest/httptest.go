@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
-	"net/http"
 	"strings"
 )
 

@@ -6,8 +6,8 @@ package cgi
 
 import (
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
-	"net/http"
 	"os"
 	"path"
 	"slices"

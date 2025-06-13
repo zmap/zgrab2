@@ -17,12 +17,10 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"internal/godebug"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"log"
 	"net"
-	"net/http/httptrace"
-	"net/http/internal/ascii"
 	"net/textproto"
 	"net/url"
 	"reflect"
@@ -34,6 +32,8 @@ import (
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http/httpproxy"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 // DefaultTransport is the default implementation of [Transport] and is
@@ -362,16 +362,17 @@ func (t *Transport) hasCustomTLSDialer() bool {
 	return t.DialTLS != nil || t.DialTLSContext != nil
 }
 
-var http2client = godebug.New("http2client")
+// Phillip - remove all godebug
+//var http2client = godebug.New("http2client")
 
 // onceSetNextProtoDefaults initializes TLSNextProto.
 // It must be called via t.nextProtoOnce.Do.
 func (t *Transport) onceSetNextProtoDefaults() {
 	t.tlsNextProtoWasNil = (t.TLSNextProto == nil)
-	if http2client.Value() == "0" {
-		http2client.IncNonDefault()
-		return
-	}
+	//if http2client.Value() == "0" {
+	//	http2client.IncNonDefault()
+	//	return
+	//}
 
 	// If they've already configured http2 with
 	// golang.org/x/net/http2 instead of the bundled copy, try to

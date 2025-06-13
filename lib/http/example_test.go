@@ -7,9 +7,9 @@ package http_test
 import (
 	"context"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 )

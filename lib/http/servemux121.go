@@ -15,24 +15,23 @@ package http
 // Do not modify this file, it should remain frozen.
 
 import (
-	"internal/godebug"
 	"net/url"
 	"sort"
 	"strings"
 	"sync"
 )
 
-var httpmuxgo121 = godebug.New("httpmuxgo121")
+//var httpmuxgo121 = godebug.New("httpmuxgo121")
 
 var use121 bool
 
 // Read httpmuxgo121 once at startup, since dealing with changes to it during
 // program execution is too complex and error-prone.
 func init() {
-	if httpmuxgo121.Value() == "1" {
-		use121 = true
-		httpmuxgo121.IncNonDefault()
-	}
+	//if httpmuxgo121.Value() == "1" {
+	//	use121 = true
+	//	httpmuxgo121.IncNonDefault()
+	//}
 }
 
 // serveMux121 holds the state of a ServeMux needed for Go 1.21 behavior.

@@ -9,11 +9,11 @@ package cgi
 import (
 	"bufio"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 	"internal/testenv"
 	"io"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"

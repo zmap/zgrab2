@@ -12,12 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"log"
-	"net/http"
-	"net/http/httptest"
-	"net/http/httptrace"
-	"net/http/internal/ascii"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -28,6 +27,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 const fakeHopHeader = "X-Fake-Hop-Header-For-Test"
@@ -1724,7 +1725,7 @@ func Test1xxHeadersNotModifiedAfterRoundTrip(t *testing.T) {
 	// Trigger data race while iterating over response headers.
 	// When run with -race, this causes the condition in https://go.dev/issue/65123 often
 	// enough to detect reliably.
-	for _ = range rw.Header() {
+	for range rw.Header() {
 	}
 }
 

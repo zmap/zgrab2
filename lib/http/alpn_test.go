@@ -11,10 +11,11 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	. "net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
+
+	. "github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func TestNextProtoUpgrade(t *testing.T) {

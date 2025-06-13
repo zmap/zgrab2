@@ -7,8 +7,8 @@ package http_test
 import (
 	"errors"
 	"fmt"
+	. "github.com/zmap/zgrab2/lib/http"
 	"io"
-	. "net/http"
 	"os"
 	"sync"
 	"testing"

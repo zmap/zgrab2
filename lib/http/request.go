@@ -14,11 +14,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"mime"
 	"mime/multipart"
-	"net/http/httptrace"
-	"net/http/internal/ascii"
 	"net/textproto"
 	"net/url"
 	urlpkg "net/url"
@@ -29,6 +28,8 @@ import (
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/idna"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 const (

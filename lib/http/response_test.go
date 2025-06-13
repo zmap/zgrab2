@@ -12,12 +12,13 @@ import (
 	"fmt"
 	"go/token"
 	"io"
-	"net/http/internal"
 	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/zmap/zgrab2/lib/http/internal"
 )
 
 type respTest struct {

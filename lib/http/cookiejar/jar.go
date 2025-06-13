@@ -9,14 +9,15 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"net"
-	"net/http"
-	"net/http/internal/ascii"
 	"net/url"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 // PublicSuffixList provides the public suffix of a domain. For example:

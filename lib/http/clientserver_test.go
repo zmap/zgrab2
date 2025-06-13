@@ -18,10 +18,6 @@ import (
 	"io"
 	"log"
 	"net"
-	. "net/http"
-	"net/http/httptest"
-	"net/http/httptrace"
-	"net/http/httputil"
 	"net/textproto"
 	"net/url"
 	"os"
@@ -33,6 +29,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
+	"github.com/zmap/zgrab2/lib/http/httputil"
+
+	. "github.com/zmap/zgrab2/lib/http"
 )
 
 type testMode string
@@ -1564,9 +1566,9 @@ func testWriteHeaderAfterWrite(t *testing.T, mode testMode, hijack bool) {
 		return
 	}
 	gotLog := strings.TrimSpace(errorLog.String())
-	wantLog := "http: superfluous response.WriteHeader call from net/http_test.testWriteHeaderAfterWrite.func1 (clientserver_test.go:"
+	wantLog := "http: superfluous response.WriteHeader call from github.com/zmap/zgrab2/lib/http"
 	if hijack {
-		wantLog = "http: response.WriteHeader on hijacked connection from net/http_test.testWriteHeaderAfterWrite.func1 (clientserver_test.go:"
+		wantLog = "http: response.WriteHeader on hijacked connection from github.com/zmap/zgrab2/lib/http"
 	}
 	if !strings.HasPrefix(gotLog, wantLog) {
 		t.Errorf("stderr output = %q; want %q", gotLog, wantLog)

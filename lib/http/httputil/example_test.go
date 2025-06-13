@@ -6,11 +6,11 @@ package httputil_test
 
 import (
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/httputil"
 	"io"
 	"log"
-	"net/http"
-	"net/http/httptest"
-	"net/http/httputil"
 	"net/url"
 	"strings"
 )

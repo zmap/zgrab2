@@ -6,10 +6,10 @@ package http_test
 
 import (
 	"context"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"net"
-	"net/http"
-	"net/http/httptrace"
 	"testing"
 )
 

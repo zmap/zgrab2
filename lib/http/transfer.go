@@ -9,11 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"internal/godebug"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
-	"net/http/httptrace"
-	"net/http/internal"
-	"net/http/internal/ascii"
 	"net/textproto"
 	"reflect"
 	"slices"
@@ -23,6 +20,9 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpguts"
+
+	"github.com/zmap/zgrab2/lib/http/internal"
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 // ErrLineTooLong is returned when reading request or response bodies
@@ -1043,7 +1043,7 @@ func (bl bodyLocked) Read(p []byte) (n int, err error) {
 	return bl.b.readLocked(p)
 }
 
-var httplaxcontentlength = godebug.New("httplaxcontentlength")
+//var httplaxcontentlength = godebug.New("httplaxcontentlength")
 
 // parseContentLength checks that the header is valid and then trims
 // whitespace. It returns -1 if no value is set otherwise the value
@@ -1057,10 +1057,10 @@ func parseContentLength(clHeaders []string) (int64, error) {
 	// The Content-Length must be a valid numeric value.
 	// See: https://datatracker.ietf.org/doc/html/rfc2616/#section-14.13
 	if cl == "" {
-		if httplaxcontentlength.Value() == "1" {
-			httplaxcontentlength.IncNonDefault()
-			return -1, nil
-		}
+		//if httplaxcontentlength.Value() == "1" {
+		//	httplaxcontentlength.IncNonDefault()
+		//	return -1, nil
+		//}
 		return 0, badStringError("invalid empty Content-Length", cl)
 	}
 	n, err := strconv.ParseUint(cl, 10, 63)

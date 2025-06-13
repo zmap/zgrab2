@@ -7,9 +7,9 @@ package http_test
 import (
 	"bytes"
 	"fmt"
+	. "github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
-	. "net/http"
 	"reflect"
 	"strconv"
 	"strings"

@@ -7,8 +7,8 @@ package fcgi
 import (
 	"bytes"
 	"errors"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
-	"net/http"
 	"strings"
 	"testing"
 	"time"

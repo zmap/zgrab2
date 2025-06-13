@@ -13,22 +13,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"internal/testenv"
 	"io"
 	"log"
 	"net"
-	. "net/http"
-	"net/http/cookiejar"
-	"net/http/httptest"
 	"net/url"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	. "github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/cookiejar"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 var robotsTxtHandler = HandlerFunc(func(w ResponseWriter, r *Request) {
@@ -1224,9 +1223,9 @@ func testClientTimeout(t *testing.T, mode testMode) {
 				t.Logf("timeout before response received")
 				continue
 			}
-			if runtime.GOOS == "windows" && strings.HasPrefix(runtime.GOARCH, "arm") {
-				testenv.SkipFlaky(t, 43120)
-			}
+			//if runtime.GOOS == "windows" && strings.HasPrefix(runtime.GOARCH, "arm") {
+			//	testenv.SkipFlaky(t, 43120)
+			//}
 			t.Fatal(err)
 		}
 
@@ -1253,9 +1252,9 @@ func testClientTimeout(t *testing.T, mode testMode) {
 			t.Errorf("ReadAll error = %q; expected some context.DeadlineExceeded", err)
 		}
 		if got := ne.Error(); !strings.Contains(got, "(Client.Timeout") {
-			if runtime.GOOS == "windows" && strings.HasPrefix(runtime.GOARCH, "arm") {
-				testenv.SkipFlaky(t, 43120)
-			}
+			//if runtime.GOOS == "windows" && strings.HasPrefix(runtime.GOARCH, "arm") {
+			//	testenv.SkipFlaky(t, 43120)
+			//}
 			t.Errorf("error string = %q; missing timeout substring", got)
 		}
 
@@ -1299,9 +1298,9 @@ func testClientTimeout_Headers(t *testing.T, mode testMode) {
 		t.Errorf("ReadAll error = %q; expected some context.DeadlineExceeded", err)
 	}
 	if got := ne.Error(); !strings.Contains(got, "Client.Timeout exceeded") {
-		if runtime.GOOS == "windows" && strings.HasPrefix(runtime.GOARCH, "arm") {
-			testenv.SkipFlaky(t, 43120)
-		}
+		//if runtime.GOOS == "windows" && strings.HasPrefix(runtime.GOARCH, "arm") {
+		//	testenv.SkipFlaky(t, 43120)
+		//}
 		t.Errorf("error string = %q; missing timeout substring", got)
 	}
 }

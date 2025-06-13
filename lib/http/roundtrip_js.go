@@ -10,10 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http/internal/ascii"
 	"strconv"
 	"strings"
 	"syscall/js"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 var uint8Array = js.Global().Get("Uint8Array")

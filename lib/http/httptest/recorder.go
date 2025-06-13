@@ -7,8 +7,8 @@ package httptest
 import (
 	"bytes"
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
-	"net/http"
 	"net/textproto"
 	"strconv"
 	"strings"

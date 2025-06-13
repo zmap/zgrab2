@@ -9,7 +9,6 @@ package http
 import (
 	"errors"
 	"fmt"
-	"internal/godebug"
 	"io"
 	"io/fs"
 	"mime"
@@ -172,9 +171,10 @@ func dirList(w ResponseWriter, r *Request, f File) {
 	fmt.Fprintf(w, "</pre>\n")
 }
 
-// GODEBUG=httpservecontentkeepheaders=1 restores the pre-1.23 behavior of not deleting
-// Cache-Control, Content-Encoding, Etag, or Last-Modified headers on ServeContent errors.
-var httpservecontentkeepheaders = godebug.New("httpservecontentkeepheaders")
+// Phillip - godebug is not allowed outside the stdlib
+//// GODEBUG=httpservecontentkeepheaders=1 restores the pre-1.23 behavior of not deleting
+//// Cache-Control, Content-Encoding, Etag, or Last-Modified headers on ServeContent errors.
+//var httpservecontentkeepheaders = godebug.New("httpservecontentkeepheaders")
 
 // serveError serves an error from ServeFile, ServeFileFS, and ServeContent.
 // Because those can all be configured by the caller by setting headers like
@@ -183,7 +183,7 @@ var httpservecontentkeepheaders = godebug.New("httpservecontentkeepheaders")
 func serveError(w ResponseWriter, text string, code int) {
 	h := w.Header()
 
-	nonDefault := false
+	//nonDefault := false
 	for _, k := range []string{
 		"Cache-Control",
 		"Content-Encoding",
@@ -193,15 +193,15 @@ func serveError(w ResponseWriter, text string, code int) {
 		if !h.has(k) {
 			continue
 		}
-		if httpservecontentkeepheaders.Value() == "1" {
-			nonDefault = true
-		} else {
-			h.Del(k)
-		}
+		//if httpservecontentkeepheaders.Value() == "1" {
+		//	nonDefault = true
+		//} else {
+		h.Del(k)
+		//}
 	}
-	if nonDefault {
-		httpservecontentkeepheaders.IncNonDefault()
-	}
+	//if nonDefault {
+	//	httpservecontentkeepheaders.IncNonDefault()
+	//}
 
 	Error(w, text, code)
 }

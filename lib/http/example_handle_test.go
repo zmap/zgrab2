@@ -6,8 +6,8 @@ package http_test
 
 import (
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"log"
-	"net/http"
 	"sync"
 )
 

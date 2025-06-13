@@ -16,10 +16,11 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"net/http"
-	"net/http/pprof"
-	"net/http/httptest"
 	"runtime"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/pprof"
 )
 
 func main() {

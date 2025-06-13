@@ -13,7 +13,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"internal/godebug"
 	"io"
 	"log"
 	"maps"
@@ -3585,7 +3584,7 @@ func (srv *Server) onceSetNextProtoDefaults_Serve() {
 	}
 }
 
-var http2server = godebug.New("http2server")
+//var http2server = godebug.New("http2server")
 
 // onceSetNextProtoDefaults configures HTTP/2, if the user hasn't
 // configured otherwise. (by setting srv.TLSNextProto non-nil)
@@ -3594,10 +3593,10 @@ func (srv *Server) onceSetNextProtoDefaults() {
 	if omitBundledHTTP2 {
 		return
 	}
-	if http2server.Value() == "0" {
-		http2server.IncNonDefault()
-		return
-	}
+	//if http2server.Value() == "0" {
+	//	http2server.IncNonDefault()
+	//	return
+	//}
 	// Enable HTTP/2 by default if the user hasn't otherwise
 	// configured their TLSNextProto map.
 	if srv.TLSNextProto == nil {

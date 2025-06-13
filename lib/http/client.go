@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http/internal/ascii"
 	"net/url"
 	"reflect"
 	"slices"
@@ -25,6 +24,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 // A Client is an HTTP client. Its zero value ([DefaultClient]) is a

@@ -6,9 +6,9 @@ package httptest
 
 import (
 	"bufio"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"net"
-	"net/http"
 	"sync"
 	"testing"
 )

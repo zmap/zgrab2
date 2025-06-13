@@ -6,9 +6,9 @@ package http_test
 
 import (
 	"fmt"
+	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"runtime"
 	"slices"

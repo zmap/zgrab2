@@ -8,9 +8,10 @@ package cookiejar
 
 import (
 	"fmt"
-	"net/http/internal/ascii"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 // These parameter values are specified in section 5.

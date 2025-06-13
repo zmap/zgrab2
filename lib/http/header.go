@@ -5,9 +5,8 @@
 package http
 
 import (
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
-	"net/http/httptrace"
-	"net/http/internal/ascii"
 	"net/textproto"
 	"slices"
 	"strings"
@@ -15,6 +14,8 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpguts"
+
+	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
 // A Header represents the key-value pairs in an HTTP header.

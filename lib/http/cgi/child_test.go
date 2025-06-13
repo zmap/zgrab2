@@ -9,8 +9,8 @@ package cgi
 import (
 	"bufio"
 	"bytes"
-	"net/http"
-	"net/http/httptest"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 	"strings"
 	"testing"
 )

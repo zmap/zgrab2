@@ -6,7 +6,7 @@ package cookiejar
 
 import (
 	"fmt"
-	"net/http"
+	"github.com/zmap/zgrab2/lib/http"
 	"net/url"
 	"slices"
 	"strings"
