@@ -27,6 +27,8 @@ var respExcludeHeader = map[string]bool{
 	"Trailer":           true,
 }
 
+type PageFingerprint []byte
+
 // Response represents the response from an HTTP request.
 //
 // The [Client] and [Transport] return Responses from servers once
@@ -69,7 +71,12 @@ type Response struct {
 	// As of Go 1.12, the Body will also implement io.Writer
 	// on a successful "101 Switching Protocols" response,
 	// as used by WebSockets and HTTP/2's "h2c" mode.
-	Body io.ReadCloser
+	Body       io.ReadCloser   `json:"-"`
+	BodyText   string          `json:"body,omitempty"`
+	BodySHA256 PageFingerprint `json:"body_sha256,omitempty"`
+	// BodyHash is the hash digest hex of the decoded http body, formatted `<kind>:<hex>`
+	// e.g. `sha256:deadbeef100020003000400050006000700080009000a000b000c000d000e000`
+	BodyHash string `json:"body_hash,omitempty"`
 
 	// ContentLength records the length of the associated content. The
 	// value -1 indicates that the length is unknown. Unless Request.Method
