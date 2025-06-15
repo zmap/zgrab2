@@ -24,6 +24,9 @@ type scan struct {
 	scanner *Scanner
 	scheme  string
 	result  ScanResult
+
+	calledAETitle string
+	msgID         uint8
 }
 
 func (s *scan) connect() (net.Conn, *zgrab2.ScanError) {
@@ -48,7 +51,7 @@ func (s *scan) connect() (net.Conn, *zgrab2.ScanError) {
 }
 
 func (s *scan) sendAAssociateRQ(conn net.Conn, calledAE string, callingAE string) error {
-	assoc := makeAAssociateRQ(1, callingAE, calledAE)
+	assoc := makeAAssociateRQ(s.msgID, callingAE, calledAE)
 	assoc.addTransferSyntax(0x30, "1.2.840.10008.1.1") // abstract
 	assoc.addTransferSyntax(0x40, "1.2.840.10008.1.2") // default for DICOM
 
@@ -56,31 +59,31 @@ func (s *scan) sendAAssociateRQ(conn net.Conn, calledAE string, callingAE string
 
 	_, err := conn.Write(pdu.bytes())
 	if err != nil {
-		return fmt.Errorf("failed to send Association request: %v", err)
+		return fmt.Errorf("failed to send Association request: %w", err)
 	}
 	return nil
 }
 
 func (s *scan) associate(conn net.Conn) *zgrab2.ScanError {
-	if err := s.sendAAssociateRQ(conn, s.scanner.config.CalledAETitle, s.scanner.config.CallingAETitle); err != nil {
+	if err := s.sendAAssociateRQ(conn, s.calledAETitle, s.scanner.config.CallingAETitle); err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 	}
 
-	rsp, err := parsePDU(conn)
-	s.result.Association = rsp
+	pdu, err := parsePDU(conn)
+	s.result.Association = pdu
 	if err != nil {
-		err := fmt.Errorf("failed to parse association response: %v", err)
-		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+		errft := fmt.Errorf("failed to parse association response: %w", err)
+		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, errft)
 	}
 	return nil
 }
 
 func (s *scan) sendCEchoRQ(conn net.Conn) error {
-	echo := makeCEchoRQ(1)
+	echo := makeCEchoRQ(uint16(s.msgID))
 	pdu := newPDU(PDUType(4)).withMessage(echo)
 
 	if _, err := conn.Write(pdu.bytes()); err != nil {
-		return fmt.Errorf("failed to send Echo request: %v", err)
+		return fmt.Errorf("failed to send Echo request: %w", err)
 	}
 	return nil
 }
@@ -93,13 +96,13 @@ func (s *scan) echo(conn net.Conn) *zgrab2.ScanError {
 	rsp, err := parsePDU(conn)
 	s.result.Echo = rsp
 	if err != nil {
-		err := fmt.Errorf("failed to parse Echo response: %v", err)
+		err := fmt.Errorf("failed to parse Echo response: %w", err)
 		return zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
 	}
 	return nil
 }
 
-func (s *scan) Grab() *zgrab2.ScanError {
+func (s *scan) Grab(calledAETitle string) *zgrab2.ScanError {
 	conn, err := s.connect()
 	if err != nil {
 		return err
@@ -113,6 +116,7 @@ func (s *scan) Grab() *zgrab2.ScanError {
 		zgrab2.CloseConnAndHandleError(conn)
 	}()
 
+	s.calledAETitle = calledAETitle
 	for _, callback := range []func(net.Conn) *zgrab2.ScanError{s.associate, s.echo} {
 		if err := callback(conn); err != nil {
 			return err
@@ -139,5 +143,6 @@ func (b *ScanBuilder) Build(ctx context.Context, dialGroup *zgrab2.DialerGroup, 
 		result: ScanResult{
 			Scheme: scheme,
 		},
+		msgID: 1,
 	}
 }

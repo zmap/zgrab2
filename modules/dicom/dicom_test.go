@@ -21,7 +21,7 @@ func (t *dicomTester) getScanner() (*Scanner, error) {
 	flags := module.NewFlags().(*Flags)
 
 	flags.UseTLS = false
-	flags.CalledAETitle = "ORTHANC"
+	flags.CalledAETitles = "ORTHANC,DCM4CHEE"
 	flags.CallingAETitle = "ZGRAB-TEST"
 
 	scanner := module.NewScanner()
@@ -40,8 +40,8 @@ func (t *dicomTester) runTest(test *testing.T, name string) {
 
 	baseFlags := &zgrab2.BaseFlags{
 		Port:           t.target.Port,
-		ConnectTimeout: time.Second * 10,
-		TargetTimeout:  time.Second * 10,
+		ConnectTimeout: time.Second * 20,
+		TargetTimeout:  time.Second * 20,
 	}
 
 	dialerGroupConfig := zgrab2.DialerGroupConfig{

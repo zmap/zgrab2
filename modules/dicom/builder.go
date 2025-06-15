@@ -3,10 +3,13 @@ package dicom
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 )
+
+var ErrAssociationReject = errors.New("association rejected")
 
 // TODO: idially we would just wrap and unwrap messages from the packet structure instead
 // of storing lengths everywere. I leave this for future rewrites. The same goes for types,
@@ -16,6 +19,7 @@ type PDUType uint8
 const (
 	ASSOC_RQ     PDUType = 1
 	ASSOC_ACCEPT PDUType = 2
+	ASSOC_REJECT PDUType = 3
 	DATA         PDUType = 4
 )
 
@@ -102,7 +106,7 @@ func (p *PDU) withMessage(msg PDUMsg) *PDU {
 func (pdu *PDU) readHeader(data io.Reader) error {
 	buf := make([]byte, 6)
 	if _, err := data.Read(buf); err != nil {
-		return fmt.Errorf("failed to read header bytes: %v", err)
+		return fmt.Errorf("failed to read header bytes: %w", err)
 	}
 
 	pdu.Header = &PDUHeader{
@@ -113,6 +117,10 @@ func (pdu *PDU) readHeader(data io.Reader) error {
 }
 
 func (pdu *PDU) parseAssociationMsg(data []byte) (*AAssociate, error) {
+	if l := len(data); l < 37 {
+		return nil, fmt.Errorf("association message too short: expected at least 37 bytes, but received %d", l)
+	}
+
 	trimString := func(b []byte) string {
 		return strings.TrimRight(string(b), " \x00")
 	}
@@ -204,20 +212,22 @@ func (pdu *PDU) parseDataMsg(data []byte) (*PDV, error) {
 func (pdu *PDU) readMessage(data io.Reader) error {
 	msgBuff := make([]byte, pdu.Header.Length)
 	if _, err := data.Read(msgBuff); err != nil {
-		return fmt.Errorf("failed to read message bytes: %v", err)
+		return fmt.Errorf("failed to read message bytes: %w", err)
 	}
 
 	switch pdu.Header.PDUType {
+	case ASSOC_REJECT:
+		return ErrAssociationReject
 	case ASSOC_RQ, ASSOC_ACCEPT:
 		msg, err := pdu.parseAssociationMsg(msgBuff)
 		if err != nil {
-			return fmt.Errorf("failed to parse association message: %v", err)
+			return fmt.Errorf("failed to parse association message: %w", err)
 		}
 		pdu.Msg = msg
 	case DATA:
 		msg, err := pdu.parseDataMsg(msgBuff)
 		if err != nil {
-			return fmt.Errorf("failed to parse association message: %v", err)
+			return fmt.Errorf("failed to parse association message: %w", err)
 		}
 		pdu.Msg = msg
 	default:
@@ -230,11 +240,11 @@ func parsePDU(data io.Reader) (*PDU, error) {
 	pdu := &PDU{}
 
 	if err := pdu.readHeader(data); err != nil {
-		return nil, fmt.Errorf("failed to parse PDU header: %v", err)
+		return nil, fmt.Errorf("failed to parse PDU header: %w", err)
 	}
 
 	if err := pdu.readMessage(data); err != nil {
-		return nil, fmt.Errorf("failed to parse PDU content: %v", err)
+		return nil, fmt.Errorf("failed to parse PDU content: %w", err)
 	}
 
 	return pdu, nil
@@ -385,22 +395,6 @@ func (a *AAssociate) addTransferSyntax(iType uint8, value string) *AAssociate {
 	a.PresentationContext.Items = append(a.PresentationContext.Items, newItem(iType, []byte(value)))
 	return a
 }
-
-// func (a *AAssociate) setApplicationCtx(app string) *AAssociate {
-// 	a.ApplicationContext = app
-// 	return a
-// }
-
-// func (a *AAssociate) setUserInfo(pduLen uint32, uid, version string) *AAssociate {
-// 	l := make([]byte, 4)
-// 	binary.BigEndian.PutUint32(l, pduLen)
-// 	a.UserInfo.Items = []*Item{
-// 		newItem(0x51, l),
-// 		newItem(0x52, []byte(uid)),
-// 		newItem(0x55, []byte(version)),
-// 	}
-// 	return a
-// }
 
 func (a *AAssociate) header() []byte {
 	buf := make([]byte, 0, 68)

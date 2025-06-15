@@ -2,6 +2,8 @@ package dicom
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
@@ -12,8 +14,8 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	CallingAETitle string `long:"calling-ae-title" description:"Source DICOM Application Name. 16bytes max."`
-	CalledAETitle  string `long:"called-ae-title" description:"Destination DICOM Application Name. 16bytes max."`
+	CallingAETitle string `long:"calling-ae-title" default:"ZGRAB2" description:"Source DICOM Application Name. 16bytes max."`
+	CalledAETitles string `long:"called-ae-titles" default:"ORTHANC" description:"Destination DICOM Application Names. 16bytes max each"`
 
 	RetryTLS bool `long:"retry-tls" description:"retry the connection now over TLS"`
 	UseTLS   bool `long:"use-tls" description:"force TLS handshake"`
@@ -52,6 +54,7 @@ type Scanner struct {
 	config            *Flags
 	builder           *ScanBuilder
 	dialerGroupConfig *zgrab2.DialerGroupConfig
+	titles            []string
 }
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
@@ -68,6 +71,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	fl, _ := flags.(*Flags)
 	scanner.config = fl
 	scanner.builder = NewScanBuilder(scanner)
+	scanner.titles = strings.Split(fl.CalledAETitles, ",")
 
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
@@ -101,8 +105,14 @@ func (module *Module) NewFlags() interface{} {
 
 func (s *Scanner) scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget, scheme string) (zgrab2.ScanStatus, interface{}, error) {
 	scan := s.builder.Build(ctx, dialGroup, t, scheme)
-	if err := scan.Grab(); err != nil {
-		return err.Unpack(scan.result)
+	for _, cTitle := range s.titles {
+		if err := scan.Grab(cTitle); err != nil {
+			if errors.Is(err.Err, ErrAssociationReject) {
+				continue
+			}
+			return err.Unpack(scan.result)
+		}
+		break
 	}
 	return zgrab2.SCAN_SUCCESS, scan.result, nil
 }
@@ -138,7 +148,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 // zgrab2 framework.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("dicom-echo", "DICOM Banner Grab", module.Description(), 104, &module)
+	_, err := zgrab2.AddCommand("dicom", "DICOM Banner Grab", module.Description(), 104, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
