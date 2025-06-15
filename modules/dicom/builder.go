@@ -184,10 +184,41 @@ func (pdu *PDU) parseAssociationMsg(data []byte) (*AAssociate, error) {
 }
 
 func (pdu *PDU) parseDataMsg(data []byte) (*PDV, error) {
-	l := binary.BigEndian.Uint32(data[:4])
-	ctx := data[4]
-	flags := data[5]
-	cmds := data[6 : 6+l-2]
+	if len(data) < 6 {
+		return nil, errors.New("data too short to contain valid PDU header")
+	}
+
+	buf := bytes.NewReader(data)
+
+	var length uint32
+	if err := binary.Read(buf, binary.BigEndian, &length); err != nil {
+		return nil, fmt.Errorf("failed to read PDU length: %w", err)
+	}
+
+	// Length must be at least 2 for ctx + flags
+	if length < 2 {
+		return nil, fmt.Errorf("invalid PDU length: %d", length)
+	}
+
+	ctx, err := buf.ReadByte()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read context ID: %w", err)
+	}
+
+	flags, err := buf.ReadByte()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read flags: %w", err)
+	}
+
+	cmdLen := int(length - 2)
+	if buf.Len() < cmdLen {
+		return nil, fmt.Errorf("not enough data to read PDU commands: want %d, have %d", cmdLen, buf.Len())
+	}
+
+	cmds := make([]byte, cmdLen)
+	if _, err := io.ReadFull(buf, cmds); err != nil {
+		return nil, fmt.Errorf("failed to read PDU commands: %w", err)
+	}
 
 	pdv := &PDV{
 		Legnth:   uint32(len(cmds) + 2), // cms + ctx & flags
@@ -196,19 +227,31 @@ func (pdu *PDU) parseDataMsg(data []byte) (*PDV, error) {
 		Commands: []*PDVCommand{},
 	}
 
-	i := 0
-	for i+8 <= len(cmds) {
-		tagGroup := binary.LittleEndian.Uint16(cmds[i : i+2])
-		tagElem := binary.LittleEndian.Uint16(cmds[i+2 : i+4])
-		length := binary.LittleEndian.Uint32(cmds[i+4 : i+8])
+	r := bytes.NewReader(cmds)
+	for r.Len() >= 8 {
+		var tagGroup, tagElem uint16
+		var length uint32
 
-		if i+8+int(length) > len(cmds) {
-			return nil, fmt.Errorf("element length exceeds buffer at offset %d", i)
+		if err := binary.Read(r, binary.LittleEndian, &tagGroup); err != nil {
+			return nil, fmt.Errorf("failed to read tag group: %w", err)
 		}
-		value := cmds[i+8 : i+8+int(length)]
+		if err := binary.Read(r, binary.LittleEndian, &tagElem); err != nil {
+			return nil, fmt.Errorf("failed to read tag element: %w", err)
+		}
+		if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+			return nil, fmt.Errorf("failed to read element length: %w", err)
+		}
+
+		if uint32(r.Len()) < length {
+			return nil, fmt.Errorf("element length (%d) exceeds remaining buffer (%d)", length, r.Len())
+		}
+
+		value := make([]byte, length)
+		if _, err := io.ReadFull(r, value); err != nil {
+			return nil, fmt.Errorf("failed to read element value: %w", err)
+		}
 
 		pdv.Commands = append(pdv.Commands, newPDVCommand(tagGroup, tagElem, value))
-		i += 8 + int(length)
 	}
 
 	return pdv, nil
