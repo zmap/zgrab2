@@ -11,6 +11,7 @@ package http
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"container/list"
 	"context"
@@ -293,8 +294,13 @@ type Transport struct {
 	// To use a custom dialer or TLS config and still attempt HTTP/2
 	// upgrades, set this to true.
 	ForceAttemptHTTP2 bool
-}
 
+	// TODO: tunable on max per-host TCP dials in flight (Issue 13957)
+
+	// Enable raw read buffering and raw header extraction
+	// zgrab2-specific
+	RawHeaderBuffer bool
+}
 func (t *Transport) writeBufferSize() int {
 	if t.WriteBufferSize > 0 {
 		return t.WriteBufferSize
@@ -1742,6 +1748,8 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 		}
 	}
 
+	pconn.tee = &TeeConn{}
+
 	// Proxy setup.
 	switch {
 	case cm.proxyURL == nil:
@@ -1798,6 +1806,7 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 			Header: hdr,
 		}
 
+
 		// Set a (long) timeout here to make sure we don't block forever
 		// and leak a goroutine if the connection stops replying after
 		// the TCP connect.
@@ -1818,8 +1827,14 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 			}
 			// Okay to use and discard buffered reader here, because
 			// TLS server will not speak until spoken to.
-			br := bufio.NewReader(conn)
-			resp, err = ReadResponse(br, connectReq)
+			// Read response.
+			// Okay to use and discard buffered reader here, because
+			// TLS server will not speak until spoken to.
+			tee := TeeConn{
+				br: bufio.NewReader(conn),
+			}
+			resp, err = ReadResponseTee(&tee, connectReq)
+
 		}()
 		select {
 		case <-connectCtx.Done():
@@ -1869,12 +1884,47 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 		}
 	}
 
-	pconn.br = bufio.NewReaderSize(pconn, t.readBufferSize())
+	pconn.tee.br = bufio.NewReaderSize(pconn, t.readBufferSize())
+	pconn.tee.enabled = t.RawHeaderBuffer
 	pconn.bw = bufio.NewWriterSize(persistConnWriter{pconn}, t.writeBufferSize())
-
 	go pconn.readLoop()
 	go pconn.writeLoop()
 	return pconn, nil
+}
+
+// The underlying br Reader is bufio, so it will perform read-ahead.
+// The underlying tb is a bytes buffer, that acts as a tee, receiving
+// the raw bytes for reads against the io.Reader backing br.
+type TeeConn struct {
+	enabled bool          // tee writes to tb are enabled
+	tb      bytes.Buffer  // buffer that tr tees into
+	br      *bufio.Reader // from conn
+}
+
+// To get the current position in tb as seen by the buffered io reader,
+// we need to subtract out the buffered portion of the bufio reader.
+func (t *TeeConn) ReadPos() int {
+	l := t.tb.Len()
+	if l == 0 {
+		return 0
+	}
+	return l - t.br.Buffered()
+}
+
+func (t *TeeConn) Bytes(s, e int) []byte {
+	if s >= t.tb.Len() {
+		return nil
+	}
+	return t.tb.Bytes()[s:e]
+}
+
+func (t *TeeConn) BufioReader() *bufio.Reader {
+	return t.br
+}
+
+// Stops the tee writes to t.tb
+func (t *TeeConn) Disable() {
+	t.enabled = false
 }
 
 // persistConnWriter is the io.Writer written to by pc.bw.
@@ -2003,7 +2053,7 @@ type persistConn struct {
 	cacheKey  connectMethodKey
 	conn      net.Conn
 	tlsState  *tls.ConnectionState
-	br        *bufio.Reader       // from conn
+	tee       *TeeConn            // from conn, includes a raw buffer and tee
 	bw        *bufio.Writer       // to conn
 	nwrite    int64               // bytes written
 	reqch     chan requestAndChan // written by roundTrip; read by readLoop
@@ -2055,6 +2105,11 @@ func (pc *persistConn) Read(p []byte) (n int, err error) {
 		pc.sawEOF = true
 	}
 	pc.readLimit -= int64(n)
+	if pc.tee.enabled && n > 0 {
+		if n, err := pc.tee.tb.Write(p[:n]); err != nil {
+			return n, err
+		}
+	}
 	return
 }
 
@@ -2203,7 +2258,7 @@ func (pc *persistConn) readLoop() {
 	alive := true
 	for alive {
 		pc.readLimit = pc.maxHeaderResponseSize()
-		_, err := pc.br.Peek(1)
+		_, err := pc.tee.br.Peek(1)
 
 		pc.mu.Lock()
 		if pc.numExpectedResponses == 0 {
@@ -2349,8 +2404,8 @@ func (pc *persistConn) readLoopPeekFailLocked(peekErr error) {
 	if pc.closed != nil {
 		return
 	}
-	if n := pc.br.Buffered(); n > 0 {
-		buf, _ := pc.br.Peek(n)
+	if n := pc.tee.br.Buffered(); n > 0 {
+		buf, _ := pc.tee.br.Peek(n)
 		if is408Message(buf) {
 			pc.closeLocked(errServerClosedIdle)
 			return
@@ -2384,7 +2439,7 @@ func is408Message(buf []byte) bool {
 // trace is optional.
 func (pc *persistConn) readResponse(rc requestAndChan, trace *httptrace.ClientTrace) (resp *Response, err error) {
 	if trace != nil && trace.GotFirstResponseByte != nil {
-		if peek, err := pc.br.Peek(1); err == nil && len(peek) == 1 {
+		if peek, err := pc.tee.br.Peek(1); err == nil && len(peek) == 1 {
 			trace.GotFirstResponseByte()
 		}
 	}
@@ -2393,7 +2448,7 @@ func (pc *persistConn) readResponse(rc requestAndChan, trace *httptrace.ClientTr
 
 	continueCh := rc.continueCh
 	for {
-		resp, err = ReadResponse(pc.br, rc.treq.Request)
+		resp, err = ReadResponseTee(pc.tee, rc.treq.Request)
 		if err != nil {
 			if errors.Is(err, io.ErrUnexpectedEOF) {
 				pc.sawEOF = true
@@ -2408,6 +2463,13 @@ func (pc *persistConn) readResponse(rc requestAndChan, trace *httptrace.ClientTr
 			continueCh <- struct{}{}
 			continueCh = nil
 		}
+		// TODO Phillip this was included in the tee commit, not sure, might need to replace ReadWriteCloserBody
+		//	}
+		//	if resp.StatusCode == 100 {
+		//		pc.readLimit = pc.maxHeaderResponseSize() // reset the limit
+		//		resp, err = ReadResponseTee(pc.tee, rc.req)
+		//		if err != nil {
+		//			return
 		is1xx := 100 <= resCode && resCode <= 199
 		// treat 101 as a terminal status, see issue 26161
 		is1xxNonTerminal := is1xx && resCode != StatusSwitchingProtocols
@@ -2427,7 +2489,7 @@ func (pc *persistConn) readResponse(rc requestAndChan, trace *httptrace.ClientTr
 		break
 	}
 	if resp.isProtocolSwitch() {
-		resp.Body = newReadWriteCloserBody(pc.br, pc.conn)
+		resp.Body = newReadWriteCloserBody(pc.tee.br, pc.conn)
 	}
 	if continueCh != nil {
 		// We send an "Expect: 100-continue" header, but the server
