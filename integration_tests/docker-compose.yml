@@ -63,6 +63,19 @@ services:
     depends_on:
       - service_base
 
+  dicom:
+    image: orthancteam/orthanc
+    container_name: "zgrab_dicom"
+    networks:
+      - dicom-network
+    hostname: "target"
+    environment:
+      ORTHANC__NAME: "My Orthanc"
+      ORTHANC__REGISTERED_USERS: |
+        {"demo": "demo"}
+    depends_on:
+      - service_base
+
   ftp:
     build:
       context: ./ftp/container
@@ -663,3 +676,8 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.160/30
+  dicom-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet 100.64.0.164/30
