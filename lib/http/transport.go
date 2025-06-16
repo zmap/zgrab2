@@ -30,9 +30,10 @@ import (
 	"time"
 	_ "unsafe"
 
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http/httpproxy"
+
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
 
