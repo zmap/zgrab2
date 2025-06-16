@@ -432,7 +432,7 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T) {
 	}
 	if cfg.expectedStatus == zgrab2.SCAN_SUCCESS {
 		if response == nil {
-			t.Fatalf("Expected response, but got none")
+			t.Errorf("Expected response, but got none")
 		}
 
 		statusCode := response.Status
