@@ -7,11 +7,12 @@ package http_test
 import (
 	"context"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"os"
 	"os/signal"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 func ExampleHijacker() {

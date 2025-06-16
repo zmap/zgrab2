@@ -6,9 +6,10 @@ package http_test
 
 import (
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"log"
 	"sync"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 type countHandler struct {

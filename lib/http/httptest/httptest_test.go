@@ -7,12 +7,13 @@ package httptest
 import (
 	"context"
 	"crypto/tls"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"net/url"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 func TestNewRequest(t *testing.T) {

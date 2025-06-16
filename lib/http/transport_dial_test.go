@@ -6,11 +6,12 @@ package http_test
 
 import (
 	"context"
-	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"net"
 	"testing"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 )
 
 func TestTransportPoolConnReusePriorConnection(t *testing.T) {

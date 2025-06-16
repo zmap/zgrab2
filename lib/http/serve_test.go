@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rogpeppe/go-internal/testenv"
 	"io"
 	"log"
 	"math/rand"
@@ -35,6 +34,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/rogpeppe/go-internal/testenv"
 
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptest"

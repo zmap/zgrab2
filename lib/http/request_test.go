@@ -13,9 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
-	. "github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
 	"io"
 	"math"
 	"mime/multipart"
@@ -25,6 +22,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/zmap/zgrab2/lib/http"
+	. "github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func TestQuery(t *testing.T) {

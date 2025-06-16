@@ -9,13 +9,14 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"net"
 	"net/url"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )

@@ -9,12 +9,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"net"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 // drainBody reads all of b to memory and then returns two equivalent

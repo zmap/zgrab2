@@ -10,9 +10,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"strings"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 // NewRequest wraps NewRequestWithContext using context.Background.

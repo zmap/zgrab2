@@ -6,10 +6,11 @@ package httptest_test
 
 import (
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
 	"io"
 	"log"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 func ExampleResponseRecorder() {

@@ -6,12 +6,13 @@ package cookiejar
 
 import (
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"net/url"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 // tNow is the synthetic current time used as now during testing.

@@ -32,7 +32,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"io/fs"
 	"log"
@@ -51,6 +50,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http2/hpack"

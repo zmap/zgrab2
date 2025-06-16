@@ -7,11 +7,12 @@ package httptest
 import (
 	"bytes"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"net/textproto"
 	"strconv"
 	"strings"
+
+	"github.com/zmap/zgrab2/lib/http"
 
 	"golang.org/x/net/http/httpguts"
 )

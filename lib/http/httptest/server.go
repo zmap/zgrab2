@@ -11,13 +11,14 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"log"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 
 	"github.com/zmap/zgrab2/lib/http/internal/testcert"
 )

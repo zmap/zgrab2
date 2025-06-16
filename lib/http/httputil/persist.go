@@ -7,11 +7,12 @@ package httputil
 import (
 	"bufio"
 	"errors"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"net"
 	"net/textproto"
 	"sync"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 var (

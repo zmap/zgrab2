@@ -6,11 +6,12 @@ package httptest
 
 import (
 	"bufio"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"net"
 	"sync"
 	"testing"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 type newServerFunc func(http.Handler) *Server

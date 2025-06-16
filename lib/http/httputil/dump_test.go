@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"math/rand"
 	"net/url"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 type eofReader struct{}

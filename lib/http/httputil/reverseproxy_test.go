@@ -12,9 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
-	"github.com/zmap/zgrab2/lib/http/httptest"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"log"
 	"net/textproto"
@@ -27,6 +24,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )

@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 // hello world, the web server

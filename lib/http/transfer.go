@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"net/textproto"
 	"reflect"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"golang.org/x/net/http/httpguts"
 

@@ -5,10 +5,11 @@
 package http_test
 
 import (
-	"github.com/zmap/zgrab2/lib/http"
 	"io/fs"
 	"log"
 	"strings"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 // containsDotFile reports whether name contains a path element starting with a period.

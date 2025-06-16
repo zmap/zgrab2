@@ -7,12 +7,13 @@ package http_test
 import (
 	"errors"
 	"fmt"
-	. "github.com/zmap/zgrab2/lib/http"
 	"io"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	. "github.com/zmap/zgrab2/lib/http"
 )
 
 func TestResponseControllerFlush(t *testing.T) { run(t, testResponseControllerFlush) }

@@ -7,13 +7,14 @@ package http_test
 import (
 	"bytes"
 	"fmt"
-	. "github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+
+	. "github.com/zmap/zgrab2/lib/http"
 )
 
 var sniffTests = []struct {

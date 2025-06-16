@@ -6,9 +6,10 @@ package httptest
 
 import (
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"testing"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 func TestRecorder(t *testing.T) {

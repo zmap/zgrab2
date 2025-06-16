@@ -6,7 +6,6 @@ package http_test
 
 import (
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"os"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 var quietLog = log.New(io.Discard, "", 0)

@@ -14,7 +14,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -25,6 +24,8 @@ import (
 	"strings"
 	"sync"
 	_ "unsafe" // for linkname
+
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/idna"
