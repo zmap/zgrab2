@@ -316,6 +316,9 @@ func (scan *scan) getCheckRedirect() func(*http.Request, *http.Response, []*http
 		if len(via)-1 > scan.scanner.config.MaxRedirects {
 			return ErrTooManyRedirects
 		}
+		if !scan.scanner.config.FollowLocalhostRedirects && redirectsToLocalhost(req.URL.Hostname()) {
+			return ErrRedirLocalhost
+		}
 		// We're following a re-direct. The IP that the framework resolved initially is no longer valid. Clearing
 		scan.target.IP = nil
 		scan.results.RedirectResponseChain = append(scan.results.RedirectResponseChain, res)

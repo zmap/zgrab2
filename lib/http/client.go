@@ -637,8 +637,9 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 	for {
 		// For all but the first request, create the next
 		// request hop and replace req.
+		loc := req.URL.String()
 		if len(reqs) > 0 {
-			loc := resp.Header.Get("Location")
+			loc = resp.Header.Get("Location")
 			if loc == "" {
 				// While most 3xx responses include a Location, it is not
 				// required and 3xx responses without a Location have been
