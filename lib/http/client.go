@@ -75,7 +75,7 @@ type Client struct {
 	//
 	// If CheckRedirect is nil, the Client uses its default policy,
 	// which is to stop after 10 consecutive requests.
-	CheckRedirect func(req *Request, via []*Request) error
+	CheckRedirect func(req *Request, res *Response, via []*Request) error
 
 	// Jar specifies the cookie jar.
 	//
@@ -104,6 +104,9 @@ type Client struct {
 	// RoundTripper implementations should use the Request's Context
 	// for cancellation instead of implementing CancelRequest.
 	Timeout time.Duration
+
+	// HTTP User Agent header for an instantiated client
+	UserAgent string
 }
 
 // DefaultClient is the default [Client] and is used by [Get], [Head], and [Post].
@@ -140,6 +143,10 @@ type RoundTripper interface {
 	//
 	// The Request's URL and Header fields must be initialized.
 	RoundTrip(*Request) (*Response, error)
+}
+
+func MakeNewClient() *Client {
+	return &Client{UserAgent: "Mozilla/5.0 zgrab/0.x"}
 }
 
 // refererForURL returns a referer without any authentication info or
@@ -498,12 +505,12 @@ var ErrUseLastResponse = errors.New("net/http: use last response")
 
 // checkRedirect calls either the user's configured CheckRedirect
 // function, or the default.
-func (c *Client) checkRedirect(req *Request, via []*Request) error {
+func (c *Client) checkRedirect(req *Request, res *Response, via []*Request) error {
 	fn := c.CheckRedirect
 	if fn == nil {
 		fn = defaultCheckRedirect
 	}
-	return fn(req, via)
+	return fn(req, res, via)
 }
 
 // redirectBehavior describes what should happen when the
@@ -690,7 +697,7 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 			if ref := refererForURL(reqs[len(reqs)-1].URL, req.URL, req.Header.Get("Referer")); ref != "" {
 				req.Header.Set("Referer", ref)
 			}
-			err = c.checkRedirect(req, reqs)
+			err = c.checkRedirect(req, resp, reqs)
 
 			// Sentinel error to let users select the
 			// previous response, without closing its
@@ -807,7 +814,7 @@ func (c *Client) makeHeadersCopier(ireq *Request) func(*Request) {
 	}
 }
 
-func defaultCheckRedirect(req *Request, via []*Request) error {
+func defaultCheckRedirect(req *Request, res *Response, via []*Request) error {
 	if len(via) >= 10 {
 		return errors.New("stopped after 10 redirects")
 	}
