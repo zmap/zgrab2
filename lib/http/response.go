@@ -217,7 +217,7 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
 		}
-		return nil, err
+		return resp, err
 	}
 	hdrEnd := tc.ReadPos()
 	resp.HeadersRaw = tc.Bytes(hdrStart, hdrEnd)
@@ -227,7 +227,7 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 
 	err = readTransfer(resp, r)
 	if err != nil {
-		return nil, err
+		return resp, err
 	}
 
 	return resp, nil

@@ -612,6 +612,18 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 		}
 	}
 	_ = *c // panic early if c is nil; see go.dev/issue/53521
+	if c.UserAgent == "" {
+		reterr = errors.New("http: no client.UserAgent set")
+		return
+	}
+
+	if req.Header == nil {
+		req.Header = make(Header)
+	}
+
+	if u := req.Header.Get("User-Agent"); u == "" {
+		req.Header.Set("User-Agent", c.UserAgent)
+	}
 
 	var (
 		deadline      = c.deadline()
