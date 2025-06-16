@@ -6336,6 +6336,7 @@ func TestTransportClone(t *testing.T) {
 		},
 		ReadBufferSize:  1,
 		WriteBufferSize: 1,
+		RawHeaderBuffer: true,
 	}
 	tr2 := tr.Clone()
 	rv := reflect.ValueOf(tr2).Elem()

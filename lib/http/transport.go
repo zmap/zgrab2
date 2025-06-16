@@ -18,7 +18,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"io"
 	"log"
 	"net"
@@ -30,6 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 	_ "unsafe"
+
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http/httpproxy"
@@ -301,6 +302,7 @@ type Transport struct {
 	// zgrab2-specific
 	RawHeaderBuffer bool
 }
+
 func (t *Transport) writeBufferSize() int {
 	if t.WriteBufferSize > 0 {
 		return t.WriteBufferSize
@@ -340,6 +342,7 @@ func (t *Transport) Clone() *Transport {
 		ForceAttemptHTTP2:      t.ForceAttemptHTTP2,
 		WriteBufferSize:        t.WriteBufferSize,
 		ReadBufferSize:         t.ReadBufferSize,
+		RawHeaderBuffer:        t.RawHeaderBuffer,
 	}
 	if t.TLSClientConfig != nil {
 		t2.TLSClientConfig = t.TLSClientConfig.Clone()
@@ -1805,7 +1808,6 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 			Host:   cm.targetAddr,
 			Header: hdr,
 		}
-
 
 		// Set a (long) timeout here to make sure we don't block forever
 		// and leak a goroutine if the connection stops replying after
