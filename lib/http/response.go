@@ -219,9 +219,6 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 		}
 		return nil, err
 	}
-	// No need to continue tee reads into the tee buffer, go ahead and
-	// disable it
-	tc.Disable()
 	hdrEnd := tc.ReadPos()
 	resp.HeadersRaw = tc.Bytes(hdrStart, hdrEnd)
 	resp.Header = Header(mimeHeader)
