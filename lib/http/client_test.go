@@ -232,7 +232,7 @@ func testClientRedirects(t *testing.T, mode testMode) {
 	var checkErr error
 	var lastVia []*Request
 	var lastReq *Request
-	c.CheckRedirect = func(req *Request, via []*Request) error {
+	c.CheckRedirect = func(req *Request, _ *Response, via []*Request) error {
 		lastReq = req
 		lastVia = via
 		return checkErr
@@ -290,7 +290,7 @@ func testClientRedirectsContext(t *testing.T, mode testMode) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c := ts.Client()
-	c.CheckRedirect = func(req *Request, via []*Request) error {
+	c.CheckRedirect = func(req *Request, _ *Response, via []*Request) error {
 		cancel()
 		select {
 		case <-req.Context().Done():
@@ -489,7 +489,7 @@ func testClientRedirectUseResponse(t *testing.T, mode testMode) {
 	})).ts
 
 	c := ts.Client()
-	c.CheckRedirect = func(req *Request, via []*Request) error {
+	c.CheckRedirect = func(req *Request, _ *Response, via []*Request) error {
 		if req.Response == nil {
 			t.Error("expected non-nil Request.Response")
 		}
@@ -1461,7 +1461,7 @@ func (issue15577Tripper) RoundTrip(*Request) (*Response, error) {
 // Issue 15577: don't assume the roundtripper's response populates its Request field.
 func TestClientRedirectResponseWithoutRequest(t *testing.T) {
 	c := &Client{
-		CheckRedirect: func(*Request, []*Request) error { return fmt.Errorf("no redirects!") },
+		CheckRedirect: func(*Request, *Response, []*Request) error { return fmt.Errorf("no redirects!") },
 		Transport:     issue15577Tripper{},
 	}
 	// Check that this doesn't crash:
@@ -1503,7 +1503,7 @@ func testClientCopyHeadersOnRedirect(t *testing.T, mode testMode) {
 	ts2URL = ts2.URL
 
 	c := ts1.Client()
-	c.CheckRedirect = func(r *Request, via []*Request) error {
+	c.CheckRedirect = func(r *Request, _ *Response, via []*Request) error {
 		want := Header{
 			"User-Agent":    []string{ua},
 			"X-Foo":         []string{xfoo},
@@ -1822,7 +1822,7 @@ func testClientRedirectTypes(t *testing.T, mode testMode) {
 			continue
 		}
 
-		c.CheckRedirect = func(req *Request, via []*Request) error {
+		c.CheckRedirect = func(req *Request, _ *Response, via []*Request) error {
 			if got, want := req.Method, tt.wantMethod; got != want {
 				return fmt.Errorf("#%d: got next method %q; want %q", i, got, want)
 			}
