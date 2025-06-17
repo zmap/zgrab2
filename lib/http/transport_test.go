@@ -1762,7 +1762,8 @@ func TestTransportDialPreservesNetOpProxyError(t *testing.T) {
 	}
 	defer tr.CloseIdleConnections()
 
-	c := &Client{Transport: tr}
+	c := MakeNewClient()
+	c.Transport = tr
 	req, _ := NewRequest("GET", "http://fake.tld", nil)
 	res, err := c.Do(req)
 	if err == nil {
@@ -2768,7 +2769,8 @@ func testTransportCancelRequestInDial(t *testing.T, test cancelTest) {
 			return nil, errors.New("nope")
 		},
 	}
-	cl := &Client{Transport: tr}
+	cl := MakeNewClient()
+	cl.Transport = tr
 	gotres := make(chan bool)
 	req, _ := NewRequest("GET", "http://something.no-network.tld/", nil)
 	req = test.newReq(req)
@@ -3195,7 +3197,8 @@ Content-Length: %d
 		DisableKeepAlives: false,
 	}
 	defer tr.CloseIdleConnections()
-	c := &Client{Transport: tr}
+	c := MakeNewClient()
+	c.Transport = tr
 
 	testResponse := func(req *Request, name string, wantCode int) {
 		t.Helper()
@@ -4751,7 +4754,8 @@ func TestNoCrashReturningTransportAltConn(t *testing.T) {
 			return tc, nil
 		},
 	}
-	c := &Client{Transport: tr}
+	c := MakeNewClient()
+	c.Transport = tr
 
 	_, err = c.Do(req)
 	if ue, ok := err.(*url.Error); !ok || ue.Err != ExportErrRequestCanceledConn {
@@ -5074,12 +5078,13 @@ func testTransportEventTraceTLSVerify(t *testing.T, mode testMode) {
 	certpool := x509.NewCertPool()
 	certpool.AddCert(ts.Certificate())
 
-	c := &Client{Transport: &Transport{
+	c := MakeNewClient()
+	c.Transport = &Transport{
 		TLSClientConfig: &tls.Config{
 			ServerName: "dns-is-faked.golang",
 			RootCAs:    certpool,
 		},
-	}}
+	}
 
 	trace := &httptrace.ClientTrace{
 		TLSHandshakeStart: func() { logf("TLSHandshakeStart") },
@@ -5319,7 +5324,8 @@ timeoutLoop:
 		tr := cst.tr
 		tr.IdleConnTimeout = timeout
 		defer tr.CloseIdleConnections()
-		c := &Client{Transport: tr}
+		c := MakeNewClient()
+		c.Transport = tr
 
 		idleConns := func() []string {
 			if mode == http2Mode {
@@ -6705,10 +6711,9 @@ func testTransportDecrementConnWhenIdleConnRemoved(t *testing.T, mode testMode) 
 func TestAltProtoCancellation(t *testing.T) {
 	defer afterTest(t)
 	tr := &Transport{}
-	c := &Client{
-		Transport: tr,
-		Timeout:   time.Millisecond,
-	}
+	c := MakeNewClient()
+	c.Transport = tr
+	c.Timeout = time.Millisecond
 	tr.RegisterProtocol("cancel", cancelProto{})
 	_, err := c.Get("cancel://bar.com/path")
 	if err == nil {

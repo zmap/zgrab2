@@ -262,7 +262,8 @@ func TestTransportBodyAltRewind(t *testing.T) {
 			return tc, nil
 		},
 	}
-	c := &Client{Transport: tr}
+	c := MakeNewClient()
+	c.Transport = tr
 	_, err = c.Do(req)
 	if err != nil {
 		t.Error(err)

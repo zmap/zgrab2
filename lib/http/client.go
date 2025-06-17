@@ -110,7 +110,7 @@ type Client struct {
 }
 
 // DefaultClient is the default [Client] and is used by [Get], [Head], and [Post].
-var DefaultClient = &Client{}
+var DefaultClient = MakeNewClient()
 
 // RoundTripper is an interface representing the ability to execute a
 // single HTTP transaction, obtaining the [Response] for a given [Request].
@@ -146,7 +146,7 @@ type RoundTripper interface {
 }
 
 func MakeNewClient() *Client {
-	return &Client{UserAgent: "Mozilla/5.0 zgrab/0.x"}
+	return &Client{Transport: &Transport{}}
 }
 
 // refererForURL returns a referer without any authentication info or
@@ -612,18 +612,6 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 		}
 	}
 	_ = *c // panic early if c is nil; see go.dev/issue/53521
-	if c.UserAgent == "" {
-		reterr = errors.New("http: no client.UserAgent set")
-		return
-	}
-
-	if req.Header == nil {
-		req.Header = make(Header)
-	}
-
-	if u := req.Header.Get("User-Agent"); u == "" {
-		req.Header.Set("User-Agent", c.UserAgent)
-	}
 
 	var (
 		deadline      = c.deadline()

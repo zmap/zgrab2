@@ -617,9 +617,11 @@ func TestReverseProxyCancellation(t *testing.T) {
 	frontendClient := frontend.Client()
 
 	getReq, _ := http.NewRequest("GET", frontend.URL, nil)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	getReq = getReq.WithContext(ctx)
 	go func() {
 		<-reqInFlight
-		frontendClient.Transport.(*http.Transport).CancelRequest(getReq)
+		cancel(errors.New("cancelled in flight"))
 	}()
 	res, err := frontendClient.Do(getReq)
 	if res != nil {

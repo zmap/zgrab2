@@ -120,6 +120,7 @@ func NewUnstartedServer(handler http.Handler) *Server {
 	return &Server{
 		Listener: newLocalListener(),
 		Config:   &http.Server{Handler: handler},
+		client:   http.MakeNewClient(),
 	}
 }
 

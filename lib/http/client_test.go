@@ -102,7 +102,8 @@ func TestGetRequestFormat(t *testing.T) {
 	setParallel(t)
 	defer afterTest(t)
 	tr := &recordingTransport{}
-	client := &Client{Transport: tr}
+	client := MakeNewClient()
+	client.Transport = tr
 	url := "http://dummy.faketld/"
 	client.Get(url) // Note: doesn't hit network
 	if tr.req.Method != "GET" {
@@ -119,7 +120,8 @@ func TestGetRequestFormat(t *testing.T) {
 func TestPostRequestFormat(t *testing.T) {
 	defer afterTest(t)
 	tr := &recordingTransport{}
-	client := &Client{Transport: tr}
+	client := MakeNewClient()
+	client.Transport = tr
 
 	url := "http://dummy.faketld/"
 	json := `{"key":"value"}`
@@ -146,7 +148,8 @@ func TestPostRequestFormat(t *testing.T) {
 func TestPostFormRequestFormat(t *testing.T) {
 	defer afterTest(t)
 	tr := &recordingTransport{}
-	client := &Client{Transport: tr}
+	client := MakeNewClient()
+	client.Transport = tr
 
 	urlStr := "http://dummy.faketld/"
 	form := make(url.Values)
@@ -587,7 +590,8 @@ var echoCookiesRedirectHandler = HandlerFunc(func(w ResponseWriter, r *Request) 
 func TestClientSendsCookieFromJar(t *testing.T) {
 	defer afterTest(t)
 	tr := &recordingTransport{}
-	client := &Client{Transport: tr}
+	client := MakeNewClient()
+	client.Transport = tr
 	client.Jar = &TestJar{perURL: make(map[string][]*Cookie)}
 	us := "http://dummy.faketld/"
 	u, _ := url.Parse(us)
@@ -1051,7 +1055,8 @@ func testEmptyPasswordAuth(t *testing.T, mode testMode) {
 func TestBasicAuth(t *testing.T) {
 	defer afterTest(t)
 	tr := &recordingTransport{}
-	client := &Client{Transport: tr}
+	client := MakeNewClient()
+	client.Transport = tr
 
 	url := "http://My%20User:My%20Pass@dummy.faketld/"
 	expected := "My User:My Pass"
@@ -1085,7 +1090,8 @@ func TestBasicAuth(t *testing.T) {
 func TestBasicAuthHeadersPreserved(t *testing.T) {
 	defer afterTest(t)
 	tr := &recordingTransport{}
-	client := &Client{Transport: tr}
+	client := MakeNewClient()
+	client.Transport = tr
 
 	// If Authorization header is provided, username in URL should not override it
 	url := "http://My%20User@dummy.faketld/"
@@ -1460,10 +1466,9 @@ func (issue15577Tripper) RoundTrip(*Request) (*Response, error) {
 
 // Issue 15577: don't assume the roundtripper's response populates its Request field.
 func TestClientRedirectResponseWithoutRequest(t *testing.T) {
-	c := &Client{
-		CheckRedirect: func(*Request, *Response, []*Request) error { return fmt.Errorf("no redirects!") },
-		Transport:     issue15577Tripper{},
-	}
+	c := MakeNewClient()
+	c.CheckRedirect = func(*Request, *Response, []*Request) error { return fmt.Errorf("no redirects!") }
+	c.Transport = issue15577Tripper{}
 	// Check that this doesn't crash:
 	c.Get("http://dummy.tld")
 }
@@ -1923,14 +1928,16 @@ func (roundTripperWithCloseIdle) RoundTrip(*Request) (*Response, error) { panic(
 func (f roundTripperWithCloseIdle) CloseIdleConnections()               { f() }
 
 func TestClientCloseIdleConnections(t *testing.T) {
-	c := &Client{Transport: roundTripperWithoutCloseIdle{}}
+	c := MakeNewClient()
+	c.Transport = roundTripperWithoutCloseIdle{}
 	c.CloseIdleConnections() // verify we don't crash at least
 
 	closed := false
 	var tr RoundTripper = roundTripperWithCloseIdle(func() {
 		closed = true
 	})
-	c = &Client{Transport: tr}
+	c = MakeNewClient()
+	c.Transport = tr
 	c.CloseIdleConnections()
 	if !closed {
 		t.Error("not closed")
@@ -1944,19 +1951,18 @@ func (t testRoundTripper) RoundTrip(req *Request) (*Response, error) {
 }
 
 func TestClientPropagatesTimeoutToContext(t *testing.T) {
-	c := &Client{
-		Timeout: 5 * time.Second,
-		Transport: testRoundTripper(func(req *Request) (*Response, error) {
-			ctx := req.Context()
-			deadline, ok := ctx.Deadline()
-			if !ok {
-				t.Error("no deadline")
-			} else {
-				t.Logf("deadline in %v", deadline.Sub(time.Now()).Round(time.Second/10))
-			}
-			return nil, errors.New("not actually making a request")
-		}),
-	}
+	c := MakeNewClient()
+	c.Timeout = 5 * time.Second
+	c.Transport = testRoundTripper(func(req *Request) (*Response, error) {
+		ctx := req.Context()
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Error("no deadline")
+		} else {
+			t.Logf("deadline in %v", deadline.Sub(time.Now()).Round(time.Second/10))
+		}
+		return nil, errors.New("not actually making a request")
+	})
 	c.Get("https://example.tld/")
 }
 

@@ -70,9 +70,8 @@ func TestNextProtoUpgrade(t *testing.T) {
 			},
 		}
 		defer tr.CloseIdleConnections()
-		c := &Client{
-			Transport: tr,
-		}
+		c := MakeNewClient()
+		c.Transport = tr
 		res, err := c.Get(ts.URL)
 		if err == nil {
 			defer res.Body.Close()

@@ -2464,13 +2464,6 @@ func (pc *persistConn) readResponse(rc requestAndChan, trace *httptrace.ClientTr
 			continueCh <- struct{}{}
 			continueCh = nil
 		}
-		// TODO Phillip this was included in the tee commit, not sure, might need to replace ReadWriteCloserBody
-		//	}
-		//	if resp.StatusCode == 100 {
-		//		pc.readLimit = pc.maxHeaderResponseSize() // reset the limit
-		//		resp, err = ReadResponseTee(pc.tee, rc.req)
-		//		if err != nil {
-		//			return
 		is1xx := 100 <= resCode && resCode <= 199
 		// treat 101 as a terminal status, see issue 26161
 		is1xxNonTerminal := is1xx && resCode != StatusSwitchingProtocols

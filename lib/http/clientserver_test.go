@@ -1102,7 +1102,8 @@ func testTransportDiscardsUnneededConns(t *testing.T, mode testMode) {
 	}
 	defer tr.CloseIdleConnections()
 
-	c := &Client{Transport: tr}
+	c := MakeNewClient()
+	c.Transport = tr
 
 	const N = 10
 	gotBody := make(chan string, N)
