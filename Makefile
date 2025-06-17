@@ -6,7 +6,7 @@ endif
 
 GO_FILES = $(shell find . -type f -name '*.go')
 TEST_MODULES ?=
-.DEFAULT_GOAL := install
+.DEFAULT_GOAL := zgrab2
 
 all: zgrab2
 
@@ -47,7 +47,7 @@ uninstall:
 	fi
 
 setup-config:
-	@echo "Setting up zgrab2 configuration directory at $(CONFIG_DIR) and installing ZGrab2"
+	@echo "Setting up zgrab2 configuration directory at $(CONFIG_DIR)"
 # Make sure the config directory exists
 	mkdir -p $(CONFIG_DIR)
 # Copy the default config file if it doesn't exist
