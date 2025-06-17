@@ -10,6 +10,8 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -35,11 +37,11 @@ type PageFingerprint []byte
 // the response headers have been received. The response body
 // is streamed on demand as the Body field is read.
 type Response struct {
-	Status     string // e.g. "200 OK"
-	StatusCode int    // e.g. 200
-	Proto      string // e.g. "HTTP/1.0"
-	ProtoMajor int    // e.g. 1
-	ProtoMinor int    // e.g. 0
+	Status     string `json:"status_line,omitempty"`    // e.g. "200 OK"
+	StatusCode int    `json:"status_code,omitempty"`    // e.g. 200
+	Proto      string `json:"protocol,omitempty"`       // e.g. "HTTP/1.0"
+	ProtoMajor int    `json:"protocol_major,omitempty"` // e.g. 1
+	ProtoMinor int    `json:"protocol_minor,omitempty"` // e.g. 0
 
 	// Header maps header keys to values. If the response had multiple
 	// headers with the same key, they may be concatenated, with comma
@@ -50,7 +52,7 @@ type Response struct {
 	// authoritative.
 	//
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
-	Header Header
+	Header Header `json:"headers,omitempty"`
 
 	// The raw bytes of the MIME headers, as read from the underlying
 	// reader.  This allows for post-processing to be done on an exact
@@ -90,16 +92,16 @@ type Response struct {
 	// value -1 indicates that the length is unknown. Unless Request.Method
 	// is "HEAD", values >= 0 indicate that the given number of bytes may
 	// be read from Body.
-	ContentLength int64
+	ContentLength int64 `json:"content_length,omitempty"`
 
 	// Contains transfer encodings from outer-most to inner-most. Value is
 	// nil, means that "identity" encoding is used.
-	TransferEncoding []string
+	TransferEncoding []string `json:"transfer_encoding,omitempty"`
 
 	// Close records whether the header directed that the connection be
 	// closed after reading Body. The value is advice for clients: neither
 	// ReadResponse nor Response.Write ever closes a connection.
-	Close bool
+	Close bool `json:"-"`
 
 	// Uncompressed reports whether the response was sent compressed but
 	// was decompressed by the http package. When true, reading from
@@ -108,7 +110,7 @@ type Response struct {
 	// and the "Content-Length" and "Content-Encoding" fields are deleted
 	// from the responseHeader. To get the original response from
 	// the server, set Transport.DisableCompression to true.
-	Uncompressed bool
+	Uncompressed bool `json:"-"`
 
 	// Trailer maps trailer keys to values in the same
 	// format as Header.
@@ -122,18 +124,29 @@ type Response struct {
 	//
 	// After Body.Read has returned io.EOF, Trailer will contain
 	// any trailer values sent by the server.
-	Trailer Header
+	Trailer Header `json:"trailers,omitempty"`
 
 	// Request is the request that was sent to obtain this Response.
 	// Request's Body is nil (having already been consumed).
 	// This is only populated for Client requests.
-	Request *Request
+	Request *Request `json:"request,omitempty"`
 
 	// TLS contains information about the TLS connection on which the
 	// response was received. It is nil for unencrypted responses.
 	// The pointer is shared between responses and should not be
 	// modified.
-	TLS *tls.ConnectionState
+	TLS *tls.ConnectionState `json:"-"`
+}
+
+// Hex returns the given fingerprint encoded as a hex string.
+func (f *PageFingerprint) Hex() string {
+	return hex.EncodeToString(*f)
+}
+
+// MarshalJSON implements the json.Marshaler interface, and marshals the
+// fingerprint as a hex string.
+func (f *PageFingerprint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Hex())
 }
 
 // Cookies parses and returns the cookies set in the Set-Cookie headers.

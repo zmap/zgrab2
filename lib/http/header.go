@@ -5,6 +5,7 @@
 package http
 
 import (
+	"encoding/json"
 	"io"
 	"net/textproto"
 	"slices"
@@ -346,4 +347,63 @@ func hasToken(v, token string) bool {
 
 func isTokenBoundary(b byte) bool {
 	return b == ' ' || b == ',' || b == '\t'
+}
+
+type UnknownHeader struct {
+	Key    string   `json:"key,omitempty"`
+	Values []string `json:"value,omitempty"`
+}
+
+func formatHeaderValues(v []string) {
+	for idx := range v {
+		if len(v[idx]) >= 8192 {
+			v[idx] = v[idx][0:8191]
+		}
+	}
+}
+
+func FormatHeaderName(s string) string {
+	return strings.Replace(strings.ToLower(s), "-", "_", 30)
+}
+
+func filterHeaders(h Header) {
+	var unknownHeaders []UnknownHeader
+	for header, values := range h {
+		if _, ok := knownHeaders[FormatHeaderName(header)]; !ok {
+			unk := UnknownHeader{
+				Key:    FormatHeaderName(header),
+				Values: values,
+			}
+			unknownHeaders = append(unknownHeaders, unk)
+			h.Del(header)
+		}
+	}
+	if len(unknownHeaders) > 0 {
+		if unknownHeaderStr, err := json.Marshal(unknownHeaders); err == nil {
+			h["Unknown"] = []string{string(unknownHeaderStr)}
+		}
+	}
+}
+
+// Custom JSON Marshaller to comply with snake_case header names
+func (h Header) MarshalJSON() ([]byte, error) {
+	filterHeaders(h)
+
+	headerMap := make(map[string]any)
+	for k, v := range h {
+		// Need to special-case unknown header object, since it's not a true header (aka map[string][]string)
+		if k == "Unknown" && len(v) > 0 {
+			var unknownHeader []UnknownHeader
+			json.Unmarshal([]byte(v[0]), &unknownHeader)
+			for idx := range unknownHeader {
+				formatHeaderValues(unknownHeader[idx].Values)
+			}
+			headerMap[FormatHeaderName(k)] = unknownHeader
+		} else {
+			formatHeaderValues(v)
+			headerMap[FormatHeaderName(k)] = v
+		}
+	}
+
+	return json.Marshal(headerMap)
 }

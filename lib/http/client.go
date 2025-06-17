@@ -612,7 +612,14 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 		}
 	}
 	_ = *c // panic early if c is nil; see go.dev/issue/53521
-
+	if len(c.UserAgent) > 0 {
+		if req.Header == nil {
+			req.Header = make(Header)
+		}
+		if _, ok := req.Header["User-Agent"]; !ok {
+			req.Header.Set("User-Agent", c.UserAgent)
+		}
+	}
 	var (
 		deadline      = c.deadline()
 		reqs          []*Request
