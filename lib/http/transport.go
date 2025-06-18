@@ -15,7 +15,6 @@ import (
 	"compress/gzip"
 	"container/list"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +32,9 @@ import (
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/http/httpproxy"
 
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
@@ -643,6 +645,16 @@ func (t *Transport) roundTrip(req *Request) (_ *Response, err error) {
 		if err != nil {
 			req.closeBody()
 			return nil, err
+		}
+
+		if cm.targetScheme == "https" {
+			switch conn := pconn.conn.(type) {
+			case *tls.Conn:
+				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
+				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+			case *zgrab2.TLSConnection:
+				req.TLSLog = conn.GetLog()
+			}
 		}
 
 		var resp *Response

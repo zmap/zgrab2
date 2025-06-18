@@ -9,12 +9,13 @@ package http
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"io"
 	"net"
 	"strings"
 	"testing"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2/lib/http/internal/testcert"
 )

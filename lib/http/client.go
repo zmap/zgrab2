@@ -11,7 +11,6 @@ package http
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -24,6 +23,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )

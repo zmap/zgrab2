@@ -9,7 +9,6 @@ package http
 import (
 	"bufio"
 	"bytes"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,6 +18,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"golang.org/x/net/http/httpguts"
 )

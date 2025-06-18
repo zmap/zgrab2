@@ -9,7 +9,6 @@ package http_test
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -24,6 +23,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/zmap/zcrypto/tls"
 
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/cookiejar"

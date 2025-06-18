@@ -7,7 +7,6 @@
 package httptest
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"flag"
 	"fmt"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2/lib/http"
 

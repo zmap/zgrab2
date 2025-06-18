@@ -28,7 +28,6 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/rand"
-	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -50,6 +49,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 

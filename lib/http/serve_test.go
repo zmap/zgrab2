@@ -12,7 +12,6 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,6 +33,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/rogpeppe/go-internal/testenv"
 

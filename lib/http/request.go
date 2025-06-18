@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -26,6 +25,9 @@ import (
 	"sync"
 	_ "unsafe" // for linkname
 
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"golang.org/x/net/http/httpguts"
@@ -317,6 +319,9 @@ type Request struct {
 	// otherwise it leaves the field nil.
 	// This field is ignored by the HTTP client.
 	TLS *tls.ConnectionState `json:"tls,omitempty"`
+
+	// Everywhere else, this is "tls". Conains the logs from the configured zgrab2 TLS scan (TLS handshake, heartbleed check, etc)
+	TLSLog *zgrab2.TLSLog `json:"tls_log,omitempty"`
 
 	// Cancel is an optional channel whose closure indicates that the client
 	// request should be regarded as canceled. Not all implementations of

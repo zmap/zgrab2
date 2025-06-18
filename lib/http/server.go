@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 	_ "unsafe" // for linkname
+
+	"github.com/zmap/zcrypto/tls"
 
 	"golang.org/x/net/http/httpguts"
 )
