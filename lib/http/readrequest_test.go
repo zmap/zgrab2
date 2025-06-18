@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"reflect"
 	"strings"
@@ -50,11 +49,9 @@ var reqTests = []reqTest{
 				Host:   "www.techcrunch.com",
 				Path:   "/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Header: Header{
 				"Accept":           {"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
 				"Accept-Language":  {"en-us,en;q=0.5"},
@@ -87,11 +84,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Path: "/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        Header{},
 			Close:         false,
 			ContentLength: 0,
@@ -115,11 +110,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Path: "//user@host/is/actually/a/path/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        Header{},
 			Close:         false,
 			ContentLength: 0,
@@ -132,7 +125,7 @@ var reqTests = []reqTest{
 		noError,
 	},
 
-	// Tests a bogus abs_path on the Request-Line (RFC 2616 section 5.1.2)
+	// Tests a bogus absolute-path on the Request-Line (RFC 7230 section 5.3.1)
 	{
 		"GET ../../../../etc/passwd HTTP/1.1\r\n" +
 			"Host: test\r\n\r\n",
@@ -168,15 +161,13 @@ var reqTests = []reqTest{
 				Path: "/",
 			},
 			TransferEncoding: []string{"chunked"},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
-			Header:        Header{},
-			ContentLength: -1,
-			Host:          "foo.com",
-			RequestURI:    "/",
+			Proto:            "HTTP/1.1",
+			ProtoMajor:       1,
+			ProtoMinor:       1,
+			Header:           Header{},
+			ContentLength:    -1,
+			Host:             "foo.com",
+			RequestURI:       "/",
 		},
 
 		"foobar",
@@ -202,20 +193,34 @@ var reqTests = []reqTest{
 				Path: "/",
 			},
 			TransferEncoding: []string{"chunked"},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
-			Header:        Header{},
-			ContentLength: -1,
-			Host:          "foo.com",
-			RequestURI:    "/",
+			Proto:            "HTTP/1.1",
+			ProtoMajor:       1,
+			ProtoMinor:       1,
+			Header:           Header{},
+			ContentLength:    -1,
+			Host:             "foo.com",
+			RequestURI:       "/",
 		},
 
 		"foobar",
 		noTrailer,
 		noError,
+	},
+
+	// Tests chunked body and an invalid Content-Length.
+	{
+		"POST / HTTP/1.1\r\n" +
+			"Host: foo.com\r\n" +
+			"Transfer-Encoding: chunked\r\n" +
+			"Content-Length: notdigits\r\n\r\n" + // raise an error
+			"3\r\nfoo\r\n" +
+			"3\r\nbar\r\n" +
+			"0\r\n" +
+			"\r\n",
+		nil,
+		noBodyStr,
+		noTrailer,
+		`bad Content-Length "notdigits"`,
 	},
 
 	// CONNECT request with domain name:
@@ -227,11 +232,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Host: "www.google.com:443",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        Header{},
 			Close:         false,
 			ContentLength: 0,
@@ -253,11 +256,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Host: "127.0.0.1:6060",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        Header{},
 			Close:         false,
 			ContentLength: 0,
@@ -279,11 +280,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Path: "/_goRPC_",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        Header{},
 			Close:         false,
 			ContentLength: 0,
@@ -304,11 +303,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Path: "*",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Header: Header{
 				"Server": []string{"foo"},
 			},
@@ -330,11 +327,9 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Path: "*",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Header: Header{
 				"Server": []string{"foo"},
 			},
@@ -362,12 +357,10 @@ var reqTests = []reqTest{
 				// keep this:
 				"Connection": []string{"close"},
 			},
-			Host: "issue8261.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Host:       "issue8261.com",
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Close:      true,
 			RequestURI: "/",
 		},
@@ -390,12 +383,10 @@ var reqTests = []reqTest{
 				"Connection":     []string{"close"},
 				"Content-Length": []string{"0"},
 			},
-			Host: "issue8261.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Host:       "issue8261.com",
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Close:      true,
 			RequestURI: "/",
 		},
@@ -413,12 +404,10 @@ var reqTests = []reqTest{
 			URL: &url.URL{
 				Path: "*",
 			},
-			Header: Header{},
-			Protocol: Protocol{
-				Name:  "HTTP/2.0",
-				Major: 2,
-				Minor: 0,
-			},
+			Header:        Header{},
+			Proto:         "HTTP/2.0",
+			ProtoMajor:    2,
+			ProtoMinor:    0,
 			RequestURI:    "*",
 			ContentLength: -1,
 			Close:         true,
@@ -444,7 +433,7 @@ func TestReadRequest(t *testing.T) {
 		req.Body = nil
 		testName := fmt.Sprintf("Test %d (%q)", i, tt.Raw)
 		diff(t, testName, req, tt.Req)
-		var bout bytes.Buffer
+		var bout strings.Builder
 		if rbody != nil {
 			_, err := io.Copy(&bout, rbody)
 			if err != nil {
@@ -465,7 +454,7 @@ func TestReadRequest(t *testing.T) {
 // reqBytes treats req as a request (with \n delimiters) and returns it with \r\n delimiters,
 // ending in \r\n\r\n
 func reqBytes(req string) []byte {
-	return []byte(strings.Replace(strings.TrimSpace(req), "\n", "\r\n", -1) + "\r\n\r\n")
+	return []byte(strings.ReplaceAll(strings.TrimSpace(req), "\n", "\r\n") + "\r\n\r\n")
 }
 
 var badRequestTests = []struct {
@@ -478,16 +467,25 @@ Content-Length: 3
 Content-Length: 4
 
 abc`)},
-	{"smuggle_content_len_head", reqBytes(`HEAD / HTTP/1.1
+	{"smuggle_two_content_len_head", reqBytes(`HEAD / HTTP/1.1
 Host: foo
-Content-Length: 5`)},
+Content-Length: 4
+Content-Length: 5
+
+1234`)},
+
+	// golang.org/issue/22464
+	{"leading_space_in_header", reqBytes(`GET / HTTP/1.1
+ Host: foo`)},
+	{"leading_tab_in_header", reqBytes(`GET / HTTP/1.1
+` + "\t" + `Host: foo`)},
 }
 
 func TestReadRequest_Bad(t *testing.T) {
 	for _, tt := range badRequestTests {
 		got, err := ReadRequest(bufio.NewReader(bytes.NewReader(tt.req)))
 		if err == nil {
-			all, err := ioutil.ReadAll(got.Body)
+			all, err := io.ReadAll(got.Body)
 			t.Errorf("%s: got unexpected request = %#v\n  Body = %q, %v", tt.name, got, all, err)
 		}
 	}

@@ -20,26 +20,37 @@ import (
 	"strings"
 
 	"github.com/zmap/zcrypto/tls"
+
+	"golang.org/x/net/http/httpguts"
 )
 
 var respExcludeHeader = map[string]bool{
-	"Trailer": true,
+	"Content-Length":    true,
+	"Transfer-Encoding": true,
+	"Trailer":           true,
 }
 
 type PageFingerprint []byte
 
 // Response represents the response from an HTTP request.
+//
+// The [Client] and [Transport] return Responses from servers once
+// the response headers have been received. The response body
+// is streamed on demand as the Body field is read.
 type Response struct {
-	Status     string   `json:"status_line,omitempty"` // e.g. "200 OK"
-	StatusCode int      `json:"status_code,omitempty"` // e.g. 200
-	Protocol   Protocol `json:"protocol,omitempty"`
+	Status     string `json:"status_line,omitempty"`    // e.g. "200 OK"
+	StatusCode int    `json:"status_code,omitempty"`    // e.g. 200
+	Proto      string `json:"protocol,omitempty"`       // e.g. "HTTP/1.0"
+	ProtoMajor int    `json:"protocol_major,omitempty"` // e.g. 1
+	ProtoMinor int    `json:"protocol_minor,omitempty"` // e.g. 0
 
 	// Header maps header keys to values. If the response had multiple
 	// headers with the same key, they may be concatenated, with comma
-	// delimiters.  (Section 4.2 of RFC 2616 requires that multiple headers
-	// be semantically equivalent to a comma-delimited sequence.) Values
-	// duplicated by other fields in this struct (e.g., ContentLength) are
-	// omitted from Header.
+	// delimiters.  (RFC 7230, section 3.2.2 requires that multiple headers
+	// be semantically equivalent to a comma-delimited sequence.) When
+	// Header values are duplicated by other fields in this struct (e.g.,
+	// ContentLength, TransferEncoding, Trailer), the field values are
+	// authoritative.
 	//
 	// Keys in the map are canonicalized (see CanonicalHeaderKey).
 	Header Header `json:"headers,omitempty"`
@@ -52,16 +63,23 @@ type Response struct {
 
 	// Body represents the response body.
 	//
+	// The response body is streamed on demand as the Body field
+	// is read. If the network connection fails or the server
+	// terminates the response, Body.Read calls return an error.
+	//
 	// The http Client and Transport guarantee that Body is always
 	// non-nil, even on responses without a body or responses with
 	// a zero-length body. It is the caller's responsibility to
-	// close Body. The default HTTP client's Transport does not
-	// attempt to reuse HTTP/1.0 or HTTP/1.1 TCP connections
-	// ("keep-alive") unless the Body is read to completion and is
-	// closed.
+	// close Body. The default HTTP client's Transport may not
+	// reuse HTTP/1.x "keep-alive" TCP connections if the Body is
+	// not read to completion and closed.
 	//
 	// The Body is automatically dechunked if the server replied
 	// with a "chunked" Transfer-Encoding.
+	//
+	// As of Go 1.12, the Body will also implement io.Writer
+	// on a successful "101 Switching Protocols" response,
+	// as used by WebSockets and HTTP/2's "h2c" mode.
 	Body       io.ReadCloser   `json:"-"`
 	BodyText   string          `json:"body,omitempty"`
 	BodySHA256 PageFingerprint `json:"body_sha256,omitempty"`
@@ -122,8 +140,8 @@ type Response struct {
 }
 
 // Hex returns the given fingerprint encoded as a hex string.
-func (f PageFingerprint) Hex() string {
-	return hex.EncodeToString(f)
+func (f *PageFingerprint) Hex() string {
+	return hex.EncodeToString(*f)
 }
 
 // MarshalJSON implements the json.Marshaler interface, and marshals the
@@ -137,13 +155,13 @@ func (r *Response) Cookies() []*Cookie {
 	return readSetCookies(r.Header)
 }
 
-// ErrNoLocation is returned by Response's Location method
+// ErrNoLocation is returned by the [Response.Location] method
 // when no Location header is present.
 var ErrNoLocation = errors.New("http: no Location header in response")
 
 // Location returns the URL of the response's "Location" header,
 // if present. Relative redirects are resolved relative to
-// the Response's Request. ErrNoLocation is returned if no
+// [Response.Request]. [ErrNoLocation] is returned if no
 // Location header is present.
 func (r *Response) Location() (*url.URL, error) {
 	lv := r.Header.Get("Location")
@@ -157,8 +175,8 @@ func (r *Response) Location() (*url.URL, error) {
 }
 
 // ReadResponse reads and returns an HTTP response from r.
-// The req parameter optionally specifies the Request that corresponds
-// to this Response. If nil, a GET request is assumed.
+// The req parameter optionally specifies the [Request] that corresponds
+// to this [Response]. If nil, a GET request is assumed.
 // Clients must call resp.Body.Close when finished reading resp.Body.
 // After that call, clients can inspect resp.Trailer to find key/value
 // pairs included in the response trailer.
@@ -186,29 +204,25 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
 		}
-		return resp, err
+		return nil, err
 	}
-	f := strings.SplitN(line, " ", 3)
-	if len(f) < 2 {
-		return resp, &badStringError{"malformed HTTP response", line}
+	proto, status, ok := strings.Cut(line, " ")
+	if !ok {
+		return nil, badStringError("malformed HTTP response", line)
 	}
-	reasonPhrase := ""
-	if len(f) > 2 {
-		reasonPhrase = f[2]
+	resp.Proto = proto
+	resp.Status = strings.TrimLeft(status, " ")
+
+	statusCode, _, _ := strings.Cut(resp.Status, " ")
+	if len(statusCode) != 3 {
+		return nil, badStringError("malformed HTTP status code", statusCode)
 	}
-	if len(f[1]) != 3 {
-		return resp, &badStringError{"malformed HTTP status code", f[1]}
-	}
-	resp.StatusCode, err = strconv.Atoi(f[1])
+	resp.StatusCode, err = strconv.Atoi(statusCode)
 	if err != nil || resp.StatusCode < 0 {
-		return resp, &badStringError{"malformed HTTP status code", f[1]}
+		return nil, badStringError("malformed HTTP status code", statusCode)
 	}
-	resp.Status = f[1] + " " + reasonPhrase
-	resp.Protocol = *(new(Protocol))
-	resp.Protocol.Name = f[0]
-	var ok bool
-	if resp.Protocol.Major, resp.Protocol.Minor, ok = ParseHTTPVersion(resp.Protocol.Name); !ok {
-		return resp, &badStringError{"malformed HTTP version", resp.Protocol.Name}
+	if resp.ProtoMajor, resp.ProtoMinor, ok = ParseHTTPVersion(resp.Proto); !ok {
+		return nil, badStringError("malformed HTTP version", resp.Proto)
 	}
 
 	// Parse the response headers.
@@ -233,7 +247,7 @@ func readResponse(tc *TeeConn, req *Request) (*Response, error) {
 	return resp, nil
 }
 
-// RFC 2616: Should treat
+// RFC 7234, section 5.4: Should treat
 //
 //	Pragma: no-cache
 //
@@ -251,8 +265,8 @@ func fixPragmaCacheControl(header Header) {
 // ProtoAtLeast reports whether the HTTP protocol used
 // in the response is at least major.minor.
 func (r *Response) ProtoAtLeast(major, minor int) bool {
-	return r.Protocol.Major > major ||
-		r.Protocol.Major == major && r.Protocol.Minor >= minor
+	return r.ProtoMajor > major ||
+		r.ProtoMajor == major && r.ProtoMinor >= minor
 }
 
 // Write writes r to w in the HTTP/1.x server response format,
@@ -275,9 +289,8 @@ func (r *Response) Write(w io.Writer) error {
 	// Status line
 	text := r.Status
 	if text == "" {
-		var ok bool
-		text, ok = statusText[r.StatusCode]
-		if !ok {
+		text = StatusText(r.StatusCode)
+		if text == "" {
 			text = "status code " + strconv.Itoa(r.StatusCode)
 		}
 	} else {
@@ -286,7 +299,7 @@ func (r *Response) Write(w io.Writer) error {
 		text = strings.TrimPrefix(text, strconv.Itoa(r.StatusCode)+" ")
 	}
 
-	if _, err := fmt.Fprintf(w, "HTTP/%d.%d %03d %s\r\n", r.Protocol.Major, r.Protocol.Minor, r.StatusCode, text); err != nil {
+	if _, err := fmt.Fprintf(w, "HTTP/%d.%d %03d %s\r\n", r.ProtoMajor, r.ProtoMinor, r.StatusCode, text); err != nil {
 		return err
 	}
 
@@ -328,7 +341,7 @@ func (r *Response) Write(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	err = tw.WriteHeader(w)
+	err = tw.writeHeader(w, nil)
 	if err != nil {
 		return err
 	}
@@ -354,11 +367,48 @@ func (r *Response) Write(w io.Writer) error {
 	}
 
 	// Write body and trailer
-	err = tw.WriteBody(w)
+	err = tw.writeBody(w)
 	if err != nil {
 		return err
 	}
 
 	// Success
 	return nil
+}
+
+func (r *Response) closeBody() {
+	if r.Body != nil {
+		r.Body.Close()
+	}
+}
+
+// bodyIsWritable reports whether the Body supports writing. The
+// Transport returns Writable bodies for 101 Switching Protocols
+// responses.
+// The Transport uses this method to determine whether a persistent
+// connection is done being managed from its perspective. Once we
+// return a writable response body to a user, the net/http package is
+// done managing that connection.
+func (r *Response) bodyIsWritable() bool {
+	_, ok := r.Body.(io.Writer)
+	return ok
+}
+
+// isProtocolSwitch reports whether the response code and header
+// indicate a successful protocol upgrade response.
+func (r *Response) isProtocolSwitch() bool {
+	return isProtocolSwitchResponse(r.StatusCode, r.Header)
+}
+
+// isProtocolSwitchResponse reports whether the response code and
+// response header indicate a successful protocol upgrade response.
+func isProtocolSwitchResponse(code int, h Header) bool {
+	return code == StatusSwitchingProtocols && isProtocolSwitchHeader(h)
+}
+
+// isProtocolSwitchHeader reports whether the request or response header
+// is for a protocol switch.
+func isProtocolSwitchHeader(h Header) bool {
+	return h.Get("Upgrade") != "" &&
+		httpguts.HeaderValuesContainsToken(h["Connection"], "Upgrade")
 }
