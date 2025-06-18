@@ -1,0 +1,25 @@
+{
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+
+https://localhost {
+    root * /usr/share/caddy/html/
+    file_server
+
+    tls /etc/ssl/private/self.crt /etc/ssl/private/self.key
+
+    log {
+            output stdout
+            format console
+    }
+
+    @nonh2 {
+        expression `{http.request.proto} != "HTTP/2.0"`
+    }
+    respond @nonh2 "HTTP/2 required" 403
+}

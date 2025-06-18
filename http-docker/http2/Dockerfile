@@ -1,17 +1,13 @@
-FROM nginx:alpine
+FROM caddy:alpine
 
-# Install OpenSSL for cert generation
-RUN apk add --no-cache openssl
+# Copy Caddyfile
+COPY Caddyfile /etc/caddy/Caddyfile
 
-# Copy static content and startup script
-#COPY shared/index.html /usr/share/nginx/html/index.html
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+## Copy static files
+#COPY index.html /usr/share/caddy/index.html
 
-# Use custom nginx config
-RUN rm /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 443
-
-CMD ["/start.sh"]
+# Generate self-signed cert at build time
+RUN apk add openssl && \
+    mkdir -p /etc/ssl/private && \
+    openssl req -x509 -newkey rsa:2048 -keyout /etc/ssl/private/self.key -out /etc/ssl/private/self.crt \
+        -days 365 -nodes -subj "/CN=localhost"

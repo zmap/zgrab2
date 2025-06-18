@@ -11,7 +11,7 @@ services:
     build:
       context: ./http2
     volumes:
-      - ./shared:/usr/share/nginx/html:ro
+      - ./shared:/usr/share/caddy/html:ro
     ports:
       - "8082:443"
     expose:
