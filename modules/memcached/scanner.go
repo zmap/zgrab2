@@ -6,8 +6,9 @@ package memcached
 // Package memcached provides a zgrab2 module that scans for memcache servers.
 // Default port: 11211 (TCP)
 import (
-	"bytes"
 	"context"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -231,7 +232,7 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 			stringVal = strings.TrimSpace(stringVal)
 			value, err = strconv.ParseFloat(string(stringVal), 64)
 		}
-		if err == strconv.ErrSyntax {
+		if errors.Is(err, strconv.ErrSyntax) {
 			return
 		}
 		resultCamel := SnakeToCamel(splitResult[0])
@@ -279,21 +280,52 @@ func FirstInteger(str string) int {
 	return -1
 }
 
+// Struct for binary STAT response defined in:
+// https://docs.memcached.org/protocols/binary/#stat
+type statResponse struct {
+	Magic       byte
+	Opcode      byte
+	KeyLength   uint16
+	ExtraLength uint8
+	DataType    byte
+	Status      uint16
+	TotalBody   uint32
+	Opaque      uint32
+	CAS         uint64
+	Key         string
+	Value       string
+}
+
+// Parse header according to:
+//
+//	https://docs.memcached.org/protocols/binary/#example-10
+func ParseResponse(result []byte) statResponse {
+	keyLength := binary.BigEndian.Uint16(result[2:4])
+	totalBody := binary.BigEndian.Uint32(result[8:12])
+	returnVal := statResponse{
+		result[0],
+		result[1],
+		keyLength,
+		result[4],
+		result[5],
+		binary.BigEndian.Uint16(result[6:8]),
+		totalBody,
+		binary.BigEndian.Uint32(result[12:16]),
+		binary.BigEndian.Uint64(result[16:24]),
+		string(result[24 : 24+keyLength]),
+		string(result[24+keyLength : 24+totalBody])}
+
+	return returnVal
+}
+
 // This function cleans binary results
 func CleanBinary(results []byte) []string {
 	var trimmedResults []string
-
-	// 24 00 bytes between every stat
-	results = results[24:]
 	for len(results) > 24 {
-		// Every stat/header always ends with 0x81
-		endIndex := bytes.IndexByte(results, 0x81)
-		stat := string(results[0:endIndex])
-		results = results[24+endIndex:]
-		firstInt := FirstInteger(stat)
-		// Split stat at integer and add space so it works with PopulateResults
-		stat = stat[0:firstInt] + " " + stat[firstInt:]
+		response := ParseResponse(results)
+		stat := response.Key + " " + response.Value
 		trimmedResults = append(trimmedResults, stat)
+		results = results[24+response.TotalBody:]
 	}
 	return trimmedResults
 }
@@ -359,7 +391,7 @@ func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to write target (%s): %w", target.String(), err)
 	}
 
-	results := make([]byte, 2000)
+	results := make([]byte, 4000)
 	results, err = zgrab2.ReadAvailableWithOptions(conn, len(results), 500*time.Millisecond, 0, len(results))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
