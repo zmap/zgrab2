@@ -823,11 +823,6 @@ func (cfg *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns the module's help string
-func (cfg *Flags) Help() string {
-	return ""
-}
-
 // Init initialized the scanner
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
