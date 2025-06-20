@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"regexp"
 	"strconv"
@@ -22,7 +23,26 @@ var parser *flags.Parser
 const defaultDNSPort = "53"
 
 func init() {
-	parser = flags.NewParser(&config, flags.Default)
+	parser = flags.NewParser(nil, flags.Default)
+	_, err := parser.AddGroup("General Options", "General options for controlling the behavior of ZGrab2", &config.GeneralOptions)
+	if err != nil {
+		log.Fatalf("could not add general options group: %v", err)
+	}
+	_, err = parser.AddGroup("Input/Output Options", "Options for controlling the input/output behavior of ZGrab2", &config.InputOutputOptions)
+	if err != nil {
+		log.Fatalf("could not add I/O options group: %v", err)
+	}
+	_, err = parser.AddGroup("Network Options", "Options for controlling the network behavior of ZGrab2", &config.NetworkingOptions)
+	if err != nil {
+		log.Fatalf("could not add networking options group: %v", err)
+	}
+
+	// this is necessary since the .ini file parser expects that all global options are a part of Application Options
+	appOptions, err := parser.AddGroup("Application Options", "Hidden group including all global options", &config)
+	if err != nil {
+		log.Fatalf("could not add Application Options group: %v", err)
+	}
+	appOptions.Hidden = true
 	desc := []string{
 		// Using a long single line so the terminal can handle wrapping, except for Input/Examples which should be on
 		// separate lines
@@ -36,7 +56,7 @@ func init() {
 			"or simply 'IP' or 'Domain'. See README.md for more details.",
 		"",
 		"Example usages:",
-		"echo '1.1.1.1' | zgrab2 tls          # Scan 1.1.1.1 with TLS",
+		"echo '1.1.1.1' | zgrab2 tls        # Scan 1.1.1.1 with TLS",
 		"echo example.com | zgrab2 http     # Scan example.com with HTTP",
 	}
 	parser.LongDescription = strings.Join(desc, "\n")
