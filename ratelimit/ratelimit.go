@@ -11,7 +11,7 @@ import (
 // PerObjectRateLimiter manages a per-object rate limit.
 // It is thread-safe
 type PerObjectRateLimiter[K comparable] struct {
-	rates map[K]rate.Limiter // Rate limiters for each object
+	rates map[K]*rate.Limiter // Rate limiters for each object
 	// The individual rate limiters are thread-safe, but in the case that a rate limit is added, the outer map must be protected.
 	ratesMutex sync.RWMutex
 	// TODO Phillip remove
@@ -19,11 +19,23 @@ type PerObjectRateLimiter[K comparable] struct {
 	accessLock sync.Mutex
 }
 
+// NewPerObjectRateLimiter creates a new PerObjectRateLimiter.
+func NewPerObjectRateLimiter[K comparable]() *PerObjectRateLimiter[K] {
+	return &PerObjectRateLimiter[K]{
+		rates:      make(map[K]*rate.Limiter),
+		ratesMutex: sync.RWMutex{},
+		accesses:   make(map[K]uint),
+		accessLock: sync.Mutex{},
+	}
+}
+
 // WaitOrCreate waits for the rate limiter for the given key to allow access.
 // If the rate limiter does not exist, one is created using rateLimit and burstRate
 func (l *PerObjectRateLimiter[K]) WaitOrCreate(ctx context.Context, key K, rateLimit rate.Limit, burstRate int) error {
 	l.createIfNecessary(key, rateLimit, burstRate) // Ensure the rate limiter exists
+	l.ratesMutex.RLock()
 	limiter, ok := l.rates[key]
+	l.ratesMutex.RUnlock()
 	if !ok {
 		// shouldn't be possible, but just in case
 		return fmt.Errorf("rate limiter for key %v not found", key)
@@ -59,11 +71,8 @@ func (l *PerObjectRateLimiter[K]) createIfNecessary(key K, rateLimit rate.Limit,
 		defer l.ratesMutex.Unlock()
 		definitelyNeedsCreation := checkIfKeyShouldBeCreated()
 		if definitelyNeedsCreation {
-			if l.rates == nil {
-				l.rates = make(map[K]rate.Limiter)
-			}
 			if _, ok := l.rates[key]; !ok {
-				l.rates[key] = *rate.NewLimiter(rateLimit, burstRate)
+				l.rates[key] = rate.NewLimiter(rateLimit, burstRate)
 				l.accessLock.Lock()
 				defer l.accessLock.Unlock()
 				l.accesses[key] = 0 // Initialize access count
@@ -80,6 +89,7 @@ func (l *PerObjectRateLimiter[K]) PrintAccesses() string {
 	if l.rates == nil {
 		return ""
 	}
+	totalAccesses := uint(0)
 	// Get access counts, sort in descending order
 	type kv struct {
 		Key   K
@@ -87,6 +97,7 @@ func (l *PerObjectRateLimiter[K]) PrintAccesses() string {
 	}
 	var pairs []kv
 	for k, v := range l.accesses {
+		totalAccesses += v
 		pairs = append(pairs, kv{k, v})
 	}
 
@@ -94,9 +105,19 @@ func (l *PerObjectRateLimiter[K]) PrintAccesses() string {
 	sort.Slice(pairs, func(i, j int) bool {
 		return pairs[i].Value > pairs[j].Value
 	})
+	result += fmt.Sprintf("%d Unique IPs\n", len(l.rates))
+	result += fmt.Sprintf("%d Total accesses\n", totalAccesses)
+	result += fmt.Sprintf("%f Average accesses per IP\n", float64(totalAccesses)/float64(len(l.rates)))
 
 	// Print sorted result
-	for _, p := range pairs {
+	const topK = 20
+	result += fmt.Sprintf("Top %d IPs by Accesses:\n", topK)
+	for i, p := range pairs {
+		if i > topK {
+			// Limit to 20 entries for readability
+			result += "...\n"
+			break
+		}
 		result += fmt.Sprintf("%s - %d\n", p.Key, p.Value)
 	}
 	return result

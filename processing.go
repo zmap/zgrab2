@@ -257,6 +257,10 @@ func Process(mon *Monitor) {
 	workers := config.Senders
 	processQueue := make(chan ScanTarget, workers*4)
 	outputQueue := make(chan []byte, workers*4)
+	// TODO Phillip remove
+	defer func() {
+		log.Warnf("Rate Limiter: %s", ipRateLimiter.PrintAccesses())
+	}()
 
 	//Create wait groups
 	var workerDone sync.WaitGroup

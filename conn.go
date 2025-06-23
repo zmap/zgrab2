@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/censys/cidranger"
@@ -279,6 +280,27 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 				}
 			}
 		}
+		// Check rate limits
+		ip := net.ParseIP(host)
+		ipAddr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("invalid IP address: %s", host)
+		}
+		// TODO Phillip use config values
+		//logrus.Warnf("Checking rate limit for IP %s", host)
+		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, 1, 1); err != nil {
+			logrus.Warnf("Failed to wait for rate limiter for IP %s: %v", host, err)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, &ScanError{
+					Status: SCAN_CONNECTION_TIMEOUT,
+					Err:    fmt.Errorf("dialing IP %s timed out or was cancelled while waiting for rate limit token", host),
+				}
+			}
+			return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
+		} else {
+			logrus.Warnf("Succeeded to wait for rate limiter for IP %s: %v", host, err)
+		}
+
 		// can proceed with dialing the IP address, not blocklisted
 		conn, err = d.Dialer.DialContext(ctx, network, address)
 	}

@@ -4,13 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/netip"
 	"time"
+
+	"github.com/zmap/zgrab2/ratelimit"
 )
 
 var scanners map[string]*Scanner
 var orderedScanners []string
 var defaultDialerGroupToScanners map[string]*DialerGroup
 var defaultDialerGroupConfigToScanners map[string]*DialerGroupConfig
+var ipRateLimiter *ratelimit.PerObjectRateLimiter[netip.Addr]
+
+func init() {
+	scanners = make(map[string]*Scanner)
+	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
+	defaultDialerGroupConfigToScanners = make(map[string]*DialerGroupConfig)
+	ipRateLimiter = ratelimit.NewPerObjectRateLimiter[netip.Addr]()
+}
 
 // RegisterScan registers each individual scanner to be ran by the framework
 func RegisterScan(name string, s Scanner) {
@@ -79,10 +90,4 @@ func RunScanner(ctx context.Context, s Scanner, mon *Monitor, target ScanTarget)
 	}
 	resp := ScanResponse{Result: res, Protocol: s.Protocol(), Error: err, Timestamp: t.Format(time.RFC3339), Status: status}
 	return s.GetName(), resp
-}
-
-func init() {
-	scanners = make(map[string]*Scanner)
-	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
-	defaultDialerGroupConfigToScanners = make(map[string]*DialerGroupConfig)
 }
