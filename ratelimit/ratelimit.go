@@ -6,6 +6,7 @@ import (
 	"golang.org/x/time/rate"
 	"sort"
 	"sync"
+	"time"
 )
 
 // PerObjectRateLimiter manages a per-object rate limit.
@@ -17,6 +18,43 @@ type PerObjectRateLimiter[K comparable] struct {
 	// TODO Phillip remove
 	accesses   map[K]uint // Access counters for each object
 	accessLock sync.Mutex
+}
+
+type LRULimiter[K comparable] struct {
+	key      K
+	lastUsed time.Time
+}
+
+type LRUHeap[K comparable] struct {
+	limiters []LRULimiter[K] // Slice of limiters sorted by last used time
+}
+
+func (h *LRUHeap[K]) Len() int {
+	return len(h.limiters)
+}
+
+func (h *LRUHeap[K]) Less(i, j int) bool {
+	return h.limiters[i].lastUsed.Before(h.limiters[j].lastUsed)
+}
+
+func (h *LRUHeap[K]) Swap(i, j int) {
+	h.limiters[i], h.limiters[j] = h.limiters[j], h.limiters[i]
+}
+
+func (h *LRUHeap[K]) Push(x any) {
+	limiter, ok := x.(LRULimiter[K])
+	if !ok {
+		panic(fmt.Sprintf("expected LRULimiter[K], got %T", x))
+	}
+	h.limiters = append(h.limiters, limiter)
+}
+
+func (h *LRUHeap[K]) Pop() any {
+	old := h
+	n := h.Len()
+	x := old.limiters[n-1]
+	h.limiters = old.limiters[0 : n-1]
+	return x
 }
 
 // NewPerObjectRateLimiter creates a new PerObjectRateLimiter.
@@ -118,7 +156,7 @@ func (l *PerObjectRateLimiter[K]) PrintAccesses() string {
 			result += "...\n"
 			break
 		}
-		result += fmt.Sprintf("%s - %d\n", p.Key, p.Value)
+		result += fmt.Sprintf("%v - %d\n", p.Key, p.Value)
 	}
 	return result
 }
