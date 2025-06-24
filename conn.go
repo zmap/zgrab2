@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/time/rate"
 	"io"
 	"math"
 	"math/rand"
@@ -286,9 +287,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		if !ok {
 			return nil, fmt.Errorf("invalid IP address: %s", host)
 		}
-		// TODO Phillip use config values
-		//logrus.Warnf("Checking rate limit for IP %s", host)
-		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, 1, 1); err != nil {
+		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
 			logrus.Warnf("Failed to wait for rate limiter for IP %s: %v", host, err)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return nil, &ScanError{
@@ -297,8 +296,6 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 				}
 			}
 			return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
-		} else {
-			logrus.Warnf("Succeeded to wait for rate limiter for IP %s: %v", host, err)
 		}
 
 		// can proceed with dialing the IP address, not blocklisted
@@ -353,6 +350,15 @@ func (d *Dialer) dialContextDomain(ctx context.Context, network, host, port stri
 }
 
 func (d *Dialer) lookupIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if err := dnsRateLimiter.Wait(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, &ScanError{
+				Status: SCAN_CONNECTION_TIMEOUT,
+				Err:    fmt.Errorf("dns lookup %s timed out or was cancelled while waiting for rate limit token", host),
+			}
+		}
+		return nil, fmt.Errorf("failed to wait for rate limiter for DNS: %w", err)
+	}
 	ips, err := d.Resolver.LookupIP(ctx, "ip", host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve domain %s: %w", host, err)

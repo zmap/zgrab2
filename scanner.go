@@ -3,6 +3,7 @@ package zgrab2
 import (
 	"context"
 	"fmt"
+	"golang.org/x/time/rate"
 	"log"
 	"net/netip"
 	"time"
@@ -15,6 +16,7 @@ var orderedScanners []string
 var defaultDialerGroupToScanners map[string]*DialerGroup
 var defaultDialerGroupConfigToScanners map[string]*DialerGroupConfig
 var ipRateLimiter *ratelimit.PerObjectRateLimiter[netip.Addr]
+var dnsRateLimiter *rate.Limiter
 
 func init() {
 	scanners = make(map[string]*Scanner)
