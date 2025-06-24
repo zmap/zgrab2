@@ -3,10 +3,11 @@ package ratelimit
 import (
 	"context"
 	"fmt"
-	lru "github.com/hashicorp/golang-lru/v2/expirable"
-	"golang.org/x/time/rate"
 	"sync"
 	"time"
+
+	lru "github.com/hashicorp/golang-lru/v2/expirable"
+	"golang.org/x/time/rate"
 )
 
 const (

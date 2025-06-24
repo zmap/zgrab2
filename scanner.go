@@ -3,10 +3,11 @@ package zgrab2
 import (
 	"context"
 	"fmt"
-	"golang.org/x/time/rate"
 	"log"
 	"net/netip"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/zmap/zgrab2/ratelimit"
 )

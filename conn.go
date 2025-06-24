@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/time/rate"
 	"io"
 	"math"
 	"math/rand"
 	"net"
 	"net/netip"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/censys/cidranger"
 
@@ -288,7 +289,6 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			return nil, fmt.Errorf("invalid IP address: %s", host)
 		}
 		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
-			logrus.Warnf("Failed to wait for rate limiter for IP %s: %v", host, err)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return nil, &ScanError{
 					Status: SCAN_CONNECTION_TIMEOUT,
