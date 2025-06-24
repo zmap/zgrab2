@@ -35,10 +35,13 @@ func NewPerObjectRateLimiter[K comparable]() *PerObjectRateLimiter[K] {
 // If the rate limiter does not exist, one is created using rateLimit and burstRate
 func (l *PerObjectRateLimiter[K]) WaitOrCreate(ctx context.Context, key K, rateLimit rate.Limit, burstRate int) error {
 	l.Lock()
-	l.limitLRU.Add(key, rate.NewLimiter(rateLimit, burstRate)) // ensure limiter exists for the key
 	limiter, ok := l.limitLRU.Get(key)
 	if !ok {
-		panic("unexpected error: rate limiter for key not found after adding it")
+		l.limitLRU.Add(key, rate.NewLimiter(rateLimit, burstRate)) // ensure limiter exists for the key
+		limiter, ok = l.limitLRU.Get(key)
+		if !ok {
+			panic("unexpected error: rate limiter for key not found after adding it")
+		}
 	}
 	l.Unlock() // Unlock before waiting to avoid deadlocks
 	if err := limiter.Wait(ctx); err != nil {
