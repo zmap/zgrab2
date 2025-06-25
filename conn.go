@@ -336,15 +336,16 @@ func (d *Dialer) dialContextDomain(ctx context.Context, network, host, port stri
 		d.Timeout = originalDialerTimeout // Restore the original timeout after dialing
 	}()
 	d.Timeout = singleIPTimeout // Dialer will only wait for this amount of time for each IP
+	var conn net.Conn
 	for _, ip := range usableIPs {
-		conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		conn, err = d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 		if err == nil {
 			return conn, nil
 		}
 	}
 	return nil, &ScanError{
 		Status: SCAN_CONNECTION_TIMEOUT,
-		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout", host),
+		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout. Last IP errored with: %w", host, err),
 	}
 
 }
