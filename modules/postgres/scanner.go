@@ -424,9 +424,13 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 	defer mgr.cleanUp()
 	// Send too-low protocol version (0.0) StartupMessage to get a simple supported-protocols error string
 	// Also do TLS handshake, if configured / supported
-	{
-		sql, connectErr := s.newConnection(ctx, t, mgr, false, dialGroup)
+	// Retry without TLS if we get an ErrorResponse from the SSLRequest
+	for i := range 2 {
+		sql, connectErr := s.newConnection(ctx, t, mgr, i > 0, dialGroup)
 		if connectErr != nil {
+			if connectErr.Status == zgrab2.SCAN_APPLICATION_ERROR {
+				continue
+			}
 			return connectErr.Unpack(nil)
 		}
 		defer mgr.closeConnection(sql)
@@ -461,6 +465,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 			return err.Unpack(&results)
 		}
 		mgr.closeConnection(sql)
+		break
 	}
 
 	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
