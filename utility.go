@@ -18,31 +18,18 @@ import (
 	flags "github.com/zmap/zflags"
 )
 
-var parser *flags.Parser
+var (
+	parser *flags.Parser // parser for main zgrab2 command
+	// iniParser is a parser just for ini files. It's frustrating that we need both, but the ini parser needs an option
+	// group 'Application Options' and it seems we can't have this along with option groups in the main parser and have
+	// options set correctly. The hidden one shadows the other and no CLI flags are set.
+	iniParser *flags.Parser
+)
 
 const defaultDNSPort = "53"
 
 func init() {
 	parser = flags.NewParser(nil, flags.Default)
-	_, err := parser.AddGroup("General Options", "General options for controlling the behavior of ZGrab2", &config.GeneralOptions)
-	if err != nil {
-		log.Fatalf("could not add general options group: %v", err)
-	}
-	_, err = parser.AddGroup("Input/Output Options", "Options for controlling the input/output behavior of ZGrab2", &config.InputOutputOptions)
-	if err != nil {
-		log.Fatalf("could not add I/O options group: %v", err)
-	}
-	_, err = parser.AddGroup("Network Options", "Options for controlling the network behavior of ZGrab2", &config.NetworkingOptions)
-	if err != nil {
-		log.Fatalf("could not add networking options group: %v", err)
-	}
-
-	// this is necessary since the .ini file parser expects that all global options are a part of Application Options
-	appOptions, err := parser.AddGroup("Application Options", "Hidden group including all global options", &config)
-	if err != nil {
-		log.Fatalf("could not add Application Options group: %v", err)
-	}
-	appOptions.Hidden = true
 	desc := []string{
 		// Using a long single line so the terminal can handle wrapping, except for Input/Examples which should be on
 		// separate lines
@@ -60,12 +47,35 @@ func init() {
 		"echo example.com | zgrab2 http     # Scan example.com with HTTP",
 	}
 	parser.LongDescription = strings.Join(desc, "\n")
+	_, err := parser.AddCommand("multiple", "Run multiple commands in a single run", "", &config.Multiple)
+	if err != nil {
+		log.Fatalf("could not add multiple command: %v", err)
+	}
+	_, err = parser.AddGroup("General Options", "General options for controlling the behavior of ZGrab2", &config.GeneralOptions)
+	if err != nil {
+		log.Fatalf("could not add general options group: %v", err)
+	}
+	_, err = parser.AddGroup("Input/Output Options", "Options for controlling the input/output behavior of ZGrab2", &config.InputOutputOptions)
+	if err != nil {
+		log.Fatalf("could not add I/O options group: %v", err)
+	}
+	_, err = parser.AddGroup("Network Options", "Options for controlling the network behavior of ZGrab2", &config.NetworkingOptions)
+	if err != nil {
+		log.Fatalf("could not add networking options group: %v", err)
+	}
+	iniParser = flags.NewParser(nil, flags.Default)
 }
 
 // NewIniParser creates and returns a ini parser initialized
 // with the default parser
 func NewIniParser() *flags.IniParser {
-	return flags.NewIniParser(parser)
+	group, err := iniParser.AddGroup("Application Options", "Hidden group including all global options for ini files", &config)
+	if err != nil {
+		log.Fatalf("could not add Application Options group: %v", err)
+	}
+	group.Hidden = true
+
+	return flags.NewIniParser(iniParser)
 }
 
 // AddCommand adds a module to the parser and returns a pointer to
@@ -73,7 +83,15 @@ func NewIniParser() *flags.IniParser {
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
 	cmd, err := parser.AddCommand(command, shortDescription, longDescription, m)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not add command to default parser: %w", err)
+	}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
+	cmd.FindOptionByLongName("name").Default = []string{command}
+
+	// Add the same command to the ini parser
+	cmd, err = iniParser.AddCommand(command, shortDescription, longDescription, m)
+	if err != nil {
+		return nil, fmt.Errorf("could not add command to ini parser: %w", err)
 	}
 	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
 	cmd.FindOptionByLongName("name").Default = []string{command}
