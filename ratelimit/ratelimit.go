@@ -10,11 +10,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const (
-	maxLRUSize = 10_000_000       // Limiters track IP connects per second. There's no way we'll have over 10 million unique IPs per second, so this should be plenty.
-	maxLRUTTL  = time.Second * 10 // Memory Leak Avoidance - We'll remove a limiter for an IP after 10 seconds of inactivity. It'll be re-created if the IP connects again after that time.
-)
-
 // PerObjectRateLimiter manages a per-object rate limit.
 // It is thread-safe
 type PerObjectRateLimiter[K comparable] struct {
@@ -23,11 +18,11 @@ type PerObjectRateLimiter[K comparable] struct {
 }
 
 // NewPerObjectRateLimiter creates a new PerObjectRateLimiter.
-func NewPerObjectRateLimiter[K comparable]() *PerObjectRateLimiter[K] {
+func NewPerObjectRateLimiter[K comparable](maxCacheSize int, cacheEntryTTL time.Duration) *PerObjectRateLimiter[K] {
 	limiter := &PerObjectRateLimiter[K]{
 		Mutex: &sync.Mutex{},
 	}
-	limiter.limitLRU = lru.NewLRU[K, *rate.Limiter](maxLRUSize, nil, maxLRUTTL) // Initialize LRU cache with a maximum size
+	limiter.limitLRU = lru.NewLRU[K, *rate.Limiter](maxCacheSize, nil, cacheEntryTTL) // Initialize LRU cache with a maximum size
 	return limiter
 }
 
