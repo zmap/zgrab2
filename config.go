@@ -76,6 +76,8 @@ func SetOutputFunc(f OutputResultsFunc) {
 func init() {
 	config.Multiple.ContinueOnError = true // set default for multiple value
 	config.Multiple.BreakOnSuccess = false // set default for multiple value
+	config.ServerRateLimit = 100           // default rate limit for connections per second, overriden by CLI
+	config.DNSServerRateLimit = 1_000
 }
 
 var config Config
