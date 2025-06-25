@@ -358,7 +358,7 @@ func (s *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *zgrab2.
 }
 
 // newConnection opens up a new connection to the ScanTarget, and if necessary, attempts to update the connection to SSL
-func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *connectionManager, nossl bool, dialGroup *zgrab2.DialerGroup) (*Connection, *zgrab2.ScanError) {
+func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *connectionManager, useSSL bool, dialGroup *zgrab2.DialerGroup) (*Connection, *zgrab2.ScanError) {
 	var conn net.Conn
 	var err error
 	l4Dialer := dialGroup.L4Dialer
@@ -372,7 +372,7 @@ func (s *Scanner) newConnection(ctx context.Context, t *zgrab2.ScanTarget, mgr *
 	mgr.addConnection(conn)
 	sql := Connection{Target: t, Connection: conn, Config: s.Config}
 	sql.IsSSL = false
-	if !nossl && !s.Config.SkipSSL {
+	if useSSL && !s.Config.SkipSSL {
 		hasSSL, sslError := sql.RequestSSL()
 		if sslError != nil {
 			return nil, sslError
@@ -426,7 +426,8 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 	// Also do TLS handshake, if configured / supported
 	// Retry without TLS if we get an ErrorResponse from the SSLRequest
 	for i := range 2 {
-		sql, connectErr := s.newConnection(ctx, t, mgr, i > 0, dialGroup)
+		useSSL := i == 0 // only use TLS on first attempt
+		sql, connectErr := s.newConnection(ctx, t, mgr, useSSL, dialGroup)
 		if connectErr != nil {
 			if connectErr.Status == zgrab2.SCAN_APPLICATION_ERROR {
 				continue
@@ -470,7 +471,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 
 	// Send too-high protocol version (255.255) StartupMessage to get full error message (including line numbers, useful for probing server version)
 	{
-		sql, connectErr := s.newConnection(ctx, t, mgr, true, dialGroup)
+		sql, connectErr := s.newConnection(ctx, t, mgr, false, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
@@ -504,7 +505,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 		var err error
 		var response *ServerPacket
 		var readErr *zgrab2.ScanError
-		sql, connectErr := s.newConnection(ctx, t, mgr, true, dialGroup)
+		sql, connectErr := s.newConnection(ctx, t, mgr, false, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
@@ -533,7 +534,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 
 	// If user / database / application_name are provided, do a final scan with those
 	if s.Config.User != "" || s.Config.Database != "" || s.Config.ApplicationName != "" {
-		sql, connectErr := s.newConnection(ctx, t, mgr, false, dialGroup)
+		sql, connectErr := s.newConnection(ctx, t, mgr, true, dialGroup)
 		if connectErr != nil {
 			return connectErr.Unpack(&results)
 		}
