@@ -71,7 +71,7 @@ var ErrNoMatch = errors.New("pattern did not match")
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
 	var m Module
-	_, err := zgrab2.AddCommand("banner", "Banner", m.Description(), 80, &m)
+	_, err := zgrab2.AddCommand("banner", "Grabs the server's response to an arbitrary probe with optional regex matching", m.Description(), 80, &m)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func (f *Flags) Validate(_ []string) error {
 
 // Description returns an overview of this module.
 func (m *Module) Description() string {
-	return "Fetch a raw banner by sending a static probe and checking the result against a regular expression"
+	return "Fetch a raw banner by sending a static probe and checking the result against an optional regular expression"
 }
 
 // Help returns the module's help string.

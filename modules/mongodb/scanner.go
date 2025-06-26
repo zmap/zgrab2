@@ -389,7 +389,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mongodb", "mongodb", module.Description(), 27017, &module)
+	_, err := zgrab2.AddCommand("mongodb", "Document-oriented Database (MongoDB)", module.Description(), 27017, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

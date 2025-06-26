@@ -35,7 +35,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("dnp3", "dnp3", module.Description(), 20000, &module)
+	_, err := zgrab2.AddCommand("dnp3", "Distributed Network Protocol 3 (DNP3)", module.Description(), 20000, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

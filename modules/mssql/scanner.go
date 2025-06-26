@@ -205,7 +205,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 // RegisterModule is called by modules/mssql.go's init()
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mssql", "MSSQL", module.Description(), 1433, &module)
+	_, err := zgrab2.AddCommand("mssql", "Microsoft SQL Server (MSSQL)", module.Description(), 1433, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

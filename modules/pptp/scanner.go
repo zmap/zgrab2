@@ -42,7 +42,7 @@ type Scanner struct {
 // RegisterModule registers the pptp zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("pptp", "PPTP", module.Description(), 1723, &module)
+	_, err := zgrab2.AddCommand("pptp", "Point-to-Point Tunneling Protocol (PPTP)", module.Description(), 1723, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

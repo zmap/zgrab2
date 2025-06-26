@@ -569,7 +569,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zg
 // the postgres module with the zgrab2 framework.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("postgres", "Postgres", module.Description(), 5432, &module)
+	_, err := zgrab2.AddCommand("postgres", "PostgreSQL (Postgres)", module.Description(), 5432, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
