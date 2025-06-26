@@ -8,7 +8,10 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/netip"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/censys/cidranger"
 
@@ -279,6 +282,22 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 				}
 			}
 		}
+		// Check rate limits
+		ip := net.ParseIP(host)
+		ipAddr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("invalid IP address: %s", host)
+		}
+		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, &ScanError{
+					Status: SCAN_CONNECTION_TIMEOUT,
+					Err:    fmt.Errorf("dialing IP %s timed out or was cancelled while waiting for rate limit token", host),
+				}
+			}
+			return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
+		}
+
 		// can proceed with dialing the IP address, not blocklisted
 		conn, err = d.Dialer.DialContext(ctx, network, address)
 	}
@@ -317,20 +336,30 @@ func (d *Dialer) dialContextDomain(ctx context.Context, network, host, port stri
 		d.Timeout = originalDialerTimeout // Restore the original timeout after dialing
 	}()
 	d.Timeout = singleIPTimeout // Dialer will only wait for this amount of time for each IP
+	var conn net.Conn
 	for _, ip := range usableIPs {
-		conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		conn, err = d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 		if err == nil {
 			return conn, nil
 		}
 	}
 	return nil, &ScanError{
 		Status: SCAN_CONNECTION_TIMEOUT,
-		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout", host),
+		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout. Last IP errored with: %w", host, err),
 	}
 
 }
 
 func (d *Dialer) lookupIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if err := dnsRateLimiter.Wait(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, &ScanError{
+				Status: SCAN_CONNECTION_TIMEOUT,
+				Err:    fmt.Errorf("dns lookup %s timed out or was cancelled while waiting for rate limit token", host),
+			}
+		}
+		return nil, fmt.Errorf("failed to wait for rate limiter for DNS: %w", err)
+	}
 	ips, err := d.Resolver.LookupIP(ctx, "ip", host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve domain %s: %w", host, err)

@@ -4,13 +4,32 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/netip"
 	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/zmap/zgrab2/ratelimit"
 )
 
 var scanners map[string]*Scanner
 var orderedScanners []string
 var defaultDialerGroupToScanners map[string]*DialerGroup
 var defaultDialerGroupConfigToScanners map[string]*DialerGroupConfig
+var ipRateLimiter *ratelimit.PerObjectRateLimiter[netip.Addr]
+var dnsRateLimiter *rate.Limiter
+
+const (
+	maxLRUSize = 10_000_000       // Limiters track IP connects per second. There's no way we'll have over 10 million unique IPs per second, so this should be plenty.
+	maxLRUTTL  = time.Second * 10 // Memory Leak Avoidance - We'll remove a limiter for an IP after 10 seconds of inactivity. It'll be re-created if the IP connects again after that time.
+)
+
+func init() {
+	scanners = make(map[string]*Scanner)
+	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
+	defaultDialerGroupConfigToScanners = make(map[string]*DialerGroupConfig)
+	ipRateLimiter = ratelimit.NewPerObjectRateLimiter[netip.Addr](maxLRUSize, maxLRUTTL)
+}
 
 // RegisterScan registers each individual scanner to be ran by the framework
 func RegisterScan(name string, s Scanner) {
@@ -79,10 +98,4 @@ func RunScanner(ctx context.Context, s Scanner, mon *Monitor, target ScanTarget)
 	}
 	resp := ScanResponse{Result: res, Protocol: s.Protocol(), Error: err, Timestamp: t.Format(time.RFC3339), Status: status}
 	return s.GetName(), resp
-}
-
-func init() {
-	scanners = make(map[string]*Scanner)
-	defaultDialerGroupToScanners = make(map[string]*DialerGroup)
-	defaultDialerGroupConfigToScanners = make(map[string]*DialerGroupConfig)
 }
