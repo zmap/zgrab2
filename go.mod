@@ -6,6 +6,7 @@ toolchain go1.23.5
 
 require (
 	github.com/censys/cidranger v1.1.3
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hdm/jarm-go v0.0.7
 	github.com/prometheus/client_golang v1.22.0
 	github.com/rabbitmq/amqp091-go v1.10.0
@@ -16,6 +17,7 @@ require (
 	golang.org/x/net v0.41.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/text v0.26.0
+	golang.org/x/time v0.12.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 	gopkg.in/yaml.v2 v2.4.0
