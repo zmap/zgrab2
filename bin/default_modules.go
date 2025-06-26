@@ -11,6 +11,7 @@ import (
 	"github.com/zmap/zgrab2/modules/http"
 	"github.com/zmap/zgrab2/modules/imap"
 	"github.com/zmap/zgrab2/modules/ipp"
+	"github.com/zmap/zgrab2/modules/memcached"
 	"github.com/zmap/zgrab2/modules/modbus"
 	"github.com/zmap/zgrab2/modules/mongodb"
 	"github.com/zmap/zgrab2/modules/mssql"
@@ -30,29 +31,30 @@ var defaultModules zgrab2.ModuleSet
 
 func init() {
 	defaultModules = map[string]zgrab2.ScanModule{
-		"bacnet":   &bacnet.Module{},
-		"banner":   &banner.Module{},
-		"dnp3":     &dnp3.Module{},
-		"fox":      &fox.Module{},
-		"ftp":      &ftp.Module{},
-		"http":     &http.Module{},
-		"imap":     &imap.Module{},
-		"ipp":      &ipp.Module{},
-		"modbus":   &modbus.Module{},
-		"mongodb":  &mongodb.Module{},
-		"mssql":    &mssql.Module{},
-		"mysql":    &mysql.Module{},
-		"ntp":      &ntp.Module{},
-		"oracle":   &oracle.Module{},
-		"pop3":     &pop3.Module{},
-		"postgres": &postgres.Module{},
-		"redis":    &redis.Module{},
-		"siemens":  &siemens.Module{},
-		"smb":      &smb.Module{},
-		"smtp":     &smtp.Module{},
-		"ssh":      &modules.SSHModule{},
-		"telnet":   &telnet.Module{},
-		"tls":      &modules.TLSModule{},
+		"bacnet":    &bacnet.Module{},
+		"banner":    &banner.Module{},
+		"dnp3":      &dnp3.Module{},
+		"fox":       &fox.Module{},
+		"ftp":       &ftp.Module{},
+		"http":      &http.Module{},
+		"imap":      &imap.Module{},
+		"ipp":       &ipp.Module{},
+		"memcached": &memcached.Module{},
+		"modbus":    &modbus.Module{},
+		"mongodb":   &mongodb.Module{},
+		"mssql":     &mssql.Module{},
+		"mysql":     &mysql.Module{},
+		"ntp":       &ntp.Module{},
+		"oracle":    &oracle.Module{},
+		"pop3":      &pop3.Module{},
+		"postgres":  &postgres.Module{},
+		"redis":     &redis.Module{},
+		"siemens":   &siemens.Module{},
+		"smb":       &smb.Module{},
+		"smtp":      &smtp.Module{},
+		"ssh":       &modules.SSHModule{},
+		"telnet":    &telnet.Module{},
+		"tls":       &modules.TLSModule{},
 	}
 }
 
