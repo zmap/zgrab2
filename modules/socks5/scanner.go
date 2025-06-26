@@ -49,7 +49,7 @@ type Connection struct {
 // RegisterModule registers the socks5 zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("socks5", "SOCKS5", module.Description(), 1080, &module)
+	_, err := zgrab2.AddCommand("socks5", "Socket Secure Proxy (SOCKS5)", module.Description(), 1080, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

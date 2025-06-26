@@ -54,7 +54,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("modbus", "modbus", module.Description(), 502, &module)
+	_, err := zgrab2.AddCommand("modbus", "Open-source PLC Communication Protocol (Modbus)", module.Description(), 502, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

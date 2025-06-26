@@ -156,7 +156,7 @@ type Scanner struct {
 // RegisterModule is called by modules/mysql.go to register the scanner.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mysql", "MySQL", module.Description(), 3306, &module)
+	_, err := zgrab2.AddCommand("mysql", "Open-Source SQL Server Implementation (MySQL)", module.Description(), 3306, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

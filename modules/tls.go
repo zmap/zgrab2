@@ -25,7 +25,7 @@ type TLSScanner struct {
 
 func init() {
 	var tlsModule TLSModule
-	_, err := zgrab2.AddCommand("tls", "TLS Banner Grab", tlsModule.Description(), 443, &tlsModule)
+	_, err := zgrab2.AddCommand("tls", "Transport Layer Security (TLS)", tlsModule.Description(), 443, &tlsModule)
 	if err != nil {
 		log.Fatal(err)
 	}

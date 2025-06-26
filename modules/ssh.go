@@ -39,7 +39,7 @@ type SSHScanner struct {
 
 func init() {
 	var sshModule SSHModule
-	_, err := zgrab2.AddCommand("ssh", "SSH Banner Grab", sshModule.Description(), 22, &sshModule)
+	_, err := zgrab2.AddCommand("ssh", "Secure Shell (SSH)", sshModule.Description(), 22, &sshModule)
 	if err != nil {
 		log.Fatal(err)
 	}

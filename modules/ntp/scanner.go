@@ -797,7 +797,7 @@ type Scanner struct {
 // RegisterModule registers the module with zgrab2
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("ntp", "NTP", module.Description(), 123, &module)
+	_, err := zgrab2.AddCommand("ntp", "Network Time Protocol (NTP)", module.Description(), 123, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

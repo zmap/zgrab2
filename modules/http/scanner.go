@@ -615,7 +615,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 // zgrab2 framework.
 func RegisterModule() {
 	var module Module
-	cmd, err := zgrab2.AddCommand("http", "HTTP Banner Grab", module.Description(), 0, &module)
+	cmd, err := zgrab2.AddCommand("http", "Hypertext Transfer Protocol (HTTP)", module.Description(), 0, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
