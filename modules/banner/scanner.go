@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -46,14 +47,27 @@ type Flags struct {
 
 // Module is the implementation of the zgrab2.Module interface.
 type Module struct {
+	*zgrab2.BaseModule
+}
+
+// Create the module with metadata
+func NewModule() *Module {
+	return &Module{
+		BaseModule: zgrab2.NewBaseModule(
+			"banner",
+			"Fetch a raw banner by sending a static probe and checking the result against a regular expression",
+			80,
+			reflect.TypeOf(Flags{}),
+		),
+	}
 }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
+	*zgrab2.BaseScanner
 	config            *Flags
 	regex             *regexp.Regexp
 	probe             []byte
-	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
 // ScanResults instances are returned by the module's Scan function.
@@ -70,16 +84,12 @@ var ErrNoMatch = errors.New("pattern did not match")
 
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
-	var m Module
-	_, err := zgrab2.AddCommand("banner", "Banner", m.Description(), 80, &m)
+	m := NewModule()
+	//TODO, just pass module to AddCommand. We don't here so I don't refactor ALL the modules at once
+	_, err := zgrab2.AddCommand(m.Protocol(), m.Protocol(), m.Description(), m.DefaultPort(), m)
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// NewFlags returns a new default flags object.
-func (m *Module) NewFlags() any {
-	return new(Flags)
 }
 
 // GetName returns the Scanner name defined in the Flags.
@@ -92,23 +102,16 @@ func (s *Scanner) GetTrigger() string {
 	return s.config.Trigger
 }
 
-// Protocol returns the protocol identifier of the scan.
-func (s *Scanner) Protocol() string {
-	return "banner"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
+// NewScanner returns a new Scanner instance.
+func (module *Module) NewScanner() zgrab2.Scanner {
+	return &Scanner{
+		BaseScanner: zgrab2.NewBaseScanner(module.Protocol()),
+	}
 }
 
 // InitPerSender initializes the scanner for a given sender.
 func (s *Scanner) InitPerSender(senderID int) error {
 	return nil
-}
-
-// NewScanner returns a new Scanner object.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
 }
 
 // Validate validates the flags and returns nil on success.
@@ -118,16 +121,6 @@ func (f *Flags) Validate(_ []string) error {
 		return zgrab2.ErrInvalidArguments
 	}
 	return nil
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Fetch a raw banner by sending a static probe and checking the result against a regular expression"
-}
-
-// Help returns the module's help string.
-func (f *Flags) Help() string {
-	return ""
 }
 
 // Init initializes the Scanner with the command-line flags.
@@ -151,13 +144,13 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 		}
 		s.probe = []byte(strProbe)
 	}
-	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	s.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
 	}
 	if f.UseTLS {
-		s.dialerGroupConfig.TLSFlags = &f.TLSFlags
+		s.DialerGroupConfig.TLSFlags = &f.TLSFlags
 	}
 	return nil
 }

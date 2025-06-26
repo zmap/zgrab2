@@ -76,11 +76,6 @@ func (f *Flags) Validate(_ []string) (err error) {
 	return
 }
 
-// Help returns this module's help string.
-func (f *Flags) Help() string {
-	return ""
-}
-
 // Protocol returns the protocol identifier for the scanner.
 func (s *Scanner) Protocol() string {
 	return "socks5"
