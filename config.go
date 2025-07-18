@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -22,6 +23,8 @@ const (
 	IPVersionCapabilityIPv4Address = "1.1.1.1:80"              // Cloudflare has this IP/Port redirect to https://one.one.one.one. We can use it to test if this host has IPv4 connectivity
 	IPVersionCapabilityIPv6Address = "2606:4700:4700::1111:80" // Same as above for IPv6
 )
+
+var prometheusOnce sync.Once
 
 type GeneralOptions struct {
 	Senders          int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
@@ -94,7 +97,12 @@ func init() {
 var config Config
 var blocklist cidranger.Ranger
 
-func validateFrameworkConfiguration() {
+// ValidateFrameworkConfiguration configures and validates the ZGrab2 config struct, e.g. taking the --input-file string
+// and opening the file, or starting the Prometheus server, if configured.
+// It is safe to call this function multiple times (and this occurs when using the --multiple command: 1) for parsing the
+// command line flags, and 2) for parsing the INI file). Actions which should only be done once, such as starting the
+// Prometheus server, are guarded by a sync.Once variable.
+func ValidateFrameworkConfiguration() {
 	// validate files
 	if config.LogFileName == "-" {
 		config.logFile = os.Stderr
@@ -154,10 +162,12 @@ func validateFrameworkConfiguration() {
 	//validate/start prometheus
 	if config.Prometheus != "" {
 		go func() {
-			http.Handle("/metrics", promhttp.Handler())
-			if err := http.ListenAndServe(config.Prometheus, nil); err != nil {
-				log.Fatalf("could not run prometheus server: %s", err.Error())
-			}
+			prometheusOnce.Do(func() {
+				http.Handle("/metrics", promhttp.Handler())
+				if err := http.ListenAndServe(config.Prometheus, nil); err != nil {
+					log.Fatalf("could not run prometheus server: %s", err.Error())
+				}
+			})
 		}()
 	}
 

@@ -96,7 +96,7 @@ func AddCommand(command string, shortDescription string, longDescription string,
 func ParseCommandLine(flags []string) ([]string, string, ScanFlags, error) {
 	posArgs, moduleType, f, err := parser.ParseCommandLine(flags)
 	if err == nil {
-		validateFrameworkConfiguration()
+		ValidateFrameworkConfiguration()
 	}
 	sf, _ := f.(ScanFlags)
 	return posArgs, moduleType, sf, err
