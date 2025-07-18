@@ -155,6 +155,11 @@ name="http80"
 port=80
 ```
 
+You can run with this configuration using the following:
+```shell
+cat input.csv | ./zgrab2 multiple -c config.ini        
+```
+
 ## Adding New Protocols 
 
 Add module to modules/ that satisfies the following interfaces: `Scanner`, `ScanModule`, `ScanFlags`.
