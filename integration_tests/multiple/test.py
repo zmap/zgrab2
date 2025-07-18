@@ -54,7 +54,7 @@ def validate_ntp(output):
 def test_multiple():
     print("multiple/test: Run both NTP and HTTP scans")
     print(multiple_test_root)
-    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --input-file=/multiple/input.csv --config-file=/multiple/multiple.ini"
+    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --config-file=/multiple/multiple.ini"
     out = run_command(
         cmd,
     )
