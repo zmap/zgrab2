@@ -167,7 +167,7 @@ type Result struct {
 // RegisterModule registers the zgrab2 module
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("redis", "redis", module.Description(), 6379, &module)
+	_, err := zgrab2.AddCommand("redis", "In-Memmory Key-Value Database (Redis)", module.Description(), 6379, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

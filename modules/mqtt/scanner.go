@@ -52,7 +52,7 @@ type Connection struct {
 // RegisterModule registers the MQTT zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mqtt", "MQTT", module.Description(), 1883, &module)
+	_, err := zgrab2.AddCommand("mqtt", "Message Queuing Telemetry Transport (MQTT)", module.Description(), 1883, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

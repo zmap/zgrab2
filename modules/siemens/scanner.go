@@ -33,7 +33,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("siemens", "siemens", module.Description(), 102, &module)
+	_, err := zgrab2.AddCommand("siemens", "Siemens S7 Communication Protocol (Siemens)", module.Description(), 102, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

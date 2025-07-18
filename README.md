@@ -26,6 +26,11 @@ Replace `/path/to/your/config.ini` with the path to your configuration file on t
 ### Building from Source
 
 ZGrab2 requires Go 1.23 or later to build from source.
+If you run into issues with `command not found: zgrab2`, ensure that your `$GOPATH/bin` is in your `PATH` environment variable.
+Add the following line to your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`):
+```shell
+export PATH=$PATH:$GOPATH/bin
+```
 
 ```shell
 git clone https://github.com/zmap/zgrab2.git
@@ -46,7 +51,7 @@ export GOTOOLCHAIN=auto
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
 make install # Go will download the required 1.23 toolchain automatically
-./zgrab2 http --help # to see the http module's help message
+zgrab2 http --help # to see the http module's help message
 ```
 
 ## Single Module Usage 

@@ -38,7 +38,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("fox", "fox", module.Description(), 1911, &module)
+	_, err := zgrab2.AddCommand("fox", "Niagara Fox IoT and Building Automation Communication Protocol (Fox)", module.Description(), 1911, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -39,7 +39,7 @@ type Results struct {
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("jarm", "jarm", module.Description(), 443, &module)
+	_, err := zgrab2.AddCommand("jarm", "TLS server fingerprinting (JARM)", module.Description(), 443, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -97,7 +97,7 @@ type Result struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("amqp091", "amqp091", module.Description(), 5672, &module)
+	_, err := zgrab2.AddCommand("amqp091", "Advanced Message Queue Protocol v0.9.1 (AMQP)", module.Description(), 5672, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

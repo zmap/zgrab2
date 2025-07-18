@@ -109,7 +109,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("oracle", "oracle", module.Description(), 1521, &module)
+	_, err := zgrab2.AddCommand("oracle", "Oracle's Transparent Network Substrate Protocol (Oracle)", module.Description(), 1521, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

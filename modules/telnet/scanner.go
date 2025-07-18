@@ -42,7 +42,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("telnet", "telnet", module.Description(), 23, &module)
+	_, err := zgrab2.AddCommand("telnet", "Telnet Remote Terminal Communication (Telnet)", module.Description(), 23, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

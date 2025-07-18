@@ -97,7 +97,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("pop3", "pop3", module.Description(), 110, &module)
+	_, err := zgrab2.AddCommand("pop3", "Post Office Protocol v3 (POP3)", module.Description(), 110, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

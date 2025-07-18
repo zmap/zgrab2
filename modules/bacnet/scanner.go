@@ -37,7 +37,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("bacnet", "bacnet", module.Description(), 0xBAC0, &module)
+	_, err := zgrab2.AddCommand("bacnet", "Building Automation and Control Network (BACNET)", module.Description(), 0xBAC0, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
