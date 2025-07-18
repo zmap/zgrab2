@@ -127,9 +127,9 @@ func ZGrab2Main() {
 		if len(modTypes) != len(flagsReturned) {
 			log.Fatalf("error parsing flags")
 		}
-		// The iniParser will have overwritten config values that were set first in zgrab2.ParseCommandLine.
-		// We need to re-validate the framework configuration.
-		zgrab2.ValidateFrameworkConfiguration()
+		// The iniParser will have overwritten config values that were set first in zgrab2.ParseCommandLine using argv values.
+		// We need to re-validate the framework configuration after parsing the ini file itself.
+		zgrab2.ValidateAndHandleFrameworkConfiguration()
 		for i, fl := range flagsReturned {
 			f, ok := fl.(zgrab2.ScanFlags)
 			if !ok {

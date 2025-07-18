@@ -24,7 +24,7 @@ const (
 	IPVersionCapabilityIPv6Address = "2606:4700:4700::1111:80" // Same as above for IPv6
 )
 
-var prometheusOnce sync.Once
+var prometheusOnce sync.Once // Used to ensure we only start the Prometheus server once, even if ValidateAndHandleFrameworkConfiguration is called multiple times
 
 type GeneralOptions struct {
 	Senders          int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
@@ -97,12 +97,12 @@ func init() {
 var config Config
 var blocklist cidranger.Ranger
 
-// ValidateFrameworkConfiguration configures and validates the ZGrab2 config struct, e.g. taking the --input-file string
+// ValidateAndHandleFrameworkConfiguration configures and validates the ZGrab2 config struct, e.g. taking the --input-file string
 // and opening the file, or starting the Prometheus server, if configured.
 // It is safe to call this function multiple times (and this occurs when using the --multiple command: 1) for parsing the
 // command line flags, and 2) for parsing the INI file). Actions which should only be done once, such as starting the
 // Prometheus server, are guarded by a sync.Once variable.
-func ValidateFrameworkConfiguration() {
+func ValidateAndHandleFrameworkConfiguration() {
 	// validate files
 	if config.LogFileName == "-" {
 		config.logFile = os.Stderr
