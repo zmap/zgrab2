@@ -1,4 +1,5 @@
 {
+    # Enable debug logging globally
     log {
         output stdout
         format console
@@ -13,9 +14,19 @@ https://localhost {
 
     tls /etc/ssl/private/self.crt /etc/ssl/private/self.key
 
+    # Enhanced logging with HTTP/2 details
     log {
-            output stdout
-            format console
+        output stdout
+        format json
+        level DEBUG
+
+        # Include additional fields for HTTP/2 debugging
+        #include http.request.proto
+        #include http.request.method
+        #include http.request.uri
+        #include http.request.headers
+        #include http.response.headers
+        #include http.vars.http2_stream_id
     }
 
     @nonh2 {
