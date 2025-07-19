@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/zmap/zcrypto/tls"
 	"io"
 	"net"
 	"net/url"
@@ -381,6 +382,10 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 			RawHeaderBuffer:     scanner.config.RawHeaders,
+			ForceAttemptHTTP2:   true,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
 		},
 		client:                 http.MakeNewClient(),
 		redirectsToResolvedIPs: make(map[string]string),
@@ -388,36 +393,36 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	if scanner.config.TargetTimeout != 0 {
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
-	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
-		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
-	}
-	ret.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
-		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
-	}
+	//transport.DialTLS = func(network, addr string, cfg *ogTLS.Config) (net.Conn, error) {
+	//	deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+	//	conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
+	//	}
+	//	host, _, err := net.SplitHostPort(addr)
+	//	if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+	//		// addr is a domain, update our mapping of redirected URLs to resolved IPs
+	//		ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+	//	}
+	//	ret.connections = append(ret.connections, conn)
+	//	ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+	//	return conn, nil
+	//}
+	//transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+	//	deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+	//	conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
+	//	}
+	//	host, _, err := net.SplitHostPort(addr)
+	//	if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+	//		// addr is a domain, update our mapping of redirected URLs to resolved IPs
+	//		ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+	//	}
+	//	ret.connections = append(ret.connections, conn)
+	//	ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+	//	return conn, nil
+	//}
 	ret.client.UserAgent = scanner.config.UserAgent
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Transport = ret.transport
