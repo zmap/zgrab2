@@ -231,6 +231,12 @@ type Request struct {
 	// domain name.
 	Host string `json:"host,omitempty"`
 
+	// SkipHost is a flag that indicates whether to skip the host header.
+	// This is against the standard, but can be useful when working with servers
+	// that immediately close the connection upon receiving a host they do not
+	// recognize
+	SkipHost bool `json:"skip_host,omitempty"`
+
 	// Form contains the parsed form data, including both the URL
 	// field's query parameters and the POST or PUT form data.
 	// This field is only available after ParseForm is called.
@@ -581,9 +587,11 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 	}
 
 	// Header lines
-	_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
-	if err != nil {
-		return err
+	if !req.SkipHost {
+		_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Use the defaultUserAgent unless the Header contains one, which
