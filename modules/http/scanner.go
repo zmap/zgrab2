@@ -69,6 +69,7 @@ type Flags struct {
 	CustomHeadersNames     string `long:"custom-headers-names" description:"CSV of custom HTTP headers to send to server"`
 	CustomHeadersValues    string `long:"custom-headers-values" description:"CSV of custom HTTP header values to send to server. Should match order of custom-headers-names."`
 	CustomHeadersDelimiter string `long:"custom-headers-delimiter" description:"Delimiter for customer header name/value CSVs"`
+	SkipHost               bool   `long:"skip-host" description:"Skip encoding the Host header"`
 
 	OverrideSH bool `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
 
@@ -490,6 +491,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
+
+	request.SkipHost = scan.scanner.config.SkipHost
 
 	// By default, the following headers are *always* set:
 	// Host, User-Agent, Accept, Accept-Encoding
