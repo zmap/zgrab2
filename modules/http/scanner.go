@@ -30,6 +30,7 @@ import (
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http2"
 )
 
 var (
@@ -116,7 +117,6 @@ type scan struct {
 	cancelFuncs            []context.CancelFunc
 	scanner                *Scanner
 	target                 *zgrab2.ScanTarget
-	transport              *http.Transport
 	client                 *http.Client
 	results                Results
 	url                    string
@@ -371,44 +371,78 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	return proto + "://" + net.JoinHostPort(host, strconv.Itoa(int(port))) + endpoint
 }
 
+//func (scanner *Scanner) getTransport() *http.Transport { // assuming it's HTTP/2 and HTTPS
+//	isHTTP2 := true
+//	isSecure := true
+//
+//	transport := &http2.Transport{
+//
+//		Proxy:               nil, // TODO: implement proxying
+//		DisableKeepAlives:   false,
+//		DisableCompression:  false,
+//		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
+//		RawHeaderBuffer:     scanner.config.RawHeaders,
+//		ForceAttemptHTTP2:   true,
+//		TLSClientConfig: &tls.Config{
+//			InsecureSkipVerify: true,
+//		},
+//	}
+//
+//}
+
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
+	cfg := &tls.Config{
+		InsecureSkipVerify: true,
+		ServerName:         "localhost",
+	}
+	transport := &http.Transport{
+		Proxy:               nil, // TODO: implement proxying
+		DisableKeepAlives:   false,
+		DisableCompression:  false,
+		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
+		RawHeaderBuffer:     scanner.config.RawHeaders,
+		ForceAttemptHTTP2:   true,
+		TLSClientConfig:     cfg,
+	}
 	ret := scan{
-		scanner: scanner,
-		target:  t,
-		transport: &http.Transport{
-			Proxy:               nil, // TODO: implement proxying
-			DisableKeepAlives:   false,
-			DisableCompression:  false,
-			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
-			RawHeaderBuffer:     scanner.config.RawHeaders,
-			ForceAttemptHTTP2:   true,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		},
+		scanner:                scanner,
+		target:                 t,
 		client:                 http.MakeNewClient(),
 		redirectsToResolvedIPs: make(map[string]string),
 	}
 	if scanner.config.TargetTimeout != 0 {
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
-	//transport.DialTLS = func(network, addr string, cfg *ogTLS.Config) (net.Conn, error) {
-	//	deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-	//	conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
-	//	if err != nil {
-	//		return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
-	//	}
-	//	host, _, err := net.SplitHostPort(addr)
-	//	if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-	//		// addr is a domain, update our mapping of redirected URLs to resolved IPs
-	//		ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-	//	}
-	//	ret.connections = append(ret.connections, conn)
-	//	ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-	//	return conn, nil
-	//}
+	transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		log.Warnf("Custom DialTLSContext called for %s", addr)
+		//deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+		//conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
+		//if err != nil {
+		//	return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
+		//}
+		//host, _, err := net.SplitHostPort(addr)
+		//if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+		//	// addr is a domain, update our mapping of redirected URLs to resolved IPs
+		//	ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+		//}
+		//ret.connections = append(ret.connections, conn)
+		//ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+		//return conn, nil
+		fmt.Printf("Using custom h1 DialTLSContext for %s\n", addr)
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, fmt.Errorf("dialing %s: %w", addr, err)
+		}
+		tlsConn := tls.Client(conn, cfg)
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			return nil, fmt.Errorf("TLS handshake failed: %w", err)
+		}
+		return tlsConn, nil
+	}
 	//transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+	//	log.Warnf("Custom DialContext called for %s", addr)
 	//	deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
 	//	conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
 	//	if err != nil {
@@ -423,9 +457,15 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	//	ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
 	//	return conn, nil
 	//}
+	_, err := http2.ConfigureTransports(transport)
+	if err != nil {
+		log.Panicf("Unable to configure http2: %v", err)
+	} else {
+		log.Warn("Configured http2.0")
+	}
 	ret.client.UserAgent = scanner.config.UserAgent
+	ret.client.Transport = transport
 	ret.client.CheckRedirect = ret.getCheckRedirect()
-	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	if deadline, ok := ctx.Deadline(); ok {
 		ret.client.Timeout = min(ret.client.Timeout, time.Until(deadline))
@@ -436,6 +476,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		host = t.IP.String()
 	}
 	ret.url = getHTTPURL(useHTTPS, host, uint16(t.Port), scanner.config.Endpoint)
+	fmt.Printf("URL: %s\n", ret.url)
 
 	return &ret
 }
@@ -471,8 +512,9 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		// to set the Accept header
 		request.Header.Set("Accept", "*/*")
 	}
+	resp, err := scan.client.Get(scan.url)
 
-	resp, err := scan.client.Do(request)
+	//resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
