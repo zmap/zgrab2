@@ -120,6 +120,8 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 		if err != nil {
 			return nil, fmt.Errorf("could not get tls config for target %s: %w", t.String(), err)
 		}
+		// TODO Phillip - Debugging
+		tlsConfig.NextProtos = []string{"h2", "http/1.1"} // Ensure HTTP/2 and HTTP/1.1 are supported
 		// Set SNI server name on redirects unless --server-name was used (issue #300)
 		//  - t.Domain is always set to the *original* Host so it's not useful for setting SNI
 		//  - host is the current target of the request in this context; this is true for the

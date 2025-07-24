@@ -1726,7 +1726,13 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 		if err != nil {
 			return nil, wrapErr(err)
 		}
-		if tc, ok := pconn.conn.(*tls.Conn); ok {
+		tc, ok := pconn.conn.(*tls.Conn)
+		if !ok {
+			var zTLSConn *zgrab2.TLSConnection
+			zTLSConn, ok = pconn.conn.(*zgrab2.TLSConnection)
+			tc = &zTLSConn.Conn
+		}
+		if ok {
 			// Handshake here, in case DialTLS didn't. TLSNextProto below
 			// depends on it for knowing the connection state.
 			if trace != nil && trace.TLSHandshakeStart != nil {
@@ -1888,7 +1894,14 @@ func (t *Transport) dialConn(ctx context.Context, cm connectMethod) (pconn *pers
 
 	if s := pconn.tlsState; s != nil && s.NegotiatedProtocolIsMutual && s.NegotiatedProtocol != "" {
 		if next, ok := t.TLSNextProto[s.NegotiatedProtocol]; ok {
-			alt := next(cm.targetAddr, pconn.conn.(*tls.Conn))
+			var tlsConn *tls.Conn
+			tlsConn, ok = pconn.conn.(*tls.Conn)
+			if !ok {
+				var zTLSConn *zgrab2.TLSConnection
+				zTLSConn, ok = pconn.conn.(*zgrab2.TLSConnection) // zgrab2 compatibility
+				tlsConn = &zTLSConn.Conn
+			}
+			alt := next(cm.targetAddr, tlsConn)
 			if e, ok := alt.(erringRoundTripper); ok {
 				// pconn.conn was closed by next (http2configureTransports.upgradeFn).
 				return nil, e.RoundTripErr()

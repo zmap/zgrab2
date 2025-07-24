@@ -402,8 +402,8 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 		RawHeaderBuffer:     scanner.config.RawHeaders,
-		ForceAttemptHTTP2:   true,
-		TLSClientConfig:     cfg,
+		//ForceAttemptHTTP2:   true,
+		TLSClientConfig: cfg,
 	}
 	ret := scan{
 		scanner:                scanner,
@@ -416,30 +416,30 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	}
 	transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		log.Warnf("Custom DialTLSContext called for %s", addr)
-		//deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		//conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
-		//if err != nil {
-		//	return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
-		//}
+		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
+		if err != nil {
+			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
+		}
 		//host, _, err := net.SplitHostPort(addr)
 		//if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
 		//	// addr is a domain, update our mapping of redirected URLs to resolved IPs
 		//	ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
 		//}
-		//ret.connections = append(ret.connections, conn)
-		//ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		//return conn, nil
-		fmt.Printf("Using custom h1 DialTLSContext for %s\n", addr)
-		var d net.Dialer
-		conn, err := d.DialContext(ctx, network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("dialing %s: %w", addr, err)
-		}
-		tlsConn := tls.Client(conn, cfg)
-		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			return nil, fmt.Errorf("TLS handshake failed: %w", err)
-		}
-		return tlsConn, nil
+		ret.connections = append(ret.connections, conn)
+		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+		return conn, nil
+		//fmt.Printf("Using custom h1 DialTLSContext for %s\n", addr)
+		//var d net.Dialer
+		//conn, err := d.DialContext(ctx, network, addr)
+		//if err != nil {
+		//	return nil, fmt.Errorf("dialing %s: %w", addr, err)
+		//}
+		//tlsConn := tls.Client(conn, cfg)
+		//if err := tlsConn.HandshakeContext(ctx); err != nil {
+		//	return nil, fmt.Errorf("TLS handshake failed: %w", err)
+		//}
+		//return tlsConn, nil
 	}
 	//transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 	//	log.Warnf("Custom DialContext called for %s", addr)
