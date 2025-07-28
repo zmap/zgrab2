@@ -98,6 +98,15 @@ func ZGrab2Main() {
 	f := startCPUProfile()
 	defer stopCPUProfile(f)
 	defer dumpHeapProfile()
+	// We parse and re-parse the CLI args here as follows:
+	// 0. CLI config is initialized in init() with default values. These are communicated to user in flag descriptions.
+	// 1. Parse the CLI flag args to get the module type and flags.
+	// 2. If this is a Multiple command, we'll parse the ini file passed in either stdin or a file. This will overwrite
+	//    any flags set in the CLI args if also set in the ini file.
+	// 3. Re-parse the CLI args to ensure that they have precedence. This follows CLI app conventions of CLI args taking
+	//    precedence over config files.
+	// 4. Validate the framework configuration, which will ensure that the flags are valid and
+
 	_, moduleType, flag, err := zgrab2.ParseCommandLine(os.Args[1:])
 
 	// Blanked arg is positional arguments
@@ -127,9 +136,13 @@ func ZGrab2Main() {
 		if len(modTypes) != len(flagsReturned) {
 			log.Fatalf("error parsing flags")
 		}
+		// Re-parse the CLI args to ensure that they have precedence over the ini file.
+		_, _, _, err = zgrab2.ParseCommandLine(os.Args[1:])
+		if err != nil {
+			log.Fatalf("could not parse flags: %s", err)
+		}
 		// The iniParser will have overwritten config values that were set first in zgrab2.ParseCommandLine using argv values.
 		// We need to re-validate the framework configuration after parsing the ini file itself.
-		zgrab2.ValidateAndHandleFrameworkConfiguration()
 		for i, fl := range flagsReturned {
 			f, ok := fl.(zgrab2.ScanFlags)
 			if !ok {
@@ -151,6 +164,7 @@ func ZGrab2Main() {
 		}
 		zgrab2.RegisterScan(moduleType, s)
 	}
+	zgrab2.ValidateAndHandleFrameworkConfiguration() // will panic if there is an error
 	wg := sync.WaitGroup{}
 	monitor := zgrab2.MakeMonitor(1, &wg)
 	monitor.Callback = func(_ string) {

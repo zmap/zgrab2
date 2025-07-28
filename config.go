@@ -25,35 +25,46 @@ const (
 )
 
 var prometheusOnce sync.Once // Used to ensure we only start the Prometheus server once, even if ValidateAndHandleFrameworkConfiguration is called multiple times
+const (
+	defaultSenders          = 1_000
+	defaultGOMAXPROCS       = 0
+	defaultReadLimitPerHost = 96
+
+	defaultFileName = "-"
+
+	defaultConnectionsPerHost   = 1
+	defaultDNSServerRateLimit   = 10_000
+	defaultDNSResolutionTimeout = 10 * time.Second
+)
 
 type GeneralOptions struct {
-	Senders          int    `short:"s" long:"senders" default:"1000" description:"Number of send goroutines to use"`
-	GOMAXPROCS       int    `long:"gomaxprocs" default:"0" description:"Set GOMAXPROCS"`
+	Senders          int    `short:"s" long:"senders" description:"Number of send goroutines to use (default: 1000)"`
+	GOMAXPROCS       int    `long:"gomaxprocs" description:"Set GOMAXPROCS to set the number of CPU cores to use. 0 uses all available. (default: 0)"`
 	Prometheus       string `long:"prometheus" description:"Address to use for Prometheus server (e.g. localhost:8080). If empty, Prometheus is disabled."`
-	ReadLimitPerHost int    `long:"read-limit-per-host" default:"96" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
+	ReadLimitPerHost int    `long:"read-limit-per-host" description:"Maximum total kilobytes to read for a single host (default 96kb)"`
 }
 
 type InputOutputOptions struct {
-	BlocklistFileName     string `short:"b" long:"blocklist-file" default:"-" description:"Blocklist filename, use - for $(HOME)/.config/zgrab2/blocklist.conf"`
-	InputFileName         string `short:"f" long:"input-file" default:"-" description:"Input filename, use - for stdin"`
-	LogFileName           string `short:"l" long:"log-file" default:"-" description:"Log filename, use - for stderr"`
-	MetaFileName          string `short:"m" long:"metadata-file" default:"-" description:"Metadata filename, use - for stderr."`
-	OutputFileName        string `short:"o" long:"output-file" default:"-" description:"Output filename, use - for stdout"`
-	StatusUpdatesFileName string `short:"u" long:"status-updates-file" default:"-" description:"Status updates filename, use - for stderr."`
+	BlocklistFileName     string `short:"b" long:"blocklist-file" description:"Blocklist filename, use - for $(HOME)/.config/zgrab2/blocklist.conf. (default: -)"`
+	InputFileName         string `short:"f" long:"input-file" description:"Input filename, use - for stdin. (default: -)"`
+	LogFileName           string `short:"l" long:"log-file" description:"Log filename, use - for stderr. (default: -)"`
+	MetaFileName          string `short:"m" long:"metadata-file" description:"Metadata filename, use - for stderr. (default: -)"`
+	OutputFileName        string `short:"o" long:"output-file" description:"Output filename, use - for stdout. (default: -)"`
+	StatusUpdatesFileName string `short:"u" long:"status-updates-file" description:"Status updates filename, use - for stderr. (default: -)"`
 	Debug                 bool   `long:"debug" description:"Include debug fields in the output."`
 	Flush                 bool   `long:"flush" description:"Flush after each line of output."`
 }
 
 type NetworkingOptions struct {
-	ConnectionsPerHost   int           `long:"connections-per-host" default:"1" description:"Number of times to connect to each host (results in more output)"`
-	DNSServerRateLimit   int           `long:"dns-rate-limit" default:"10000" description:"Rate limit for DNS lookups per second."`
-	DNSResolutionTimeout time.Duration `long:"dns-resolution-timeout" default:"10s" description:"Timeout for DNS resolution of target hostnames. Default is 10 seconds."`
+	ConnectionsPerHost   int           `long:"connections-per-host" description:"Number of times to connect to each host (results in more output) (default: 1)"`
+	DNSServerRateLimit   int           `long:"dns-rate-limit" default:"10000" description:"Rate limit for DNS lookups per second. (default: 10000)"`
+	DNSResolutionTimeout time.Duration `long:"dns-resolution-timeout" default:"10s" description:"Timeout for DNS resolution of target hostnames. (default: 10s)"`
 	CustomDNS            string        `long:"dns-resolvers" description:"Address of a custom DNS server(s) for lookups, comma-delimited. Default port is 53. Ex: 1.1.1.1:53,8.8.8.8. Uses the OS-default resolvers if not set."`
 	LocalAddrString      string        `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString      string        `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
 	UserIPv4Choice       *bool         `long:"resolve-ipv4" description:"Use IPv4 for resolving domains (accept A records). True by default, use only --resolve-ipv6 for IPv6 only resolution. If used with --resolve-ipv6, will use both IPv4 and IPv6."`
 	UserIPv6Choice       *bool         `long:"resolve-ipv6" description:"Use IPv6 for resolving domains (accept AAAA records). IPv6 is disabled by default. If --resolve-ipv4 is not set and --resolve-ipv6 is, will only use IPv6. If used with --resolve-ipv4, will use both IPv4 and IPv6."`
-	ServerRateLimit      int           `long:"server-rate-limit" default:"20" description:"Per-IP rate limit for connections to targets per second."`
+	ServerRateLimit      int           `long:"server-rate-limit" description:"Per-IP rate limit for connections to targets per second. (default: 20)"`
 }
 
 // Config is the high level framework options that will be parsed
@@ -88,10 +99,28 @@ func SetOutputFunc(f OutputResultsFunc) {
 }
 
 func init() {
+	config = Config{
+		GeneralOptions: GeneralOptions{
+			Senders:          defaultSenders,
+			GOMAXPROCS:       defaultGOMAXPROCS,
+			ReadLimitPerHost: defaultReadLimitPerHost,
+		},
+		InputOutputOptions: InputOutputOptions{
+			BlocklistFileName:     defaultFileName,
+			InputFileName:         defaultFileName,
+			LogFileName:           defaultFileName,
+			MetaFileName:          defaultFileName,
+			OutputFileName:        defaultFileName,
+			StatusUpdatesFileName: defaultFileName,
+		},
+		NetworkingOptions: NetworkingOptions{
+			ConnectionsPerHost:   defaultConnectionsPerHost,
+			DNSServerRateLimit:   defaultDNSServerRateLimit,
+			DNSResolutionTimeout: defaultDNSResolutionTimeout,
+		},
+	}
 	config.Multiple.ContinueOnError = true // set default for multiple value
 	config.Multiple.BreakOnSuccess = false // set default for multiple value
-	config.ServerRateLimit = 100           // default rate limit for connections per second, overriden by CLI
-	config.DNSServerRateLimit = 1_000
 }
 
 var config Config
