@@ -71,8 +71,11 @@ def test_multiple():
             print(f"Unknown protocol in line: {line}")
             sys.exit(1)
 
+
 def test_cli_args_take_precedence_over_ini():
-    print("multiple/test-cli-args-take-precedence-over-ini: Run both NTP and HTTP scans")
+    print(
+        "multiple/test-cli-args-take-precedence-over-ini: Run both NTP and HTTP scans"
+    )
     print(multiple_test_root)
     cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --config-file=/multiple/bad-input-file.ini --input-file=/multiple/multiple.ini"
     out = run_command(
