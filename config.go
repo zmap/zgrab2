@@ -35,6 +35,7 @@ const (
 	defaultConnectionsPerHost   = 1
 	defaultDNSServerRateLimit   = 10_000
 	defaultDNSResolutionTimeout = 10 * time.Second
+	defaultServerRateLimit      = 20
 )
 
 type GeneralOptions struct {
@@ -117,6 +118,7 @@ func init() {
 			ConnectionsPerHost:   defaultConnectionsPerHost,
 			DNSServerRateLimit:   defaultDNSServerRateLimit,
 			DNSResolutionTimeout: defaultDNSResolutionTimeout,
+			ServerRateLimit:      defaultServerRateLimit,
 		},
 	}
 	config.Multiple.ContinueOnError = true // set default for multiple value
