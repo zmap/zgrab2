@@ -188,7 +188,7 @@ def test_large_http_body_contents():
 # Uses the dockerized zgrab to ensure that scanning real domains returns a 200 OK
 def test_scanning_real_domains():
     domains = [
-        "apnews.com",
+        "docker.io",
         "github.com",
         "en.wikipedia.org",
     ]
