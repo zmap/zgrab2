@@ -41,12 +41,14 @@ multiple_test_root = os.path.join(zgrab_root, "integration_tests", "multiple")
 
 def validate_http(output):
     json_data = json.loads(output)
-    assert json_data["domain"] == "example.com"
+    print(json_data)
+    assert json_data["domain"] == "github.com"
     assert json_data["data"]["http"]["status"] == "success"
 
 
 def validate_ntp(output):
     json_data = json.loads(output)
+    print(json_data)
     assert json_data["domain"] == "time-a-g.nist.gov"
     assert json_data["data"]["ntp"]["status"] == "success"
 
@@ -77,7 +79,7 @@ def test_cli_args_take_precedence_over_ini():
         "multiple/test-cli-args-take-precedence-over-ini: Run both NTP and HTTP scans"
     )
     print(multiple_test_root)
-    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --config-file=/multiple/bad-input-file.ini --input-file=/multiple/multiple.ini"
+    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --config-file=/multiple/bad-input-file.ini --input-file=/multiple/input.csv"
     out = run_command(
         cmd,
     )
