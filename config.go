@@ -58,8 +58,8 @@ type InputOutputOptions struct {
 
 type NetworkingOptions struct {
 	ConnectionsPerHost   int           `long:"connections-per-host" description:"Number of times to connect to each host (results in more output) (default: 1)"`
-	DNSServerRateLimit   int           `long:"dns-rate-limit" default:"10000" description:"Rate limit for DNS lookups per second. (default: 10000)"`
-	DNSResolutionTimeout time.Duration `long:"dns-resolution-timeout" default:"10s" description:"Timeout for DNS resolution of target hostnames. (default: 10s)"`
+	DNSServerRateLimit   int           `long:"dns-rate-limit"  description:"Rate limit for DNS lookups per second. (default: 10000)"`
+	DNSResolutionTimeout time.Duration `long:"dns-resolution-timeout" description:"Timeout for DNS resolution of target hostnames. (default: 10s)"`
 	CustomDNS            string        `long:"dns-resolvers" description:"Address of a custom DNS server(s) for lookups, comma-delimited. Default port is 53. Ex: 1.1.1.1:53,8.8.8.8. Uses the OS-default resolvers if not set."`
 	LocalAddrString      string        `long:"local-addr" description:"Local address(es) to bind to for outgoing connections. Comma-separated list of IP addresses, ranges (inclusive), or CIDR blocks, ex: 1.1.1.1-1.1.1.3, 2.2.2.2, 3.3.3.0/24"`
 	LocalPortString      string        `long:"local-port" description:"Local port(s) to bind to for outgoing connections. Comma-separated list of ports or port ranges (inclusive) ex: 1200-1300,2000"`
