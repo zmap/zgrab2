@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -18,6 +19,7 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"` // TODO: configurable TSAP source / destination, etc
 	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
+	ReadTimeout      time.Duration           `long:"read-timeout" default:"10ms" description:"Timeout for reading S7 responses"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -116,8 +118,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 	result := new(S7Log)
-
-	err = GetS7Banner(result, conn, func() (net.Conn, error) { return dialGroup.Dial(ctx, target) })
+	err = GetS7Banner(result, conn, func() (net.Conn, error) { return dialGroup.Dial(ctx, target) }, scanner.config.ReadTimeout)
 	if !result.IsS7 {
 		result = nil
 	}
