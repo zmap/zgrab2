@@ -19,7 +19,7 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"` // TODO: configurable TSAP source / destination, etc
 	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	ReadTimeout      time.Duration           `long:"read-timeout" default:"10ms" description:"Timeout for reading S7 responses"`
+	ReadTimeout      time.Duration           `long:"read-timeout" default:"500ms" description:"Timeout for reading S7 responses"`
 }
 
 // Module implements the zgrab2.Module interface.
