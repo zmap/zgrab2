@@ -47,8 +47,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Check Docker Hub rate limit
-          run: |
-            curl -s -I "https://registry-1.docker.io/v2/" | grep -i "ratelimit"
+        run: |
+          curl -s -I "https://registry-1.docker.io/v2/" | grep -i "ratelimit"
       - name: Check out source
         uses: actions/checkout@v4
 
