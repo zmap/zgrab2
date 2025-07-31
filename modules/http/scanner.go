@@ -67,6 +67,7 @@ type Flags struct {
 	// Set HTTP Request body
 	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
 	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
+	SkipHost       bool   `long:"skip-host" description:"Skip encoding the Host header"`
 
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
@@ -453,6 +454,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
+
+	request.SkipHost = scan.scanner.config.SkipHost
 
 	// By default, the following headers are *always* set:
 	// Host, User-Agent, Accept, Accept-Encoding
