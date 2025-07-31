@@ -230,6 +230,12 @@ type Request struct {
 	// domain name.
 	Host string `json:"host,omitempty"`
 
+	// SkipHost is a flag that indicates whether to skip the host header.
+	// This is against the standard, but can be useful when working with servers
+	// that immediately close the connection upon receiving a host they do not
+	// recognize
+	SkipHost bool `json:"skip_host,omitempty"`
+
 	// Form contains the parsed form data, including both the URL
 	// field's query parameters and the POST or PUT form data.
 	// This field is only available after ParseForm is called.
@@ -496,6 +502,7 @@ const defaultUserAgent = "Mozilla/5.0 zgrab/0.x"
 
 // Write writes an HTTP/1.1 request, which is the header and body, in wire format.
 // This method consults the following fields of the request:
+//
 //	Host
 //	URL
 //	Method (defaults to "GET")
@@ -579,9 +586,11 @@ func (req *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, wai
 	}
 
 	// Header lines
-	_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
-	if err != nil {
-		return err
+	if !req.SkipHost {
+		_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Use the defaultUserAgent unless the Header contains one, which
@@ -682,9 +691,11 @@ func idnaASCII(v string) (string, error) {
 // into Punycode form, if necessary.
 //
 // Ideally we'd clean the Host header according to the spec:
-//   https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
-//   https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
-//   https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+//
+//	https://tools.ietf.org/html/rfc7230#section-5.4 (Host = uri-host [ ":" port ]")
+//	https://tools.ietf.org/html/rfc7230#section-2.7 (uri-host -> rfc3986's host)
+//	https://tools.ietf.org/html/rfc3986#section-3.2.2 (definition of host)
+//
 // But practically, what we are trying to avoid is the situation in
 // issue 11206, where a malformed Host header used in the proxy context
 // would create a bad request. So it is enough to just truncate at the
