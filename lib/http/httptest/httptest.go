@@ -8,8 +8,8 @@ package httptest
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
-	"io/ioutil"
 	"strings"
 
 	"github.com/zmap/zcrypto/tls"
@@ -17,8 +17,13 @@ import (
 	"github.com/zmap/zgrab2/lib/http"
 )
 
-// NewRequest returns a new incoming server Request, suitable
-// for passing to an http.Handler for testing.
+// NewRequest wraps NewRequestWithContext using context.Background.
+func NewRequest(method, target string, body io.Reader) *http.Request {
+	return NewRequestWithContext(context.Background(), method, target, body)
+}
+
+// NewRequestWithContext returns a new incoming server Request, suitable
+// for passing to an [http.Handler] for testing.
 //
 // The target is the RFC 7230 "request-target": it may be either a
 // path or an absolute URL. If target is an absolute URL, the host name
@@ -40,7 +45,7 @@ import (
 //
 // To generate a client HTTP request instead of a server request, see
 // the NewRequest function in the net/http package.
-func NewRequest(method, target string, body io.Reader) *http.Request {
+func NewRequestWithContext(ctx context.Context, method, target string, body io.Reader) *http.Request {
 	if method == "" {
 		method = "GET"
 	}
@@ -48,10 +53,11 @@ func NewRequest(method, target string, body io.Reader) *http.Request {
 	if err != nil {
 		panic("invalid NewRequest arguments; " + err.Error())
 	}
+	req = req.WithContext(ctx)
 
 	// HTTP/1.0 was used above to avoid needing a Host field. Change it to 1.1 here.
-	req.Protocol.Name = "HTTP/1.1"
-	req.Protocol.Minor = 1
+	req.Proto = "HTTP/1.1"
+	req.ProtoMinor = 1
 	req.Close = false
 
 	if body != nil {
@@ -68,7 +74,7 @@ func NewRequest(method, target string, body io.Reader) *http.Request {
 		if rc, ok := body.(io.ReadCloser); ok {
 			req.Body = rc
 		} else {
-			req.Body = ioutil.NopCloser(body)
+			req.Body = io.NopCloser(body)
 		}
 	}
 
