@@ -41,12 +41,14 @@ multiple_test_root = os.path.join(zgrab_root, "integration_tests", "multiple")
 
 def validate_http(output):
     json_data = json.loads(output)
-    assert json_data["domain"] == "example.com"
+    print(json_data)
+    assert json_data["domain"] == "github.com"
     assert json_data["data"]["http"]["status"] == "success"
 
 
 def validate_ntp(output):
     json_data = json.loads(output)
+    print(json_data)
     assert json_data["domain"] == "time-a-g.nist.gov"
     assert json_data["data"]["ntp"]["status"] == "success"
 
@@ -54,7 +56,30 @@ def validate_ntp(output):
 def test_multiple():
     print("multiple/test: Run both NTP and HTTP scans")
     print(multiple_test_root)
-    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --input-file=/multiple/input.csv --config-file=/multiple/multiple.ini"
+    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --config-file=/multiple/multiple.ini"
+    out = run_command(
+        cmd,
+    )
+    # print output
+    lines = out.strip().split("\n")
+
+    # Write each line to a separate JSON file
+    for i, line in enumerate(lines):
+        if "http" in line:
+            validate_http(line)
+        elif "ntp" in line:
+            validate_ntp(line)
+        else:
+            print(f"Unknown protocol in line: {line}")
+            sys.exit(1)
+
+
+def test_cli_args_take_precedence_over_ini():
+    print(
+        "multiple/test-cli-args-take-precedence-over-ini: Run both NTP and HTTP scans"
+    )
+    print(multiple_test_root)
+    cmd = f"DIR={multiple_test_root} {multiple_test_root}/docker-run.sh multiple --config-file=/multiple/bad-input-file.ini --input-file=/multiple/input.csv"
     out = run_command(
         cmd,
     )
@@ -74,3 +99,4 @@ def test_multiple():
 
 if __name__ == "__main__":
     test_multiple()
+    test_cli_args_take_precedence_over_ini()

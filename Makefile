@@ -71,6 +71,7 @@ integration-test-build:
 	fi; \
 	echo "Filtered services: $$TEST_SERVICES"; \
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base; \
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build ipp_service_base smtp_service_base; \
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build $$TEST_SERVICES; \
 	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $$TEST_SERVICES
 
