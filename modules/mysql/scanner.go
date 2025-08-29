@@ -240,17 +240,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("l4 dialer is required for mysql")
 	}
 	sql := mysql.NewConnection(&mysql.Config{})
-	defer func() {
-		result := readResultsFromConnectionLog(&sql.ConnectionLog)
-		// attempt to capture TLS log
-		if tlsConn, ok := sql.Connection.(*zgrab2.TLSConnection); ok {
-			result.TLSLog = tlsConn.GetLog()
-		}
-		err := sql.Disconnect()
-		if err != nil {
-			log.Errorf("error disconnecting from target %s: %v", target.String(), err)
-		}
-	}()
 	var err error
 	var tlsConn *zgrab2.TLSConnection
 
@@ -275,6 +264,16 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
 		sql.Connection = tlsConn
 	}
+
+	result := readResultsFromConnectionLog(&sql.ConnectionLog)
+	// attempt to capture TLS log
+	if tlsConn, ok := sql.Connection.(*zgrab2.TLSConnection); ok {
+		result.TLSLog = tlsConn.GetLog()
+	}
+	err = sql.Disconnect()
+	if err != nil {
+		log.Errorf("error disconnecting from target %s: %v", target.String(), err)
+	}
 	// If we made it this far, the scan was a success. The result will be grabbed in the defer block above.
-	return zgrab2.SCAN_SUCCESS, nil, nil
+	return zgrab2.SCAN_SUCCESS, result, nil
 }
