@@ -97,5 +97,5 @@ func RunScanner(ctx context.Context, scanner Scanner, mon *Monitor, target ScanT
 		err = &errString
 	}
 	resp := ScanResponse{Result: res, Port: target.Port, Protocol: scanner.Protocol(), Error: err, Timestamp: t.Format(time.RFC3339), Status: status}
-	return s.GetName(), resp
+	return scanner.GetName(), resp
 }
