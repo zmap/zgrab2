@@ -44,6 +44,7 @@ def validate_http(output):
     print(json_data)
     assert json_data["domain"] == "github.com"
     assert json_data["data"]["http"]["status"] == "success"
+    assert json_data["data"]["http"]["port"] == 80
 
 
 def validate_ntp(output):
@@ -51,6 +52,7 @@ def validate_ntp(output):
     print(json_data)
     assert json_data["domain"] == "time-a-g.nist.gov"
     assert json_data["data"]["ntp"]["status"] == "success"
+    assert json_data["data"]["ntp"]["port"] == 123
 
 
 def test_multiple():

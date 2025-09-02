@@ -202,6 +202,8 @@ type ScanResponse struct {
 	// the scan name.
 	Protocol string `json:"protocol"`
 
+	Port uint `json:"port"`
+
 	Result    any     `json:"result,omitempty"`
 	Timestamp string  `json:"timestamp,omitempty"`
 	Error     *string `json:"error,omitempty"`
