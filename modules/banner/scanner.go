@@ -83,17 +83,17 @@ func (m *Module) NewFlags() any {
 }
 
 // GetName returns the Scanner name defined in the Flags.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
-func (s *Scanner) GetTrigger() string {
-	return s.config.Trigger
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // Protocol returns the protocol identifier of the scan.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "banner"
 }
 
@@ -102,7 +102,7 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 }
 
 // InitPerSender initializes the scanner for a given sender.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
@@ -131,38 +131,38 @@ func (f *Flags) Help() string {
 }
 
 // Init initializes the Scanner with the command-line flags.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	var err error
 	f, _ := flags.(*Flags)
-	s.config = f
-	if s.config.Pattern != "" {
-		s.regex = regexp.MustCompile(s.config.Pattern)
+	scanner.config = f
+	if scanner.config.Pattern != "" {
+		scanner.regex = regexp.MustCompile(scanner.config.Pattern)
 	}
 	if len(f.ProbeFile) != 0 {
-		s.probe, err = os.ReadFile(f.ProbeFile)
+		scanner.probe, err = os.ReadFile(f.ProbeFile)
 		if err != nil {
 			log.Fatal("Failed to open probe file")
 			return zgrab2.ErrInvalidArguments
 		}
 	} else {
-		strProbe, err := strconv.Unquote(fmt.Sprintf(`"%s"`, s.config.Probe))
+		strProbe, err := strconv.Unquote(fmt.Sprintf(`"%s"`, scanner.config.Probe))
 		if err != nil {
 			panic("Probe error")
 		}
-		s.probe = []byte(strProbe)
+		scanner.probe = []byte(strProbe)
 	}
-	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
 	}
 	if f.UseTLS {
-		s.dialerGroupConfig.TLSFlags = &f.TLSFlags
+		scanner.dialerGroupConfig.TLSFlags = &f.TLSFlags
 	}
 	return nil
 }
 
-func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
 		conn    net.Conn
 		err     error
@@ -170,7 +170,7 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 		results Results
 	)
 
-	for try := 0; try < s.config.MaxTries; try++ {
+	for try := 0; try < scanner.config.MaxTries; try++ {
 		conn, err = dialGroup.Dial(ctx, target)
 		if err != nil {
 			continue // try again
@@ -191,13 +191,13 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 
 	var data []byte
 
-	for try := 0; try < s.config.MaxTries; try++ {
-		_, err = conn.Write(s.probe)
+	for try := 0; try < scanner.config.MaxTries; try++ {
+		_, err = conn.Write(scanner.probe)
 		data, readErr = zgrab2.ReadAvailableWithOptions(conn,
-			s.config.BufferSize,
-			time.Duration(s.config.ReadTimeout)*time.Millisecond,
+			scanner.config.BufferSize,
+			time.Duration(scanner.config.ReadTimeout)*time.Millisecond,
 			0,
-			s.config.MaxReadSize*1024)
+			scanner.config.MaxReadSize*1024)
 		if err != nil {
 			continue
 		}
@@ -213,9 +213,9 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 		return zgrab2.TryGetScanStatus(readErr), nil, readErr
 	}
 
-	if s.config.Hex {
+	if scanner.config.Hex {
 		results.Banner = hex.EncodeToString(data)
-	} else if s.config.Base64 {
+	} else if scanner.config.Base64 {
 		results.Banner = base64.StdEncoding.EncodeToString(data)
 	} else {
 		results.Banner = string(data)
@@ -223,23 +223,23 @@ func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, targe
 	results.Length = len(data)
 
 	if len(data) > 0 {
-		if s.config.MD5 {
+		if scanner.config.MD5 {
 			digest := md5.Sum(data)
 			results.MD5 = hex.EncodeToString(digest[:])
 		}
-		if s.config.SHA1 {
+		if scanner.config.SHA1 {
 			digest := sha1.Sum(data)
 			results.SHA1 = hex.EncodeToString(digest[:])
 		}
-		if s.config.SHA256 {
+		if scanner.config.SHA256 {
 			digest := sha256.Sum256(data)
 			results.SHA256 = hex.EncodeToString(digest[:])
 		}
 	}
-	if s.regex == nil {
+	if scanner.regex == nil {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
-	if s.regex.Match(data) {
+	if scanner.regex.Match(data) {
 		return zgrab2.SCAN_SUCCESS, &results, nil
 	}
 

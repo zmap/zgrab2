@@ -156,11 +156,11 @@ func (pptp *Connection) readResponse() (string, error) {
 }
 
 // Scan performs the configured scan on the PPTP server
-func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var err error
-	conn, err := dialGroup.Dial(ctx, t)
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 
@@ -172,13 +172,13 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	request := createSCCRMessage()
 	_, err = pptp.conn.Write(request)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message to target %s: %w", target.String(), err)
 	}
 
 	// Read the response
 	response, err := pptp.readResponse()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response from target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response from target %s: %w", target.String(), err)
 	}
 
 	// Store the banner and control message

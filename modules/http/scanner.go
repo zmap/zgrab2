@@ -372,10 +372,10 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
+func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
 	ret := scan{
 		scanner: scanner,
-		target:  t,
+		target:  target,
 		transport: &http.Transport{
 			Proxy:               nil, // TODO: implement proxying
 			DisableKeepAlives:   false,
@@ -391,9 +391,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	}
 	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
 		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
+		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
+			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
 		}
 		host, _, err := net.SplitHostPort(addr)
 		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
@@ -406,9 +406,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	}
 	ret.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
+		conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
+			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
 		}
 		host, _, err := net.SplitHostPort(addr)
 		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
@@ -427,11 +427,11 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		ret.client.Timeout = min(ret.client.Timeout, time.Until(deadline))
 	}
 
-	host := t.Domain
+	host := target.Domain
 	if host == "" {
-		host = t.IP.String()
+		host = target.IP.String()
 	}
-	ret.url = getHTTPURL(useHTTPS, host, uint16(t.Port), scanner.config.Endpoint)
+	ret.url = getHTTPURL(useHTTPS, host, uint16(target.Port), scanner.config.Endpoint)
 
 	return &ret
 }
