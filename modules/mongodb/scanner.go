@@ -218,7 +218,7 @@ func (scanner *Scanner) GetName() string {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "mongodb"
 }
 
