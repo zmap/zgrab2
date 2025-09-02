@@ -14,7 +14,7 @@ require (
 	github.com/zmap/zcrypto v0.0.0-20250324021606-4f0ea0eaccac
 	github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6
 	golang.org/x/crypto v0.41.0
-	golang.org/x/net v0.42.0
+	golang.org/x/net v0.43.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/text v0.28.0
 	golang.org/x/time v0.12.0
