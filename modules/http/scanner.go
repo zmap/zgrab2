@@ -372,25 +372,6 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 	return proto + "://" + net.JoinHostPort(host, strconv.Itoa(int(port))) + endpoint
 }
 
-//func (scanner *Scanner) getTransport() *http.Transport { // assuming it's HTTP/2 and HTTPS
-//	isHTTP2 := true
-//	isSecure := true
-//
-//	transport := &http2.Transport{
-//
-//		Proxy:               nil, // TODO: implement proxying
-//		DisableKeepAlives:   false,
-//		DisableCompression:  false,
-//		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
-//		RawHeaderBuffer:     scanner.config.RawHeaders,
-//		ForceAttemptHTTP2:   true,
-//		TLSClientConfig: &tls.Config{
-//			InsecureSkipVerify: true,
-//		},
-//	}
-//
-//}
-
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
 	cfg := &tls.Config{
