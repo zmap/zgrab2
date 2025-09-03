@@ -70,6 +70,7 @@ type Flags struct {
 	// Set HTTP Request body
 	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
 	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
+	SkipHost       bool   `long:"skip-host" description:"Skip encoding the Host header"`
 
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
@@ -373,7 +374,7 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
+func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
 	cfg := &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         "localhost",
@@ -384,12 +385,11 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 		RawHeaderBuffer:     scanner.config.RawHeaders,
-		//ForceAttemptHTTP2:   true,
 		TLSClientConfig: cfg,
 	}
 	ret := scan{
 		scanner:                scanner,
-		target:                 t,
+		target:                 target,
 		client:                 http.MakeNewClient(),
 		redirectsToResolvedIPs: make(map[string]string),
 	}
@@ -399,9 +399,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		log.Warnf("Custom DialTLSContext called for %s", addr)
 		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
+		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
+			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
 		}
 		host, _, err := net.SplitHostPort(addr)
 		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
@@ -415,9 +415,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		log.Warnf("Custom DialContext called for %s", addr)
 		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
+		conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
 		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
+			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
 		}
 		host, _, err := net.SplitHostPort(addr)
 		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
@@ -442,11 +442,11 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		ret.client.Timeout = min(ret.client.Timeout, time.Until(deadline))
 	}
 
-	host := t.Domain
+	host := target.Domain
 	if host == "" {
-		host = t.IP.String()
+		host = target.IP.String()
 	}
-	ret.url = getHTTPURL(useHTTPS, host, uint16(t.Port), scanner.config.Endpoint)
+	ret.url = getHTTPURL(useHTTPS, host, uint16(target.Port), scanner.config.Endpoint)
 
 	return &ret
 }
@@ -469,6 +469,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	if err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
+
+	request.SkipHost = scan.scanner.config.SkipHost
 
 	// By default, the following headers are *always* set:
 	// Host, User-Agent, Accept, Accept-Encoding

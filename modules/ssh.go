@@ -98,10 +98,10 @@ func (s *SSHScanner) GetTrigger() string {
 	return s.config.Trigger
 }
 
-func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	data := new(ssh.HandshakeLog)
-	portStr := strconv.Itoa(int(t.Port))
-	rhost := net.JoinHostPort(t.Host(), portStr)
+	portStr := strconv.Itoa(int(target.Port))
+	rhost := net.JoinHostPort(target.Host(), portStr)
 
 	sshConfig := ssh.MakeSSHConfig()
 	sshConfig.Timeout = s.config.ConnectTimeout
@@ -130,9 +130,9 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 	}
 	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	// Implementation taken from lib/ssh/client.go
-	conn, err := dialGroup.Dial(ctx, t)
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		err = fmt.Errorf("failed to dial target %s: %w", t.String(), err)
+		err = fmt.Errorf("failed to dial target %s: %w", target.String(), err)
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 	if s.config.ConnectTimeout != 0 {
@@ -149,7 +149,7 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t 
 	defer func() {
 		err = sshClient.Close()
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			log.Errorf("error closing SSH client for target %s: %v", t.String(), err)
+			log.Errorf("error closing SSH client for target %s: %v", target.String(), err)
 		}
 	}()
 

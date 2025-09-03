@@ -83,10 +83,10 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 // a TLS handshake. If the handshake gets past the ServerHello stage, the
 // handshake log is returned (along with any other TLS-related logs, such as
 // heartbleed, if enabled).
-func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialerGroup.Dial(ctx, t)
+func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialerGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to dial target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to dial target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 	tlsConn, ok := conn.(*zgrab2.TLSConnection)
