@@ -728,7 +728,7 @@ func (r *Request) write(w io.Writer, usingProxy bool, extraHeaders Header, waitF
 	}
 
 	// Header lines
-	if !req.SkipHost {
+	if !r.SkipHost {
 		_, err = fmt.Fprintf(w, "Host: %s\r\n", host)
 		if err != nil {
 			return err
