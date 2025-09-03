@@ -14,8 +14,10 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+
 	"github.com/zmap/zcrypto/tls"
 
+	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
 
 	"io"
@@ -1398,10 +1400,30 @@ func (cc *ClientConn) roundTrip(req *http.Request, streamf func(*clientStream)) 
 		}
 		return err
 	}
+	//if cm.targetScheme == "https" {
+	//	switch conn := pconn.conn.(type) {
+	//	case *tls.Conn:
+	//		// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
+	//		req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+	//	case *zgrab2.TLSConnection:
+	//		req.TLSLog = conn.GetLog()
+	//	}
+	//}
+	//TODO Phillip - Where we left off is trying to extract the TLS Log from an http2 connection
+	// It looks like cs.cc.tconn and cs.cc.tlsState are the relevant fields. We'll need to extract and populate the res.Request.TLSLog
+	// I'd take a look at handleResponseHeaders() it looks like the function for the success condition
 
 	for {
 		select {
 		case <-cs.respHeaderRecv:
+			// zgrab2 - grab TLS Log from our successful response
+			switch conn := cs.cc.tconn.(type) {
+			case *tls.Conn:
+				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
+				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+			case *zgrab2.TLSConnection:
+				req.TLSLog = conn.GetLog()
+			}
 			return handleResponseHeaders()
 		case <-cs.abort:
 			select {
