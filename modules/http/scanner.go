@@ -16,7 +16,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/zmap/zcrypto/tls"
 	"io"
 	"net"
 	"net/url"
@@ -24,6 +23,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/zmap/zcrypto/tls"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
@@ -465,7 +466,6 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, u
 		host = t.IP.String()
 	}
 	ret.url = getHTTPURL(useHTTPS, host, uint16(t.Port), scanner.config.Endpoint)
-	fmt.Printf("URL: %s\n", ret.url)
 
 	return &ret
 }
