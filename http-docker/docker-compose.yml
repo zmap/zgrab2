@@ -16,13 +16,10 @@ services:
       - "8082:443"
     expose:
       - "443"
-#
-#  http3:
-#    image: nginx:mainline-alpine
-#    volumes:
-#      - ./http3/nginx.conf:/etc/nginx/nginx.conf:ro
-#      - ./shared:/usr/share/nginx/html:ro
-#    ports:
-#      - "8083:443/udp"
-#      - "8083:443/tcp"
-#
+  h2c:
+    build:
+      context: ./h2c
+    ports:
+      - "8083:443/udp"
+      - "8083:443/tcp"
+
