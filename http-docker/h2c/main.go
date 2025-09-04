@@ -11,13 +11,18 @@ import (
 
 func main() {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "Hello world")
+		expectedProtocol := "HTTP/2.0"
+		if r.Proto != expectedProtocol {
+			http.Error(w, fmt.Sprintf("expected protocol %s, got %s", expectedProtocol, r.Proto), http.StatusHTTPVersionNotSupported)
+			return
+		}
+		fmt.Fprint(w, "Successfully served over HTTP/2 NOT over TLS!\n")
 	})
 	h2s := &http2.Server{
 		// ...
 	}
 	h1s := &http.Server{
-		Addr:    ":443",
+		Addr:    ":8083",
 		Handler: h2c.NewHandler(handler, h2s),
 	}
 	log.Fatal(h1s.ListenAndServe())
