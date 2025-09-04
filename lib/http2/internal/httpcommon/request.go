@@ -8,14 +8,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
 	"net/http/httptrace"
 	"net/textproto"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/http/httpguts"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 )
 
 var (

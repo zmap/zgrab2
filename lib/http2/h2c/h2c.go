@@ -14,7 +14,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"net"
@@ -22,8 +21,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http2"
+
 	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2"
 )
 
 var (

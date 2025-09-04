@@ -15,7 +15,8 @@ import (
 	"net/url"
 
 	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 )
 
 // writeFramer is implemented by any type that is used to write frames.

@@ -32,8 +32,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"math"
@@ -48,9 +46,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/zmap/zgrab2/lib/http2/internal/httpcommon"
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2/lib/http"
+
 	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
+
+	"github.com/zmap/zgrab2/lib/http2/internal/httpcommon"
 )
 
 const (

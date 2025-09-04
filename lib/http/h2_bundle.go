@@ -55,8 +55,9 @@ import (
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 
 	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
 	"golang.org/x/net/idna"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 )
 
 // The HTTP protocols are defined in terms of ASCII, not Unicode. This file

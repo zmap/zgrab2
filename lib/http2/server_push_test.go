@@ -7,7 +7,6 @@ package http2
 import (
 	"errors"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"reflect"
 	"runtime"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zmap/zgrab2/lib/http"
 )
 
 func TestServer_Push_Success(t *testing.T) {

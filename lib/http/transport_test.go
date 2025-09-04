@@ -15,7 +15,6 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/rand"
-	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -38,6 +37,7 @@ import (
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zcrypto/x509"
 
 	"golang.org/x/net/http/httpguts"
 

@@ -12,13 +12,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"math"
 	"net"
-	"net/http/httptest"
 	"os"
 	"reflect"
 	"runtime"
@@ -28,7 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/http2/hpack"
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
 )
 
 var stderrVerbose = flag.Bool("stderr_verbose", false, "Mirror verbosity to stderr, unbuffered")

@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/zmap/zcrypto/tls"
 	"net"
 	"os"
 	"sort"
@@ -28,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2/lib/http"
 

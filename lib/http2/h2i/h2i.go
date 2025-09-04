@@ -26,8 +26,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"net"
@@ -36,9 +34,14 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/hpack"
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2/lib/http"
+
 	"golang.org/x/term"
+
+	"github.com/zmap/zgrab2/lib/http2"
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 )
 
 // Flags

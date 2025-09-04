@@ -7,16 +7,18 @@ package h2c
 import (
 	"context"
 	"fmt"
-	"github.com/zmap/zcrypto/tls"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"log"
 	"net"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"golang.org/x/net/http2"
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptest"
+
+	"github.com/zmap/zgrab2/lib/http2"
 )
 
 func ExampleNewHandler() {

@@ -6,8 +6,9 @@ package http2
 
 import (
 	"errors"
-	"github.com/zmap/zcrypto/tls"
 	"net"
+
+	"github.com/zmap/zcrypto/tls"
 )
 
 const nextProtoUnencryptedHTTP2 = "unencrypted_http2"

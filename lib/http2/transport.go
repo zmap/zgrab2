@@ -36,8 +36,9 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpguts"
-	"golang.org/x/net/http2/hpack"
 	"golang.org/x/net/idna"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 
 	"github.com/zmap/zgrab2/lib/http2/internal/httpcommon"
 )

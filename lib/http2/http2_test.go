@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/zmap/zgrab2/lib/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,7 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/http2/hpack"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 )
 
 var knownFailing = flag.Bool("known_failing", false, "Run known-failing tests.")

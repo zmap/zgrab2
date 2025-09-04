@@ -7,13 +7,13 @@ package http_test
 import (
 	"bufio"
 	"bytes"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"strings"
 	"testing"
 
 	"github.com/zmap/zcrypto/tls"
+	"github.com/zmap/zcrypto/x509"
 
 	. "github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptest"

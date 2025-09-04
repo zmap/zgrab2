@@ -6,14 +6,15 @@ package http2
 
 import (
 	"bytes"
-	"github.com/zmap/zgrab2/lib/http"
 	"io"
 	"os"
 	"reflect"
 	"slices"
 	"testing"
 
-	"golang.org/x/net/http2/hpack"
+	"github.com/zmap/zgrab2/lib/http"
+
+	"github.com/zmap/zgrab2/lib/http2/hpack"
 )
 
 type testConnFramer struct {
