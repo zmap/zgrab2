@@ -81,6 +81,9 @@ type Flags struct {
 
 	// Extract the raw header as it is on the wire
 	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
+
+	// Send a plaintext HTTP/2 request, equivalent to curl --http2-prior-knowledge
+	HTTP2PriorKnowledge bool `long:"http2-prior-knowledge" description:"Send a plaintext, unencrypted HTTP/2 request. Incompatable with --use-https"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -147,6 +150,9 @@ func (module *Module) Description() string {
 
 // Validate performs any needed validation on the arguments
 func (flags *Flags) Validate(_ []string) error {
+	if flags.HTTP2PriorKnowledge && flags.UseHTTPS {
+		return errors.New("cannot use --http2-prior-knowledge with --use-https")
+	}
 	return nil
 }
 
@@ -379,63 +385,77 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 		InsecureSkipVerify: true,
 		ServerName:         "localhost",
 	}
-	transport := &http.Transport{
-		Proxy:               nil, // TODO: implement proxying
-		DisableKeepAlives:   false,
-		DisableCompression:  false,
-		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
-		RawHeaderBuffer:     scanner.config.RawHeaders,
-		TLSClientConfig:     cfg,
-	}
 	ret := scan{
 		scanner:                scanner,
 		target:                 target,
 		client:                 http.MakeNewClient(),
 		redirectsToResolvedIPs: make(map[string]string),
 	}
+	ret.client.UserAgent = scanner.config.UserAgent
 	if scanner.config.TargetTimeout != 0 {
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
-	transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		log.Warnf("Custom DialTLSContext called for %s", addr)
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
+	if scanner.config.HTTP2PriorKnowledge {
+		// Use http2.Transport directly (not through http.Client’s automatic upgrade)
+		transport := &http2.Transport{
+			AllowHTTP: true, // allow h2c (non-TLS)
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				// Instead of TLS, just do raw TCP
+				return dialerGroup.L4Dialer(target)(ctx, network, addr)
+			},
 		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
-	}
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		log.Warnf("Custom DialContext called for %s", addr)
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
-		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
-	}
-	_, err := http2.ConfigureTransports(transport)
-	if err != nil {
-		log.Panicf("Unable to configure http2: %v", err)
+		ret.client.Transport = transport
 	} else {
-		log.Warn("Configured http2.0")
+		// Use http.Transport, which may be automatically upgraded to HTTP/2 by http.Client
+		transport := &http.Transport{
+			Proxy:               nil, // TODO: implement proxying
+			DisableKeepAlives:   false,
+			DisableCompression:  false,
+			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
+			RawHeaderBuffer:     scanner.config.RawHeaders,
+			TLSClientConfig:     cfg,
+		}
+		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			log.Warnf("Custom DialTLSContext called for %s", addr)
+			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+			conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
+			}
+			host, _, err := net.SplitHostPort(addr)
+			if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+				// addr is a domain, update our mapping of redirected URLs to resolved IPs
+				ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+			}
+			ret.connections = append(ret.connections, conn)
+			ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+			return conn, nil
+		}
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			log.Warnf("Custom DialContext called for %s", addr)
+			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+			conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
+			}
+			host, _, err := net.SplitHostPort(addr)
+			if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+				// addr is a domain, update our mapping of redirected URLs to resolved IPs
+				ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+			}
+			ret.connections = append(ret.connections, conn)
+			ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+			return conn, nil
+		}
+		_, err := http2.ConfigureTransports(transport)
+		if err != nil {
+			log.Panicf("Unable to configure http2: %v", err)
+		} else {
+			log.Warn("Configured http2.0")
+		}
+		ret.client.Transport = transport
 	}
-	ret.client.UserAgent = scanner.config.UserAgent
-	ret.client.Transport = transport
+
 	ret.client.CheckRedirect = ret.getCheckRedirect()
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	if deadline, ok := ctx.Deadline(); ok {
