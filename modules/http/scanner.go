@@ -385,7 +385,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 		RawHeaderBuffer:     scanner.config.RawHeaders,
-		TLSClientConfig: cfg,
+		TLSClientConfig:     cfg,
 	}
 	ret := scan{
 		scanner:                scanner,
