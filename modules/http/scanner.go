@@ -416,7 +416,6 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 			TLSClientConfig:     cfg,
 		}
 		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			log.Warnf("Custom DialTLSContext called for %s", addr)
 			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
 			conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
 			if err != nil {
@@ -432,7 +431,6 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 			return conn, nil
 		}
 		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			log.Warnf("Custom DialContext called for %s", addr)
 			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
 			conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
 			if err != nil {
@@ -449,9 +447,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 		}
 		_, err := http2.ConfigureTransports(transport)
 		if err != nil {
-			log.Panicf("Unable to configure http2: %v", err)
-		} else {
-			log.Warn("Configured http2.0")
+			log.Errorf("unable to configure http2 transport: %w", err)
 		}
 		ret.client.Transport = transport
 	}
