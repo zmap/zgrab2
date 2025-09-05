@@ -240,6 +240,7 @@ type BaseFlags struct {
 	ConnectTimeout time.Duration `long:"connect-timeout" description:"Set max for how long to wait for initial connection establishment (0 = no timeout)" default:"10s"`
 	TargetTimeout  time.Duration `short:"t" long:"target-timeout" description:"Set max for how long a scan of a single target (IP, Domain, etc) can take (0 = no timeout)" default:"60s"`
 	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
+	Verbose        bool          `short:"v" long:"verbose" description:"More verbose logging, include debug fields in the scan results if implemented"`
 }
 
 // GetName returns the name of the respective scanner

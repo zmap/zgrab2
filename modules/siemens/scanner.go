@@ -18,7 +18,6 @@ import (
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"` // TODO: configurable TSAP source / destination, etc
-	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	ReadTimeout      time.Duration           `long:"read-timeout" default:"500ms" description:"Timeout for reading S7 responses"`
 }
 

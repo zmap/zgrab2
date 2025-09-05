@@ -38,7 +38,6 @@ type Flags struct {
 	ObjectID         uint8                   `long:"object-id" description:"The ObjectID of the object to be read." default:"0x00"`
 	Strict           bool                    `long:"strict" description:"If set, perform stricter checks on the response data to get fewer false positives"`
 	RequestID        uint16                  `long:"request-id" description:"Override the default request ID." default:"0x5A47"`
-	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.

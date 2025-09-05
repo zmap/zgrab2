@@ -38,7 +38,6 @@ type Flags struct {
 	MaxInputFileSize int64  `long:"max-input-file-size" default:"102400" description:"Maximum size for either input file."`
 	Password         string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
 	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
-	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	UseTLS           bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
 	zgrab2.TLSFlags  `group:"TLS Options"`
 }

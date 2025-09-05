@@ -95,7 +95,6 @@ type ScanResults struct {
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
-	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
 	//FIXME: Borrowed from http module, determine whether this is all needed
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`

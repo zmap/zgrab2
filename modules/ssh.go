@@ -26,7 +26,6 @@ type SSHFlags struct {
 	GexMaxBits        uint   `long:"gex-max-bits" description:"The maximum number of bits for the DH GEX prime." default:"8192"`
 	GexPreferredBits  uint   `long:"gex-preferred-bits" description:"The preferred number of bits for the DH GEX prime." default:"2048"`
 	HelloOnly         bool   `long:"hello-only" description:"Limit scan to the initial hello message"`
-	Verbose           bool   `long:"verbose" description:"Output additional information, including SSH client properties from the SSH handshake."`
 }
 
 type SSHModule struct {

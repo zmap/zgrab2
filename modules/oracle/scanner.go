@@ -90,10 +90,6 @@ type Flags struct {
 	// NewTNS causes the client to use the newer TNS header format with 32-bit
 	// lengths.
 	NewTNS bool `long:"new-tns" description:"If set, use new-style TNS headers"`
-
-	// Verbose causes more verbose logging, and includes debug fields inthe scan
-	// results.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
