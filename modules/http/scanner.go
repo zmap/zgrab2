@@ -504,15 +504,14 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		// to set the Accept header
 		request.Header.Set("Accept", "*/*")
 	}
-	resp, err := scan.client.Get(scan.url)
-
-	//resp, err := scan.client.Do(request)
+	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	scan.results.Response = resp
 	if err != nil {
-		if urlError, ok := err.(*url.Error); ok {
+		var urlError *url.Error
+		if errors.As(err, &urlError) {
 			err = urlError.Err
 		}
 	}
