@@ -78,6 +78,14 @@ func goroutineLeaked() bool {
 		// Wait for goroutines to schedule and die off:
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	// Phillip - Ignore the HashiCorp LRU cache goroutine leak, seems unavoidable since they give no way to stop it
+	for stack, _ := range stackCount {
+		if len(stackCount) == 1 && strings.Contains(stack, "hashicorp/") {
+			// We use a HashiCorp LRU cache that has a background goroutine started within the init() function. Disregard it.
+			return false
+		}
+	}
 	fmt.Fprintf(os.Stderr, "Too many goroutines running after net/http test(s).\n")
 	for stack, count := range stackCount {
 		fmt.Fprintf(os.Stderr, "%d instances of:\n%s\n", count, stack)
