@@ -9,18 +9,17 @@ package httptrace
 import (
 	"context"
 	"net"
+	"net/textproto"
 	"reflect"
 	"time"
 
 	"github.com/zmap/zcrypto/tls"
-
-	"github.com/zmap/zgrab2/lib/http/nettrace"
 )
 
 // unique type to prevent assignment.
 type clientEventContextKey struct{}
 
-// ContextClientTrace returns the ClientTrace associated with the
+// ContextClientTrace returns the [ClientTrace] associated with the
 // provided context. If none, it returns nil.
 func ContextClientTrace(ctx context.Context) *ClientTrace {
 	trace, _ := ctx.Value(clientEventContextKey{}).(*ClientTrace)
@@ -40,31 +39,31 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 	trace.compose(old)
 
 	ctx = context.WithValue(ctx, clientEventContextKey{}, trace)
-	if trace.hasNetHooks() {
-		nt := &nettrace.Trace{
-			ConnectStart: trace.ConnectStart,
-			ConnectDone:  trace.ConnectDone,
-		}
-		if trace.DNSStart != nil {
-			nt.DNSStart = func(name string) {
-				trace.DNSStart(DNSStartInfo{Host: name})
-			}
-		}
-		if trace.DNSDone != nil {
-			nt.DNSDone = func(netIPs []any, coalesced bool, err error) {
-				addrs := make([]net.IPAddr, len(netIPs))
-				for i, ip := range netIPs {
-					addrs[i] = ip.(net.IPAddr)
-				}
-				trace.DNSDone(DNSDoneInfo{
-					Addrs:     addrs,
-					Coalesced: coalesced,
-					Err:       err,
-				})
-			}
-		}
-		ctx = context.WithValue(ctx, nettrace.TraceKey{}, nt)
-	}
+	//if trace.hasNetHooks() {
+	//	nt := &nettrace.Trace{
+	//		ConnectStart: trace.ConnectStart,
+	//		ConnectDone:  trace.ConnectDone,
+	//	}
+	//	if trace.DNSStart != nil {
+	//		nt.DNSStart = func(name string) {
+	//			trace.DNSStart(DNSStartInfo{Host: name})
+	//		}
+	//	}
+	//	if trace.DNSDone != nil {
+	//		nt.DNSDone = func(netIPs []any, coalesced bool, err error) {
+	//			addrs := make([]net.IPAddr, len(netIPs))
+	//			for i, ip := range netIPs {
+	//				addrs[i] = ip.(net.IPAddr)
+	//			}
+	//			trace.DNSDone(DNSDoneInfo{
+	//				Addrs:     addrs,
+	//				Coalesced: coalesced,
+	//				Err:       err,
+	//			})
+	//		}
+	//	}
+	//	ctx = context.WithValue(ctx, nettrace.TraceKey{}, nt)
+	//}
 	return ctx
 }
 
@@ -109,6 +108,12 @@ type ClientTrace struct {
 	// Continue" response.
 	Got100Continue func()
 
+	// Got1xxResponse is called for each 1xx informational response header
+	// returned before the final non-1xx response. Got1xxResponse is called
+	// for "100 Continue" responses, even if Got100Continue is also defined.
+	// If it returns an error, the client request is aborted with that error value.
+	Got1xxResponse func(code int, header textproto.MIMEHeader) error
+
 	// DNSStart is called when a DNS lookup begins.
 	DNSStart func(DNSStartInfo)
 
@@ -122,14 +127,14 @@ type ClientTrace struct {
 
 	// ConnectDone is called when a new connection's Dial
 	// completes. The provided err indicates whether the
-	// connection completedly successfully.
+	// connection completed successfully.
 	// If net.Dialer.DualStack ("Happy Eyeballs") support is
 	// enabled, this may be called multiple times.
 	ConnectDone func(network, addr string, err error)
 
 	// TLSHandshakeStart is called when the TLS handshake is started. When
-	// connecting to a HTTPS site via a HTTP proxy, the handshake happens after
-	// the CONNECT request is processed by the proxy.
+	// connecting to an HTTPS site via an HTTP proxy, the handshake happens
+	// after the CONNECT request is processed by the proxy.
 	TLSHandshakeStart func()
 
 	// TLSHandshakeDone is called after the TLS handshake with either the
@@ -137,12 +142,17 @@ type ClientTrace struct {
 	// failure.
 	TLSHandshakeDone func(tls.ConnectionState, error)
 
+	// WroteHeaderField is called after the Transport has written
+	// each request header. At the time of this call the values
+	// might be buffered and not yet written to the network.
+	WroteHeaderField func(key string, value []string)
+
 	// WroteHeaders is called after the Transport has written
-	// the request headers.
+	// all request headers.
 	WroteHeaders func()
 
 	// Wait100Continue is called if the Request specified
-	// "Expected: 100-continue" and the Transport has written the
+	// "Expect: 100-continue" and the Transport has written the
 	// request headers but is waiting for "100 Continue" from the
 	// server before writing the request body.
 	Wait100Continue func()
@@ -223,7 +233,7 @@ func (t *ClientTrace) hasNetHooks() bool {
 	return t.DNSStart != nil || t.DNSDone != nil || t.ConnectStart != nil || t.ConnectDone != nil
 }
 
-// GotConnInfo is the argument to the ClientTrace.GotConn function and
+// GotConnInfo is the argument to the [ClientTrace.GotConn] function and
 // contains information about the obtained connection.
 type GotConnInfo struct {
 	// Conn is the connection that was obtained. It is owned by

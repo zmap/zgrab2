@@ -1,0 +1,36 @@
+{
+    # Enable debug logging globally
+    log {
+        output stdout
+        format console
+        level DEBUG
+    }
+}
+
+
+https://localhost {
+    root * /usr/share/caddy/html/
+    file_server
+
+    tls /etc/ssl/private/self.crt /etc/ssl/private/self.key
+
+    # Enhanced logging with HTTP/2 details
+    log {
+        output stdout
+        format json
+        level DEBUG
+
+        # Include additional fields for HTTP/2 debugging
+        #include http.request.proto
+        #include http.request.method
+        #include http.request.uri
+        #include http.request.headers
+        #include http.response.headers
+        #include http.vars.http2_stream_id
+    }
+
+    @nonh2 {
+        expression `{http.request.proto} != "HTTP/2.0"`
+    }
+    respond @nonh2 "HTTP/2 required" 403
+}
