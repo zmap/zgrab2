@@ -236,11 +236,6 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns the module's help string
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // NewFlags provides an empty instance of the flags that will be filled in by the framework
 func (module *Module) NewFlags() any {
 	return new(Flags)

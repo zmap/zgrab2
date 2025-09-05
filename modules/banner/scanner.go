@@ -125,11 +125,6 @@ func (m *Module) Description() string {
 	return "Fetch a raw banner by sending a static probe and checking the result against an optional regular expression"
 }
 
-// Help returns the module's help string.
-func (f *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the Scanner with the command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	var err error
