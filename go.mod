@@ -1,8 +1,8 @@
 module github.com/zmap/zgrab2
 
-go 1.23.0
+go 1.24.0
 
-toolchain go1.23.5
+toolchain go1.24.7
 
 require (
 	github.com/censys/cidranger v1.1.3
