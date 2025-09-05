@@ -447,7 +447,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 		}
 		_, err := http2.ConfigureTransports(transport)
 		if err != nil {
-			log.Errorf("unable to configure http2 transport: %w", err)
+			log.Errorf("unable to configure http2 transport: %v", err)
 		}
 		ret.client.Transport = transport
 	}
