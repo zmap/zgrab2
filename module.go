@@ -226,9 +226,6 @@ type ScanModule interface {
 // ScanFlags is an interface which must be implemented by all types sent to
 // the flag parser
 type ScanFlags interface {
-	// Help optionally returns any additional help text, e.g. specifying what empty defaults are interpreted as.
-	Help() string
-
 	// Validate enforces all command-line flags and positional arguments have valid values.
 	Validate([]string) error
 }
