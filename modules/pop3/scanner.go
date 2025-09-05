@@ -79,9 +79,6 @@ type Flags struct {
 
 	// StartTLS indicates that the client should attempt to update the connection to TLS.
 	StartTLS bool `long:"starttls" description:"Send STLS before negotiating"`
-
-	// Verbose indicates that there should be more verbose logging.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
