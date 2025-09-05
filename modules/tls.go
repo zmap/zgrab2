@@ -48,10 +48,6 @@ func (f *TLSFlags) Validate(_ []string) error {
 	return nil
 }
 
-func (f *TLSFlags) Help() string {
-	return ""
-}
-
 func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
 	f, ok := flags.(*TLSFlags)
 	if !ok {

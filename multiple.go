@@ -17,8 +17,3 @@ func (x *MultipleCommand) Validate(_ []string) error {
 
 	return nil
 }
-
-// Help returns a usage string that will be output at the command line
-func (x *MultipleCommand) Help() string {
-	return ""
-}

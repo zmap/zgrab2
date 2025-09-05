@@ -148,11 +148,6 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns module-specific help
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Protocol returns the protocol identifer for the scanner.
 func (scanner *Scanner) Protocol() string {
 	return "http"
