@@ -16,11 +16,12 @@ func main() {
 			http.Error(w, fmt.Sprintf("expected protocol %s, got %s", expectedProtocol, r.Proto), http.StatusHTTPVersionNotSupported)
 			return
 		}
-		fmt.Fprint(w, "Successfully served over HTTP/2 NOT over TLS!\n")
+		_, err := fmt.Fprint(w, "Successfully served over HTTP/2 NOT over TLS!\n")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
-	h2s := &http2.Server{
-		// ...
-	}
+	h2s := &http2.Server{}
 	h1s := &http.Server{
 		Addr:    ":8083",
 		Handler: h2c.NewHandler(handler, h2s),
