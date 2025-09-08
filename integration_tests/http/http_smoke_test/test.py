@@ -114,7 +114,9 @@ def test_basic_https():
 
 # Ensures that the returned HTTP body matches the expected contents
 def test_http_body_contents():
-    with open("./http_smoke_test/container/index-http.html", "r", encoding="utf-8") as f:
+    with open(
+        "./http_smoke_test/container/index-http.html", "r", encoding="utf-8"
+    ) as f:
         expected_content = f.read()
     # remove the trailing newlines that jq is adding and extract body from ZGrab scan
     cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http | jq -r '.data.http.result.response.body' | perl -pe 'chomp if eof'"
