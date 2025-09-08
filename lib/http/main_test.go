@@ -80,7 +80,7 @@ func goroutineLeaked() bool {
 	}
 
 	// Phillip - Ignore the HashiCorp LRU cache goroutine leak, seems unavoidable since they give no way to stop it
-	for stack, _ := range stackCount {
+	for stack := range stackCount {
 		if len(stackCount) == 1 && strings.Contains(stack, "hashicorp/") {
 			// We use a HashiCorp LRU cache that has a background goroutine started within the init() function. Disregard it.
 			return false
