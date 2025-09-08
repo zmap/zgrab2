@@ -123,7 +123,6 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
 	SkipSSL          bool   `long:"skip-ssl" description:"If set, do not attempt to negotiate an SSL connection"`
-	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	ProtocolVersion  string `long:"protocol-version" description:"The protocol to use in the StartupPacket" default:"3.0"`
 	User             string `long:"user" description:"Username to pass to StartupMessage. If omitted, no user will be sent." default:""`
 	Database         string `long:"database" description:"Database to pass to StartupMessage. If omitted, none will be sent." default:""`

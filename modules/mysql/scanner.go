@@ -140,7 +140,6 @@ func readResultsFromConnectionLog(connectionLog *mysql.ConnectionLog) *ScanResul
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
-	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module is the implementation of the zgrab2.Module interface.

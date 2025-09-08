@@ -26,9 +26,8 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	V5      bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
-	UseTLS  bool `long:"tls" description:"Use TLS for the MQTT connection"`
+	V5     bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
+	UseTLS bool `long:"tls" description:"Use TLS for the MQTT connection"`
 }
 
 // Module implements the zgrab2.Module interface.
