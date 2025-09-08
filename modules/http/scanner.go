@@ -500,6 +500,15 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		// to set the Accept header
 		request.Header.Set("Accept", "*/*")
 	}
+
+	if scan.scanner.config.HTTP2PriorKnowledge {
+		// Set Protocol to HTTP/2.0 for h2c requests. This happens implicitly with the http2 transport, but this way the
+		// user sees this reflecting in the request's protocol in the json output
+		request.Proto = "HTTP/2.0"
+		request.ProtoMajor = 2
+		request.ProtoMinor = 0
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
