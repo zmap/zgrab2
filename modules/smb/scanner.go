@@ -19,9 +19,6 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	// SetupSession tells the client to continue the handshake up to the point where credentials would be needed.
 	SetupSession bool `long:"setup-session" description:"After getting the response from the negotiation request, send a setup session packet."`
-
-	// Verbose requests more verbose logging / output.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.

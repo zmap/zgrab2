@@ -92,9 +92,6 @@ type Flags struct {
 
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
-
-	// Verbose indicates that there should be more verbose logging.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
