@@ -8,7 +8,7 @@
 }
 
 
-https://localhost {
+https://http2.target {
     root * /usr/share/caddy/html/
     file_server
 
