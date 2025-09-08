@@ -14,12 +14,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-
-	"github.com/zmap/zcrypto/tls"
-
-	"github.com/zmap/zgrab2"
-	"github.com/zmap/zgrab2/lib/http"
-
 	"io"
 	"io/fs"
 	"log"
@@ -27,7 +21,6 @@ import (
 	"math/bits"
 	mathrand "math/rand"
 	"net"
-	"net/http/httptrace"
 	"net/textproto"
 	"strconv"
 	"strings"
@@ -38,6 +31,11 @@ import (
 	"golang.org/x/net/http/httpguts"
 	"golang.org/x/net/idna"
 
+	"github.com/zmap/zcrypto/tls"
+
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http2/hpack"
 
 	"github.com/zmap/zgrab2/lib/http2/internal/httpcommon"

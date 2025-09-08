@@ -39,31 +39,31 @@ func WithClientTrace(ctx context.Context, trace *ClientTrace) context.Context {
 	trace.compose(old)
 
 	ctx = context.WithValue(ctx, clientEventContextKey{}, trace)
-	//if trace.hasNetHooks() {
-	//	nt := &nettrace.Trace{
-	//		ConnectStart: trace.ConnectStart,
-	//		ConnectDone:  trace.ConnectDone,
-	//	}
-	//	if trace.DNSStart != nil {
-	//		nt.DNSStart = func(name string) {
-	//			trace.DNSStart(DNSStartInfo{Host: name})
-	//		}
-	//	}
-	//	if trace.DNSDone != nil {
-	//		nt.DNSDone = func(netIPs []any, coalesced bool, err error) {
-	//			addrs := make([]net.IPAddr, len(netIPs))
-	//			for i, ip := range netIPs {
-	//				addrs[i] = ip.(net.IPAddr)
-	//			}
-	//			trace.DNSDone(DNSDoneInfo{
-	//				Addrs:     addrs,
-	//				Coalesced: coalesced,
-	//				Err:       err,
-	//			})
-	//		}
-	//	}
-	//	ctx = context.WithValue(ctx, nettrace.TraceKey{}, nt)
-	//}
+	if trace.hasNetHooks() {
+		nt := &Trace{
+			ConnectStart: trace.ConnectStart,
+			ConnectDone:  trace.ConnectDone,
+		}
+		if trace.DNSStart != nil {
+			nt.DNSStart = func(name string) {
+				trace.DNSStart(DNSStartInfo{Host: name})
+			}
+		}
+		if trace.DNSDone != nil {
+			nt.DNSDone = func(netIPs []any, coalesced bool, err error) {
+				addrs := make([]net.IPAddr, len(netIPs))
+				for i, ip := range netIPs {
+					addrs[i] = ip.(net.IPAddr)
+				}
+				trace.DNSDone(DNSDoneInfo{
+					Addrs:     addrs,
+					Coalesced: coalesced,
+					Err:       err,
+				})
+			}
+		}
+		ctx = context.WithValue(ctx, TraceKey{}, nt)
+	}
 	return ctx
 }
 
