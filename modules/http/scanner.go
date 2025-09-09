@@ -142,7 +142,8 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	desc := []string{
-		"Send an HTTP request and read the response, optionally following redirects",
+		"Send an HTTP request and read the response, optionally following redirects. By default, will perform HTTP/2 upgrade if the server supports it.",
+		"Use --next-protos to control the ALPN protocols offered during TLS negotiation, ie. only 'http/1.1' to disable HTTP/2 or 'h2' to require HTTP/2.",
 		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
 	}
 	return strings.Join(desc, "\n")
@@ -384,6 +385,10 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 	cfg := &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         "localhost",
+	}
+	if len(scanner.config.TLSFlags.NextProtos) == 0 {
+		// Default to h2 and http/1.1
+		scanner.config.TLSFlags.NextProtos = "h2,http/1.1"
 	}
 	ret := scan{
 		scanner:                scanner,

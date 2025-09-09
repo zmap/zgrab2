@@ -9,6 +9,7 @@
 
 
 https://http2.target {
+    tls internal
     root * /usr/share/caddy/html/
     file_server
 

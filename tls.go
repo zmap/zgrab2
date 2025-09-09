@@ -55,7 +55,7 @@ type TLSFlags struct {
 	// TODO: directory? glob?
 	RootCAs string `long:"root-cas" description:"Set of certificates to use when verifying server certificates"`
 	// TODO: format?
-	NextProtos              string `long:"next-protos" description:"A list of supported application-level protocols" default:"h2,http/1.1"`
+	NextProtos              string `long:"next-protos" description:"A list of supported application-level protocols"`
 	ServerName              string `long:"server-name" description:"Server name used for certificate verification and (optionally) SNI"`
 	VerifyServerCertificate bool   `long:"verify-server-certificate" description:"If set, the scan will fail if the server certificate does not match the server-name, or does not chain to a trusted root."`
 	// TODO: format? mapping? zgrab1 had flags like ChromeOnly, FirefoxOnly, etc...
