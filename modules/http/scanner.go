@@ -386,9 +386,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 		InsecureSkipVerify: true,
 		ServerName:         "localhost",
 	}
-	if len(scanner.config.TLSFlags.NextProtos) == 0 {
+	if len(scanner.config.NextProtos) == 0 {
 		// Default to h2 and http/1.1
-		scanner.config.TLSFlags.NextProtos = "h2,http/1.1"
+		scanner.config.NextProtos = "h2,http/1.1"
 	}
 	ret := scan{
 		scanner:                scanner,
