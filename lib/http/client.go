@@ -753,6 +753,22 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 		if !shouldRedirect {
 			return resp, nil
 		}
+		err = c.checkRedirect(req, resp, reqs)
+
+		// Sentinel error to let users select the
+		// previous response, without closing its
+		// body. See Issue 10069.
+		if err == ErrUseLastResponse {
+			return resp, nil
+		}
+		if err != nil {
+			// Special case for Go 1 compatibility: return both the response
+			// and an error if the CheckRedirect function failed.
+			// See https://golang.org/issue/3795
+			ue := uerr(err)
+			ue.(*url.Error).URL = loc
+			return resp, err
+		}
 
 		req.closeBody()
 	}
