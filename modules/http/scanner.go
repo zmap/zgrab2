@@ -382,10 +382,6 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
-	cfg := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         "localhost",
-	}
 	if len(scanner.config.NextProtos) == 0 {
 		// Default to h2 and http/1.1
 		scanner.config.NextProtos = "h2,http/1.1"
@@ -418,7 +414,6 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 			RawHeaderBuffer:     scanner.config.RawHeaders,
-			TLSClientConfig:     cfg,
 		}
 		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
