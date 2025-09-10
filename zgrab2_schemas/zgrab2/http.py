@@ -120,6 +120,7 @@ http_response = SubRecord(
         "status_code": Signed32BitInteger(),
         "status_line": String(),
         "headers": http_headers,
+        "headers_raw": String(),
         "body": String(),
         "body_sha256": String(),
     }
@@ -159,6 +160,7 @@ http_response_full = SubRecord(
             }
         ),
         "headers": http_headers,
+        "headers_raw": String(),
         "body": String(),
         "body_sha256": Binary(),
         "content_length": Signed64BitInteger(),
