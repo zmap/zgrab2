@@ -40,6 +40,7 @@ os.makedirs(output_root, exist_ok=True)
 
 container_name = "zgrab_http"
 
+
 def test_basic_http():
     print("http/test: Run http test in default port (should be 80)")
     run_command(
@@ -64,16 +65,10 @@ def test_http_with_redirect():
         .get("response", {})
     )
 
-    scan_data = (
-        json.loads(actual_content)
-        .get("data", {})
-        .get("http", {})
-    )
+    scan_data = json.loads(actual_content).get("data", {}).get("http", {})
 
     scan_status = scan_data.get("status")
-    assert (
-        scan_status == "success"
-    ), f"Expected scan status success, got {scan_status}"
+    assert scan_status == "success", f"Expected scan status success, got {scan_status}"
 
     status_code = response.get("status_code")
     assert (
@@ -86,7 +81,7 @@ def test_http_with_redirect():
     ), f"Expected Location header to be /index-redirect-2.html, got {location}"
 
     raw_headers = response.get("headers_raw")
-    decoded_headers = base64.b64decode(raw_headers).decode('utf-8')
+    decoded_headers = base64.b64decode(raw_headers).decode("utf-8")
 
     # If these are not all present, we've probably truncated headers (or upgraded lighttpd)
     assert (
@@ -101,7 +96,6 @@ def test_http_with_redirect():
     assert (
         "Content-Length: 0" in decoded_headers
     ), f"Expected raw headers to be correct. got {decoded_headers}"
-
 
     # Now run the same command but with redirects
     cmd += " --max-redirects=1"
@@ -239,11 +233,7 @@ def test_scanning_real_domains():
             raise ValueError(
                 f"zgrab2_runner: {domain} returned an unexpected status line: {status_line}"
             )
-        scan_data = (
-            json.loads(grabbed_response)
-            .get("data", {})
-            .get("http", {})
-        )
+        scan_data = json.loads(grabbed_response).get("data", {}).get("http", {})
 
         scan_status = scan_data.get("status")
         assert (
