@@ -189,7 +189,7 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 
 // GetScanMetadata returns any metadata on the scan itself from this module.
 func (scanner *Scanner) GetScanMetadata() any {
-	return nil
+	return moduleMetadata
 }
 
 func getSMTPCode(response string) (int, error) {
@@ -293,6 +293,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send EHLO command: %w", err)
 		}
 		result.EHLO = ret
+		moduleMetadata.incrementHostsSupportingEHLO() // mark that we found a host that supports EHLO
 	} else {
 		// send a HELO msg since server doesn't support EHLO
 		ret, err := smtpConn.SendCommand(getCommand("HELO", target.Domain))
@@ -300,6 +301,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send HELO command: %w", err)
 		}
 		result.HELO = ret
+		moduleMetadata.incrementHostsSupportingHELO() // mark that we found a host that supports HELO
 	}
 	if scanner.config.SendHELP {
 		ret, err := smtpConn.SendCommand("HELP")
@@ -334,6 +336,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 		result.TLSLog = tlsConn.GetLog()
 		smtpConn.Conn = tlsConn
+		moduleMetadata.incrementHostsSupportingSTARTTLS() // mark that we found a host that supports STARTTLS
 	}
 	if scanner.config.SendQUIT {
 		ret, err := smtpConn.SendCommand("QUIT")
