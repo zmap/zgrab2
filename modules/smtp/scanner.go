@@ -189,7 +189,7 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 
 // GetScanMetadata returns any metadata on the scan itself from this module.
 func (scanner *Scanner) GetScanMetadata() any {
-	return moduleMetadata
+	return &moduleMetadata
 }
 
 func getSMTPCode(response string) (int, error) {
