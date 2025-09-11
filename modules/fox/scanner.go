@@ -107,6 +107,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Scan probes for a Tridium Fox service.
 // 1. Opens a TCP connection to the configured port (default 1911)
 // 2. Sends a static query
