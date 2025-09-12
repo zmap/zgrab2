@@ -24,11 +24,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/zmap/zcrypto/tls"
+
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http2"
 )
 
 var (
@@ -78,6 +81,9 @@ type Flags struct {
 
 	// Extract the raw header as it is on the wire
 	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
+
+	// Send a plaintext HTTP/2 request, equivalent to curl --http2-prior-knowledge
+	HTTP2PriorKnowledge bool `long:"http2-prior-knowledge" description:"Send a plaintext, unencrypted HTTP/2 request. Incompatable with --use-https"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -116,7 +122,6 @@ type scan struct {
 	cancelFuncs            []context.CancelFunc
 	scanner                *Scanner
 	target                 *zgrab2.ScanTarget
-	transport              *http.Transport
 	client                 *http.Client
 	results                Results
 	url                    string
@@ -137,7 +142,8 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	desc := []string{
-		"Send an HTTP request and read the response, optionally following redirects",
+		"Send an HTTP request and read the response, optionally following redirects. By default, will perform HTTP/2 upgrade if the server supports it.",
+		"Use --next-protos to control the ALPN protocols offered during TLS negotiation, ie. only 'http/1.1' to disable HTTP/2 or 'h2' to require HTTP/2.",
 		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
 	}
 	return strings.Join(desc, "\n")
@@ -145,6 +151,9 @@ func (module *Module) Description() string {
 
 // Validate performs any needed validation on the arguments
 func (flags *Flags) Validate(_ []string) error {
+	if flags.HTTP2PriorKnowledge && flags.UseHTTPS {
+		return errors.New("cannot use --http2-prior-knowledge with --use-https")
+	}
 	return nil
 }
 
@@ -378,55 +387,77 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
+	if len(scanner.config.NextProtos) == 0 {
+		// Default to h2 and http/1.1
+		scanner.config.NextProtos = "h2,http/1.1"
+	}
 	ret := scan{
-		scanner: scanner,
-		target:  target,
-		transport: &http.Transport{
+		scanner:                scanner,
+		target:                 target,
+		client:                 http.MakeNewClient(),
+		redirectsToResolvedIPs: make(map[string]string),
+	}
+	ret.client.UserAgent = scanner.config.UserAgent
+	if scanner.config.TargetTimeout != 0 {
+		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
+	}
+	if scanner.config.HTTP2PriorKnowledge {
+		// Use http2.Transport directly (not through http.Client’s automatic upgrade)
+		transport := &http2.Transport{
+			AllowHTTP: true, // allow h2c (non-TLS)
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				// Instead of TLS, just do raw TCP
+				return dialerGroup.L4Dialer(target)(ctx, network, addr)
+			},
+		}
+		ret.client.Transport = transport
+	} else {
+		// Use http.Transport, which may be automatically upgraded to HTTP/2 by http.Client
+		transport := &http.Transport{
 			Proxy:               nil, // TODO: implement proxying
 			DisableKeepAlives:   false,
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 			RawHeaderBuffer:     scanner.config.RawHeaders,
-		},
-		client:                 http.MakeNewClient(),
-		redirectsToResolvedIPs: make(map[string]string),
-	}
-	if scanner.config.TargetTimeout != 0 {
-		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
-	}
-	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
+		}
+		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+			conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
+			}
+			host, _, err := net.SplitHostPort(addr)
+			if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+				// addr is a domain, update our mapping of redirected URLs to resolved IPs
+				ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+			}
+			ret.connections = append(ret.connections, conn)
+			ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+			return conn, nil
+		}
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+			conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
+			}
+			host, _, err := net.SplitHostPort(addr)
+			if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+				// addr is a domain, update our mapping of redirected URLs to resolved IPs
+				ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+			}
+			ret.connections = append(ret.connections, conn)
+			ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+			return conn, nil
+		}
+		_, err := http2.ConfigureTransports(transport)
 		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
+			log.Errorf("unable to configure http2 transport: %v", err)
 		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
+		ret.client.Transport = transport
 	}
-	ret.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
-		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
-	}
-	ret.client.UserAgent = scanner.config.UserAgent
+
 	ret.client.CheckRedirect = ret.getCheckRedirect()
-	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	if deadline, ok := ctx.Deadline(); ok {
 		ret.client.Timeout = min(ret.client.Timeout, time.Until(deadline))
@@ -475,13 +506,22 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		request.Header.Set("Accept", "*/*")
 	}
 
+	if scan.scanner.config.HTTP2PriorKnowledge {
+		// Set Protocol to HTTP/2.0 for h2c requests. This happens implicitly with the http2 transport, but this way the
+		// user sees this reflecting in the request's protocol in the json output
+		request.Proto = "HTTP/2.0"
+		request.ProtoMajor = 2
+		request.ProtoMinor = 0
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	scan.results.Response = resp
 	if err != nil {
-		if urlError, ok := err.(*url.Error); ok {
+		var urlError *url.Error
+		if errors.As(err, &urlError) {
 			err = urlError.Err
 		}
 	}

@@ -10,11 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 )
 
@@ -39,11 +39,9 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "www.techcrunch.com",
 				Path:   "/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Header: Header{
 				"Accept":           {"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
 				"Accept-Charset":   {"ISO-8859-1,utf-8;q=0.7,*;q=0.7"},
@@ -88,11 +86,8 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "www.google.com",
 				Path:   "/search",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			ProtoMajor:       1,
+			ProtoMinor:       1,
 			Header:           Header{},
 			TransferEncoding: []string{"chunked"},
 		},
@@ -101,13 +96,13 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET /search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			chunk("abcdef") + chunk(""),
 
 		WantProxy: "GET http://www.google.com/search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			chunk("abcdef") + chunk(""),
 	},
@@ -120,11 +115,8 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "www.google.com",
 				Path:   "/search",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			ProtoMajor:       1,
+			ProtoMinor:       1,
 			Header:           Header{},
 			Close:            true,
 			TransferEncoding: []string{"chunked"},
@@ -134,14 +126,14 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "POST /search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Connection: close\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			chunk("abcdef") + chunk(""),
 
 		WantProxy: "POST http://www.google.com/search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Connection: close\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			chunk("abcdef") + chunk(""),
@@ -156,11 +148,8 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "www.google.com",
 				Path:   "/search",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        Header{},
 			Close:         true,
 			ContentLength: 6,
@@ -170,7 +159,7 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "POST /search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Connection: close\r\n" +
 			"Content-Length: 6\r\n" +
 			"\r\n" +
@@ -178,7 +167,7 @@ var reqWriteTests = []reqWriteTest{
 
 		WantProxy: "POST http://www.google.com/search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Connection: close\r\n" +
 			"Content-Length: 6\r\n" +
 			"\r\n" +
@@ -201,14 +190,14 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Content-Length: 6\r\n" +
 			"\r\n" +
 			"abcdef",
 
 		WantProxy: "POST http://example.com/ HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Content-Length: 6\r\n" +
 			"\r\n" +
 			"abcdef",
@@ -224,35 +213,32 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET /search HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"\r\n",
 	},
 
 	// Request with a 0 ContentLength and a 0 byte body.
 	6: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 0, // as if unset by user
 		},
 
-		Body: func() io.ReadCloser { return ioutil.NopCloser(io.LimitReader(strings.NewReader("xx"), 0)) },
+		Body: func() io.ReadCloser { return io.NopCloser(io.LimitReader(strings.NewReader("xx"), 0)) },
 
 		WantWrite: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Transfer-Encoding: chunked\r\n" +
 			"\r\n0\r\n\r\n",
 
 		WantProxy: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Transfer-Encoding: chunked\r\n" +
 			"\r\n0\r\n\r\n",
 	},
@@ -260,14 +246,11 @@ var reqWriteTests = []reqWriteTest{
 	// Request with a 0 ContentLength and a nil body.
 	7: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 0, // as if unset by user
 		},
 
@@ -275,13 +258,13 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Content-Length: 0\r\n" +
 			"\r\n",
 
 		WantProxy: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Content-Length: 0\r\n" +
 			"\r\n",
 	},
@@ -289,28 +272,25 @@ var reqWriteTests = []reqWriteTest{
 	// Request with a 0 ContentLength and a 1 byte body.
 	8: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 0, // as if unset by user
 		},
 
-		Body: func() io.ReadCloser { return ioutil.NopCloser(io.LimitReader(strings.NewReader("xx"), 1)) },
+		Body: func() io.ReadCloser { return io.NopCloser(io.LimitReader(strings.NewReader("xx"), 1)) },
 
 		WantWrite: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			chunk("x") + chunk(""),
 
 		WantProxy: "POST / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"Transfer-Encoding: chunked\r\n\r\n" +
 			chunk("x") + chunk(""),
 	},
@@ -318,14 +298,11 @@ var reqWriteTests = []reqWriteTest{
 	// Request with a ContentLength of 10 but a 5 byte body.
 	9: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 10, // but we're going to send only 5 bytes
 		},
 		Body:      []byte("12345"),
@@ -335,14 +312,11 @@ var reqWriteTests = []reqWriteTest{
 	// Request with a ContentLength of 4 but an 8 byte body.
 	10: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 4, // but we're going to try to send 8 bytes
 		},
 		Body:      []byte("12345678"),
@@ -352,14 +326,11 @@ var reqWriteTests = []reqWriteTest{
 	// Request with a 5 ContentLength and nil body.
 	11: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 5, // but we'll omit the body
 		},
 		WantError: errors.New("http: Request.ContentLength=5 with nil Body"),
@@ -368,60 +339,51 @@ var reqWriteTests = []reqWriteTest{
 	// Request with a 0 ContentLength and a body with 1 byte content and an error.
 	12: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 0, // as if unset by user
 		},
 
 		Body: func() io.ReadCloser {
-			err := errors.New("custom reader error")
-			errReader := &errorReader{err}
-			return ioutil.NopCloser(io.MultiReader(strings.NewReader("x"), errReader))
+			err := errors.New("Custom reader error")
+			errReader := iotest.ErrReader(err)
+			return io.NopCloser(io.MultiReader(strings.NewReader("x"), errReader))
 		},
 
-		WantError: errors.New("custom reader error"),
+		WantError: errors.New("Custom reader error"),
 	},
 
 	// Request with a 0 ContentLength and a body without content and an error.
 	13: {
 		Req: Request{
-			Method: "POST",
-			URL:    mustParseURL("/"),
-			Host:   "example.com",
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Method:        "POST",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			ContentLength: 0, // as if unset by user
 		},
 
 		Body: func() io.ReadCloser {
-			err := errors.New("custom reader error")
-			errReader := &errorReader{err}
-			return ioutil.NopCloser(errReader)
+			err := errors.New("Custom reader error")
+			errReader := iotest.ErrReader(err)
+			return io.NopCloser(errReader)
 		},
 
-		WantError: errors.New("custom reader error"),
+		WantError: errors.New("Custom reader error"),
 	},
 
 	// Verify that DumpRequest preserves the HTTP version number, doesn't add a Host,
 	// and doesn't add a User-Agent.
 	14: {
 		Req: Request{
-			Method: "GET",
-			URL:    mustParseURL("/foo"),
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 0,
-			},
+			Method:     "GET",
+			URL:        mustParseURL("/foo"),
+			ProtoMajor: 1,
+			ProtoMinor: 0,
 			Header: Header{
 				"X-Foo": []string{"X-Bar"},
 			},
@@ -429,7 +391,7 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET /foo HTTP/1.1\r\n" +
 			"Host: \r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"X-Foo: X-Bar\r\n\r\n",
 	},
 
@@ -446,11 +408,8 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "",
 				Path:   "/search",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Header: Header{
 				"Host": []string{"bad.example.com"},
 			},
@@ -458,7 +417,7 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET /search HTTP/1.1\r\n" +
 			"Host: \r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n\r\n",
+			"User-Agent: Go-http-client/1.1\r\n\r\n",
 	},
 
 	// Opaque test #1 from golang.org/issue/4860
@@ -470,17 +429,14 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "www.google.com",
 				Opaque: "/%2F/%2F/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
-			Header: Header{},
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     Header{},
 		},
 
 		WantWrite: "GET /%2F/%2F/ HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n\r\n",
+			"User-Agent: Go-http-client/1.1\r\n\r\n",
 	},
 
 	// Opaque test #2 from golang.org/issue/4860
@@ -492,17 +448,14 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "x.google.com",
 				Opaque: "//y.google.com/%2F/%2F/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
-			Header: Header{},
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     Header{},
 		},
 
 		WantWrite: "GET http://y.google.com/%2F/%2F/ HTTP/1.1\r\n" +
 			"Host: x.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n\r\n",
+			"User-Agent: Go-http-client/1.1\r\n\r\n",
 	},
 
 	// Testing custom case in header keys. Issue 5022.
@@ -514,11 +467,9 @@ var reqWriteTests = []reqWriteTest{
 				Host:   "www.google.com",
 				Path:   "/",
 			},
-			Protocol: Protocol{
-				Name:  "HTTP/1.1",
-				Major: 1,
-				Minor: 1,
-			},
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 			Header: Header{
 				"ALL-CAPS": {"x"},
 			},
@@ -526,7 +477,7 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET / HTTP/1.1\r\n" +
 			"Host: www.google.com\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"ALL-CAPS: x\r\n" +
 			"\r\n",
 	},
@@ -542,7 +493,7 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET / HTTP/1.1\r\n" +
 			"Host: [fe80::1]\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"\r\n",
 	},
 
@@ -558,8 +509,103 @@ var reqWriteTests = []reqWriteTest{
 
 		WantWrite: "GET / HTTP/1.1\r\n" +
 			"Host: [fe80::1]:8080\r\n" +
-			"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
 			"\r\n",
+	},
+
+	// CONNECT without Opaque
+	21: {
+		Req: Request{
+			Method: "CONNECT",
+			URL: &url.URL{
+				Scheme: "https", // of proxy.com
+				Host:   "proxy.com",
+			},
+		},
+		// What we used to do, locking that behavior in:
+		WantWrite: "CONNECT proxy.com HTTP/1.1\r\n" +
+			"Host: proxy.com\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
+			"\r\n",
+	},
+
+	// CONNECT with Opaque
+	22: {
+		Req: Request{
+			Method: "CONNECT",
+			URL: &url.URL{
+				Scheme: "https", // of proxy.com
+				Host:   "proxy.com",
+				Opaque: "backend:443",
+			},
+		},
+		WantWrite: "CONNECT backend:443 HTTP/1.1\r\n" +
+			"Host: proxy.com\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
+			"\r\n",
+	},
+
+	// Verify that a nil header value doesn't get written.
+	23: {
+		Req: Request{
+			Method: "GET",
+			URL:    mustParseURL("/foo"),
+			Header: Header{
+				"X-Foo":             []string{"X-Bar"},
+				"X-Idempotency-Key": nil,
+			},
+		},
+
+		WantWrite: "GET /foo HTTP/1.1\r\n" +
+			"Host: \r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
+			"X-Foo: X-Bar\r\n\r\n",
+	},
+	24: {
+		Req: Request{
+			Method: "GET",
+			URL:    mustParseURL("/foo"),
+			Header: Header{
+				"X-Foo":             []string{"X-Bar"},
+				"X-Idempotency-Key": []string{},
+			},
+		},
+
+		WantWrite: "GET /foo HTTP/1.1\r\n" +
+			"Host: \r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
+			"X-Foo: X-Bar\r\n\r\n",
+	},
+
+	25: {
+		Req: Request{
+			Method: "GET",
+			URL: &url.URL{
+				Host:     "www.example.com",
+				RawQuery: "new\nline", // or any CTL
+			},
+		},
+		WantError: errors.New("net/http: can't write control character in Request.URL"),
+	},
+
+	26: { // Request with nil body and PATCH method. Issue #40978
+		Req: Request{
+			Method:        "PATCH",
+			URL:           mustParseURL("/"),
+			Host:          "example.com",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
+			ContentLength: 0, // as if unset by user
+		},
+		Body: nil,
+		WantWrite: "PATCH / HTTP/1.1\r\n" +
+			"Host: example.com\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
+			"Content-Length: 0\r\n\r\n",
+		WantProxy: "PATCH / HTTP/1.1\r\n" +
+			"Host: example.com\r\n" +
+			"User-Agent: Go-http-client/1.1\r\n" +
+			"Content-Length: 0\r\n\r\n",
 	},
 }
 
@@ -573,7 +619,7 @@ func TestRequestWrite(t *testing.T) {
 			}
 			switch b := tt.Body.(type) {
 			case []byte:
-				tt.Req.Body = ioutil.NopCloser(bytes.NewReader(b))
+				tt.Req.Body = io.NopCloser(bytes.NewReader(b))
 			case func() io.ReadCloser:
 				tt.Req.Body = b()
 			}
@@ -583,7 +629,7 @@ func TestRequestWrite(t *testing.T) {
 			tt.Req.Header = make(Header)
 		}
 
-		var braw bytes.Buffer
+		var braw strings.Builder
 		err := tt.Req.Write(&braw)
 		if g, e := fmt.Sprintf("%v", err), fmt.Sprintf("%v", tt.WantError); g != e {
 			t.Errorf("writing #%d, err = %q, want %q", i, g, e)
@@ -603,7 +649,7 @@ func TestRequestWrite(t *testing.T) {
 
 		if tt.WantProxy != "" {
 			setBody()
-			var praw bytes.Buffer
+			var praw strings.Builder
 			err = tt.Req.WriteProxy(&praw)
 			if err != nil {
 				t.Errorf("WriteProxy #%d: %s", i, err)
@@ -669,20 +715,20 @@ func TestRequestWriteTransport(t *testing.T) {
 		},
 		{
 			method: "GET",
-			body:   ioutil.NopCloser(strings.NewReader("")),
+			body:   io.NopCloser(strings.NewReader("")),
 			want:   noContentLengthOrTransferEncoding,
 		},
 		{
 			method: "GET",
 			clen:   -1,
-			body:   ioutil.NopCloser(strings.NewReader("")),
+			body:   io.NopCloser(strings.NewReader("")),
 			want:   noContentLengthOrTransferEncoding,
 		},
 		// A GET with a body, with explicit content length:
 		{
 			method: "GET",
 			clen:   7,
-			body:   ioutil.NopCloser(strings.NewReader("foobody")),
+			body:   io.NopCloser(strings.NewReader("foobody")),
 			want: all(matchSubstr("Content-Length: 7"),
 				matchSubstr("foobody")),
 		},
@@ -690,7 +736,7 @@ func TestRequestWriteTransport(t *testing.T) {
 		{
 			method: "GET",
 			clen:   -1,
-			body:   ioutil.NopCloser(strings.NewReader("foobody")),
+			body:   io.NopCloser(strings.NewReader("foobody")),
 			want: all(matchSubstr("Transfer-Encoding: chunked"),
 				matchSubstr("\r\n1\r\nf\r\n"),
 				matchSubstr("oobody")),
@@ -700,14 +746,14 @@ func TestRequestWriteTransport(t *testing.T) {
 		{
 			method: "POST",
 			clen:   -1,
-			body:   ioutil.NopCloser(strings.NewReader("foobody")),
+			body:   io.NopCloser(strings.NewReader("foobody")),
 			want: all(matchSubstr("Transfer-Encoding: chunked"),
 				matchSubstr("foobody")),
 		},
 		{
 			method: "POST",
 			clen:   -1,
-			body:   ioutil.NopCloser(strings.NewReader("")),
+			body:   io.NopCloser(strings.NewReader("")),
 			want:   all(matchSubstr("Transfer-Encoding: chunked")),
 		},
 		// Verify that a blocking Request.Body doesn't block forever.
@@ -719,7 +765,7 @@ func TestRequestWriteTransport(t *testing.T) {
 				tt.afterReqRead = func() {
 					pw.Close()
 				}
-				tt.body = ioutil.NopCloser(pr)
+				tt.body = io.NopCloser(pr)
 			},
 			want: matchSubstr("Transfer-Encoding: chunked"),
 		},
@@ -769,7 +815,7 @@ func TestRequestWriteClosesBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf := new(bytes.Buffer)
+	buf := new(strings.Builder)
 	if err := req.Write(buf); err != nil {
 		t.Error(err)
 	}
@@ -778,7 +824,7 @@ func TestRequestWriteClosesBody(t *testing.T) {
 	}
 	expected := "POST / HTTP/1.1\r\n" +
 		"Host: foo.com\r\n" +
-		"User-Agent: Mozilla/5.0 zgrab/0.x\r\n" +
+		"User-Agent: Go-http-client/1.1\r\n" +
 		"Transfer-Encoding: chunked\r\n\r\n" +
 		chunk("my body") +
 		chunk("")
@@ -890,7 +936,7 @@ func dumpRequestOut(req *Request, onReadHeaders func()) ([]byte, error) {
 			}
 			// Ensure all the body is read; otherwise
 			// we'll get a partial dump.
-			io.Copy(ioutil.Discard, req.Body)
+			io.Copy(io.Discard, req.Body)
 			req.Body.Close()
 		}
 		dr.c <- strings.NewReader("HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
