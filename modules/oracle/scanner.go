@@ -197,6 +197,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 func (scanner *Scanner) getTNSDriver() *TNSDriver {
 	mode := TNSModeOld
 	if scanner.config.NewTNS {

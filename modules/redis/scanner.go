@@ -372,6 +372,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Converts the string to a Uint32 if possible. If not, returns 0 (the zero value of a uin32)
 func convToUint32(s string) uint32 {
 	s64, err := strconv.ParseUint(s, 10, 32)

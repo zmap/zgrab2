@@ -102,6 +102,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Scan probes for Siemens S7 services.
 // 1. Connect to TCP port 102
 // 2. Send a COTP connection packet with destination TSAP 0x0102, source TSAP 0x0100

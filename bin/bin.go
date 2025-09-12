@@ -95,6 +95,7 @@ func stopCPUProfile(f *os.File) {
 // include custom sets of scan modules by creating new main packages with custom
 // sets of ZGrab modules imported with side-effects.
 func ZGrab2Main() {
+	scanModuleNameToScanModule := make(map[string]*zgrab2.Scanner)
 	f := startCPUProfile()
 	defer stopCPUProfile(f)
 	defer dumpHeapProfile()
@@ -150,6 +151,7 @@ func ZGrab2Main() {
 			}
 			mod := zgrab2.GetModule(modTypes[i])
 			s := mod.NewScanner()
+			scanModuleNameToScanModule[modTypes[i]] = &s
 
 			if err = s.Init(f); err != nil {
 				log.Panicf("could not initialize multiple scanner: %v", err)
@@ -159,6 +161,7 @@ func ZGrab2Main() {
 	} else {
 		mod := zgrab2.GetModule(moduleType)
 		s := mod.NewScanner()
+		scanModuleNameToScanModule[moduleType] = &s
 		if err = s.Init(flag); err != nil {
 			log.Panicf("could not initialize scanner %s: %v", moduleType, err)
 		}
@@ -177,12 +180,33 @@ func ZGrab2Main() {
 	log.Infof("finished grab at %s", end.Format(time.RFC3339))
 	monitor.Stop()
 	wg.Wait()
-	s := Summary{
-		StatusesPerModule: monitor.GetStatuses(),
+	// Write out metadata summary if metadata file is set
+	monitorStatuses := monitor.GetStatuses()
+	s := Metadata{
 		StartTime:         start.Format(time.RFC3339),
 		EndTime:           end.Format(time.RFC3339),
 		Duration:          end.Sub(start).String(),
+		CLIInvocation:     strings.Join(os.Args, " "),
+		PerModuleMetadata: monitorStatuses,
 	}
+	// Calculate total hosts scanned
+	for _, status := range monitorStatuses {
+		s.NumTargetsScanned += status.Failures + status.Successes
+	}
+
+	// Gather each module's scan metadata
+	for moduleName, module := range scanModuleNameToScanModule {
+		metadata := (*module).GetScanMetadata()
+		if metadata != nil {
+			// Need to lookup the appropriate field in the summary
+			s.PerModuleMetadata[moduleName].CustomMetadata = metadata
+			moduleSummaryMetadata, ok := s.PerModuleMetadata[moduleName]
+			if ok {
+				moduleSummaryMetadata.CustomMetadata = metadata
+			}
+		}
+	}
+
 	if metadataFile := zgrab2.GetMetaFile(); metadataFile != nil {
 		if err := json.NewEncoder(zgrab2.GetMetaFile()).Encode(&s); err != nil {
 			log.Fatalf("unable to write metadata summary: %s", err.Error())

@@ -115,6 +115,11 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // readResponse reads a response from the SOCKS5 server.
 func (conn *Connection) readResponse(expectedLength int) ([]byte, error) {
 	resp := make([]byte, expectedLength)

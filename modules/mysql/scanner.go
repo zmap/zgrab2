@@ -227,6 +227,11 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Scan probles the target for a MySQL server.
 //  1. Connects and waits to receive the handshake packet.
 //  2. If the server supports SSL, send an SSLRequest packet, then

@@ -36,6 +36,11 @@ type Scanner interface {
 	// GetDialerGroupConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
 	// desired dialer configuration.
 	GetDialerGroupConfig() *DialerGroupConfig
+
+	// GetScanMetadata returns any module-specific metadata that should be included in the final output
+	// Including json struct tags is up to the module
+	// If no metadata is needed, return nil
+	GetScanMetadata() any
 }
 
 // TransportProtocol is an enum for the transport layer protocol of a module
