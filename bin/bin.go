@@ -191,7 +191,7 @@ func ZGrab2Main() {
 	}
 	// Calculate total hosts scanned
 	for _, status := range monitorStatuses {
-		s.NumHostsScanned += status.Failures + status.Successes
+		s.NumTargetsScanned += status.Failures + status.Successes
 	}
 
 	// Gather each module's scan metadata

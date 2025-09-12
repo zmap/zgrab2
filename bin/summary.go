@@ -9,5 +9,5 @@ type Metadata struct {
 	EndTime           string                            `json:"end"`
 	Duration          string                            `json:"duration"`
 	CLIInvocation     string                            `json:"zgrab_cli_parameters,omitempty"`
-	NumHostsScanned   uint                              `json:"num_hosts_scanned"`
+	NumTargetsScanned uint                              `json:"num_targets_scanned"`
 }
