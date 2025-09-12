@@ -51,7 +51,7 @@ def test_basic_http():
 
 def test_http_with_redirect():
     print("http/test: Run http test in default port (should be 80)")
-    cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/index-redirect.html"
+    cmd = f"CONTAINER_NAME={container_name} {zgrab_root}/docker-runner/docker-run.sh http --endpoint=/index-redirect.html --raw-headers"
     actual_content = run_command(
         cmd,
         output_file=os.path.join(output_root, "http-no-follow-redirect.json"),
@@ -64,14 +64,38 @@ def test_http_with_redirect():
         .get("result", {})
         .get("response", {})
     )
+
+    scan_data = json.loads(actual_content).get("data", {}).get("http", {})
+
+    scan_status = scan_data.get("status")
+    assert scan_status == "success", f"Expected scan status success, got {scan_status}"
+
     status_code = response.get("status_code")
     assert (
         status_code == 301
     ), f"Expected status code 301 since we aren't following re-directs, got {status_code}"
+
     location = response.get("headers", {}).get("location")
     assert (
         location[0] == "/index-redirect-2.html"
     ), f"Expected Location header to be /index-redirect-2.html, got {location}"
+
+    raw_headers = response.get("headers_raw")
+    decoded_headers = base64.b64decode(raw_headers).decode("utf-8")
+
+    # If these are not all present, we've probably truncated headers (or upgraded lighttpd)
+    assert (
+        "HTTP/1.1 301 Moved Permanently" in decoded_headers
+    ), f"Expected raw headers to be correct. got {decoded_headers}"
+    assert (
+        "Server: lighttpd/1.4.74" in decoded_headers
+    ), f"Expected raw headers to be correct. got {decoded_headers}"
+    assert (
+        "Location: /index-redirect-2.html" in decoded_headers
+    ), f"Expected raw headers to be correct. got {decoded_headers}"
+    assert (
+        "Content-Length: 0" in decoded_headers
+    ), f"Expected raw headers to be correct. got {decoded_headers}"
 
     # Now run the same command but with redirects
     cmd += " --max-redirects=1"
@@ -209,6 +233,12 @@ def test_scanning_real_domains():
             raise ValueError(
                 f"zgrab2_runner: {domain} returned an unexpected status line: {status_line}"
             )
+        scan_data = json.loads(grabbed_response).get("data", {}).get("http", {})
+
+        scan_status = scan_data.get("status")
+        assert (
+            scan_status == "success"
+        ), f"Expected scan status success, got {scan_status}"
 
 
 def print_docker_logs():
