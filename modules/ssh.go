@@ -61,10 +61,6 @@ func (f *SSHFlags) Validate(_ []string) error {
 	return nil
 }
 
-func (f *SSHFlags) Help() string {
-	return ""
-}
-
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	sc := ssh.MakeSSHConfig() //dummy variable to get default for host key, kex algorithm, ciphers
 	f, _ := flags.(*SSHFlags)

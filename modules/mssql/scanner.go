@@ -85,11 +85,6 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns the help string for this module.
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the Scanner instance with the given command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
