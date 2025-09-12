@@ -863,6 +863,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
 func (scanner *Scanner) SendAndReceive(impl ImplNumber, req RequestCode, body []byte, sock net.Conn) (*PrivatePacketHeader, []byte, error) {
 	outHeader, err := (&PrivatePacketHeader{

@@ -131,6 +131,11 @@ func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Scan performs the MSSQL scan.
 // 1. Open a TCP connection to the target port (default 1433).
 // 2. Send a PRELOGIN packet to the server.

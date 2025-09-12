@@ -111,3 +111,8 @@ func (s *TLSScanner) Protocol() string {
 func (s *TLSScanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return s.dialerGroupConfig
 }
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (s *TLSScanner) GetScanMetadata() any {
+	return nil
+}

@@ -165,3 +165,8 @@ func (s *SSHScanner) Protocol() string {
 func (s *SSHScanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return s.dialerGroupConfig
 }
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (s *SSHScanner) GetScanMetadata() any {
+	return nil
+}
