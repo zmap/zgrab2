@@ -60,8 +60,8 @@ github.com/weppos/publicsuffix-go v0.40.3-0.20250311103038-7794c8c0723b h1:PFOWo
 github.com/weppos/publicsuffix-go v0.40.3-0.20250311103038-7794c8c0723b/go.mod h1:EACzvcFHnxqmDapI/oqMjtpXz+mtjNzJe7r1zhRczZ0=
 github.com/zmap/zcrypto v0.0.0-20250324021606-4f0ea0eaccac h1:FWk36AHMBeDuQ3fl76mZj6LQjzAgnJVAErhMsTgqHps=
 github.com/zmap/zcrypto v0.0.0-20250324021606-4f0ea0eaccac/go.mod h1:7xhokKx8eQnfBRgAz75bGTvgc8yIW+crCtP3nvADosk=
-github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6 h1:XYA+NN2AS4mRmIDVu2nCtrjU17zKlRihO3MnlcmueUw=
-github.com/zmap/zflags v1.4.0-beta.1.0.20200204220219-9d95409821b6/go.mod h1:HXDUD+uue8yeLHr0eXx1lvY6CvMiHbTKw5nGmA9OUoo=
+github.com/zmap/zflags v1.4.0-beta.1.0.20250912232725-0556e32f5ca9 h1:cIhhO1lOijncQ29RFDb8W9C8DwdlY3/mFF4gBUShMbg=
+github.com/zmap/zflags v1.4.0-beta.1.0.20250912232725-0556e32f5ca9/go.mod h1:HXDUD+uue8yeLHr0eXx1lvY6CvMiHbTKw5nGmA9OUoo=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.yaml.in/yaml/v2 v2.4.2 h1:DzmwEr2rDGHl7lsFgAHxmNz/1NlQ7xLIrlN2h5d1eGI=
