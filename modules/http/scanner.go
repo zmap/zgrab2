@@ -82,8 +82,8 @@ type Flags struct {
 	// Extract the raw header as it is on the wire
 	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
 
-	// Send a plaintext HTTP/2 request, equivalent to curl --http2-prior-knowledge
-	HTTP2PriorKnowledge bool `long:"http2-prior-knowledge" description:"Send a plaintext, unencrypted HTTP/2 request. Incompatable with --use-https"`
+	NoHTTP11 bool `long:"no-http1.1" description:"Use HTTP/2 with the initial request. If this connection is over TLS, we'll advertise HTTP/2 in ALPN. If not over TLS, we'll send an HTTP/2 over clear-text (h2c) request, sometimes known as http2 prior knowledge. Setting TLS.NextProtos will take precedence over this flag. Mutually exclusive with --no-http2"`
+	NoHTTP2  bool `long:"no-http2" description:"Use HTTP/1.1 with the initial request. If this connection is over TLS, we'll advertise HTTP/1.1 in ALPN. If not over TLS, we'll use a plain-text HTTP/1.1 request. Setting TLS.NextProtos will take precedence over this flag. Mutually exclusive with --no-http1.1"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -151,8 +151,8 @@ func (module *Module) Description() string {
 
 // Validate performs any needed validation on the arguments
 func (flags *Flags) Validate(_ []string) error {
-	if flags.HTTP2PriorKnowledge && flags.UseHTTPS {
-		return errors.New("cannot use --http2-prior-knowledge with --use-https")
+	if flags.NoHTTP2 && flags.NoHTTP11 {
+		return errors.New("cannot use both --no-http2 and --no-http1.1. Pick one or neither depending on which version you want to use")
 	}
 	return nil
 }
@@ -387,10 +387,6 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 
 // NewHTTPScan gets a new Scan instance for the given target
 func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
-	if len(scanner.config.NextProtos) == 0 {
-		// Default to h2 and http/1.1
-		scanner.config.NextProtos = "h2,http/1.1"
-	}
 	ret := scan{
 		scanner:                scanner,
 		target:                 target,
@@ -401,7 +397,19 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 	if scanner.config.TargetTimeout != 0 {
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
-	if scanner.config.HTTP2PriorKnowledge {
+	if scanner.config.UseHTTPS && len(scanner.config.NextProtos) == 0 {
+		// We're using HTTPS (need to set TLS ALPN protocols) and the user did not explicitly set NextProtos, so we'll set defaults
+		if !scanner.config.NoHTTP2 && !scanner.config.NoHTTP11 {
+			// Default - advertise both HTTP/2 and HTTP/1.1
+			scanner.config.NextProtos = "h2,http/1.1"
+		} else if scanner.config.NoHTTP2 {
+			scanner.config.NextProtos = "http/1.1"
+		} else if scanner.config.NoHTTP11 {
+			scanner.config.NextProtos = "h2"
+		}
+	}
+	if !scanner.config.UseHTTPS && scanner.config.NoHTTP11 {
+		// HTTP/2 prior knowledge over cleartext TCP
 		// Use http2.Transport directly (not through http.Client’s automatic upgrade)
 		transport := &http2.Transport{
 			AllowHTTP: true, // allow h2c (non-TLS)
@@ -506,7 +514,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		request.Header.Set("Accept", "*/*")
 	}
 
-	if scan.scanner.config.HTTP2PriorKnowledge {
+	if !scan.scanner.config.UseHTTPS && scan.scanner.config.NoHTTP11 {
 		// Set Protocol to HTTP/2.0 for h2c requests. This happens implicitly with the http2 transport, but this way the
 		// user sees this reflecting in the request's protocol in the json output
 		request.Proto = "HTTP/2.0"
