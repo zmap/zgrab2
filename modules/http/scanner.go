@@ -142,8 +142,7 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	desc := []string{
-		"Send an HTTP request and read the response, optionally following redirects. By default, will perform HTTP/2 upgrade if the server supports it.",
-		"Use --next-protos to control the ALPN protocols offered during TLS negotiation, ie. only 'http/1.1' to disable HTTP/2 or 'h2' to require HTTP/2.",
+		"Send an HTTP request and read the response, optionally following redirects. ",
 		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
 	}
 	return strings.Join(desc, "\n")
@@ -159,8 +158,20 @@ func (flags *Flags) Validate(_ []string) error {
 
 // Help returns module-specific help
 func (flags *Flags) Help() string {
-	return ""
+	lines := []string{"By default, the HTTP module will send a plain-text HTTP/1.1 GET request to the target's root path (/).",
+		"HTTP Versions and TLS - HTTP version affects two things: the protocol used in the request and the supported versions advertised in the TLS ALPN header (if TLS is used).",
+		" - Plain-text HTTP/1.1 (default)               zgrab2 http",
+		" - Advertise both HTTP/2 and HTTP/1.1 in ALPN  --use-https - This is the default behavior of most web browsers",
+		" - HTTP/2-only over plain-text                 --no-http1.1 - Sends the HTTP/2 connection preface over plain-text TCP, like curl's --http2-prior-knowledge flag",
+		" - HTTP/1.1-only over TLS                      --no-http2 --use-https - Will only advertise http/1.1 support in ALPN header",
+		" - HTTP/2-only over TLS                        --no-http1.1 --use-https - Use --use-https to connect with TLS instead. Using --use-https --no-http1.1 will only advertise HTTP/2 support ",
+	}
+	return strings.Join(lines, "\n")
 }
+
+// TODO Phillip
+// echo "prstephens.com" | ./zgrab2 http --no-http1.1
+// This is simply erroring, we should provide the request sent and payload received
 
 // Protocol returns the protocol identifer for the scanner.
 func (scanner *Scanner) Protocol() string {
@@ -397,8 +408,9 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 	if scanner.config.TargetTimeout != 0 {
 		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
 	}
-	if scanner.config.UseHTTPS && len(scanner.config.NextProtos) == 0 {
-		// We're using HTTPS (need to set TLS ALPN protocols) and the user did not explicitly set NextProtos, so we'll set defaults
+	if len(scanner.config.NextProtos) == 0 {
+		// While we may not be using TLS for the initial connection, if the user is following redirects, we may end up at an https:// URL
+		// Setting NextProtos won't have a side effect on plain-text HTTP connections
 		if !scanner.config.NoHTTP2 && !scanner.config.NoHTTP11 {
 			// Default - advertise both HTTP/2 and HTTP/1.1
 			scanner.config.NextProtos = "h2,http/1.1"
