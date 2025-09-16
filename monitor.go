@@ -11,20 +11,18 @@ import (
 // Monitor is a collection of states per scans and a channel to communicate
 // those scans to the monitor
 type Monitor struct {
-	startTime      time.Time // time when the monitor started
-	totalSuccesses uint      // number of successful scans across modules
-	totalFailures  uint      // number of failed scans across modules
-	states         map[string]*State
-	statusesChan   chan moduleStatus
+	startTime    time.Time // time when the monitor started, for giving user elapsed time
+	states       map[string]*ModuleMetadata
+	statusesChan chan moduleStatus
 	// Callback is invoked after each scan.
 	Callback func(string)
 }
 
-// State contains the respective number of successes and failures
-// for a given scan
-type State struct {
-	Successes uint `json:"successes"`
-	Failures  uint `json:"failures"`
+// ModuleMetadata contains information of the status of a particular module's scan
+type ModuleMetadata struct {
+	Successes      uint `json:"successes"` // number of successful scans for this module
+	Failures       uint `json:"failures"`
+	CustomMetadata any  `json:"custom_metadata,omitempty"` // module-specific metadata, each module can implement this as they see fit
 }
 
 type moduleStatus struct {
@@ -41,7 +39,7 @@ const (
 
 // GetStatuses returns a mapping from scanner names to the current number
 // of successes and failures for that scanner
-func (m *Monitor) GetStatuses() map[string]*State {
+func (m *Monitor) GetStatuses() map[string]*ModuleMetadata {
 	return m.states
 }
 
@@ -62,20 +60,25 @@ func (m *Monitor) printStatus(isFinalPrint bool) {
 	}
 	timeSinceStart := time.Since(m.startTime)
 	scanRate := float64(0)
+	var totalSuccesses, totalFailures uint
+	for _, state := range m.states {
+		totalSuccesses += state.Successes
+		totalFailures += state.Failures
+	}
 	if timeSinceStart.Seconds() > 0 {
-		scanRate = float64(m.totalSuccesses+m.totalFailures) / timeSinceStart.Seconds() // avoid division by zero
+		scanRate = float64(totalSuccesses+totalFailures) / timeSinceStart.Seconds() // avoid division by zero
 	}
 	scanSuccessRate := float64(0)
-	totalTargetsScanned := m.totalSuccesses + m.totalFailures
+	totalTargetsScanned := totalSuccesses + totalFailures
 	if totalTargetsScanned > 0 {
-		scanSuccessRate = float64(m.totalSuccesses) / float64(totalTargetsScanned) * 100
+		scanSuccessRate = float64(totalSuccesses) / float64(totalTargetsScanned) * 100
 	}
 	updateLine := fmt.Sprintf("%02dh:%02dm:%02ds; %s%d targets scanned; %.02f targets/sec; %.01f%% success rate",
 		int(timeSinceStart.Hours()),
 		int(timeSinceStart.Minutes())%60,
 		int(timeSinceStart.Seconds())%60,
 		scanStatusMsg,
-		m.totalSuccesses+m.totalFailures,
+		totalSuccesses+totalFailures,
 		scanRate,
 		scanSuccessRate,
 	)
@@ -88,10 +91,11 @@ func (m *Monitor) printStatus(isFinalPrint bool) {
 // MakeMonitor returns a Monitor object that can be used to collect and send
 // the status of a running scan
 func MakeMonitor(statusChanSize int, wg *sync.WaitGroup) *Monitor {
-	m := new(Monitor)
-	m.statusesChan = make(chan moduleStatus, statusChanSize)
-	m.states = make(map[string]*State, 10)
-	m.startTime = time.Now()
+	m := &Monitor{
+		statusesChan: make(chan moduleStatus, statusChanSize),
+		states:       make(map[string]*ModuleMetadata),
+		startTime:    time.Now(),
+	}
 	wg.Add(1)
 	go func() {
 		ticker := time.NewTicker(time.Second)
@@ -107,7 +111,7 @@ func MakeMonitor(statusChanSize int, wg *sync.WaitGroup) *Monitor {
 				}
 				// process new status
 				if m.states[s.name] == nil {
-					m.states[s.name] = new(State)
+					m.states[s.name] = new(ModuleMetadata)
 				}
 				if m.Callback != nil {
 					m.Callback(s.name)
@@ -115,10 +119,8 @@ func MakeMonitor(statusChanSize int, wg *sync.WaitGroup) *Monitor {
 				switch s.st {
 				case statusSuccess:
 					m.states[s.name].Successes++
-					m.totalSuccesses++
 				case statusFailure:
 					m.states[s.name].Failures++
-					m.totalFailures++
 				default:
 					continue
 				}

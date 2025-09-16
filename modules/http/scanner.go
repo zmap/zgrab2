@@ -301,6 +301,11 @@ func (scan *scan) Cleanup() {
 	}
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Get a context whose deadline is the earliest of the context's deadline (if it has one) and the
 // global scan deadline.
 func (scan *scan) withDeadlineContext(ctx context.Context) (context.Context, context.CancelFunc) {

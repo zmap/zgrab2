@@ -206,6 +206,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
 func storeBody(res *http.Response, scanner *Scanner) error {
 	b, err := bufferFromBody(res, scanner)

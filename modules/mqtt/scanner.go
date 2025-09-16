@@ -92,6 +92,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Init initializes the Scanner instance with the flags from the command line.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

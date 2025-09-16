@@ -256,6 +256,11 @@ func (module *Module) Description() string {
 	return "Perform a handshake with a MongoDB server"
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // StartScan opens a connection to the target and sets up a scan instance for it.
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
 	conn, err := dialGroup.Dial(ctx, target)
