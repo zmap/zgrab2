@@ -99,7 +99,7 @@ def test_http_v2():
     output_json = "http_v2.json"
     print("http_version_tests/test: Run HTTP/2")
     run_command(
-        f"CONTAINER_NAME={container_name} TARGET_NAME={target_name} {zgrab_root}/docker-runner/docker-run.sh http --max-redirects=2",
+        f"CONTAINER_NAME={container_name} TARGET_NAME={target_name} {zgrab_root}/docker-runner/docker-run.sh http --no-http1.1 --use-https --max-redirects=2",
         output_file=os.path.join(output_root, output_json),
     )
     # Load the output JSON
@@ -148,7 +148,7 @@ def test_http_h2c():
     output_json = "http_h2c.json"
     print("http_version_tests/test: Run HTTP/2 over cleartext (h2c)")
     run_command(
-        f"CONTAINER_NAME={container_name} TARGET_NAME={target_name} {zgrab_root}/docker-runner/docker-run.sh http --http2-prior-knowledge --port=443",
+        f"CONTAINER_NAME={container_name} TARGET_NAME={target_name} {zgrab_root}/docker-runner/docker-run.sh http --no-http1.1 --port=443",
         output_file=os.path.join(output_root, output_json),
     )
     # Load the output JSON
