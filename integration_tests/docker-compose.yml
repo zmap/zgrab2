@@ -88,15 +88,13 @@ services:
     container_name: "zgrab_http1"
     volumes:
       - ./http/http_version_tests/http1/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./http/http_version_tests/shared:/usr/share/nginx/html:ro
+      - ./http/http_version_tests/http1/index.html:/usr/share/nginx/html/index.html:ro
     hostname: "http1.target"
 
-  http2:
+  http2-only-https:
     build:
-      context: ./http/http_version_tests/http2
+      context: ./http/http_version_tests/http2-only-https
     container_name: "zgrab_http2"
-    volumes:
-      - ./http/http_version_tests/shared:/usr/share/caddy/html:ro
     hostname: "http2.target"
   http-h2c:
     build:

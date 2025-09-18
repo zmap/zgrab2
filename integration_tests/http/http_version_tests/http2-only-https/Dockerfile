@@ -2,7 +2,7 @@ FROM caddy:alpine
 
 # Copy Caddyfile
 COPY Caddyfile /etc/caddy/Caddyfile
-COPY index.html /usr/share/caddy/index.html
+COPY index.html /usr/share/caddy/html/index.html
 
 ## Copy static files
 #COPY index.html /usr/share/caddy/index.html

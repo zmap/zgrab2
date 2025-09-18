@@ -75,7 +75,7 @@ def test_http_v1():
             file=sys.stderr,
         )
         sys.exit(1)
-    expected_body_check_text = "Hello from HTTP versioned server!"
+    expected_body_check_text = "Hello from HTTP/1.1 versioned server over plain-text!"
     actual_body_text = http_data["response"].get("body", "")
     if (
         "body" not in http_data["response"]
@@ -113,10 +113,7 @@ def test_http_v2():
     if "response" not in http_data or "status_code" not in http_data["response"]:
         print("No response data found for HTTP/2 test", file=sys.stderr)
         sys.exit(1)
-    status_code = http_data["response"]["status_code"]
-    if status_code != 200:
-        print(f"Unexpected status code for HTTP/2 test: {status_code}", file=sys.stderr)
-        sys.exit(1)
+    assert http_data["response"]["status_code"] == 200, f"Unexpected status code for HTTP/2 test: {http_data['response']['status_code']}"
     actual_http_version = http_data["response"].get("protocol")
     if actual_http_version != "HTTP/2.0":
         print(
@@ -124,7 +121,7 @@ def test_http_v2():
             file=sys.stderr,
         )
         sys.exit(1)
-    expected_body_check_text = "Hello from HTTP versioned server!"
+    expected_body_check_text = "Hello from HTTP/2 versioned server over HTTPS!"
     actual_body_text = http_data["response"].get("body", "")
     if (
         "body" not in http_data["response"]
@@ -138,6 +135,58 @@ def test_http_v2():
     print("HTTP/2 test passed with status code 200")
 
 
+# def test_http1_1_redirect_to_h2():
+#     """
+#     Called with h2 and http/1.1
+#     Hits a HTTPS server over HTTP/1.1 which redirects to an HTTPS server with only HTTP/2
+#     Expected Behavior - Follow re-direct and complete the 2nd request over HTTP/2
+#     """
+#     container_name = "zgrab_http2"
+#     target_name = "http2.target"  # Used for docker network internal DNS resolution
+#     output_json = "http_v2.json"
+#     print("http_version_tests/test: Run HTTP/2")
+#     run_command(
+#         f"CONTAINER_NAME={container_name} TARGET_NAME={target_name} {zgrab_root}/docker-runner/docker-run.sh http --no-http1.1 --use-https --max-redirects=2",
+#         output_file=os.path.join(output_root, output_json),
+#     )
+#     # Load the output JSON
+#     with open(os.path.join(output_root, output_json), "r") as f:
+#         output = json.load(f)
+#     # Check if the scan was successful
+#     if not output or "data" not in output or "http" not in output["data"]:
+#         print("No valid output found for HTTP/2 test", file=sys.stderr)
+#         sys.exit(1)
+#     http_data = output["data"]["http"]["result"]
+#     if "response" not in http_data or "status_code" not in http_data["response"]:
+#         print("No response data found for HTTP/2 test", file=sys.stderr)
+#         sys.exit(1)
+#
+#     assert(http_data["response"]["status_code"] == 200, f"Unexpected status code for HTTP/2 test: {http_data['response']['status_code']}")
+#
+#     actual_http_version = http_data["response"].get("protocol")
+#     if actual_http_version != "HTTP/2.0":
+#         print(
+#             f"Unexpected HTTP version for HTTP/2 test: {actual_http_version}",
+#             file=sys.stderr,
+#         )
+#         sys.exit(1)
+#     expected_body_check_text = "Hello from HTTP versioned server!"
+#     actual_body_text = http_data["response"].get("body", "")
+#     if (
+#             "body" not in http_data["response"]
+#             or expected_body_check_text not in actual_body_text
+#     ):
+#         print(
+#             "Response body does not contain expected text for HTTP/2 test",
+#             file=sys.stderr,
+#         )
+#         sys.exit(1)
+#     print("HTTP/2 test passed with status code 200")
+
+# def test_http2_only_redirect_to_http1_1():
+#
+#
+#
 def test_http_h2c():
     """
     Test HTTP/2 request and response over cleartext (h2c).
