@@ -8,7 +8,7 @@
 }
 
 
-https://http2.target {
+https://localhost, https://http2.target {
     tls internal
     root * /usr/share/caddy/html/
     file_server
@@ -34,4 +34,7 @@ https://http2.target {
         expression `{http.request.proto} != "HTTP/2.0"`
     }
     respond @nonh2 "HTTP/2 required" 403
+    handle_path /redirect-http-1 {
+        redir http://localhost:8081
+    }
 }

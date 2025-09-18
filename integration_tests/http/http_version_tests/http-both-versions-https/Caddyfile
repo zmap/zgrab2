@@ -1,0 +1,28 @@
+{
+    # Enable debug logging globally
+    log {
+        output stdout
+        format console
+        level DEBUG
+    }
+}
+
+
+https://localhost, https://http2.target {
+    tls internal
+    root * /usr/share/caddy/html/
+    file_server
+
+    tls /etc/ssl/private/self.crt /etc/ssl/private/self.key
+
+    # Enhanced logging with HTTP/2 details
+    log {
+        output stdout
+        format json
+        level DEBUG
+    }
+
+    handle_path /redirect-http-2 {
+        redir http://localhost:8083
+    }
+}

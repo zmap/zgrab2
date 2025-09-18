@@ -3,23 +3,28 @@ services:
     image: nginx:alpine
     volumes:
       - ./http1/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./shared:/usr/share/nginx/html:ro
+      - ./http1/index.html:/usr/share/nginx/html/index.html:ro
     ports:
       - "8081:80"
 
   http2:
     build:
-      context: ./http2
-    volumes:
-      - ./shared:/usr/share/caddy/html:ro
+      context: ./http2-only-https
     ports:
       - "8082:443"
+    expose:
+      - "443"
+  http1-https:
+    build:
+      context: ./http-both-versions-https
+    ports:
+      - "8083:443"
     expose:
       - "443"
   h2c:
     build:
       context: ./h2c
     ports:
-      - "8083:443/udp"
-      - "8083:443/tcp"
+      - "8084:443/udp"
+      - "8084:443/tcp"
 
