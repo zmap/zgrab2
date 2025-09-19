@@ -423,6 +423,11 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 	if !scanner.config.UseHTTPS && scanner.config.NoHTTP11 {
 		// HTTP/2 prior knowledge over cleartext TCP
 		// Use http2.Transport directly (not through http.Client’s automatic upgrade)
+		// Note - There is one case where we don't follow what the user may expect: if the user uses --no-http1.1 --use-https and hits an HTTP/2 aware server (over TLS) that re-directs to a new server using http:// (no TLS), we will use HTTP/1.1 for that re-directed request.
+		// I couldn't figure out a way to use HTTP/2 prior knowledge on re-directs where the initial request was over TLS.
+		// curl does do this, but it's unclear to me how to do this with Go's http/http2 libraries presently since you have to initialize the http2.Transport initially to support h2c and then it won't support TLS.
+		// Perhaps there's a way to multiplex between two transports to handle this case, but it seems like an edge case that's unlikely to be widely used in practice.
+		// If users complain that on re-directs they're seeing HTTP/1.1 when they expect HTTP/2, we can revisit this.
 		transport := &http2.Transport{
 			AllowHTTP: true, // allow h2c (non-TLS)
 			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
