@@ -278,6 +278,10 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TLSFlags:                        &scanner.config.TLSFlags,
 	}
 
+	// The http2 library logs a lot of stuff with pretty unhelpful messages when scanning large numbers of hosts
+	// Could later be made configurable to different log levels, but we'd need to add some sort of disambiguation info, like the target host the log message is about
+	http2.SetLogger(io.Discard)
+
 	return nil
 }
 

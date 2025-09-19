@@ -3113,6 +3113,10 @@ func (t *Transport) logf(format string, args ...interface{}) {
 	log.Printf(format, args...)
 }
 
+func SetLogger(w io.Writer) {
+	log.SetOutput(w)
+}
+
 var noBody io.ReadCloser = noBodyReader{}
 
 type noBodyReader struct{}
