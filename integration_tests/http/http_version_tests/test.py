@@ -113,7 +113,9 @@ def test_http_v2():
     if "response" not in http_data or "status_code" not in http_data["response"]:
         print("No response data found for HTTP/2 test", file=sys.stderr)
         sys.exit(1)
-    assert http_data["response"]["status_code"] == 200, f"Unexpected status code for HTTP/2 test: {http_data['response']['status_code']}"
+    assert (
+        http_data["response"]["status_code"] == 200
+    ), f"Unexpected status code for HTTP/2 test: {http_data['response']['status_code']}"
     actual_http_version = http_data["response"].get("protocol")
     if actual_http_version != "HTTP/2.0":
         print(
@@ -182,6 +184,7 @@ def test_http_v2():
 #         )
 #         sys.exit(1)
 #     print("HTTP/2 test passed with status code 200")
+
 
 # def test_http2_only_redirect_to_http1_1():
 #
