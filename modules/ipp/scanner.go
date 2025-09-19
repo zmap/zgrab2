@@ -676,8 +676,8 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 }
 
 // Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
-func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) func(net, addr string) (net.Conn, error) {
-	return func(net, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) func(ctx context.Context, net, addr string) (net.Conn, error) {
+	return func(ctx context.Context, net, addr string) (net.Conn, error) {
 		tlsConn, err := dialGroup.GetTLSDialer(ctx, target)("tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to establish TLS connection to %s: %w", addr, err)
@@ -723,7 +723,7 @@ func (scanner *Scanner) tryGrabForVersions(ctx context.Context, target *zgrab2.S
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
-	transport.DialTLS = newScan.getTLSDialer(ctx, target, dialGroup)
+	transport.DialTLSContext = newScan.getTLSDialer(ctx, target, dialGroup)
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.ConnectTimeout, scanner.config.TargetTimeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent
