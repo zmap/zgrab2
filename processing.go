@@ -139,8 +139,12 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 			flags: tlsFlags,
 		}
 		err = tlsConn.Handshake()
-		if err != nil {
+		if err != nil && tlsConn.log == nil {
+			// If the handshake fails and we have no log, just return error
 			return nil, fmt.Errorf("could not perform tls handshake for target %s: %w", t.String(), err)
+		} else if err != nil {
+			// We'll return both the error and the connection so ZGrab can return the handshake log
+			return &tlsConn, fmt.Errorf("could not successfully complete tls handshake for target %s: %w", t.String(), err)
 		}
 		return &tlsConn, err
 	}
