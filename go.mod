@@ -10,7 +10,7 @@ require (
 	github.com/hdm/jarm-go v0.0.7
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rabbitmq/amqp091-go v1.10.0
-	github.com/rogpeppe/go-internal v1.10.0
+	github.com/rogpeppe/go-internal v1.14.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/zmap/zcrypto v0.0.0-20250618174828-7ca6a82cf2d4
 	github.com/zmap/zflags v1.4.0-beta.1.0.20250912232725-0556e32f5ca9
