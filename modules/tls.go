@@ -87,7 +87,6 @@ func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, 
 	if conn != nil {
 		defer zgrab2.CloseConnAndHandleError(conn)
 	}
-	// TODO Phillip - we should have an integration test for this behavior, that we return handshake info on error
 	if err != nil {
 		// Even on an error, we want to give the TLS Log if we have it.
 		if conn != nil {
