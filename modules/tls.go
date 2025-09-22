@@ -3,7 +3,6 @@ package modules
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
@@ -85,22 +84,30 @@ func (s *TLSScanner) InitPerSender(senderID int) error {
 // heartbleed, if enabled).
 func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	conn, err := dialerGroup.Dial(ctx, target)
-	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to dial target %s: %w", target.String(), err)
+	if conn != nil {
+		defer zgrab2.CloseConnAndHandleError(conn)
 	}
-	defer zgrab2.CloseConnAndHandleError(conn)
+	if err != nil {
+		// Even on an error, we want to give the TLS Log if we have it.
+		if conn != nil {
+			if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+				if tlsLog := tlsConn.GetLog(); tlsLog != nil {
+					if tlsLog.HandshakeLog.ServerHello != nil {
+						// If we got far enough to get a valid ServerHello, then
+						// consider it to be a positive TLS detection.
+						return zgrab2.TryGetScanStatus(err), tlsLog, err
+					}
+					// Otherwise, detection failed.
+				}
+			}
+		}
+		return zgrab2.TryGetScanStatus(err), nil, err
+	}
 	tlsConn, ok := conn.(*zgrab2.TLSConnection)
 	if !ok {
-		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("tls scanner requires a default dialer that creates TLS connections")
+		return zgrab2.SCAN_UNKNOWN_ERROR, nil, errors.New("scan returned non-TLS connection")
 	}
-	tlsLog := tlsConn.GetLog()
-	if tlsLog != nil && tlsLog.HandshakeLog.ServerHello != nil {
-		// If we got far enough to get a valid ServerHello, then
-		// consider it to be a positive TLS detection.
-		return zgrab2.SCAN_SUCCESS, tlsLog, nil
-	}
-	// Otherwise detection failed
-	return zgrab2.SCAN_HANDSHAKE_ERROR, nil, errors.New("tls handshake failed")
+	return zgrab2.SCAN_SUCCESS, tlsConn.GetLog(), nil
 }
 
 // Protocol returns the protocol identifer for the scanner.
