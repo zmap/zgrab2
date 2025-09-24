@@ -11,7 +11,7 @@ import (
 	"github.com/censys/cidranger"
 )
 
-// Scanner is an interface that represents all functions necessary to run a scan
+// Scanner exposes the functions for an application module to implement in order to be used by the ZGrab2 scanning framework
 type Scanner interface {
 	// Init runs once for this module at library init time
 	Init(flags ScanFlags) error
@@ -31,6 +31,11 @@ type Scanner interface {
 
 	// Scan connects to a host. The result should be JSON-serializable. If a scan requires a dialer that isn't set in
 	// the dialer group, an error will return.
+	// ctx - The context for a scan, can be used to set timeouts or cancel scans
+	// dialerGroup - A collection of connection dialers that the module will call to establish L4 and L6 (TLS, typically)
+	//               connections before doing any protocol-specific logic.
+	// t - The target to scan, including IP or domain, port, and any tags.
+	// Returns a ScanStatus, the result (or nil) of the protocol scan (entirely protocol dependent), and any error that occurred
 	Scan(ctx context.Context, dialerGroup *DialerGroup, t *ScanTarget) (ScanStatus, any, error)
 
 	// GetDialerGroupConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
