@@ -22,7 +22,7 @@ type SSHFlags struct {
 	HostKeyAlgorithms     string `long:"host-key-algorithms" description:"A comma-separated list of host key algorithms to offer in descending precedence."`
 	Ciphers               string `long:"ciphers" description:"A comma-separated list of cipher algorithms to offer in descending precedence."`
 	MACs                  string `long:"macs" description:"A comma-separated list of MAC algorithms to offer in descending precedence."`
-	CompressionAlgorithms string `long:"compression-algorithms" description:"A comma-separated list of compression algorithms to offer in decent precedence."`
+	CompressionAlgorithms string `long:"compression-algorithms" description:"A comma-separated list of compression algorithms to offer in descending precedence."`
 	CollectExtensions     bool   `long:"extensions" description:"Complete the SSH transport layer protocol to collect SSH extensions as per RFC 8308 (if any)."`
 	CollectUserAuth       bool   `long:"userauth" description:"Use the 'none' authentication request to see what userauth methods are allowed."`
 	GexMinBits            uint   `long:"gex-min-bits" description:"The minimum number of bits for the DH GEX prime." default:"1024"`
