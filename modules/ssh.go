@@ -2,6 +2,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -190,7 +191,7 @@ func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*SSHFlags)
 	s.config = f
 	if s.config.OfferUnsupported && (s.config.CollectExtensions || s.config.CollectUserAuth) {
-		return fmt.Errorf("trying to offer unsupported algorithms while collecting extensions or user authentication methods")
+		return errors.New("trying to offer unsupported algorithms while collecting extensions or user authentication methods")
 	}
 	if len(s.config.KexAlgorithms) == 0 {
 		s.config.KexAlgorithms = strings.Join(defaultKexAlgorithms, ",")
