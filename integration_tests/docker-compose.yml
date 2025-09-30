@@ -102,6 +102,16 @@ services:
     hostname: "target"
     depends_on:
       - ipp_service_base
+
+  managesieve:
+    image: stalwartlabs/stalwart:latest
+    container_name: "zgrab_managesieve"
+    networks:
+      - managesieve-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
   memcached-1.6.0:
     image: "memcached:1.6.0"
     container_name: "zgrab_memcached-1.6.0"
@@ -499,6 +509,11 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.20/30
+  managesieve-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.172/30
   memcache-network-1.6.0:
     driver: bridge
     ipam:
