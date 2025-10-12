@@ -134,7 +134,7 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 
 // GetScanMetadata returns any metadata about the scan (implementing zgrab2.Scanner)
 func (scanner *Scanner) GetScanMetadata() interface{} {
-    return nil
+	return nil
 }
 
 // Scan performs the ManageSieve scan.
