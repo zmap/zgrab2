@@ -6,13 +6,13 @@
 package managesieve
 
 import (
-	"context"
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"regexp"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -34,7 +34,7 @@ type Module struct{}
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config 			  *Flags
+	config            *Flags
 	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
