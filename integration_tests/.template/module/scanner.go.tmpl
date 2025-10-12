@@ -22,8 +22,6 @@ type Flags struct {
 	zgrab2.BaseFlags
 	// TODO: Add more protocol-specific flags
 	// Protocols that support TLS should include zgrab2.TLSFlags
-
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -102,6 +100,11 @@ func (scanner *Scanner) Protocol() string {
 // GetDialerGroupConfig gets the dialer group config that describes what dialers this module expects
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Scan TODO: describe what is scanned

@@ -54,6 +54,7 @@ base_scan_response = SubRecord(
     {
         "status": Enum(values=STATUS_VALUES, doc="The status of the request."),
         "protocol": String(doc="The identifier of the protocol being scanned."),
+        "port": Unsigned32BitInteger(doc="The port the scan was executed on."),
         "timestamp": DateTime(doc="The time the scan was started."),
         "result": SubRecord(
             {}, required=False

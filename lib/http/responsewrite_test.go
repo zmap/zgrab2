@@ -5,8 +5,7 @@
 package http
 
 import (
-	"bytes"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 )
@@ -21,15 +20,12 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.0, identity coding; no trailer
 		{
 			Response{
-				StatusCode: 503,
-				Protocol: Protocol{
-					Name:  "HTTP/1.0",
-					Major: 1,
-					Minor: 0,
-				},
+				StatusCode:    503,
+				ProtoMajor:    1,
+				ProtoMinor:    0,
 				Request:       dummyReq("GET"),
 				Header:        Header{},
-				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:          io.NopCloser(strings.NewReader("abcdef")),
 				ContentLength: 6,
 			},
 
@@ -40,15 +36,12 @@ func TestResponseWrite(t *testing.T) {
 		// Unchunked response without Content-Length.
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.0",
-					Major: 1,
-					Minor: 0,
-				},
+				StatusCode:    200,
+				ProtoMajor:    1,
+				ProtoMinor:    0,
 				Request:       dummyReq("GET"),
 				Header:        Header{},
-				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:          io.NopCloser(strings.NewReader("abcdef")),
 				ContentLength: -1,
 			},
 			"HTTP/1.0 200 OK\r\n" +
@@ -58,15 +51,12 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.1 response with unknown length and Connection: close
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:    200,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				Request:       dummyReq("GET"),
 				Header:        Header{},
-				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:          io.NopCloser(strings.NewReader("abcdef")),
 				ContentLength: -1,
 				Close:         true,
 			},
@@ -78,15 +68,12 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.1 response with unknown length and not setting connection: close
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:    200,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				Request:       dummyReq11("GET"),
 				Header:        Header{},
-				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:          io.NopCloser(strings.NewReader("abcdef")),
 				ContentLength: -1,
 				Close:         false,
 			},
@@ -99,15 +86,12 @@ func TestResponseWrite(t *testing.T) {
 		// setting chunked.
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:       200,
+				ProtoMajor:       1,
+				ProtoMinor:       1,
 				Request:          dummyReq11("GET"),
 				Header:           Header{},
-				Body:             ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:             io.NopCloser(strings.NewReader("abcdef")),
 				ContentLength:    -1,
 				TransferEncoding: []string{"chunked"},
 				Close:            false,
@@ -119,12 +103,9 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.1 response 0 content-length, and nil body
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:    200,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				Request:       dummyReq11("GET"),
 				Header:        Header{},
 				Body:          nil,
@@ -138,15 +119,12 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.1 response 0 content-length, and non-nil empty body
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:    200,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				Request:       dummyReq11("GET"),
 				Header:        Header{},
-				Body:          ioutil.NopCloser(strings.NewReader("")),
+				Body:          io.NopCloser(strings.NewReader("")),
 				ContentLength: 0,
 				Close:         false,
 			},
@@ -157,15 +135,12 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.1 response 0 content-length, and non-nil non-empty body
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:    200,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				Request:       dummyReq11("GET"),
 				Header:        Header{},
-				Body:          ioutil.NopCloser(strings.NewReader("foo")),
+				Body:          io.NopCloser(strings.NewReader("foo")),
 				ContentLength: 0,
 				Close:         false,
 			},
@@ -176,15 +151,12 @@ func TestResponseWrite(t *testing.T) {
 		// HTTP/1.1, chunked coding; empty trailer; close
 		{
 			Response{
-				StatusCode: 200,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:       200,
+				ProtoMajor:       1,
+				ProtoMinor:       1,
 				Request:          dummyReq("GET"),
 				Header:           Header{},
-				Body:             ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:             io.NopCloser(strings.NewReader("abcdef")),
 				ContentLength:    6,
 				TransferEncoding: []string{"chunked"},
 				Close:            true,
@@ -201,12 +173,9 @@ func TestResponseWrite(t *testing.T) {
 		{
 			Response{
 				StatusCode: 204,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
-				Request: dummyReq("GET"),
+				ProtoMajor: 1,
+				ProtoMinor: 1,
+				Request:    dummyReq("GET"),
 				Header: Header{
 					"Foo": []string{" Bar\nBaz "},
 				},
@@ -226,12 +195,9 @@ func TestResponseWrite(t *testing.T) {
 		// there were two.
 		{
 			Response{
-				StatusCode: StatusOK,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:       StatusOK,
+				ProtoMajor:       1,
+				ProtoMinor:       1,
 				Request:          &Request{Method: "POST"},
 				Header:           Header{},
 				ContentLength:    0,
@@ -245,16 +211,13 @@ func TestResponseWrite(t *testing.T) {
 		// write the Content-Length as -1.
 		{
 			Response{
-				StatusCode: StatusOK,
-				Protocol: Protocol{
-					Name:  "HTTP/1.1",
-					Major: 1,
-					Minor: 1,
-				},
+				StatusCode:    StatusOK,
+				ProtoMajor:    1,
+				ProtoMinor:    1,
 				Request:       &Request{Method: "POST"},
 				Header:        Header{},
 				ContentLength: -1,
-				Body:          ioutil.NopCloser(strings.NewReader("abcdef")),
+				Body:          io.NopCloser(strings.NewReader("abcdef")),
 			},
 			"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nabcdef",
 		},
@@ -267,14 +230,11 @@ func TestResponseWrite(t *testing.T) {
 			Response{
 				StatusCode: 7,
 				Status:     "license to violate specs",
-				Protocol: Protocol{
-					Name:  "HTTP/1.0",
-					Major: 1,
-					Minor: 0,
-				},
-				Request: dummyReq("GET"),
-				Header:  Header{},
-				Body:    nil,
+				ProtoMajor: 1,
+				ProtoMinor: 0,
+				Request:    dummyReq("GET"),
+				Header:     Header{},
+				Body:       nil,
 			},
 
 			"HTTP/1.0 007 license to violate specs\r\nContent-Length: 0\r\n\r\n",
@@ -286,14 +246,11 @@ func TestResponseWrite(t *testing.T) {
 			Response{
 				StatusCode: 123,
 				Status:     "123 Sesame Street",
-				Protocol: Protocol{
-					Name:  "HTTP/1.0",
-					Major: 1,
-					Minor: 0,
-				},
-				Request: dummyReq("GET"),
-				Header:  Header{},
-				Body:    nil,
+				ProtoMajor: 1,
+				ProtoMinor: 0,
+				Request:    dummyReq("GET"),
+				Header:     Header{},
+				Body:       nil,
 			},
 
 			"HTTP/1.0 123 Sesame Street\r\n\r\n",
@@ -305,14 +262,11 @@ func TestResponseWrite(t *testing.T) {
 			Response{
 				StatusCode: 204,
 				Status:     "No Content",
-				Protocol: Protocol{
-					Name:  "HTTP/1.0",
-					Major: 1,
-					Minor: 0,
-				},
-				Request: dummyReq("GET"),
-				Header:  Header{},
-				Body:    nil,
+				ProtoMajor: 1,
+				ProtoMinor: 0,
+				Request:    dummyReq("GET"),
+				Header:     Header{},
+				Body:       nil,
 			},
 
 			"HTTP/1.0 204 No Content\r\n\r\n",
@@ -321,7 +275,7 @@ func TestResponseWrite(t *testing.T) {
 
 	for i := range respWriteTests {
 		tt := &respWriteTests[i]
-		var braw bytes.Buffer
+		var braw strings.Builder
 		err := tt.Resp.Write(&braw)
 		if err != nil {
 			t.Errorf("error writing #%d: %s", i, err)

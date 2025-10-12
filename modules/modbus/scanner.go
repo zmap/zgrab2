@@ -38,7 +38,6 @@ type Flags struct {
 	ObjectID         uint8                   `long:"object-id" description:"The ObjectID of the object to be read." default:"0x00"`
 	Strict           bool                    `long:"strict" description:"If set, perform stricter checks on the response data to get fewer false positives"`
 	RequestID        uint16                  `long:"request-id" description:"Override the default request ID." default:"0x5A47"`
-	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -126,6 +125,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Conn wraps the connection state (more importantly, it provides the interface used by the old zgrab code, so that it

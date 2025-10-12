@@ -26,7 +26,6 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	MaxReadSize      int  `long:"max-read-size" description:"Set the maximum number of bytes to read when grabbing the banner" default:"65536"`
 	Banner           bool `long:"force-banner" description:"Always return banner if it has non-zero bytes"`
-	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -108,6 +107,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Scan connects to the target (default port TCP 23) and attempts to grab the Telnet banner.

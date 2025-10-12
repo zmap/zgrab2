@@ -75,13 +75,32 @@ services:
 
   http:
     build:
-      context: ./http/container
+      context: ./http/http_smoke_test/container
     container_name: "zgrab_http"
     networks:
       - http-network
     hostname: "target"
     depends_on:
       - service_base
+
+  http1:
+    image: nginx:alpine
+    container_name: "zgrab_http1"
+    volumes:
+      - ./http/http_version_tests/http1/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./http/http_version_tests/http1/index.html:/usr/share/nginx/html/index.html:ro
+    hostname: "http1.target"
+
+  http2-only-https:
+    build:
+      context: ./http/http_version_tests/http2-only-https
+    container_name: "zgrab_http2"
+    hostname: "http2.target"
+  http-h2c:
+    build:
+      context: ./http/http_version_tests/h2c
+    container_name: "zgrab_http_h2c"
+    hostname: "http.h2c.target"
 
   ipp-cups:
     build:
@@ -498,12 +517,12 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.12/30
+        - subnet: 100.64.0.16/29
   ipp-cups-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.16/30
+        - subnet: 100.64.0.24/30
   ipp-cups-tls-network:
     driver: bridge
     ipam:
@@ -513,189 +532,189 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.172/30
+        - subnet: 100.64.0.28/30
   memcache-network-1.6.0:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.65.0.24/30
+        - subnet: 100.65.0.32/30
   memcache-network-1.6.38:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.65.0.28/30
+        - subnet: 100.65.0.36/30
   mongodb-3.2.20-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.32/30
+        - subnet: 100.64.0.40/30
   mongodb-3.6.6-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.36/30
+        - subnet: 100.64.0.44/30
   mongodb-4.0.1-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.40/30
+        - subnet: 100.64.0.48/30
   mongodb-4.1.2-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.44/30
+        - subnet: 100.64.0.52/30
   mongodb-8.0-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.48/30
+        - subnet: 100.64.0.56/30
   mqtt-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.52/30
+        - subnet: 100.64.0.60/30
   mssql-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.56/30
+        - subnet: 100.64.0.64/30
   mysql-5.5-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.60/30
+        - subnet: 100.64.0.68/30
   mysql-5.6-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.64/30
+        - subnet: 100.64.0.72/30
   mysql-5.7-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.68/30
+        - subnet: 100.64.0.76/30
   mysql-8.0-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.72/30
+        - subnet: 100.64.0.80/30
   ntp-4.2.6-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.76/30
+        - subnet: 100.64.0.84/30
   ntp-openntp-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.80/30
+        - subnet: 100.64.0.88/30
   pop3-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.84/30
+        - subnet: 100.64.0.92/30
   postgres-9.3-ssl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.88/30
+        - subnet: 100.64.0.96/30
   postgres-9.3-nossl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.92/30
+        - subnet: 100.64.0.100/30
   postgres-9.4-ssl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.96/30
+        - subnet: 100.64.0.104/30
   postgres-9.4-nossl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.100/30
+        - subnet: 100.64.0.108/30
   postgres-9.5-ssl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.104/30
+        - subnet: 100.64.0.112/30
   postgres-9.5-nossl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.108/30
+        - subnet: 100.64.0.116/30
   postgres-9.6-ssl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.112/30
+        - subnet: 100.64.0.120/30
   postgres-9.6-nossl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.116/30
+        - subnet: 100.64.0.124/30
   postgres-10.1-ssl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.120/30
+        - subnet: 100.64.0.128/30
   postgres-10.1-nossl-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.124/30
+        - subnet: 100.64.0.132/30
   pptp-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.128/30
+        - subnet: 100.64.0.136/30
   redis-default-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.132/30
+        - subnet: 100.64.0.140/30
   redis-password-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.136/30
+        - subnet: 100.64.0.144/30
   redis-renamed-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.140/30
+        - subnet: 100.64.0.148/30
   smtp-helo-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.144/30
+        - subnet: 100.64.0.152/30
   smtp-ehlo-starttls-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.148/30
+        - subnet: 100.64.0.156/30
   smtp-ehlo-no-starttls-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.152/30
+        - subnet: 100.64.0.160/30
   smtp-smtps-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.156/30
+        - subnet: 100.64.0.164/30
   socks5-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.160/30
+        - subnet: 100.64.0.168/30
   ssh-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.164/30
+        - subnet: 100.64.0.172/30
   telnet-network:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.168/30
+        - subnet: 100.64.0.176/30

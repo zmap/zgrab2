@@ -95,9 +95,19 @@ func stopCPUProfile(f *os.File) {
 // include custom sets of scan modules by creating new main packages with custom
 // sets of ZGrab modules imported with side-effects.
 func ZGrab2Main() {
+	scanModuleNameToScanModule := make(map[string]*zgrab2.Scanner)
 	f := startCPUProfile()
 	defer stopCPUProfile(f)
 	defer dumpHeapProfile()
+	// We parse and re-parse the CLI args here as follows:
+	// 0. CLI config is initialized in init() with default values. These are communicated to user in flag descriptions.
+	// 1. Parse the CLI flag args to get the module type and flags.
+	// 2. If this is a Multiple command, we'll parse the ini file passed in either stdin or a file. This will overwrite
+	//    any flags set in the CLI args if also set in the ini file.
+	// 3. Re-parse the CLI args to ensure that they have precedence. This follows CLI app conventions of CLI args taking
+	//    precedence over config files.
+	// 4. Validate the framework configuration, which will ensure that the flags are valid and
+
 	_, moduleType, flag, err := zgrab2.ParseCommandLine(os.Args[1:])
 
 	// Blanked arg is positional arguments
@@ -127,6 +137,13 @@ func ZGrab2Main() {
 		if len(modTypes) != len(flagsReturned) {
 			log.Fatalf("error parsing flags")
 		}
+		// Re-parse the CLI args to ensure that they have precedence over the ini file.
+		_, _, _, err = zgrab2.ParseCommandLine(os.Args[1:])
+		if err != nil {
+			log.Fatalf("could not parse flags: %s", err)
+		}
+		// The iniParser will have overwritten config values that were set first in zgrab2.ParseCommandLine using argv values.
+		// We need to re-validate the framework configuration after parsing the ini file itself.
 		for i, fl := range flagsReturned {
 			f, ok := fl.(zgrab2.ScanFlags)
 			if !ok {
@@ -134,6 +151,7 @@ func ZGrab2Main() {
 			}
 			mod := zgrab2.GetModule(modTypes[i])
 			s := mod.NewScanner()
+			scanModuleNameToScanModule[modTypes[i]] = &s
 
 			if err = s.Init(f); err != nil {
 				log.Panicf("could not initialize multiple scanner: %v", err)
@@ -143,11 +161,13 @@ func ZGrab2Main() {
 	} else {
 		mod := zgrab2.GetModule(moduleType)
 		s := mod.NewScanner()
+		scanModuleNameToScanModule[moduleType] = &s
 		if err = s.Init(flag); err != nil {
 			log.Panicf("could not initialize scanner %s: %v", moduleType, err)
 		}
 		zgrab2.RegisterScan(moduleType, s)
 	}
+	zgrab2.ValidateAndHandleFrameworkConfiguration() // will panic if there is an error
 	wg := sync.WaitGroup{}
 	monitor := zgrab2.MakeMonitor(1, &wg)
 	monitor.Callback = func(_ string) {
@@ -160,12 +180,33 @@ func ZGrab2Main() {
 	log.Infof("finished grab at %s", end.Format(time.RFC3339))
 	monitor.Stop()
 	wg.Wait()
-	s := Summary{
-		StatusesPerModule: monitor.GetStatuses(),
+	// Write out metadata summary if metadata file is set
+	monitorStatuses := monitor.GetStatuses()
+	s := Metadata{
 		StartTime:         start.Format(time.RFC3339),
 		EndTime:           end.Format(time.RFC3339),
 		Duration:          end.Sub(start).String(),
+		CLIInvocation:     strings.Join(os.Args, " "),
+		PerModuleMetadata: monitorStatuses,
 	}
+	// Calculate total hosts scanned
+	for _, status := range monitorStatuses {
+		s.NumTargetsScanned += status.Failures + status.Successes
+	}
+
+	// Gather each module's scan metadata
+	for moduleName, module := range scanModuleNameToScanModule {
+		metadata := (*module).GetScanMetadata()
+		if metadata != nil {
+			// Need to lookup the appropriate field in the summary
+			s.PerModuleMetadata[moduleName].CustomMetadata = metadata
+			moduleSummaryMetadata, ok := s.PerModuleMetadata[moduleName]
+			if ok {
+				moduleSummaryMetadata.CustomMetadata = metadata
+			}
+		}
+	}
+
 	if metadataFile := zgrab2.GetMetaFile(); metadataFile != nil {
 		if err := json.NewEncoder(zgrab2.GetMetaFile()).Encode(&s); err != nil {
 			log.Fatalf("unable to write metadata summary: %s", err.Error())

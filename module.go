@@ -11,7 +11,7 @@ import (
 	"github.com/censys/cidranger"
 )
 
-// Scanner is an interface that represents all functions necessary to run a scan
+// Scanner exposes the functions for an application module to implement in order to be used by the ZGrab2 scanning framework
 type Scanner interface {
 	// Init runs once for this module at library init time
 	Init(flags ScanFlags) error
@@ -31,11 +31,21 @@ type Scanner interface {
 
 	// Scan connects to a host. The result should be JSON-serializable. If a scan requires a dialer that isn't set in
 	// the dialer group, an error will return.
+	// ctx - The context for a scan, can be used to set timeouts or cancel scans
+	// dialerGroup - A collection of connection dialers that the module will call to establish L4 and L6 (TLS, typically)
+	//               connections before doing any protocol-specific logic.
+	// t - The target to scan, including IP or domain, port, and any tags.
+	// Returns a ScanStatus, the result (or nil) of the protocol scan (entirely protocol dependent), and any error that occurred
 	Scan(ctx context.Context, dialerGroup *DialerGroup, t *ScanTarget) (ScanStatus, any, error)
 
 	// GetDialerGroupConfig returns a DialerGroupConfig that the framework will use to set up the dialer group using the module's
 	// desired dialer configuration.
 	GetDialerGroupConfig() *DialerGroupConfig
+
+	// GetScanMetadata returns any module-specific metadata that should be included in the final output
+	// Including json struct tags is up to the module
+	// If no metadata is needed, return nil
+	GetScanMetadata() any
 }
 
 // TransportProtocol is an enum for the transport layer protocol of a module
@@ -202,6 +212,8 @@ type ScanResponse struct {
 	// the scan name.
 	Protocol string `json:"protocol"`
 
+	Port uint `json:"port"`
+
 	Result    any     `json:"result,omitempty"`
 	Timestamp string  `json:"timestamp,omitempty"`
 	Error     *string `json:"error,omitempty"`
@@ -238,6 +250,7 @@ type BaseFlags struct {
 	ConnectTimeout time.Duration `long:"connect-timeout" description:"Set max for how long to wait for initial connection establishment (0 = no timeout)" default:"10s"`
 	TargetTimeout  time.Duration `short:"t" long:"target-timeout" description:"Set max for how long a scan of a single target (IP, Domain, etc) can take (0 = no timeout)" default:"60s"`
 	Trigger        string        `short:"g" long:"trigger" description:"Invoke only on targets with specified tag"`
+	Verbose        bool          `short:"v" long:"verbose" description:"More verbose logging, include debug fields in the scan results if implemented"`
 }
 
 // GetName returns the name of the respective scanner

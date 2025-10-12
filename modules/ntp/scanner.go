@@ -776,7 +776,6 @@ type Results struct {
 // Flags holds the command-line flags for the scanner.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 	Version          uint8  `long:"version" description:"The version number to pass to the Server." default:"3"`
 	LeapIndicator    uint8  `long:"leap-indicator" description:"The LI value to pass to the Server. Default 3 (Unknown)"`
 	SkipGetTime      bool   `long:"skip-get-time" description:"If set, don't request the Server time"`
@@ -862,6 +861,11 @@ func (scanner *Scanner) GetTrigger() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // SendAndReceive is a rough version of ntpdc.c's doquery(), except it only supports a single packet response
@@ -998,10 +1002,10 @@ func (scanner *Scanner) GetTime(sock net.Conn) (*NTPHeader, error) {
 // a valid NTP packet, then the result will be nil.
 // The presence of a DDoS-amplifying target can be inferred by
 // result.MonListReponse being present.
-func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	sock, err := dialGroup.Dial(ctx, t)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	sock, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(sock)
 	result := &Results{}

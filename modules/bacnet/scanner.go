@@ -20,8 +20,6 @@ import (
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
-
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -68,6 +66,11 @@ func (flags *Flags) Validate(_ []string) error {
 // Help returns the module's help string.
 func (flags *Flags) Help() string {
 	return ""
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Init initializes the Scanner.

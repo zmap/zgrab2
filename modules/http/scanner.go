@@ -24,11 +24,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/zmap/zcrypto/tls"
+
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/html/charset"
 
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/http"
+	"github.com/zmap/zgrab2/lib/http2"
 )
 
 var (
@@ -67,6 +70,7 @@ type Flags struct {
 	// Set HTTP Request body
 	RequestBody    string `long:"request-body" description:"HTTP request body to send to server"`
 	RequestBodyHex string `long:"request-body-hex" description:"HTTP request body to send to server"`
+	SkipHost       bool   `long:"skip-host" description:"Skip encoding the Host header"`
 
 	// ComputeDecodedBodyHashAlgorithm enables computing the body hash later than the default,
 	// using the specified algorithm, allowing a user of the response to recompute a matching hash
@@ -77,6 +81,9 @@ type Flags struct {
 
 	// Extract the raw header as it is on the wire
 	RawHeaders bool `long:"raw-headers" description:"Extract raw response up through headers"`
+
+	NoHTTP11 bool `long:"no-http1.1" description:"Use HTTP/2 with the initial request. If this connection is over TLS, we'll advertise HTTP/2 in ALPN. If not over TLS, we'll send an HTTP/2 over clear-text (h2c) request, sometimes known as http2 prior knowledge. Setting TLS.NextProtos will take precedence over this flag. Mutually exclusive with --no-http2"`
+	NoHTTP2  bool `long:"no-http2" description:"Use HTTP/1.1 with the initial request. If this connection is over TLS, we'll advertise HTTP/1.1 in ALPN. If not over TLS, we'll use a plain-text HTTP/1.1 request. Setting TLS.NextProtos will take precedence over this flag. Mutually exclusive with --no-http1.1"`
 }
 
 // A Results object is returned by the HTTP module's Scanner.Scan()
@@ -115,7 +122,6 @@ type scan struct {
 	cancelFuncs            []context.CancelFunc
 	scanner                *Scanner
 	target                 *zgrab2.ScanTarget
-	transport              *http.Transport
 	client                 *http.Client
 	results                Results
 	url                    string
@@ -136,7 +142,7 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	desc := []string{
-		"Send an HTTP request and read the response, optionally following redirects",
+		"Send an HTTP request and read the response, optionally following redirects. ",
 		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
 	}
 	return strings.Join(desc, "\n")
@@ -144,13 +150,28 @@ func (module *Module) Description() string {
 
 // Validate performs any needed validation on the arguments
 func (flags *Flags) Validate(_ []string) error {
+	if flags.NoHTTP2 && flags.NoHTTP11 {
+		return errors.New("cannot use both --no-http2 and --no-http1.1. Pick one or neither depending on which version you want to use")
+	}
 	return nil
 }
 
 // Help returns module-specific help
 func (flags *Flags) Help() string {
-	return ""
+	lines := []string{"By default, the HTTP module will send a plain-text HTTP/1.1 GET request to the target's root path (/).",
+		"HTTP Versions and TLS - HTTP version affects two things: the protocol used in the request and the supported versions advertised in the TLS ALPN header (if TLS is used).",
+		" - Plain-text HTTP/1.1 (default)               zgrab2 http",
+		" - Advertise both HTTP/2 and HTTP/1.1 in ALPN  --use-https - This is the default behavior of most web browsers",
+		" - HTTP/2-only over plain-text                 --no-http1.1 - Sends the HTTP/2 connection preface over plain-text TCP, like curl's --http2-prior-knowledge flag",
+		" - HTTP/1.1-only over TLS                      --no-http2 --use-https - Will only advertise http/1.1 support in ALPN header",
+		" - HTTP/2-only over TLS                        --no-http1.1 --use-https - Use --use-https to connect with TLS instead. Using --use-https --no-http1.1 will only advertise HTTP/2 support ",
+	}
+	return strings.Join(lines, "\n")
 }
+
+// TODO Phillip
+// echo "prstephens.com" | ./zgrab2 http --no-http1.1
+// This is simply erroring, we should provide the request sent and payload received
 
 // Protocol returns the protocol identifer for the scanner.
 func (scanner *Scanner) Protocol() string {
@@ -257,6 +278,10 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TLSFlags:                        &scanner.config.TLSFlags,
 	}
 
+	// The http2 library logs a lot of stuff with pretty unhelpful messages when scanning large numbers of hosts
+	// Could later be made configurable to different log levels, but we'd need to add some sort of disambiguation info, like the target host the log message is about
+	http2.SetLogger(io.Discard)
+
 	return nil
 }
 
@@ -289,6 +314,11 @@ func (scan *scan) Cleanup() {
 		}
 		scan.cancelFuncs = nil
 	}
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Get a context whose deadline is the earliest of the context's deadline (if it has one) and the
@@ -371,66 +401,102 @@ func getHTTPURL(https bool, host string, port uint16, endpoint string) string {
 }
 
 // NewHTTPScan gets a new Scan instance for the given target
-func (scanner *Scanner) newHTTPScan(ctx context.Context, t *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
+func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarget, useHTTPS bool, dialerGroup *zgrab2.DialerGroup) *scan {
 	ret := scan{
-		scanner: scanner,
-		target:  t,
-		transport: &http.Transport{
+		scanner:                scanner,
+		target:                 target,
+		client:                 http.MakeNewClient(),
+		redirectsToResolvedIPs: make(map[string]string),
+	}
+	ret.client.UserAgent = scanner.config.UserAgent
+	if scanner.config.TargetTimeout != 0 {
+		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
+	}
+	if len(scanner.config.NextProtos) == 0 {
+		// While we may not be using TLS for the initial connection, if the user is following redirects, we may end up at an https:// URL
+		// Setting NextProtos won't have a side effect on plain-text HTTP connections
+		if !scanner.config.NoHTTP2 && !scanner.config.NoHTTP11 {
+			// Default - advertise both HTTP/2 and HTTP/1.1
+			scanner.config.NextProtos = "h2,http/1.1"
+		} else if scanner.config.NoHTTP2 {
+			scanner.config.NextProtos = "http/1.1"
+		} else if scanner.config.NoHTTP11 {
+			scanner.config.NextProtos = "h2"
+		}
+	}
+	if !scanner.config.UseHTTPS && scanner.config.NoHTTP11 {
+		// HTTP/2 prior knowledge over cleartext TCP
+		// Use http2.Transport directly (not through http.Client’s automatic upgrade)
+		// Note - There is one case where we don't follow what the user may expect: if the user uses --no-http1.1 --use-https and hits an HTTP/2 aware server (over TLS) that re-directs to a new server using http:// (no TLS), we will use HTTP/1.1 for that re-directed request.
+		// I couldn't figure out a way to use HTTP/2 prior knowledge on re-directs where the initial request was over TLS.
+		// curl does do this, but it's unclear to me how to do this with Go's http/http2 libraries presently since you have to initialize the http2.Transport initially to support h2c and then it won't support TLS.
+		// Perhaps there's a way to multiplex between two transports to handle this case, but it seems like an edge case that's unlikely to be widely used in practice.
+		// If users complain that on re-directs they're seeing HTTP/1.1 when they expect HTTP/2, we can revisit this.
+		transport := &http2.Transport{
+			AllowHTTP: true, // allow h2c (non-TLS)
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				// Instead of TLS, just do raw TCP
+				return dialerGroup.L4Dialer(target)(ctx, network, addr)
+			},
+		}
+		ret.client.Transport = transport
+	} else {
+		// Use http.Transport, which may be automatically upgraded to HTTP/2 by http.Client
+		transport := &http.Transport{
 			Proxy:               nil, // TODO: implement proxying
 			DisableKeepAlives:   false,
 			DisableCompression:  false,
 			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 			RawHeaderBuffer:     scanner.config.RawHeaders,
-		},
-		client:                 http.MakeNewClient(),
-		redirectsToResolvedIPs: make(map[string]string),
-	}
-	if scanner.config.TargetTimeout != 0 {
-		ret.globalDeadline = time.Now().Add(scanner.config.TargetTimeout)
-	}
-	ret.transport.DialTLS = func(network, addr string) (net.Conn, error) {
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.GetTLSDialer(deadlineCtx, t)(network, addr)
+		}
+		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+			conn, err := dialerGroup.GetTLSDialer(deadlineCtx, target)(network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", target.String(), err)
+			}
+			host, _, err := net.SplitHostPort(addr)
+			if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+				// addr is a domain, update our mapping of redirected URLs to resolved IPs
+				ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+			}
+			ret.connections = append(ret.connections, conn)
+			ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+			return conn, nil
+		}
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
+			conn, err := dialerGroup.L4Dialer(target)(deadlineCtx, network, addr)
+			if err != nil {
+				return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", target.String(), err)
+			}
+			host, _, err := net.SplitHostPort(addr)
+			if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
+				// addr is a domain, update our mapping of redirected URLs to resolved IPs
+				ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
+			}
+			ret.connections = append(ret.connections, conn)
+			ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
+			return conn, nil
+		}
+		_, err := http2.ConfigureTransports(transport)
 		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with TLS Dialer: %w", t.String(), err)
+			log.Errorf("unable to configure http2 transport: %v", err)
 		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
+		ret.client.Transport = transport
 	}
-	ret.transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
-		conn, err := dialerGroup.L4Dialer(t)(deadlineCtx, network, addr)
-		if err != nil {
-			return nil, fmt.Errorf("unable to dial target (%s) with L4 Dialer: %w", t.String(), err)
-		}
-		host, _, err := net.SplitHostPort(addr)
-		if err == nil && net.ParseIP(host) == nil && conn != nil && conn.RemoteAddr() != nil {
-			// addr is a domain, update our mapping of redirected URLs to resolved IPs
-			ret.redirectsToResolvedIPs[host] = conn.RemoteAddr().String()
-		}
-		ret.connections = append(ret.connections, conn)
-		ret.cancelFuncs = append(ret.cancelFuncs, cancelFunc)
-		return conn, nil
-	}
-	ret.client.UserAgent = scanner.config.UserAgent
+
 	ret.client.CheckRedirect = ret.getCheckRedirect()
-	ret.client.Transport = ret.transport
 	ret.client.Jar = nil // Don't send or receive cookies (otherwise use CookieJar)
 	if deadline, ok := ctx.Deadline(); ok {
 		ret.client.Timeout = min(ret.client.Timeout, time.Until(deadline))
 	}
 
-	host := t.Domain
+	host := target.Domain
 	if host == "" {
-		host = t.IP.String()
+		host = target.IP.String()
 	}
-	ret.url = getHTTPURL(useHTTPS, host, uint16(t.Port), scanner.config.Endpoint)
+	ret.url = getHTTPURL(useHTTPS, host, uint16(target.Port), scanner.config.Endpoint)
 
 	return &ret
 }
@@ -454,6 +520,8 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, err)
 	}
 
+	request.SkipHost = scan.scanner.config.SkipHost
+
 	// By default, the following headers are *always* set:
 	// Host, User-Agent, Accept, Accept-Encoding
 	if scan.scanner.customHeaders != nil {
@@ -467,13 +535,22 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 		request.Header.Set("Accept", "*/*")
 	}
 
+	if !scan.scanner.config.UseHTTPS && scan.scanner.config.NoHTTP11 {
+		// Set Protocol to HTTP/2.0 for h2c requests. This happens implicitly with the http2 transport, but this way the
+		// user sees this reflecting in the request's protocol in the json output
+		request.Proto = "HTTP/2.0"
+		request.ProtoMajor = 2
+		request.ProtoMinor = 0
+	}
+
 	resp, err := scan.client.Do(request)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	scan.results.Response = resp
 	if err != nil {
-		if urlError, ok := err.(*url.Error); ok {
+		var urlError *url.Error
+		if errors.As(err, &urlError) {
 			err = urlError.Err
 		}
 	}

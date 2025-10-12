@@ -90,10 +90,6 @@ type Flags struct {
 	// NewTNS causes the client to use the newer TNS header format with 32-bit
 	// lengths.
 	NewTNS bool `long:"new-tns" description:"If set, use new-style TNS headers"`
-
-	// Verbose causes more verbose logging, and includes debug fields inthe scan
-	// results.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -201,6 +197,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 func (scanner *Scanner) getTNSDriver() *TNSDriver {
 	mode := TNSModeOld
 	if scanner.config.NewTNS {
@@ -230,12 +231,12 @@ func (scanner *Scanner) getTNSDriver() *TNSDriver {
 //     into the results, then send a Native Security Negotiation Data packet.
 //  8. If the response is not a Data packet, exit with SCAN_APPLICATION_ERROR.
 //  9. Pull the versions out of the response and exit with SCAN_SUCCESS.
-func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	results := new(ScanResults)
 
-	sock, err := dialGroup.Dial(ctx, t)
+	sock, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not connect to target %s: %w", target.String(), err)
 	}
 	if tlsConn, ok := sock.(*zgrab2.TLSConnection); ok {
 		results.TLSLog = tlsConn.GetLog()
@@ -244,7 +245,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	conn := Connection{
 		conn:      sock,
 		scanner:   scanner,
-		target:    t,
+		target:    target,
 		tnsDriver: scanner.getTNSDriver(),
 	}
 	connectDescriptor := scanner.config.ConnectDescriptor

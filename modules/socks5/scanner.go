@@ -25,7 +25,6 @@ type ScanResults struct {
 // Flags are the SOCKS5-specific command-line flags.
 type Flags struct {
 	zgrab2.BaseFlags
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -82,7 +81,7 @@ func (f *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifier for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "socks5"
 }
 
@@ -91,10 +90,10 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 }
 
 // Init initializes the Scanner instance with the flags from the command line.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
-	s.config = f
-	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 	}
@@ -102,18 +101,23 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 }
 
 // InitPerSender does nothing in this module.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
 // GetName returns the configured name for the Scanner.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // readResponse reads a response from the SOCKS5 server.
@@ -235,16 +239,16 @@ func (conn *Connection) PerformConnectionRequest() error {
 }
 
 // Scan performs the configured scan on the SOCKS5 server.
-func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var have_auth bool
-	conn, err := dialGroup.Dial(ctx, t)
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 
 	results := ScanResults{}
-	socks5Conn := Connection{conn: conn, config: s.config, results: results}
+	socks5Conn := Connection{conn: conn, config: scanner.config, results: results}
 
 	have_auth, err = socks5Conn.PerformHandshake()
 	if err != nil {

@@ -92,9 +92,6 @@ type Flags struct {
 
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
-
-	// Verbose indicates that there should be more verbose logging.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -188,6 +185,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return &moduleMetadata
 }
 
 func getSMTPCode(response string) (int, error) {
@@ -291,6 +293,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send EHLO command: %w", err)
 		}
 		result.EHLO = ret
+		moduleMetadata.incrementHostsSupportingEHLO() // mark that we found a host that supports EHLO
 	} else {
 		// send a HELO msg since server doesn't support EHLO
 		ret, err := smtpConn.SendCommand(getCommand("HELO", target.Domain))
@@ -298,6 +301,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send HELO command: %w", err)
 		}
 		result.HELO = ret
+		moduleMetadata.incrementHostsSupportingHELO() // mark that we found a host that supports HELO
 	}
 	if scanner.config.SendHELP {
 		ret, err := smtpConn.SendCommand("HELP")
@@ -332,6 +336,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 		result.TLSLog = tlsConn.GetLog()
 		smtpConn.Conn = tlsConn
+		moduleMetadata.incrementHostsSupportingSTARTTLS() // mark that we found a host that supports STARTTLS
 	}
 	if scanner.config.SendQUIT {
 		ret, err := smtpConn.SendCommand("QUIT")

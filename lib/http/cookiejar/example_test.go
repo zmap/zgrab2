@@ -37,8 +37,9 @@ func ExampleNew() {
 		log.Fatal(err)
 	}
 
-	client := http.MakeNewClient()
-	client.Jar = jar
+	client := &http.Client{
+		Jar: jar,
+	}
 
 	if _, err = client.Get(u.String()); err != nil {
 		log.Fatal(err)

@@ -50,7 +50,7 @@ $ go version go1.21.13 linux/arm64
 export GOTOOLCHAIN=auto
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
-make install # Go will download the required 1.23 toolchain automatically
+make install # Go will download the required 1.24 toolchain automatically
 zgrab2 http --help # to see the http module's help message
 ```
 
@@ -153,6 +153,11 @@ port=22
 trigger="tagB"
 name="http80"
 port=80
+```
+
+You can run with this configuration using the following:
+```shell
+cat input.csv | ./zgrab2 multiple -c config.ini        
 ```
 
 ## Adding New Protocols 

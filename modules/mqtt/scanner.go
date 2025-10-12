@@ -26,9 +26,8 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	V5      bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
-	UseTLS  bool `long:"tls" description:"Use TLS for the MQTT connection"`
+	V5     bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
+	UseTLS bool `long:"tls" description:"Use TLS for the MQTT connection"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -85,7 +84,7 @@ func (f *Flags) Help() string {
 }
 
 // Protocol returns the protocol identifier for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "mqtt"
 }
 
@@ -93,11 +92,16 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Init initializes the Scanner instance with the flags from the command line.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
-	s.config = f
-	s.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
@@ -107,18 +111,18 @@ func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
 }
 
 // InitPerSender does nothing in this module.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
 // GetName returns the configured name for the Scanner.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
 // GetTrigger returns the Trigger defined in the Flags.
-func (s *Scanner) GetTrigger() string {
-	return s.config.Trigger
+func (scanner *Scanner) GetTrigger() string {
+	return scanner.config.Trigger
 }
 
 // SendMQTTConnectPacket constructs and sends an MQTT CONNECT packet to the server.
@@ -294,32 +298,32 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 }
 
 // Scan performs the configured scan on the MQTT server.
-func (s *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (status zgrab2.ScanStatus, result any, thrown error) {
-	conn, err := dialGroup.Dial(ctx, t)
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 
-	mqtt := Connection{conn: conn, config: s.config}
+	mqtt := Connection{conn: conn, config: scanner.config}
 
 	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		// if the passed in connection is a TLS connection, try to grab the log
 		mqtt.results.TLSLog = tlsConn.GetLog()
 	}
 
-	if err = mqtt.SendMQTTConnectPacket(s.config.V5); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CONNECT packet to target %s: %w", t.String(), err)
+	if err = mqtt.SendMQTTConnectPacket(scanner.config.V5); err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error sending CONNECT packet to target %s: %w", target.String(), err)
 	}
 
-	if s.config.V5 {
+	if scanner.config.V5 {
 		err = mqtt.ReadMQTTv5Packet()
 	} else {
 		err = mqtt.ReadMQTTv3Packet()
 	}
 
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &mqtt.results, fmt.Errorf("error reading CONNACK packet to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), &mqtt.results, fmt.Errorf("error reading CONNACK packet to target %s: %w", target.String(), err)
 	}
 
 	return zgrab2.SCAN_SUCCESS, &mqtt.results, nil
