@@ -8,6 +8,7 @@ package managesieve
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -139,7 +140,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 	addr := net.JoinHostPort(target.IP.String(), strconv.Itoa(int(target.Port)))
 	l4Dialer := dialerGroup.L4Dialer
 	if l4Dialer == nil {
-		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("L4 dialer is required in dialer group")
+		return zgrab2.SCAN_UNKNOWN_ERROR, nil, errors.New("L4 dialer is required in dialer group")
 	}
 	/* if dialerGroup.TransportAgnosticDialer == nil {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("dialer is required in dialer group")
@@ -153,8 +154,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 	results := &ScanResults{}
 
 	// Set read timeout
-	if err := conn.SetReadDeadline(time.Now().Add(time.Second * 10)); err != nil {
-		return zgrab2.SCAN_UNKNOWN_ERROR, results, err
+	if deadlineErr := conn.SetReadDeadline(time.Now().Add(time.Second * 10)); deadlineErr != nil {
+		return zgrab2.SCAN_UNKNOWN_ERROR, results, deadlineErr
 	}
 
 	// Read initial banner
@@ -169,8 +170,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 	}
 
 	// Send CAPABILITY command
-	if err := scanner.sendCommand(conn, "CAPABILITY"); err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to send CAPABILITY: %v", err)
+	if cmdErr := scanner.sendCommand(conn, "CAPABILITY"); cmdErr != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to send CAPABILITY: %v", cmdErr)
 	}
 
 	// Read capabilities response
@@ -262,7 +263,7 @@ func (scanner *Scanner) parseCapabilities(response string, results *ScanResults)
 		line = strings.TrimSpace(line)
 
 		// Remove quotes
-		capability := strings.Replace(line, "\"", "", -1)
+		capability := strings.ReplaceAll(line, "\"", "")
 		results.Capabilities = append(results.Capabilities, capability)
 
 		// Extract specific information
