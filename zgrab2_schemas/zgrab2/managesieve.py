@@ -12,11 +12,17 @@ managesieve_scan_response = SubRecord(
         "result": SubRecord(
             {
                 "banner": String(doc="The ManageSieve banner."),
-                "capabilities": ListOf(String(doc="A capability advertised by the server.")),
-                "sieve_version": String(doc="The Sieve version advertised by the server."),
+                "capabilities": ListOf(
+                    String(doc="A capability advertised by the server.")
+                ),
+                "sieve_version": String(
+                    doc="The Sieve version advertised by the server."
+                ),
                 "implementation": String(doc="The server implementation string."),
                 "starttls_supported": Boolean(),
-                "auth_mechanisms": ListOf(String(doc="Supported SASL authentication mechanism.")),
+                "auth_mechanisms": ListOf(
+                    String(doc="Supported SASL authentication mechanism.")
+                ),
             }
         )
     },
