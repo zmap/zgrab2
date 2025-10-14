@@ -527,11 +527,6 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 100.64.0.20/30
-  managesieve-network:
-    driver: bridge
-    ipam:
-      config:
         - subnet: 100.64.0.28/30
   memcache-network-1.6.0:
     driver: bridge
@@ -718,3 +713,8 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.176/30
+  managesieve-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.180/30
