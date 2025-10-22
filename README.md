@@ -35,9 +35,11 @@ export PATH=$PATH:$GOPATH/bin
 ```shell
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
-make install
-zgrab2 http --help # to see the http module's help message
+make
+./zgrab2 http --help # to see the http module's help message
 ```
+
+This will create the `zgrab2` binary in the current directory.
 
 Starting in Go 1.21, Go added [support](https://go.dev/doc/toolchain) for auto-downloading the appropriate toolchain for building a given module.
 
@@ -51,7 +53,7 @@ export GOTOOLCHAIN=auto
 git clone https://github.com/zmap/zgrab2.git
 cd zgrab2
 make install # Go will download the required 1.24 toolchain automatically
-zgrab2 http --help # to see the http module's help message
+./zgrab2 http --help # to see the http module's help message
 ```
 
 ## Single Module Usage 
