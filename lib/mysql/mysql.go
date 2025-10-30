@@ -604,6 +604,10 @@ func (c *Connection) sendPacket(packet WritablePacket) (*ConnectionLogEntry, err
 
 // Decode a packet from the pre-separated body
 func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
+	if len(body)== 0 {
+		return nil, fmt.Errorf("mysql error: empty body %d", len(body))
+	}
+
 	header := body[0]
 	switch header {
 	case 0xff:
