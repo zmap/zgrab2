@@ -219,10 +219,10 @@ type MemcachedResultStats struct {
 // SnakeToCamel turns a snake case string to a camel case string
 func SnakeToCamel(original string) (result string) {
 	split := strings.Split(original, "_")
-	for _, word := range split {
-		result += strings.ToUpper(string(word[0])) + word[1:]
+	for i, word := range split {
+		split[i] = strings.ToUpper(string(word[0])) + word[1:]
 	}
-	return result
+	return strings.Join(split, "")
 }
 
 // This function populates the MemcachedResult struct
