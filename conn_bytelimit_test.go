@@ -70,7 +70,7 @@ type readLimitTestConfig struct {
 func checkedSendReceive(t *testing.T, conn *TimeoutConnection, size int) (result error) {
 	// helper to report + return an error
 	tErrorf := func(format string, args ...any) error {
-		result = fmt.Errorf(format, args)
+		result = fmt.Errorf(format, args...)
 		t.Error(result)
 		return result
 	}
