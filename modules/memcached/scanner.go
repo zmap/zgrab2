@@ -220,7 +220,15 @@ type MemcachedResultStats struct {
 func SnakeToCamel(original string) (result string) {
 	split := strings.Split(original, "_")
 	for i, word := range split {
-		split[i] = strings.ToUpper(string(word[0])) + word[1:]
+		if len(word) == 0 {
+			continue
+		}
+		if len(word) == 1 {
+			split[i] = strings.ToUpper(string(word[0]))
+		}
+		if len(word) > 1 {
+			split[i] = strings.ToUpper(string(word[0])) + word[1:]
+		}
 	}
 	return strings.Join(split, "")
 }
