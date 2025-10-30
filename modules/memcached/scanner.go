@@ -286,17 +286,6 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 	return resultStruct
 }
 
-// This function gets the first occurence of an integer in a string
-func FirstInteger(str string) int {
-	for index, char := range str {
-		_, err := strconv.Atoi(string(char))
-		if err == nil {
-			return index
-		}
-	}
-	return -1
-}
-
 // Struct for binary STAT response defined in:
 // https://docs.memcached.org/protocols/binary/#stat
 type statResponse struct {
@@ -357,7 +346,6 @@ func CleanBinary(results []byte) ([]string, error) {
 		// Magic Byte or a OpCode or a key length error.
 		magicByteCorrect := response.Magic == 0x81
 		opCodeCorrect := response.Opcode == 0x10
-		trimmedResults = append(trimmedResults, stat)
 		if !magicByteCorrect && !opCodeCorrect {
 			return nil, errors.New("invalid magic byte and opcode")
 		} else if !magicByteCorrect {
@@ -368,6 +356,7 @@ func CleanBinary(results []byte) ([]string, error) {
 		if uint32(len(results)) >= 24+response.TotalBody {
 			results = results[24+response.TotalBody:]
 		}
+		trimmedResults = append(trimmedResults, stat)
 	}
 	return trimmedResults, nil
 }
@@ -430,6 +419,9 @@ func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
+	defer func(conn net.Conn) {
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
 
 	// Send the binary "stat" command - From https://docs.memcached.org/protocols/binary/#stat
 	var message []byte
@@ -454,9 +446,6 @@ func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 
 	trimmedResults, err := CleanBinary(results)
 	if err != nil {
-		defer func(conn net.Conn) {
-			zgrab2.CloseConnAndHandleError(conn)
-		}(conn)
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: %v (%s)", err, target.String())
 	}
 	result = PopulateResults(trimmedResults)
