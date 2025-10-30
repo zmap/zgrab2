@@ -322,12 +322,10 @@ func ParseResponse(result []byte) statResponse {
 	// Check if the given keylength and the total body
 	// fit in the actualy packet bounds
 	key := "KeyLengthError"
-	val := "3"
-	if uint16(len(result)) >= 24+keyLength {
+	val := "InvalidValue"
+	if uint32(keyLength) < totalBody && uint16(len(result)) >= 24+keyLength && uint32(len(result)) >= 24+totalBody {
 		key = string(result[24 : 24+keyLength])
-		if uint32(len(result)) >= 24+totalBody {
-			val = string(result[24+keyLength : 24+totalBody])
-		}
+		val = string(result[24+keyLength : 24+totalBody])
 	}
 	returnVal := statResponse{
 		result[0],
