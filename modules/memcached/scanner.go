@@ -358,6 +358,9 @@ func CleanBinary(results []byte) ([]string, error) {
 		}
 		trimmedResults = append(trimmedResults, stat)
 	}
+	if len(trimmedResults) == 0 {
+		return nil, errors.New("no valid stats found in binary response")
+	}
 	return trimmedResults, nil
 }
 
@@ -407,7 +410,7 @@ func ScanAscii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab
 			return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: no valid result is present (%s). given: %s", target.String(), string(results))
 		}
 	} else {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: no enough valid information is present (%s). given: %s", target.String(), string(results))
+		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: not enough valid information is present (%s). given: %s", target.String(), string(results))
 	}
 }
 
