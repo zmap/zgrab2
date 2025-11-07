@@ -5,6 +5,35 @@ ZGrab is a fast, modular application-layer network scanner designed for completi
 
 ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
+ZGrab offers modules for a variety of protocols, including HTTP, TLS, SSH, and more. Each module defines it's own set of command-line options and JSON output schema.
+To see what modules are available, run:
+```json
+zgrab2 --help
+```
+and to see module-specific options as well as an example CLI invocation for a given module, run:
+```json
+zgrab2 [module] --help
+```
+
+For default behavior, you can pipe a list of target IPs or hostnames (one per line) into ZGrab2 via stdin to check out a modules's output.
+```shell
+echo "example.com" | ./zgrab2 http                                                                                                                                                                                                                                                                                                         16:17:57
+```
+
+```sh
+INFO[0000] started grab at 2025-11-06T16:18:00-08:00    
+{"ip":"23.215.0.138","domain":"example.com","data":{"http":{"status":"success","protocol":"http","port":80,"result":{"response":{"status_line":"200 OK","status_code":200,"protocol":"HTTP/1.1","protocol_major":1,"protocol_minor":1,"headers":{"accept_ranges":["bytes"],"cache_control":["max-age=86000"],"connection":["keep-alive"],"content_type":["text/html"],"date":["Fri, 07 Nov 2025 00:18:00 GMT"],"etag":["\"bc2473a18e003bdb249eba5ce893033f:1760028122.592274\""],"last_modified":["Thu, 09 Oct 2025 16:42:02 GMT"],"vary":["Accept-Encoding"]},"body":"\u003c!doctype html\u003e\u003chtml lang=\"en\"\u003e\u003chead\u003e\u003ctitle\u003eExample Domain\u003c/title\u003e\u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1\"\u003e\u003cstyle\u003ebody{background:#eee;width:60vw;margin:15vh auto;font-family:system-ui,sans-serif}h1{font-size:1.5em}div{opacity:0.8}a:link,a:visited{color:#348}\u003c/style\u003e\u003cbody\u003e\u003cdiv\u003e\u003ch1\u003eExample Domain\u003c/h1\u003e\u003cp\u003eThis domain is for use in documentation examples without needing permission. Avoid use in operations.\u003cp\u003e\u003ca href=\"https://iana.org/domains/example\"\u003eLearn more\u003c/a\u003e\u003c/div\u003e\u003c/body\u003e\u003c/html\u003e\n","body_sha256":"6f5635035f36ad500b4fc4bb7816bb72ef5594e1bcae44fa074c5e988fc4c0fe","content_length":-1,"request":{"url":{"scheme":"http","host":"example.com","path":"/"},"method":"GET","protocol":"HTTP/1.1","protocol_major":1,"protocol_minor":1,"headers":{"accept":["*/*"],"user_agent":["Mozilla/5.0 zgrab/0.x"]},"host":"example.com"}},"redirects_to_resolved_ips":[{"redirect_name":"example.com","ip":"23.215.0.138:80"}]},"timestamp":"2025-11-06T16:18:00-08:00"}}}
+INFO[0000] finished grab at 2025-11-06T16:18:00-08:00   
+00h:00m:00s; Scan Complete; 1 targets scanned; 6.67 targets/sec; 100.0% success rate
+{"statuses":{"http":{"successes":1,"failures":0}},"start":"2025-11-06T16:18:00-08:00","end":"2025-11-06T16:18:00-08:00","duration":"149.936917ms","zgrab_cli_parameters":"./zgrab2 http","num_targets_scanned":1}
+```
+
+> [!INFO]
+> Ethical Note
+> ZGrab will only collect information that is available to any standard application client _without_ authenticating.
+> We will not accept contributions that attempt to gain access to systems by exploiting vulnerabilities or attempting to brute-force credentials.
+> Application handshakes are always aborted before authentication is attempted.
+
 ## Installation
 
 ### With Docker
