@@ -54,7 +54,7 @@ type Flags struct {
 	UserAgent        string `long:"user-agent" default:"Mozilla/5.0 zgrab/0.x" description:"Set a custom user agent"`
 	RetryHTTPS       bool   `long:"retry-https" description:"If the initial request fails, reconnect and try with HTTPS."`
 	MaxSize          int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an HTTP request"`
-	MaxRedirects     int    `long:"max-redirects" default:"5" description:"Max number of redirects to follow"`
+	MaxRedirects     int    `long:"max-redirects" default:"0" description:"Max number of redirects to follow"`
 
 	// UseHTTPS causes the first request to be over TLS, without requiring a
 	// redirect to HTTPS. It does not change the port used for the connection.
