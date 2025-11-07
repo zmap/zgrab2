@@ -5,12 +5,15 @@ ZGrab is a fast, modular application-layer network scanner designed for completi
 
 ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
-ZGrab offers modules for a variety of protocols, including HTTP, TLS, SSH, and more. Each module defines it's own set of command-line options and JSON output schema.
-To see what modules are available, run:
-```json
-zgrab2 --help
-```
-and to see module-specific options as well as an example CLI invocation for a given module, run:
+ZGrab offers modules for a variety of protocols. Currently, we offer:
+
+<table>
+<tr><td>AMQP</td><td>BACnet</td><td>Banner</td><td>DNP3</td><td>Fox</td><td>FTP</td><td>HTTP</td><td>IMAP</td><td>IPP</td><td>JARM</td></tr>
+<tr><td>Memcached</td><td>Modbus</td><td>MongoDB</td><td>MQTT</td><td>MSSQL</td><td>MySQL</td><td>NTP</td><td>Oracle</td><td>POP3</td><td>PostgreSQL</td></tr>
+<tr><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td><td>SMTP</td><td>SOCKS5</td><td>SSH</td><td>Telnet</td><td>TLS</td></tr>
+</table>
+
+To see module-specific options as well as an example CLI invocation for a given module, run:
 ```json
 zgrab2 [module] --help
 ```
