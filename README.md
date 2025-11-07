@@ -32,7 +32,7 @@ INFO[0000] finished grab at 2025-11-06T16:18:00-08:00
 {"statuses":{"http":{"successes":1,"failures":0}},"start":"2025-11-06T16:18:00-08:00","end":"2025-11-06T16:18:00-08:00","duration":"149.936917ms","zgrab_cli_parameters":"./zgrab2 http","num_targets_scanned":1}
 ```
 
-> [!INFO]
+> [!NOTE]
 > Ethical Note
 > ZGrab will only collect information that is available to any standard application client _without_ authenticating.
 > We will not accept contributions that attempt to gain access to systems by exploiting vulnerabilities or attempting to brute-force credentials.
