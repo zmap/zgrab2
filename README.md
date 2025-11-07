@@ -33,7 +33,8 @@ INFO[0000] finished grab at 2025-11-06T16:18:00-08:00
 ```
 
 > [!NOTE]
-> Ethical Note
+> Ethical Scanning
+> 
 > ZGrab will only collect information that is available to any standard application client _without_ authenticating.
 > We will not accept contributions that attempt to gain access to systems by exploiting vulnerabilities or attempting to brute-force credentials.
 > Application handshakes are always aborted before authentication is attempted.
