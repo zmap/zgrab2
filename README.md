@@ -13,7 +13,7 @@ ZGrab offers modules for a variety of protocols. Currently, we offer:
 <tr><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td><td>SMTP</td><td>SOCKS5</td><td>SSH</td><td>Telnet</td><td>TLS</td></tr>
 </table>
 
-To see module-specific options as well as an example CLI invocation for a given module, run:
+To see module-specific options:
 ```json
 zgrab2 [module] --help
 ```
