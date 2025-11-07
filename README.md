@@ -41,6 +41,43 @@ INFO[0000] finished grab at 2025-11-06T16:18:00-08:00
 
 ## Installation
 
+### Building from Source
+We recommend installing ZGrab2 from source to ensure you have the latest version.
+
+#### Prerequisites
+If you do not already have Go installed, follow the instructions on the [Go installation page](https://go.dev/doc/install) to install Go 1.23 or later.
+
+#### Clone and Build ZGrab2
+```shell
+git clone https://github.com/zmap/zgrab2.git
+cd zgrab2
+make
+./zgrab2 http --help # to see the http module's help message
+```
+
+This will create the `zgrab2` binary in the current directory.
+
+You can also install ZGrab2 so it can be used system-wide:
+```shell
+make install; zgrab2 --help
+```
+
+If there are no errors, the `zgrab2` binary should now be available system-wide.
+
+#### Troubleshooting Install
+Usually, installation issues are because Go will put the binary in your `$GOPATH/bin` directory, which may not be in your system's `PATH` meaning your shell cannot find it.
+
+If you run into issues with `command not found: zgrab2`, ensure that your `$GOPATH/bin` is in your `PATH` environment variable.
+Add the following line to your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`):
+```shell
+export PATH=$PATH:$GOPATH/bin
+```
+
+Then, reload your shell configuration:
+```shell
+source ~/.bashrc  # or source ~/.zshrc
+```
+
 ### With Docker
 
 You can run ZGrab 2.0 with our official Docker image. For example, to scan a single website using the HTTP module, you can use:
@@ -57,38 +94,6 @@ docker run --rm -i -v /path/to/your/config.ini:/config.ini ghcr.io/zmap/zgrab2 m
 
 Replace `/path/to/your/config.ini` with the path to your configuration file on the host machine. See [Multiple Module Usage](#multiple-module-usage) for more details on configurations.
 
-### Building from Source
-
-ZGrab2 requires Go 1.23 or later to build from source.
-If you run into issues with `command not found: zgrab2`, ensure that your `$GOPATH/bin` is in your `PATH` environment variable.
-Add the following line to your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`):
-```shell
-export PATH=$PATH:$GOPATH/bin
-```
-
-```shell
-git clone https://github.com/zmap/zgrab2.git
-cd zgrab2
-make
-./zgrab2 http --help # to see the http module's help message
-```
-
-This will create the `zgrab2` binary in the current directory.
-
-Starting in Go 1.21, Go added [support](https://go.dev/doc/toolchain) for auto-downloading the appropriate toolchain for building a given module.
-
-This will let you build ZGrab2 using Go 1.21.X or 1.22.X without needing to manually install another version.
-
-```shell
-go version
-$ go version go1.21.13 linux/arm64
-
-export GOTOOLCHAIN=auto
-git clone https://github.com/zmap/zgrab2.git
-cd zgrab2
-make install # Go will download the required 1.24 toolchain automatically
-./zgrab2 http --help # to see the http module's help message
-```
 
 ## Single Module Usage 
 
