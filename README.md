@@ -18,7 +18,7 @@ To see module-specific options as well as an example CLI invocation for a given 
 zgrab2 [module] --help
 ```
 
-For default behavior, you can pipe a list of target IPs or hostnames (one per line) into ZGrab2 via stdin to check out a modules's output.
+For default behavior, you can pipe a list of target IPs or hostnames (one per line) into ZGrab2 via stdin to check out a modules' output.
 ```shell
 echo "example.com" | ./zgrab2 http                                                                                                                                                                                                                                                                                                         16:17:57
 ```
