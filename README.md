@@ -8,14 +8,15 @@ ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https:
 ZGrab offers modules for a variety of protocols. Currently, we offer:
 
 <table>
-<tr><td>AMQP</td><td>BACnet</td><td>Banner</td><td>DNP3</td><td>Fox</td><td>FTP</td><td>HTTP</td><td>IMAP</td><td>IPP</td><td>JARM</td></tr>
-<tr><td>Memcached</td><td>Modbus</td><td>MongoDB</td><td>MQTT</td><td>MSSQL</td><td>MySQL</td><td>NTP</td><td>Oracle</td><td>POP3</td><td>PostgreSQL</td></tr>
-<tr><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td><td>SMTP</td><td>SOCKS5</td><td>SSH</td><td>Telnet</td><td>TLS</td></tr>
+<tr><td>AMQP</td><td>BACnet</td><td>Banner</td><td>DNP3</td><td>Fox</td><td>FTP</td><td>HTTP</td><td>IMAP</td><td>IPP</td></tr>
+<tr><td>JARM</td><td>Memcached</td><td>Modbus</td><td>MongoDB</td><td>MQTT</td><td>MSSQL</td><td>MySQL</td><td>NTP</td><td>Oracle</td></tr>
+<tr><td>POP3</td><td>PostgreSQL</td><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td><td>SMTP</td><td>SOCKS5</td><td>SSH</td></tr>
+<tr><td>Telnet</td><td>TLS</td></tr>
 </table>
 
 To see module-specific options:
-```json
-zgrab2 [module] --help
+```sh
+./zgrab2 [module] --help
 ```
 
 For default behavior, you can pipe a list of target IPs or hostnames (one per line) into ZGrab2 via stdin to check out a modules' output.
