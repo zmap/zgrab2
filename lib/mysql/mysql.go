@@ -339,7 +339,7 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 	ret.CapabilityFlags = uint32(binary.LittleEndian.Uint16(rest[13:15]))
 
 	// Unlike the ERRPacket case, the docs explicitly say to go by the body length here
-	if len(body) > 8 {
+	if len(body) > 8 && len(rest) >= 31 {
 		ret.ShortHandshake = false
 		ret.CharacterSet = rest[15]
 		ret.StatusFlags = binary.LittleEndian.Uint16(rest[16:18])
@@ -352,10 +352,12 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 			if part2Len < 13 {
 				part2Len = 13
 			}
-			ret.AuthPluginData2 = rest[31 : 31+part2Len]
-			if ret.CapabilityFlags&CLIENT_SECURE_CONNECTION != 0 {
-				// If AuthPluginName does include a NUL terminator, strip it.
-				ret.AuthPluginName = strings.Trim(string(rest[31+part2Len:]), "\u0000")
+			if byte(len(rest)-31) >= part2Len {
+				ret.AuthPluginData2 = rest[31 : 31+part2Len]
+				if ret.CapabilityFlags&CLIENT_SECURE_CONNECTION != 0 {
+					// If AuthPluginName does include a NUL terminator, strip it.
+					ret.AuthPluginName = strings.Trim(string(rest[31+part2Len:]), "\u0000")
+				}
 			}
 		}
 	} else {
@@ -604,6 +606,10 @@ func (c *Connection) sendPacket(packet WritablePacket) (*ConnectionLogEntry, err
 
 // Decode a packet from the pre-separated body
 func (c *Connection) decodePacket(body []byte) (PacketInfo, error) {
+	if len(body) == 0 {
+		return nil, fmt.Errorf("mysql error: empty body %d", len(body))
+	}
+
 	header := body[0]
 	switch header {
 	case 0xff:

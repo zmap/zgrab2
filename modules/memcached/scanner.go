@@ -219,10 +219,18 @@ type MemcachedResultStats struct {
 // SnakeToCamel turns a snake case string to a camel case string
 func SnakeToCamel(original string) (result string) {
 	split := strings.Split(original, "_")
-	for _, word := range split {
-		result += strings.ToUpper(string(word[0])) + word[1:]
+	for i, word := range split {
+		if len(word) == 0 {
+			continue
+		}
+		if len(word) == 1 {
+			split[i] = strings.ToUpper(string(word[0]))
+		}
+		if len(word) > 1 {
+			split[i] = strings.ToUpper(string(word[0])) + word[1:]
+		}
 	}
-	return result
+	return strings.Join(split, "")
 }
 
 // This function populates the MemcachedResult struct
@@ -232,6 +240,10 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 		splitResult := strings.Split(result, " ")
 		var value float64
 		var err error
+		// There is no key or no val
+		if len(splitResult) < 2 {
+			continue
+		}
 		if splitResult[0] != "version" && splitResult[0] != "libevent" {
 			stringVal := string(splitResult[1])
 			stringVal = strings.TrimSpace(stringVal)
@@ -274,17 +286,6 @@ func PopulateResults(trimmedResults []string) (resultStruct MemcachedResult) {
 	return resultStruct
 }
 
-// This function gets the first occurence of an integer in a string
-func FirstInteger(str string) int {
-	for index, char := range str {
-		_, err := strconv.Atoi(string(char))
-		if err == nil {
-			return index
-		}
-	}
-	return -1
-}
-
 // Struct for binary STAT response defined in:
 // https://docs.memcached.org/protocols/binary/#stat
 type statResponse struct {
@@ -304,9 +305,18 @@ type statResponse struct {
 // Parse header according to:
 //
 //	https://docs.memcached.org/protocols/binary/#example-10
-func ParseResponse(result []byte) statResponse {
+func parseResponse(result []byte) (*statResponse, error) {
 	keyLength := binary.BigEndian.Uint16(result[2:4])
 	totalBody := binary.BigEndian.Uint32(result[8:12])
+	// Check if the given keylength and the total body
+	// fit in the actualy packet bounds
+	var key, val string
+	if uint32(keyLength) < totalBody && uint16(len(result)) >= 24+keyLength && uint32(len(result)) >= 24+totalBody {
+		key = string(result[24 : 24+keyLength])
+		val = string(result[24+keyLength : 24+totalBody])
+	} else {
+		return nil, fmt.Errorf("key length error, the key length (%d) and body length (%d) are not within the protocol spec", keyLength, totalBody)
+	}
 	returnVal := statResponse{
 		result[0],
 		result[1],
@@ -317,22 +327,41 @@ func ParseResponse(result []byte) statResponse {
 		totalBody,
 		binary.BigEndian.Uint32(result[12:16]),
 		binary.BigEndian.Uint64(result[16:24]),
-		string(result[24 : 24+keyLength]),
-		string(result[24+keyLength : 24+totalBody])}
-
-	return returnVal
+		key,
+		val,
+	}
+	return &returnVal, nil
 }
 
-// This function cleans binary results
-func CleanBinary(results []byte) []string {
+func CleanBinary(results []byte) ([]string, error) {
 	var trimmedResults []string
 	for len(results) > 24 {
-		response := ParseResponse(results)
+		response, err := parseResponse(results)
+		if err != nil {
+			// return existing results along with the error
+			return trimmedResults, fmt.Errorf("error parsing response: %v", err)
+		}
 		stat := response.Key + " " + response.Value
+		// Check if the ParseResponse returns an invalid
+		// Magic Byte or a OpCode or a key length error.
+		magicByteCorrect := response.Magic == 0x81
+		opCodeCorrect := response.Opcode == 0x10
+		if !magicByteCorrect && !opCodeCorrect {
+			return nil, errors.New("invalid magic byte and opcode")
+		} else if !magicByteCorrect {
+			return nil, errors.New("invalid magic byte")
+		} else if !opCodeCorrect {
+			return nil, errors.New("invalid opcode")
+		}
+		if uint32(len(results)) >= 24+response.TotalBody {
+			results = results[24+response.TotalBody:]
+		}
 		trimmedResults = append(trimmedResults, stat)
-		results = results[24+response.TotalBody:]
 	}
-	return trimmedResults
+	if len(trimmedResults) == 0 {
+		return nil, errors.New("no valid stats found in binary response")
+	}
+	return trimmedResults, nil
 }
 
 // This function scans a memcached database using the ascii protocol
@@ -359,17 +388,30 @@ func ScanAscii(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab
 	splitResults := strings.Split(string(results), "\n")
 	trimmedResults := make([]string, 0, len(splitResults))
 	// Ignore empty last line of results and END message
-	for _, result := range splitResults[:len(splitResults)-2] {
-
-		trimmedResults = append(trimmedResults, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
+	if len(splitResults) >= 2 {
+		for _, result := range splitResults[:len(splitResults)-2] {
+			if len(result) < 6 || (len(result) >= 6 && result[0:5] != "STAT ") {
+				continue
+			}
+			trimmedResults = append(trimmedResults, strings.TrimSpace(strings.TrimPrefix(result, "STAT ")))
+		}
+		if len(trimmedResults) > 0 {
+			result = PopulateResults(trimmedResults)
+			result.SupportsAscii = true
+			defer func(conn net.Conn) {
+				// cleanup conn
+				zgrab2.CloseConnAndHandleError(conn)
+			}(conn)
+			return zgrab2.TryGetScanStatus(err), &result, err
+		} else {
+			defer func(conn net.Conn) {
+				zgrab2.CloseConnAndHandleError(conn)
+			}(conn)
+			return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: no valid result is present (%s). given: %s", target.String(), string(results))
+		}
+	} else {
+		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: not enough valid information is present (%s). given: %s", target.String(), string(results))
 	}
-	result = PopulateResults(trimmedResults)
-	result.SupportsAscii = true
-	defer func(conn net.Conn) {
-		// cleanup conn
-		zgrab2.CloseConnAndHandleError(conn)
-	}(conn)
-	return zgrab2.TryGetScanStatus(err), &result, err
 }
 
 // Find server that doesn't support ASCII but supports binary
@@ -380,6 +422,9 @@ func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
+	defer func(conn net.Conn) {
+		zgrab2.CloseConnAndHandleError(conn)
+	}(conn)
 
 	// Send the binary "stat" command - From https://docs.memcached.org/protocols/binary/#stat
 	var message []byte
@@ -402,10 +447,15 @@ func ScanBinary(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgra
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to read target (%s): %w", target.String(), err)
 	}
 
-	trimmedResults := CleanBinary(results)
+	trimmedResults, err := CleanBinary(results)
+	if err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("protocol-error: %v (%s)", err, target.String())
+	}
 	result = PopulateResults(trimmedResults)
 	result.SupportsBinary = true
-
+	// If there is a single response and this is an error
+	// Label it as a protocol error. This generally happens when an HTTP response arrives
+	// rather than a memcached response.
 	defer func(conn net.Conn) {
 		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
