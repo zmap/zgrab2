@@ -25,6 +25,7 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
+	BannerTimeout    time.Duration `long:"banner-timeout" description:"Set max for how long to wait for server to send capabilities after connection establishment (0 = no timeout)" default:"10s"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -58,6 +59,12 @@ type ScanResults struct {
 
 	// TLSLog contains the TLS handshake log if TLS was used
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+
+	// StartTLSResponse is the server response to the STARTTLS command
+	StartTLSResponse string `json:"starttls_response,omitempty"`
+
+	// Per RFC 5804, the server must advertise capabilities after TLS connection establishment
+	PostTLSCapabilities []string `json:"post_tls_capabilities,omitempty"`
 }
 
 // RegisterModule registers the ManageSieve module with zgrab2
@@ -102,6 +109,8 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
+		TLSEnabled:                      true,
+		TLSFlags:                        &f.TLSFlags,
 	}
 	return nil
 }
@@ -142,9 +151,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 	if l4Dialer == nil {
 		return zgrab2.SCAN_UNKNOWN_ERROR, nil, errors.New("L4 dialer is required in dialer group")
 	}
-	/* if dialerGroup.TransportAgnosticDialer == nil {
-		return zgrab2.SCAN_UNKNOWN_ERROR, nil, fmt.Errorf("dialer is required in dialer group")
-	} */
 	conn, err := l4Dialer(target)(ctx, "tcp", addr)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
@@ -153,13 +159,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 
 	results := &ScanResults{}
 
-	// Set read timeout
-	if deadlineErr := conn.SetReadDeadline(time.Now().Add(time.Second * 10)); deadlineErr != nil {
-		return zgrab2.SCAN_UNKNOWN_ERROR, results, deadlineErr
-	}
-
 	// Read initial banner
-	banner, err := scanner.readResponse(conn)
+	banner, err := scanner.readResponse(conn, scanner.config.BannerTimeout)
 	if err != nil {
 		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to read banner: %v", err)
 	}
@@ -175,7 +176,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 	}
 
 	// Read capabilities response
-	capResponse, err := scanner.readResponse(conn)
+	capResponse, err := scanner.readResponse(conn, scanner.config.BannerTimeout)
 	if err != nil {
 		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to read capabilities: %v", err)
 	}
@@ -183,11 +184,50 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 	// Parse capabilities
 	scanner.parseCapabilities(capResponse, results)
 
+	// Attempt TLS negotiation, if supported
+	if results.StartTLSSupported {
+		// Send STARTTLS command
+		if cmdErr := scanner.sendCommand(conn, "STARTTLS"); cmdErr != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to send STARTTLS: %v", cmdErr)
+		}
+
+		// Get Server Reply
+		results.StartTLSResponse, err = scanner.readResponse(conn, scanner.config.BannerTimeout)
+		if err != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to read STARTTLS reply: %v", err)
+		}
+		results.StartTLSResponse = strings.ReplaceAll(results.StartTLSResponse, "\"", "") // Clean quotes
+
+		// Initiate TLS Handshake
+		tlsConn, err := dialerGroup.TLSWrapper(ctx, target, conn)
+		if err != nil {
+			return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("could not initiate a TLS connection with server that says it supports STARTTLS: %w", err)
+		}
+		results.TLSLog = tlsConn.GetLog()
+
+		// After TLS handshake, read capabilities again
+		// RFC 5804 Section 2.2 - "After the TLS layer is established, the server MUST re-issue the
+		// capability results, followed by an OK response.  This is necessary to
+		// protect against man-in-the-middle attacks that alter the capabilities
+		// list prior to STARTTLS.  This capability result MUST NOT include the
+		// STARTTLS capability."
+		postTLSCapResponse, err := scanner.readResponse(tlsConn, scanner.config.BannerTimeout)
+		if err != nil {
+			return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to read post-TLS capabilities: %v", err)
+		}
+		postTLSCapResponse = strings.ReplaceAll(postTLSCapResponse, "\"", "")
+		results.PostTLSCapabilities = strings.Split(postTLSCapResponse, "\n")
+	}
+
 	return zgrab2.SCAN_SUCCESS, results, nil
 }
 
 // readResponse reads a complete response from the connection
-func (scanner *Scanner) readResponse(conn net.Conn) (string, error) {
+func (scanner *Scanner) readResponse(conn net.Conn, readTimoeut time.Duration) (string, error) {
+	// Set read timeout
+	if deadlineErr := conn.SetReadDeadline(time.Now().Add(readTimoeut)); deadlineErr != nil {
+		return "", deadlineErr
+	}
 	reader := bufio.NewReader(conn)
 	var response strings.Builder
 
