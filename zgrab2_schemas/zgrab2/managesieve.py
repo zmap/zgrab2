@@ -23,6 +23,13 @@ managesieve_scan_response = SubRecord(
                 "auth_mechanisms": ListOf(
                     String(doc="Supported SASL authentication mechanism.")
                 ),
+                "tls": zgrab2.tls_log,
+                "starttls_response": String(
+                    doc="The server's response to the STARTTLS command."
+                ),
+                "post_tls_capabilities": ListOf(
+                    String(doc="A capability advertised by the server after TLS connection establishment.")
+                ),
             }
         )
     },
