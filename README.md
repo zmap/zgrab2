@@ -5,7 +5,72 @@ ZGrab is a fast, modular application-layer network scanner designed for completi
 
 ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
+ZGrab offers modules for a variety of protocols. Currently, we offer:
+
+<table>
+<tr><td>AMQP</td><td>BACnet</td><td>Banner</td><td>DNP3</td><td>Fox</td><td>FTP</td><td>HTTP</td><td>IMAP</td><td>IPP</td></tr>
+<tr><td>JARM</td><td>Memcached</td><td>Modbus</td><td>MongoDB</td><td>MQTT</td><td>MSSQL</td><td>MySQL</td><td>NTP</td><td>Oracle</td></tr>
+<tr><td>POP3</td><td>PostgreSQL</td><td>PPTP</td><td>Redis</td><td>Siemens</td><td>SMB</td><td>SMTP</td><td>SOCKS5</td><td>SSH</td></tr>
+<tr><td>Telnet</td><td>TLS</td></tr>
+</table>
+
+More details are available in the Modules [section](https://github.com/zmap/zgrab2/#single-module-usage) below.
+
+For default behavior, you can pipe a list of target IPs or hostnames (one per line) into ZGrab2 via stdin to check out a modules' output.
+```shell
+echo "pool.ntp.org" | zgrab2 ntp
+```
+
+```sh
+{"ip":"23.143.196.199","domain":"pool.ntp.org","data":{"ntp":{"status":"success","protocol":"ntp","port":123,"result":{"version":3,"time":"2025-11-07T00:58:45.13740072Z"},"timestamp":"2025-11-06T16:58:45-08:00"}}}
+00h:00m:00s; Scan Complete; 1 targets scanned; 33.01 targets/sec; 100.0% success rate
+```
+
+> [!NOTE]
+> Ethical Scanning
+> 
+> ZGrab will only collect information that is available to any standard application client _without_ authenticating.
+> We will not accept contributions that attempt to gain access to systems by exploiting vulnerabilities or attempting to brute-force credentials.
+> Application handshakes are always aborted before authentication is attempted.
+
 ## Installation
+
+### Building from Source
+We recommend installing ZGrab2 from source to ensure you have the latest version.
+
+#### Prerequisites
+If you do not already have Go installed, follow the instructions on the [Go installation page](https://go.dev/doc/install) to install Go 1.23 or later.
+
+#### Clone and Build ZGrab2
+```shell
+git clone https://github.com/zmap/zgrab2.git
+cd zgrab2
+make
+./zgrab2 http --help # to see the http module's help message
+```
+
+This will create the `zgrab2` binary in the current directory.
+
+You can also install ZGrab2 so it can be used system-wide:
+```shell
+make install; zgrab2 --help
+```
+
+If there are no errors, the `zgrab2` binary should now be available system-wide.
+
+#### Troubleshooting Install
+Usually, installation issues are because Go will put the binary in your `$GOPATH/bin` directory, which may not be in your system's `PATH` meaning your shell cannot find it.
+
+If you run into issues with `command not found: zgrab2`, ensure that your `$GOPATH/bin` is in your `PATH` environment variable.
+Add the following line to your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`):
+```shell
+export PATH=$PATH:$GOPATH/bin
+```
+
+Then, reload your shell configuration:
+```shell
+source ~/.bashrc  # or source ~/.zshrc
+```
 
 ### With Docker
 
@@ -23,38 +88,6 @@ docker run --rm -i -v /path/to/your/config.ini:/config.ini ghcr.io/zmap/zgrab2 m
 
 Replace `/path/to/your/config.ini` with the path to your configuration file on the host machine. See [Multiple Module Usage](#multiple-module-usage) for more details on configurations.
 
-### Building from Source
-
-ZGrab2 requires Go 1.23 or later to build from source.
-If you run into issues with `command not found: zgrab2`, ensure that your `$GOPATH/bin` is in your `PATH` environment variable.
-Add the following line to your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`):
-```shell
-export PATH=$PATH:$GOPATH/bin
-```
-
-```shell
-git clone https://github.com/zmap/zgrab2.git
-cd zgrab2
-make
-./zgrab2 http --help # to see the http module's help message
-```
-
-This will create the `zgrab2` binary in the current directory.
-
-Starting in Go 1.21, Go added [support](https://go.dev/doc/toolchain) for auto-downloading the appropriate toolchain for building a given module.
-
-This will let you build ZGrab2 using Go 1.21.X or 1.22.X without needing to manually install another version.
-
-```shell
-go version
-$ go version go1.21.13 linux/arm64
-
-export GOTOOLCHAIN=auto
-git clone https://github.com/zmap/zgrab2.git
-cd zgrab2
-make install # Go will download the required 1.24 toolchain automatically
-./zgrab2 http --help # to see the http module's help message
-```
 
 ## Single Module Usage 
 
