@@ -28,7 +28,9 @@ managesieve_scan_response = SubRecord(
                     doc="The server's response to the STARTTLS command."
                 ),
                 "post_tls_capabilities": ListOf(
-                    String(doc="A capability advertised by the server after TLS connection establishment.")
+                    String(
+                        doc="A capability advertised by the server after TLS connection establishment."
+                    )
                 ),
             }
         )
