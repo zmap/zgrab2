@@ -403,6 +403,17 @@ services:
     privileged: true
     hostname: "target"
 
+  rdp:
+    container_name: zgrab_rdp
+    image: "danchitnis/xrdp:ubuntu-xfce"
+    networks:
+      - rdp-network
+    privileged: true
+    hostname: "target"
+    ports:
+      - "3389:3389"
+    command: ["username", "password", "no"]
+
   redis_default:
     <<: *redis-template
     networks:
@@ -718,3 +729,8 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.180/30
+  rdp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.184/30
