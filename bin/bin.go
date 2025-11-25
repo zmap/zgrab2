@@ -144,6 +144,7 @@ func ZGrab2Main() {
 		}
 		// The iniParser will have overwritten config values that were set first in zgrab2.ParseCommandLine using argv values.
 		// We need to re-validate the framework configuration after parsing the ini file itself.
+		iniParser.ValidateZCommanders()
 		for i, fl := range flagsReturned {
 			f, ok := fl.(zgrab2.ScanFlags)
 			if !ok {
