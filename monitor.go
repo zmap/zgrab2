@@ -90,11 +90,15 @@ func (m *Monitor) printStatus(isFinalPrint bool) {
 
 // MakeMonitor returns a Monitor object that can be used to collect and send
 // the status of a running scan
-func MakeMonitor(statusChanSize int, wg *sync.WaitGroup) *Monitor {
+func MakeMonitor(statusChanSize int, wg *sync.WaitGroup, moduleNames []string) *Monitor {
 	m := &Monitor{
 		statusesChan: make(chan moduleStatus, statusChanSize),
 		states:       make(map[string]*ModuleMetadata),
 		startTime:    time.Now(),
+	}
+	// Initialize an empty state for each module
+	for _, moduleName := range moduleNames {
+		m.states[moduleName] = &ModuleMetadata{}
 	}
 	wg.Add(1)
 	go func() {
