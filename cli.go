@@ -66,7 +66,9 @@ func NewIniParser() *flags.IniParser {
 	}
 	group.Hidden = true
 
-	return flags.NewIniParser(iniParser)
+	newIniParser := flags.NewIniParser(iniParser)
+	newIniParser.NoValidateAfterParsing = true
+	return newIniParser
 }
 
 // AddCommand adds a module to the parser and returns a pointer to
