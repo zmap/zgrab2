@@ -50,7 +50,7 @@ def validate_http(output):
 def validate_ntp(output):
     json_data = json.loads(output)
     print(json_data)
-    assert json_data["domain"] == "time-a-g.nist.gov"
+    assert json_data["domain"] == "time.nist.gov"
     assert json_data["data"]["ntp"]["status"] == "success"
     assert json_data["data"]["ntp"]["port"] == 123
 

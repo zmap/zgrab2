@@ -122,9 +122,9 @@ func ZGrab2Main() {
 		log.Fatalf("could not parse flags: %s", err)
 	}
 
+	var modTypes []string
 	if m, ok := flag.(*zgrab2.MultipleCommand); ok {
 		iniParser := zgrab2.NewIniParser()
-		var modTypes []string
 		var flagsReturned []any
 		if m.ConfigFileName == "-" {
 			modTypes, flagsReturned, err = iniParser.Parse(os.Stdin)
@@ -144,6 +144,7 @@ func ZGrab2Main() {
 		}
 		// The iniParser will have overwritten config values that were set first in zgrab2.ParseCommandLine using argv values.
 		// We need to re-validate the framework configuration after parsing the ini file itself.
+		iniParser.ValidateZCommanders()
 		for i, fl := range flagsReturned {
 			f, ok := fl.(zgrab2.ScanFlags)
 			if !ok {
@@ -159,6 +160,7 @@ func ZGrab2Main() {
 			zgrab2.RegisterScan(s.GetName(), s)
 		}
 	} else {
+		modTypes = append(modTypes, moduleType)
 		mod := zgrab2.GetModule(moduleType)
 		s := mod.NewScanner()
 		scanModuleNameToScanModule[moduleType] = &s
@@ -169,7 +171,7 @@ func ZGrab2Main() {
 	}
 	zgrab2.ValidateAndHandleFrameworkConfiguration() // will panic if there is an error
 	wg := sync.WaitGroup{}
-	monitor := zgrab2.MakeMonitor(1, &wg)
+	monitor := zgrab2.MakeMonitor(1, &wg, modTypes)
 	monitor.Callback = func(_ string) {
 		dumpHeapProfile()
 	}
@@ -199,7 +201,6 @@ func ZGrab2Main() {
 		metadata := (*module).GetScanMetadata()
 		if metadata != nil {
 			// Need to lookup the appropriate field in the summary
-			s.PerModuleMetadata[moduleName].CustomMetadata = metadata
 			moduleSummaryMetadata, ok := s.PerModuleMetadata[moduleName]
 			if ok {
 				moduleSummaryMetadata.CustomMetadata = metadata

@@ -12,13 +12,13 @@ jobs:
     name: Python Formatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: psf/black@stable
   go-fmt:
     name: Go Formatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Read go version
         id: go_version
         run: |
@@ -47,7 +47,7 @@ jobs:
           fi
       - name: Upload formatted files
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: formatted-files
           path: /tmp/gofmt
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -80,4 +80,4 @@ jobs:
                 echo "No issues found by gofmt."
             fi
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9.0.0
+        uses: golangci/golangci-lint-action@v9.2.0
