@@ -34,14 +34,14 @@ type Scanner struct {
 	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
-type connectionTune struct {
+type ConnectionTune struct {
 	ChannelMax int `json:"channel_max"`
 	FrameMax   int `json:"frame_max"`
 	Heartbeat  int `json:"heartbeat"`
 }
 
 // https://www.rabbitmq.com/amqp-0-9-1-reference#connection.start.server-properties
-type knownServerProperties struct {
+type KnownServerProperties struct {
 	Product      string `json:"product"`
 	Version      string `json:"version"`
 	Platform     string `json:"platform"`
@@ -52,7 +52,7 @@ type knownServerProperties struct {
 
 // copy known properties, and store unknown properties in serialized json string
 // if known properties are not found, set fields to empty strings
-func (p *knownServerProperties) populate(props amqpLib.Table) {
+func (p *KnownServerProperties) populate(props amqpLib.Table) {
 	if product, ok := props["product"].(string); ok {
 		p.Product = product
 		delete(props, "product")
@@ -84,12 +84,12 @@ type Result struct {
 
 	VersionMajor     int                   `json:"version_major"`
 	VersionMinor     int                   `json:"version_minor"`
-	ServerProperties knownServerProperties `json:"server_properties"`
+	ServerProperties KnownServerProperties `json:"server_properties"`
 	Locales          []string              `json:"locales"`
 
 	AuthSuccess bool `json:"auth_success"`
 
-	Tune *connectionTune `json:"tune,omitempty"`
+	Tune *ConnectionTune `json:"tune,omitempty"`
 
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
@@ -250,7 +250,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// These values are expected to be non-zero if and only if a tune is received and we're authenticated.
 	if !errors.Is(err, amqpLib.ErrSASL) && !errors.Is(err, amqpLib.ErrCredentials) && amqpConn.Config.ChannelMax > 0 {
 		result.AuthSuccess = true
-		result.Tune = &connectionTune{
+		result.Tune = &ConnectionTune{
 			ChannelMax: int(amqpConn.Config.ChannelMax),
 			FrameMax:   amqpConn.Config.FrameSize,
 			Heartbeat:  int(amqpConn.Config.Heartbeat.Seconds()),
