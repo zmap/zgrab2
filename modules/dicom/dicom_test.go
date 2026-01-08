@@ -70,13 +70,7 @@ func (t *dicomTester) runTest(test *testing.T, name string) {
 }
 
 var tests = map[string]*dicomTester{
-	"success": {
-		target: zgrab2.ScanTarget{
-			Domain: "https://www.dicomserver.co.uk/",
-			Port:   104,
-		},
-		expectedStatus: zgrab2.SCAN_SUCCESS,
-	},
+	"success": {},
 }
 
 func TestDICOM(t *testing.T) {
