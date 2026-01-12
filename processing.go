@@ -163,6 +163,22 @@ func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 	}
 }
 
+func GetDefaultSocketReuseDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+
+	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error){
+		defaultCallback := func(network string, srcIP net.IP, srcPort uint, actualPacket []byte) bool {
+			if srcIP.Equal( t.IP ) && srcPort == t.Port {
+				return true
+			}
+			return false
+		}
+		
+		// Get a shared Dialer object to be interacted with from the client
+		dialer := NewSharedDialer(nil)
+		return dialer.DialContext(ctx,"udp", addr, defaultCallback)
+	}
+}
+
 // BuildGrabFromInputResponse constructs a Grab object for a target, given the
 // scan responses.
 func BuildGrabFromInputResponse(t *ScanTarget, responses map[string]ScanResponse) *Grab {
@@ -299,7 +315,7 @@ func Process(mon *Monitor) {
 	}
 
 	if err := config.inputTargets(processQueue); err != nil {
-		log.Fatal(err)
+		log.Fatal(err)		
 	}
 	close(processQueue)
 	workerDone.Wait()

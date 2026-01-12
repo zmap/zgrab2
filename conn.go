@@ -9,6 +9,8 @@ import (
 	"math/rand"
 	"net"
 	"net/netip"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -51,6 +53,33 @@ var (
 // ErrReadLimitExceeded is returned / panic'd from Read if the read limit is exceeded when the
 // ReadLimitExceededAction is error / panic.
 var ErrReadLimitExceeded = errors.New("read limit exceeded")
+
+var udpNetworkList = []string{
+	"udp",
+	"udp4",
+	"udp6",
+	"unixgram",
+}
+
+var ipNetworkList = []string{
+	"ip",
+	"ip4",
+	"ip6",
+}
+
+const (
+	DefaultSharedSocketBufferLength = 10
+)
+
+var (
+	udpSharedSocket *SharedSocket
+	udpOnce         sync.Once
+	udpInitErr      error
+
+	ipSharedSocket *SharedSocket
+	ipOnce         sync.Once
+	ipInitErr      error
+)
 
 // TimeoutConnection wraps an existing net.Conn connection, overriding the Read/Write methods to use the configured timeouts
 // TODO: Refactor this into TimeoutConnection, BoundedReader, LoggedReader, etc
@@ -251,6 +280,72 @@ type Dialer struct {
 	Blocklist cidranger.Ranger
 }
 
+// Dialer provides Dial and DialContext methods to get connections with the given timeout.
+type SharedSocket struct {
+	conn  net.PacketConn
+	conns []*SharedSocketConn
+	mu    sync.RWMutex
+
+	// Replace with context??
+	closed       atomic.Bool // Global truth of socket being closed
+	bufferLength int
+
+	// denotes underlying network of the connection
+	network string
+}
+
+type Callback func(network string, srcIP net.IP, srcPort uint, actualPacket []byte) bool
+
+type SharedSocketConn struct {
+	cb         Callback
+	parent     *SharedSocket
+	recvCh     chan ReadResult
+	closed     atomic.Bool
+	remoteAddr net.Addr
+}
+
+type SharedDialer struct {
+	// SessionTimeout is the maximum time to wait for the entire session, after which any operations on the
+	// connection will fail. Dial-specific timeouts are set on the net.Dialer.
+	SessionTimeout time.Duration
+
+	// ReadTimeout is the maximum time to wait for a Read
+	ReadTimeout time.Duration
+
+	// WriteTimeout is the maximum time to wait for a Write
+	WriteTimeout time.Duration
+
+	Timeout time.Duration
+
+	*net.Resolver
+
+	// Dialer is an auxiliary dialer used for DialContext (the result gets wrapped in a
+	// TimeoutConnection).
+	// *net.Dialer
+
+	// BytesReadLimit is the maximum number of bytes that connections dialed with this dialer will
+	// read before erroring.
+	BytesReadLimit int
+
+	// ReadLimitExceededAction describes how connections dialed with this dialer deal with exceeding
+	// the BytesReadLimit.
+	ReadLimitExceededAction ReadLimitExceededAction
+
+	// Blocklist of IPs we should not dial.
+	Blocklist cidranger.Ranger
+
+	parent *SharedSocket
+	closed atomic.Bool
+}
+
+type ReadResult struct {
+	packet []byte
+	n      int
+	addr   net.Addr
+	err    error
+}
+
+// TODO: Want user interaction with DialContext to be effectively identical
 // DialContext wraps the connection returned by net.Dialer.DialContext() with a TimeoutConnection.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	// potentially the user set the SessionTimeout after calling NewDialer. If so, we'll set the dialer's timeout here
@@ -309,6 +404,194 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
+}
+
+// Equivalent of DialContext of Dialer but for SharedDialer
+func (d *SharedDialer) DialContext(ctx context.Context, network, address string, callback Callback) (net.Conn, error) {
+
+	// potentially the user set the SessionTimeout after calling NewDialer. If so, we'll set the dialer's timeout here
+	if d.SessionTimeout != 0 {
+		// TODO: Refactor to institute timeout on this dial connection
+		if d.Timeout == 0 {
+			d.Timeout = d.SessionTimeout
+		} else {
+			// if both session and dial timeout are set, use the minimum of both
+			d.Timeout = min(d.Timeout, d.SessionTimeout)
+		}
+	}
+
+	// Determine if address is a domain or an IP address
+	var conn net.Conn
+	host, port, err := net.SplitHostPort(address)
+	if err == nil && net.ParseIP(host) == nil {
+		// address is a domain
+		conn, err = d.dialContextDomain(ctx, network, host, port, callback)
+	} else {
+		// address is an IP, check blocklist
+		if d.Blocklist != nil {
+			ip := net.ParseIP(host)
+			if ip == nil {
+				return nil, fmt.Errorf("invalid IP address: %s", host)
+			}
+			if contains, _ := d.Blocklist.Contains(ip); contains {
+				return nil, &ScanError{
+					Status: SCAN_BLOCKLISTED_TARGET,
+					Err:    fmt.Errorf("dialing blocked IP: %s", host),
+				}
+			}
+		}
+		// Check rate limits
+		ip := net.ParseIP(host)
+		ipAddr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("invalid IP address: %s", host)
+		}
+		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, &ScanError{
+					Status: SCAN_CONNECTION_TIMEOUT,
+					Err:    fmt.Errorf("dialing IP %s timed out or was cancelled while waiting for rate limit token", host),
+				}
+			}
+			return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
+		}
+
+		// can proceed with dialing the IP address, not blocklisted
+		conn, err = d.DialContextSharedDialer(ctx, network, address, callback)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("dial context failed: %w", err)
+	}
+
+	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	ret.BytesReadLimit = d.BytesReadLimit
+	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
+	return ret, nil
+}
+
+func (d *SharedDialer) dialContextDomain(ctx context.Context, network, host, port string, callback Callback) (net.Conn, error) {
+	// return nil, nil
+	// Lookup name
+
+	usableIPs, err := d.lookupIPs(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup IPs for domain %s: %w", host, err)
+	}
+
+	// Time-sharing mechanism across all IPs
+	timeout := d.Timeout // How long to wait for all IPs
+	if ctxDeadline, ok := ctx.Deadline(); ok {
+		timeout = min(timeout, time.Until(ctxDeadline))
+	}
+	singleIPTimeout := timeout / time.Duration(len(usableIPs)) // Give each IP an equal share of the timeout
+	originalDialerTimeout := d.Timeout
+	defer func() {
+		d.Timeout = originalDialerTimeout // Restore the original timeout after dialing
+	}()
+	d.Timeout = singleIPTimeout // Dialer will only wait for this amount of time for each IP
+	var conn net.Conn
+	for _, ip := range usableIPs {
+		conn, err = d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port), callback)
+		if err == nil {
+			return conn, nil
+		}
+	}
+	return nil, &ScanError{
+		Status: SCAN_CONNECTION_TIMEOUT,
+		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout. Last IP errored with: %w", host, err),
+	}
+
+}
+
+func (d *SharedDialer) lookupIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if err := dnsRateLimiter.Wait(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, &ScanError{
+				Status: SCAN_CONNECTION_TIMEOUT,
+				Err:    fmt.Errorf("dns lookup %s timed out or was cancelled while waiting for rate limit token", host),
+			}
+		}
+		return nil, fmt.Errorf("failed to wait for rate limiter for DNS: %w", err)
+	}
+	ips, err := d.Resolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve domain %s: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IPs found for domain %s", host)
+	}
+	// Remove Unreachable IPs
+	filteredIPs := make([]net.IP, 0, len(ips))
+	for _, ip := range ips {
+		isIPv4 := ip.To4() != nil
+		isIPv6 := !isIPv4 && ip.To16() != nil
+		if config.resolveIPv4 && isIPv4 {
+			filteredIPs = append(filteredIPs, ip)
+		} else if config.resolveIPv6 && isIPv6 {
+			filteredIPs = append(filteredIPs, ip)
+		}
+		// Else, skip
+	}
+	if len(filteredIPs) == 0 {
+		return nil, fmt.Errorf("no reachable IPs found for domain %s with IPv4=%t, IPv6=%t", host, config.resolveIPv4, config.resolveIPv6)
+	}
+	// Filter out blocklisted IPs
+	if d.Blocklist != nil {
+		newFilteredIPs := make([]net.IP, 0, len(filteredIPs))
+		for _, ip := range filteredIPs {
+			if contains, _ := d.Blocklist.Contains(ip); !contains {
+				newFilteredIPs = append(newFilteredIPs, ip)
+			}
+		}
+		filteredIPs = newFilteredIPs
+	}
+	if len(filteredIPs) == 0 {
+		return nil, &ScanError{
+			Status: SCAN_BLOCKLISTED_TARGET,
+			Err:    fmt.Errorf("no reachable IPs found for domain %s after filtering blocklisted IPs", host),
+		}
+	}
+	return filteredIPs, nil
+}
+
+// DialContext acts like dial, but serves as a buffer between underlying listen connection and the dial interface
+func (d *SharedDialer) DialContextSharedDialer(ctx context.Context, network, address string, callback Callback) (net.Conn, error) {
+	switch {
+	case isUDPNetwork(network):
+		addr, err := net.ResolveUDPAddr("udp", address)
+		// TODO: Add error
+		if err != nil {
+			return nil, fmt.Errorf("invalid UDP address: %s", address)
+		}
+		socket, _ := getUDPSharedSocket("")
+		conn, err := socket.AddConnection(network, addr, callback)
+		if err != nil {
+			return nil, &ScanError{
+				Status: SCAN_BLOCKLISTED_TARGET,
+				Err:    fmt.Errorf("dialing UDP failed: %s", address),
+			}
+		}
+		return conn, err
+	case isIPNetwork(network):
+		addr, err := net.ResolveIPAddr("ip", address)
+		if err != nil {
+			return nil, fmt.Errorf("invalid IP address: %s", address)
+		}
+		conn, err := net.ListenIP(network, addr)
+		if err != nil {
+			return nil, &ScanError{
+				Status: SCAN_CONNECTION_REFUSED,
+				Err:    fmt.Errorf("dialing IP failed: %s", address),
+			}
+		}
+		return conn, err
+	default:
+		return nil, &ScanError{
+			Status: SCAN_PROTOCOL_ERROR,
+			Err:    fmt.Errorf("unable to parse protocol: %s", network),
+		}
+	}
 }
 
 // dialContextDomain emulates what net.Dialer.DialContext does for domains, but with additional logic to handle not
@@ -414,6 +697,14 @@ func GetTimeoutConnectionDialer(dialTimeout, sessionTimeout time.Duration) *Dial
 	return dialer
 }
 
+// GetTimeoutConnectionDialer gets a Shared Dialer that dials connections with the given timeout.
+func GetTimeoutConnectionSharedDialer(dialTimeout, sessionTimeout time.Duration) *SharedDialer {
+	dialer := NewSharedDialer(nil)
+	dialer.Timeout = dialTimeout
+	dialer.SessionTimeout = sessionTimeout
+	return dialer
+}
+
 // SetDefaults for the Dialer.
 func (d *Dialer) SetDefaults() *Dialer {
 	if d.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
@@ -439,11 +730,54 @@ func (d *Dialer) SetDefaults() *Dialer {
 	return d
 }
 
+// SetDefaults for the Dialer.
+func (d *SharedDialer) SetDefaults() *SharedDialer {
+	if d.ReadLimitExceededAction == ReadLimitExceededActionNotSet {
+		d.ReadLimitExceededAction = DefaultReadLimitExceededAction
+	}
+	if d.BytesReadLimit == 0 {
+		d.BytesReadLimit = DefaultBytesReadLimit
+	}
+
+	// this may be a single IP address or a comma-separated list of IP addresses
+	ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
+	cb := Callback(func(
+		network string,
+		srcIP net.IP,
+		srcPort uint,
+		actualPacket []byte,
+	) bool {
+		// handle packet
+		return false
+	})
+
+	d.Resolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return d.DialContext(ctx, network, ns, cb)
+		},
+	}
+
+	return d
+}
+
 // NewDialer creates a new Dialer with default settings.
 // Blocklist, if provided, is used to prevent dialing certain IPs.
 func NewDialer(value *Dialer) *Dialer {
 	if value == nil {
 		value = &Dialer{}
+	}
+	if value.Blocklist == nil {
+		value.Blocklist = blocklist
+	}
+	return value.SetDefaults()
+}
+
+// NewDialer creates a new Dialer with default settings.
+// Blocklist, if provided, is used to prevent dialing certain IPs.
+func NewSharedDialer(value *SharedDialer) *SharedDialer {
+	if value == nil {
+		value = &SharedDialer{}
 	}
 	if value.Blocklist == nil {
 		value.Blocklist = blocklist
@@ -480,4 +814,240 @@ func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPort
 		return fmt.Errorf("unsupported network type: %s", network)
 	}
 	return nil
+}
+
+// SHAREDSOCKET Implementation
+
+// Adds a connection object to the shared socket
+func (s *SharedSocket) AddConnection(network string, remoteAddr net.Addr, callback Callback) (*SharedSocketConn, error) {
+	// / If proposed network is not same as the Dialer's network, exit and
+	// // return error about the mismatch
+	if network != s.network {
+		// TODO: Make more descriptive error
+		return nil, &net.AddrError{
+			Err:  fmt.Sprintf("mismatched network between socket and Connection object: socket is  %s, client is %s", s.network, network),
+			Addr: network,
+		}
+	}
+
+	// Shared Socket is already closed, return an error
+	if s.closed.Load() {
+		return nil, net.ErrClosed
+	}
+
+	// Expose a client connection to the client
+	client_conn := &SharedSocketConn{
+		cb:         callback,
+		parent:     s,
+		recvCh:     make(chan ReadResult, s.bufferLength),
+		closed:     atomic.Bool{}, // Zero value is false
+		remoteAddr: remoteAddr,
+	}
+
+	// Add this client connection
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.conns = append(s.conns, client_conn)
+
+	return client_conn, nil
+}
+
+// Force close the shared socket (clear all clients)
+func (s *SharedSocket) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, conn := range s.conns {
+		conn.closed.Store(true)
+	}
+	s.closed.Store(true)
+	s.conns = s.conns[:0]
+
+	return s.conn.Close()
+}
+
+// Receives packets and muxes to respective clients
+func (s *SharedSocket) ReadFromLoop() {
+	for {
+		b := make([]byte, 1024)
+		n, addr, err := s.conn.ReadFrom(b)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+		}
+		read := ReadResult{
+			packet: b,
+			n:      n,
+			addr:   addr,
+			err:    err,
+		}
+
+		var srcIP net.IP
+		var srcPort uint
+
+		// Conditional based on type of net.addr
+		switch a := addr.(type) {
+		case *net.UDPAddr:
+			srcIP = a.IP
+			srcPort = uint(a.Port)
+		
+		case *net.IPAddr:
+			srcIP = a.IP
+			srcPort = 0 // IP addrs have no ports, set to 0
+		}
+
+		s.mu.RLock()
+		// Check the client connections to see which call back matches and then forward to that connection
+		for _, conn := range s.conns {
+			if conn.cb(s.network, srcIP, srcPort, b) {
+				select {
+				case conn.recvCh <- read:
+				default:
+					fmt.Printf("Dropping packet from remote %s, %d\n", srcIP.String(), srcPort)
+				}
+				break
+			}
+		}
+		s.mu.RUnlock()
+	}
+}
+
+func getUDPSharedSocket(localAddr string) (*SharedSocket, error) {
+	udpOnce.Do(func() {
+		var addr *net.UDPAddr
+		if localAddr != "" {
+			var err error
+			addr, err = net.ResolveUDPAddr("udp", localAddr)
+			// TODO: Add error
+			if err != nil {
+				udpSharedSocket, udpInitErr = nil, fmt.Errorf("invalid UDP address: %s", localAddr)
+				return
+			}
+		} else {
+			addr = nil
+		}
+
+		var network string = "udp"
+		// If localaddr is nil, OS will choose a port
+		conn, err := net.ListenUDP(network, addr)
+
+		if err != nil {
+			udpSharedSocket, udpInitErr = nil, &ScanError{
+				Status: SCAN_PROTOCOL_ERROR,
+				Err:    fmt.Errorf("udp connection failed from %s", localAddr),
+			}
+			return
+		}
+
+		udpSharedSocket = &SharedSocket{
+			conn:         conn,
+			conns:        []*SharedSocketConn{},
+			mu:           sync.RWMutex{},
+			network:      network,
+			bufferLength: DefaultSharedSocketBufferLength,
+		}
+		udpInitErr = nil
+
+		// TODO: Uncomment when read from loop is integrated
+		go udpSharedSocket.ReadFromLoop()
+	})
+
+	return udpSharedSocket, udpInitErr
+}
+
+func getIPSharedSocket() {
+
+}
+
+// Shared Socket Conn implementation. Acts as a translator between net.Listen and net.Dial
+// (i.e. exposes an interface of net.conn, but operates on packetConn of listen)
+func (c *SharedSocketConn) Read(p []byte) (n int, err error) {
+	if c.closed.Load() || c.parent.closed.Load() {
+		return 0, net.ErrClosed
+	}
+	readResult := <-c.recvCh
+	copy(p, readResult.packet)
+	return readResult.n, readResult.err
+}
+
+
+// Write function to implement net.conn
+func (c *SharedSocketConn) Write(p []byte) (n int, err error) {
+	if c.closed.Load() || c.parent.closed.Load() {
+		return 0, net.ErrClosed
+	}
+	return c.parent.conn.WriteTo(p, c.RemoteAddr())
+}
+
+// TODO: Make it so that client close only affects per client state. Unless it is the last client, then fully close the shared socket
+func (c *SharedSocketConn) Close() error {
+	// Connection already closed (self or parent), do nothing
+	if c.closed.Load() || c.parent.closed.Load() {
+		return net.ErrClosed
+	}
+
+	c.parent.mu.Lock()
+	defer c.parent.mu.Unlock()
+
+	c.closed.Store(true)
+
+	removeIndex := -1
+	for i, conn := range c.parent.conns {
+		if conn == c {
+			removeIndex = i
+		}
+	}
+	c.parent.conns[removeIndex] = c.parent.conns[len(c.parent.conns)-1]
+	c.parent.conns = c.parent.conns[:len(c.parent.conns)-1]
+
+	if len(c.parent.conns) > 0 {
+		return nil
+	}
+
+	// If we have no remaining client connections, truly close the shared socket connection
+	c.parent.closed.Store(true)
+	return c.parent.conn.Close()
+}
+
+// Returns the local address of the parent SharedSocketDialer
+func (c *SharedSocketConn) LocalAddr() net.Addr {
+	return c.parent.conn.LocalAddr()
+}
+
+func (c *SharedSocketConn) RemoteAddr() net.Addr {
+	return c.remoteAddr
+}
+
+// TODO: Implement deadline functions on a per client basis
+func (c *SharedSocketConn) SetDeadline(t time.Time) error {
+	return c.parent.conn.SetDeadline(t)
+}
+
+func (c *SharedSocketConn) SetReadDeadline(t time.Time) error {
+	return c.parent.conn.SetReadDeadline(t)
+}
+
+func (c *SharedSocketConn) SetWriteDeadline(t time.Time) error {
+	return c.parent.conn.SetWriteDeadline(t)
+}
+
+func isUDPNetwork(network string) bool {
+	for _, i := range udpNetworkList {
+		if network == i {
+			return true
+		}
+	}
+	return false
+}
+
+func isIPNetwork(network string) bool {
+	for _, i := range ipNetworkList {
+		if len(network) < len(i) {
+			continue
+		}
+		if network[:len(i)] == i && (len(network) == len(i) || network[len(i)] == ':') {
+			return true
+		}
+	}
+	return false
 }

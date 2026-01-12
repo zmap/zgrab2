@@ -77,6 +77,9 @@ type DialerGroupConfig struct {
 	// has indicated it only needs a TLS connection.
 	TLSEnabled bool
 	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
+
+	// Enables support of Shared Socket Dialer
+	SupportsSharedSocketDialer bool
 }
 
 // Validate checks for various incompatibilities in the DialerGroupConfig
@@ -137,10 +140,19 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 			// module only needs a TransportAgnosticDialer, so we set it based on the protocol
 			switch config.TransportAgnosticDialerProtocol {
 			case TransportUDP:
-				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
-					// TransportAgnosticDialer only connects to a single target
-					address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
-					return GetDefaultUDPDialer(config.BaseFlags)(ctx, target, address)
+				//TODO: (BB) Add comprehensive logic for shared dialer
+				if config.SupportsSharedSocketDialer {
+					dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+						// TransportAgnosticDialer only connects to a single target
+						address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
+						return GetDefaultSocketReuseDialer(config.BaseFlags)(ctx, target, address)
+					}
+				} else {
+					dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
+						// TransportAgnosticDialer only connects to a single target
+						address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
+						return GetDefaultUDPDialer(config.BaseFlags)(ctx, target, address)
+					}
 				}
 			case TransportTCP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
