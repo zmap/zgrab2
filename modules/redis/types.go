@@ -170,9 +170,8 @@ func (RedisArray) Type() RedisType {
 // Encode returns the encoding of the array, e.g.
 // "*<base10Size>\r\n<element 1><element 2>..."
 func (array RedisArray) Encode() []byte {
-	var ret []byte
 	prefix := fmt.Sprintf("*%d\r\n", len(array))
-	ret = append(ret, []byte(prefix)...)
+	ret := []byte(prefix)
 	for _, item := range array {
 		ret = append(ret, item.Encode()...)
 	}
