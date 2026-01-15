@@ -23,8 +23,8 @@ const (
 	DATA         PDUType = 4
 )
 
-// 64KiB
-const MaxPDULength = 65536
+// 64KiB -- correct 16384
+const MaxPDULength = 16384
 
 type PDUMsg interface {
 	bytes() []byte
@@ -524,6 +524,14 @@ func (a *AAssociate) header() []byte {
 
 	calledAETitle := [16]byte{}
 	callingAETitle := [16]byte{}
+
+	// Fill with spaces (0x20)
+	for i := 0; i < 16; i++ {
+		calledAETitle[i] = 0x20
+		callingAETitle[i] = 0x20
+	}
+
+	// Copy AE titles (truncate if longer than 16)
 	copy(calledAETitle[:], []byte(a.CalledAETitle))
 	copy(callingAETitle[:], []byte(a.CallingAETitle))
 
