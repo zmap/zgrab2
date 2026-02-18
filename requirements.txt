@@ -1,3 +1,3 @@
 zschema
-git+https://github.com/zmap/zcrypto@4f0ea0eaccacc4e153ddbb2016afe9d7bb961efd#egg=zcrypto_schemas
+git+https://github.com/zmap/zcrypto/commit/1e860df7ce028301834bb57cf935ea201b13766c#egg=zcrypto_schemas
 requests
