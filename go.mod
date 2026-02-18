@@ -12,7 +12,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/rogpeppe/go-internal v1.14.1
 	github.com/sirupsen/logrus v1.9.4
-	github.com/zmap/zcrypto v0.0.0-20260109180747-df961ee46a6c
+	github.com/zmap/zcrypto v0.0.0-20260218025106-1e860df7ce02
 	github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9
 	golang.org/x/crypto v0.48.0
 	golang.org/x/net v0.50.0

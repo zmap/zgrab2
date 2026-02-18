@@ -70,6 +70,8 @@ github.com/zmap/zcrypto v0.0.0-20250618174828-7ca6a82cf2d4 h1:36kbz9x2+cJf71wJ+l
 github.com/zmap/zcrypto v0.0.0-20250618174828-7ca6a82cf2d4/go.mod h1:uvqhJWCdbMIHIXZSKcqnJYy0yR/9v/TON/JQFbM2g6Q=
 github.com/zmap/zcrypto v0.0.0-20260109180747-df961ee46a6c h1:UAOper+Ckxfs4vHD/IccUjNESC8dlBje9Ckkn+anEAQ=
 github.com/zmap/zcrypto v0.0.0-20260109180747-df961ee46a6c/go.mod h1:CclAsmltb5tDXElMDJFcVm29Vcz1rjgdD9Z/FgohZaQ=
+github.com/zmap/zcrypto v0.0.0-20260218025106-1e860df7ce02 h1:eVaSAxdizHmFvKfS47moXT0c3gWigm73zMqJBJUU4Gc=
+github.com/zmap/zcrypto v0.0.0-20260218025106-1e860df7ce02/go.mod h1:CclAsmltb5tDXElMDJFcVm29Vcz1rjgdD9Z/FgohZaQ=
 github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9 h1:BZgsVcIPYSVdXlYFL6Ma0iNLbB/fhlyj6DaGwmppfTw=
 github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9/go.mod h1:FsOB4N5XTSZ80AvFx0VV16M9slzoROippViwuiGQv2g=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
