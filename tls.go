@@ -63,6 +63,7 @@ type TLSFlags struct {
 	MinVersion       int    `long:"min-version" description:"The minimum SSL/TLS version that is acceptable. 0 means that TLS1.0 is the minimum."`
 	MaxVersion       int    `long:"max-version" description:"The maximum SSL/TLS version that is acceptable. 0 means use the highest supported value."`
 	CurvePreferences string `long:"curve-preferences" description:"A list of elliptic curves used in an ECDHE handshake, in order of preference."`
+	EnableMLKEM      bool   `long:"enable-mlkem" description:"Advertise TLS 1.3 hybrid PQ group X25519MLKEM768 (ML-KEM + X25519) as first preference"`
 	NoECDHE          bool   `long:"no-ecdhe" description:"Do not allow ECDHE handshakes"`
 	// TODO: format?
 	SignatureAlgorithms string `long:"signature-algorithms" description:"Signature and hash algorithms that are acceptable"`
@@ -237,6 +238,16 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 
 	if t.MaxVersion != 0 {
 		ret.MaxVersion = uint16(t.MaxVersion)
+	}
+
+	if t.EnableMLKEM {
+		ret.CurvePreferences = []tls.CurveID{
+			tls.X25519MLKEM768,
+			tls.X25519,
+			tls.CurveP256,
+			tls.CurveP384,
+			tls.CurveP521,
+		}
 	}
 
 	if t.CurvePreferences != "" {
