@@ -835,6 +835,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TransportAgnosticDialerProtocol: zgrab2.TransportUDP,
 		NeedSeparateL4Dialer:            false,
 		BaseFlags:                       &f.BaseFlags,
+		SupportsSharedSocketDialer: 	 true,			// Experimental: Shared Socket 
 	}
 	return nil
 }

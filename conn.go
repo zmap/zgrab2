@@ -425,6 +425,7 @@ func (d *SharedDialer) DialContext(ctx context.Context, network, address string,
 	host, port, err := net.SplitHostPort(address)
 	if err == nil && net.ParseIP(host) == nil {
 		// address is a domain
+		// TODO: Add resolver and add domain support
 		conn, err = d.dialContextDomain(ctx, network, host, port, callback)
 	} else {
 		// address is an IP, check blocklist
@@ -573,19 +574,20 @@ func (d *SharedDialer) DialContextSharedDialer(ctx context.Context, network, add
 			}
 		}
 		return conn, err
-	case isIPNetwork(network):
-		addr, err := net.ResolveIPAddr("ip", address)
-		if err != nil {
-			return nil, fmt.Errorf("invalid IP address: %s", address)
-		}
-		conn, err := net.ListenIP(network, addr)
-		if err != nil {
-			return nil, &ScanError{
-				Status: SCAN_CONNECTION_REFUSED,
-				Err:    fmt.Errorf("dialing IP failed: %s", address),
-			}
-		}
-		return conn, err
+	// TODO: implement IP support
+	// case isIPNetwork(network):
+	// addr, err := net.ResolveIPAddr("ip", address)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("invalid IP address: %s", address)
+	// }
+	// conn, err := net.ListenIP(network, addr)
+	// if err != nil {
+	// 	return nil, &ScanError{
+	// 		Status: SCAN_CONNECTION_REFUSED,
+	// 		Err:    fmt.Errorf("dialing IP failed: %s", address),
+	// 	}
+	// }
+	// return conn, err
 	default:
 		return nil, &ScanError{
 			Status: SCAN_PROTOCOL_ERROR,
@@ -739,24 +741,16 @@ func (d *SharedDialer) SetDefaults() *SharedDialer {
 		d.BytesReadLimit = DefaultBytesReadLimit
 	}
 
+	// TODO: Integrate support for DNS resolver
 	// this may be a single IP address or a comma-separated list of IP addresses
-	ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
-	cb := Callback(func(
-		network string,
-		srcIP net.IP,
-		srcPort uint,
-		actualPacket []byte,
-	) bool {
-		// handle packet
-		return false
-	})
+	// ns := config.customDNSNameservers[rand.Intn(len(config.customDNSNameservers))]
 
-	d.Resolver = &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			return d.DialContext(ctx, network, ns, cb)
-		},
-	}
+	// d.Resolver = &net.Resolver{
+	// 	PreferGo: true,
+	// 	Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+	// 		return d.DialContext(ctx, network, ns, cb)
+	// 	},
+	// }
 
 	return d
 }
@@ -890,7 +884,7 @@ func (s *SharedSocket) ReadFromLoop() {
 		case *net.UDPAddr:
 			srcIP = a.IP
 			srcPort = uint(a.Port)
-		
+
 		case *net.IPAddr:
 			srcIP = a.IP
 			srcPort = 0 // IP addrs have no ports, set to 0
@@ -902,8 +896,10 @@ func (s *SharedSocket) ReadFromLoop() {
 			if conn.cb(s.network, srcIP, srcPort, b) {
 				select {
 				case conn.recvCh <- read:
+					logrus.Debugf("Sent packet to back to %v", conn.remoteAddr)
 				default:
-					fmt.Printf("Dropping packet from remote %s, %d\n", srcIP.String(), srcPort)
+					// Potentially add error handling here?
+					logrus.Debugf("Dropping packet from remote %s, %d\n", srcIP.String(), srcPort)
 				}
 				break
 			}
@@ -955,10 +951,6 @@ func getUDPSharedSocket(localAddr string) (*SharedSocket, error) {
 	return udpSharedSocket, udpInitErr
 }
 
-func getIPSharedSocket() {
-
-}
-
 // Shared Socket Conn implementation. Acts as a translator between net.Listen and net.Dial
 // (i.e. exposes an interface of net.conn, but operates on packetConn of listen)
 func (c *SharedSocketConn) Read(p []byte) (n int, err error) {
@@ -967,9 +959,9 @@ func (c *SharedSocketConn) Read(p []byte) (n int, err error) {
 	}
 	readResult := <-c.recvCh
 	copy(p, readResult.packet)
+	logrus.Debugf("Local address for packet to %v: %v", c.remoteAddr, c.LocalAddr())
 	return readResult.n, readResult.err
 }
-
 
 // Write function to implement net.conn
 func (c *SharedSocketConn) Write(p []byte) (n int, err error) {
@@ -1020,7 +1012,15 @@ func (c *SharedSocketConn) RemoteAddr() net.Addr {
 
 // TODO: Implement deadline functions on a per client basis
 func (c *SharedSocketConn) SetDeadline(t time.Time) error {
-	return c.parent.conn.SetDeadline(t)
+	readErr := c.SetReadDeadline(t)
+	if readErr != nil {
+		return readErr
+	}
+	writeErr := c.SetWriteDeadline(t)
+	if writeErr != nil {
+		return writeErr
+	}
+	return nil
 }
 
 func (c *SharedSocketConn) SetReadDeadline(t time.Time) error {

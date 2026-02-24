@@ -163,10 +163,11 @@ func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 	}
 }
 
-func GetDefaultSocketReuseDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
+// Shared Socket Dialer for UDP connections (e.g NTP)
+func GetDefaultUDPReuseDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error){
-		defaultCallback := func(network string, srcIP net.IP, srcPort uint, actualPacket []byte) bool {
+		defaultCallback := func(network string, srcIP net.IP, srcPort uint, actualPacket []byte, 	) bool {
 			if srcIP.Equal( t.IP ) && srcPort == t.Port {
 				return true
 			}
@@ -175,7 +176,7 @@ func GetDefaultSocketReuseDialer(flags *BaseFlags) func(ctx context.Context, t *
 		
 		// Get a shared Dialer object to be interacted with from the client
 		dialer := NewSharedDialer(nil)
-		return dialer.DialContext(ctx,"udp", addr, defaultCallback)
+		return dialer.DialContext(ctx, "udp", addr, defaultCallback)
 	}
 }
 
