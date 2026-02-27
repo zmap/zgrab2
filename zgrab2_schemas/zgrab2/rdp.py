@@ -12,12 +12,27 @@ rdp_scan_response = SubRecord(
     {
         "result": SubRecord(
             {
-                "os_version": String(),
-                "target_name": String(),
-                "netbios_computer_name": String(),
-                "netbios_domain_name": String(),
-                "dns_computer_name": String(),
-                "dns_domain_name": String(),
+                "selected_protocol": String(),
+                "negotiation_flags": SubRecord(
+                    {
+                        "extended_client_data_supported": Boolean(),
+                        "dynvc_gfx_protocol_supported": Boolean(),
+                        "restricted_admin_mode_supported": Boolean(),
+                        "redirected_authentication_mode_supported": Boolean(),
+                    }
+                ),
+                "failure_code": String(),
+                "ntlm": SubRecord(
+                    {
+                        "os_version": String(),
+                        "target_name": String(),
+                        "netbios_computer_name": String(),
+                        "netbios_domain_name": String(),
+                        "dns_computer_name": String(),
+                        "dns_domain_name": String(),
+                        "forest_name": String(),
+                    }
+                ),
                 "tls": zgrab2.tls_log,
             }
         )

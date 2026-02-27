@@ -1,5 +1,10 @@
 // Package rdp provides a zgrab2 module that scans for Remote Desktop Protocol.
 // Default port: TCP 3389
+//
+// The scanner performs an X.224 Connection Request/Confirm exchange to detect
+// any RDP implementation (Microsoft, xrdp, FreeRDP, etc.), then conditionally
+// upgrades to TLS and performs NTLM fingerprinting when the server supports
+// CredSSP (NLA), which is typical for Microsoft RDP.
 package rdp
 
 import (
@@ -8,8 +13,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -76,6 +83,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.config = f
 	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
 		TLSFlags:                        &f.TLSFlags,
@@ -112,44 +120,206 @@ func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 
-// Scan probes for rdp services.
-// 1. Connect to TCP port
-// 2. Send a NTLM negotiate packet
-// 7. Return the output
+// Scan probes for RDP services.
+//  1. Connect via plain TCP (L4Dialer).
+//  2. Send X.224 Connection Request with CredSSP+TLS negotiation.
+//  3. Parse X.224 Connection Confirm to identify the RDP server.
+//  4. If CredSSP is selected, upgrade to TLS and perform NTLM fingerprinting.
+//  5. If TLS-only is selected, upgrade to TLS and capture the certificate.
+//  6. Return the combined result.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	l4Dialer := dialGroup.L4Dialer
+	if l4Dialer == nil {
+		return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no L4 dialer found; RDP requires a L4 dialer")
+	}
+	conn, err := l4Dialer(target)(ctx, "tcp", net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port))))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
-	scanStatus, result, err := GetBanner(conn)
-	if result != nil {
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
-			result.TLSLog = tlsConn.GetLog()
-		}
-	}
-	return scanStatus, result, err
-}
-
-func GetBanner(connection net.Conn) (zgrab2.ScanStatus, *RDPResult, error) {
+	defer zgrab2.CloseConnAndHandleError(conn)
 
 	result := new(RDPResult)
 
-	_, err := connection.Write(NTLM_NEGOTIATE_BLOB)
-	responseBytes, readErr := zgrab2.ReadAvailable(connection)
+	// --- Step 1: X.224 Connection Request / Confirm ---
+	selectedProtocol, negFlags, failureCode, err := x224Negotiate(conn)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
+
+	result.NegotiationFlags = decodeNegotiationFlags(negFlags)
+
+	if failureCode != 0 {
+		if name, ok := failureCodeNames[failureCode]; ok {
+			result.FailureCode = name
+		} else {
+			result.FailureCode = fmt.Sprintf("unknown(0x%x)", failureCode)
+		}
+		// A failure response still confirms this is an RDP server.
+		return zgrab2.SCAN_SUCCESS, result, nil
+	}
+
+	if name, ok := selectedProtocolNames[selectedProtocol]; ok {
+		result.SelectedProtocol = name
+	} else {
+		result.SelectedProtocol = fmt.Sprintf("unknown(0x%x)", selectedProtocol)
+	}
+
+	// --- Step 2: Conditional TLS upgrade ---
+	needTLS := selectedProtocol == protocolSSL || selectedProtocol == protocolHybrid || selectedProtocol == protocolHybridEx
+	if needTLS {
+		tlsWrapper := dialGroup.TLSWrapper
+		if tlsWrapper == nil {
+			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found; RDP TLS upgrade requires a TLS wrapper")
+		}
+		tlsConn, tlsErr := tlsWrapper(ctx, target, conn)
+		if tlsErr != nil {
+			return zgrab2.TryGetScanStatus(tlsErr), result, fmt.Errorf("TLS upgrade failed: %w", tlsErr)
+		}
+		result.TLSLog = tlsConn.GetLog()
+		conn = tlsConn
+	}
+
+	// --- Step 3: Conditional NTLM fingerprinting (CredSSP servers only) ---
+	if selectedProtocol == protocolHybrid || selectedProtocol == protocolHybridEx {
+		ntlmStatus, ntlmErr := ntlmFingerprint(conn, result)
+		if ntlmErr != nil {
+			return ntlmStatus, result, ntlmErr
+		}
+	}
+
+	return zgrab2.SCAN_SUCCESS, result, nil
+}
+
+// -----------------------------------------------------------------------
+// X.224 Connection Request / Confirm
+// -----------------------------------------------------------------------
+
+// buildX224ConnectionRequest builds a TPKT + X.224 CR + cookie + RDP
+// Negotiation Request packet. requestedProtocols is a bitmask of
+// protocolSSL, protocolHybrid, etc.
+func buildX224ConnectionRequest(requestedProtocols uint32) []byte {
+	// RDP Negotiation Request (8 bytes)
+	var negReq [8]byte
+	negReq[0] = typeRDPNegReq // type
+	negReq[1] = 0x00          // flags
+	binary.LittleEndian.PutUint16(negReq[2:4], 8)
+	binary.LittleEndian.PutUint32(negReq[4:8], requestedProtocols)
+
+	// X.224 CR TPDU header: LI, CR|CDT, DST-REF, SRC-REF, CLASS
+	// LI = length of everything after LI byte in the X.224 TPDU
+	x224Fixed := []byte{
+		0x00, // placeholder LI — filled below
+		x224TPDUConnectionRequest, // CR + CDT=0
+		0x00, 0x00, // DST-REF
+		0x00, 0x00, // SRC-REF
+		0x00, // Class 0
+	}
+	x224PayloadLen := len(x224Fixed) - 1 + len(x224Cookie) + len(negReq)
+	x224Fixed[0] = byte(x224PayloadLen)
+
+	// TPKT header: version(1) + reserved(1) + length(2 big-endian)
+	tpktLen := 4 + 1 + x224PayloadLen // 4-byte TPKT + LI byte + rest
+	tpkt := []byte{
+		0x03, 0x00,
+		byte(tpktLen >> 8), byte(tpktLen),
+	}
+
+	var buf bytes.Buffer
+	buf.Write(tpkt)
+	buf.Write(x224Fixed)
+	buf.Write(x224Cookie)
+	buf.Write(negReq[:])
+	return buf.Bytes()
+}
+
+// x224Negotiate sends an X.224 Connection Request and parses the
+// Connection Confirm. Returns (selectedProtocol, flags, failureCode, error).
+// On negotiation failure responses failureCode is non-zero.
+func x224Negotiate(conn net.Conn) (selectedProtocol uint32, flags uint8, failureCode uint32, err error) {
+	pkt := buildX224ConnectionRequest(protocolSSL | protocolHybrid)
+	if _, err = conn.Write(pkt); err != nil {
+		return
+	}
+
+	// Read TPKT header (4 bytes)
+	tpktBuf := make([]byte, 4)
+	if _, err = io.ReadFull(conn, tpktBuf); err != nil {
+		return
+	}
+	if tpktBuf[0] != 0x03 {
+		err = fmt.Errorf("invalid TPKT version %d", tpktBuf[0])
+		return
+	}
+	pktLen := int(binary.BigEndian.Uint16(tpktBuf[2:4]))
+	if pktLen < 11 || pktLen > 1024 {
+		err = fmt.Errorf("unexpected TPKT length %d", pktLen)
+		return
+	}
+
+	// Read the rest of the packet
+	rest := make([]byte, pktLen-4)
+	if _, err = io.ReadFull(conn, rest); err != nil {
+		return
+	}
+
+	// Validate X.224 CC TPDU type (second byte of TPDU, after LI)
+	if len(rest) < 7 {
+		err = errors.New("X.224 response too short")
+		return
+	}
+	tpduCode := rest[1] & 0xF0
+	if tpduCode != x224TPDUConnectionConfirm {
+		err = fmt.Errorf("expected X.224 Connection Confirm (0xD0), got 0x%02X", tpduCode)
+		return
+	}
+
+	// The optional RDP Negotiation Response/Failure starts after the 7-byte
+	// X.224 CC fixed header (LI + type + DST-REF + SRC-REF + class).
+	negOffset := 7
+	if len(rest) < negOffset+8 {
+		// No negotiation extension — old-style server using Standard RDP Security.
+		selectedProtocol = protocolRDP
+		return
+	}
+
+	negType := rest[negOffset]
+	flags = rest[negOffset+1]
+
+	switch negType {
+	case typeRDPNegRsp:
+		selectedProtocol = binary.LittleEndian.Uint32(rest[negOffset+4 : negOffset+8])
+	case typeRDPNegFailure:
+		failureCode = binary.LittleEndian.Uint32(rest[negOffset+4 : negOffset+8])
+	default:
+		err = fmt.Errorf("unexpected negotiation type 0x%02X", negType)
+	}
+	return
+}
+
+// -----------------------------------------------------------------------
+// NTLM fingerprinting (CredSSP / NLA)
+// -----------------------------------------------------------------------
+
+// ntlmFingerprint sends an NTLM Negotiate message over an already-
+// established TLS connection and parses the Challenge to populate OS
+// version, domain, and host fields on result.
+func ntlmFingerprint(conn net.Conn, result *RDPResult) (zgrab2.ScanStatus, error) {
+	_, err := conn.Write(NTLM_NEGOTIATE_BLOB)
+	responseBytes, readErr := zgrab2.ReadAvailable(conn)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), err
+	}
 	if readErr != nil {
-		return zgrab2.TryGetScanStatus(readErr), nil, readErr
+		return zgrab2.TryGetScanStatus(readErr), readErr
 	}
 
 	prefixOffset := bytes.Index(responseBytes, NTLM_PREFIX)
 	if prefixOffset == -1 {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("not a valid NTLMSSP response")
+		return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("not a valid NTLMSSP response")
 	}
 
 	if len(responseBytes) < prefixOffset+NTLM_RESPONSE_LENGTH {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("invalid response length %d", len(responseBytes))
+		return zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("invalid response length %d", len(responseBytes))
 	}
 
 	var responseData NTLMSecurityBlob
@@ -158,29 +328,31 @@ func GetBanner(connection net.Conn) (zgrab2.ScanStatus, *RDPResult, error) {
 
 	err = binary.Read(responseBuf, binary.LittleEndian, &responseData)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+		return zgrab2.TryGetScanStatus(err), err
 	}
 
-	// 0x2 is the response message type to our request. If we don't have it, we don't know how to handle
 	if responseData.MessageType != 0x2 {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("unexpected message type %d", responseData.MessageType)
+		return zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("unexpected message type %d", responseData.MessageType)
 	}
 
 	if responseData.Reserved != 0 {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("reserved value is not zero %d", responseData.Reserved)
+		return zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("reserved value is not zero %d", responseData.Reserved)
 	}
 
 	if !reflect.DeepEqual(responseData.Version[4:], []byte{0, 0, 0, 0xF}) {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("unknown OS info structure in NTLM handshake")
+		return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("unknown OS info structure in NTLM handshake")
 	}
+
+	ntlm := new(NTLMInfo)
+	result.NTLM = ntlm
 
 	var versionData OSVersion
 	versionBuf := bytes.NewBuffer(responseData.Version[:4])
 	err = binary.Read(versionBuf, binary.LittleEndian, &versionData)
 	if err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("unable to parse version data")
+		return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("unable to parse version data")
 	}
-	result.OSVersion = fmt.Sprintf("%d.%d.%d",
+	ntlm.OSVersion = fmt.Sprintf("%d.%d.%d",
 		versionData.MajorVersion,
 		versionData.MinorVersion,
 		versionData.BuildNumber)
@@ -190,15 +362,18 @@ func GetBanner(connection net.Conn) (zgrab2.ScanStatus, *RDPResult, error) {
 	if targetNameLen > 0 {
 		startIndex := int(responseData.DomainNameBufferOffset)
 		endIndex := startIndex + targetNameLen
+		if endIndex > len(responseBytes) {
+			return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("invalid DomainNameLen value")
+		}
 		targetName := strings.ReplaceAll(string(responseBytes[startIndex:endIndex]), "\x00", "")
-		result.TargetName = targetName
+		ntlm.TargetName = targetName
 	}
 
 	targetInfoLen := int(responseData.TargetInfoLen)
 	if targetInfoLen > 0 {
 		startIndex := int(responseData.TargetInfoBufferOffset)
 		if startIndex+targetInfoLen > len(responseBytes) {
-			return zgrab2.SCAN_PROTOCOL_ERROR, result, errors.New("invalid TargetInfoLen value")
+			return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("invalid TargetInfoLen value")
 		}
 
 		var avItem *AVItem
@@ -206,7 +381,7 @@ func GetBanner(connection net.Conn) (zgrab2.ScanStatus, *RDPResult, error) {
 
 		avItem, err = readAvItem(responseBytes, startIndex, currentIndex, targetInfoLen)
 		if err != nil {
-			return zgrab2.SCAN_PROTOCOL_ERROR, result, err
+			return zgrab2.SCAN_PROTOCOL_ERROR, err
 		}
 
 		for avItem.Id != AV_EOL {
@@ -216,25 +391,25 @@ func GetBanner(connection net.Conn) (zgrab2.ScanStatus, *RDPResult, error) {
 				value := strings.ReplaceAll(avValue, "\x00", "")
 				switch field {
 				case "netbios_computer_name":
-					result.NetBIOSComputerName = value
+					ntlm.NetBIOSComputerName = value
 				case "netbios_domain_name":
-					result.NetBIOSDomainName = value
+					ntlm.NetBIOSDomainName = value
 				case "fqdn":
-					result.DNSComputerName = value
+					ntlm.DNSComputerName = value
 				case "dns_domain_name":
-					result.DNSDomainName = value
+					ntlm.DNSDomainName = value
 				case "dns_forest_name":
-					result.ForestName = value
+					ntlm.ForestName = value
 				}
 			}
 			currentIndex += avLength
 			avItem, err = readAvItem(responseBytes, startIndex, currentIndex, targetInfoLen)
 			if err != nil {
-				return zgrab2.SCAN_PROTOCOL_ERROR, result, err
+				return zgrab2.SCAN_PROTOCOL_ERROR, err
 			}
 		}
 	}
-	return zgrab2.SCAN_SUCCESS, result, nil
+	return zgrab2.SCAN_SUCCESS, nil
 }
 
 func readAvItem(responseBytes []byte, startIndex int, currentIndex int, targetInfoLen int) (*AVItem, error) {
