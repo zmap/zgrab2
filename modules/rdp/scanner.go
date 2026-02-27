@@ -209,9 +209,9 @@ func buildX224ConnectionRequest(requestedProtocols uint32) []byte {
 	// X.224 CR TPDU header: LI, CR|CDT, DST-REF, SRC-REF, CLASS
 	// LI = length of everything after LI byte in the X.224 TPDU
 	x224Fixed := []byte{
-		0x00, // placeholder LI — filled below
+		0x00,                      // placeholder LI — filled below
 		x224TPDUConnectionRequest, // CR + CDT=0
-		0x00, 0x00, // DST-REF
+		0x00, 0x00,                // DST-REF
 		0x00, 0x00, // SRC-REF
 		0x00, // Class 0
 	}
