@@ -72,6 +72,18 @@ tls_log = SubRecord(
     {"handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log.")}
 )
 
+ntlm_info = SubRecord(
+    {
+        "os_version": String(),
+        "target_name": String(),
+        "netbios_computer_name": String(),
+        "netbios_domain_name": String(),
+        "dns_computer_name": String(),
+        "dns_domain_name": String(),
+        "forest_name": String(),
+    }
+)
+
 
 # Register a schema type for responses with the given name.
 def register_scan_response_type(name, schema):

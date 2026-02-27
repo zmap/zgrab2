@@ -46,6 +46,7 @@ session_setup_log = SubRecord(
             "setup_flags": Unsigned16BitInteger(),
             "target_name": String(),
             "negotiate_flags": Unsigned32BitInteger(),
+            "ntlm": zgrab2.ntlm_info,
         },
     )
 )

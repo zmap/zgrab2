@@ -16,6 +16,7 @@ from . import oracle
 from . import pop3
 from . import postgres
 from . import redis
+from . import rdp
 from . import siemens
 from . import smb
 from . import smtp
