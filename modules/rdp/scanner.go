@@ -22,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/ntlm"
 )
 
 // Flags holds the command-line configuration for the scan module.
@@ -44,7 +45,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("rdp", "rdp", module.Description(), 102, &module)
+	_, err := zgrab2.AddCommand("rdp", "rdp", module.Description(), 3389, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -343,21 +344,12 @@ func ntlmFingerprint(conn net.Conn, result *RDPResult) (zgrab2.ScanStatus, error
 		return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("unknown OS info structure in NTLM handshake")
 	}
 
-	ntlm := new(NTLMInfo)
-	result.NTLM = ntlm
+	ntlmInfo := new(ntlm.Info)
+	result.NTLM = ntlmInfo
 
-	var versionData OSVersion
-	versionBuf := bytes.NewBuffer(responseData.Version[:4])
-	err = binary.Read(versionBuf, binary.LittleEndian, &versionData)
-	if err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("unable to parse version data")
-	}
-	ntlm.OSVersion = fmt.Sprintf("%d.%d.%d",
-		versionData.MajorVersion,
-		versionData.MinorVersion,
-		versionData.BuildNumber)
+	ntlmInfo.OSVersion = ntlm.VersionFromBytes(responseData.Version[:])
 
-	// Parse: DomainName
+	// Parse: TargetName (DomainName field in the challenge)
 	targetNameLen := int(responseData.DomainNameLen)
 	if targetNameLen > 0 {
 		startIndex := int(responseData.DomainNameBufferOffset)
@@ -365,10 +357,10 @@ func ntlmFingerprint(conn net.Conn, result *RDPResult) (zgrab2.ScanStatus, error
 		if endIndex > len(responseBytes) {
 			return zgrab2.SCAN_PROTOCOL_ERROR, errors.New("invalid DomainNameLen value")
 		}
-		targetName := strings.ReplaceAll(string(responseBytes[startIndex:endIndex]), "\x00", "")
-		ntlm.TargetName = targetName
+		ntlmInfo.TargetName = strings.ReplaceAll(string(responseBytes[startIndex:endIndex]), "\x00", "")
 	}
 
+	// Parse: TargetInfo AV_PAIRs
 	targetInfoLen := int(responseData.TargetInfoLen)
 	if targetInfoLen > 0 {
 		startIndex := int(responseData.TargetInfoBufferOffset)
@@ -384,33 +376,32 @@ func ntlmFingerprint(conn net.Conn, result *RDPResult) (zgrab2.ScanStatus, error
 			return zgrab2.SCAN_PROTOCOL_ERROR, err
 		}
 
+		var pairs []ntlm.AvPairEntry
 		for avItem.Id != AV_EOL {
 			avLength := AV_ITEM_LENGTH + int(avItem.Length)
-			if field, exists := NTLM_AV_ID_VALUES[avItem.Id]; exists {
-				avValue := string(responseBytes[currentIndex+AV_ITEM_LENGTH : currentIndex+avLength])
-				value := strings.ReplaceAll(avValue, "\x00", "")
-				switch field {
-				case "netbios_computer_name":
-					ntlm.NetBIOSComputerName = value
-				case "netbios_domain_name":
-					ntlm.NetBIOSDomainName = value
-				case "fqdn":
-					ntlm.DNSComputerName = value
-				case "dns_domain_name":
-					ntlm.DNSDomainName = value
-				case "dns_forest_name":
-					ntlm.ForestName = value
-				}
-			}
+			pairs = append(pairs, &rdpAvPair{
+				id:    avItem.Id,
+				value: responseBytes[currentIndex+AV_ITEM_LENGTH : currentIndex+avLength],
+			})
 			currentIndex += avLength
 			avItem, err = readAvItem(responseBytes, startIndex, currentIndex, targetInfoLen)
 			if err != nil {
 				return zgrab2.SCAN_PROTOCOL_ERROR, err
 			}
 		}
+		ntlm.InfoFromAvPairs(ntlmInfo, pairs)
 	}
 	return zgrab2.SCAN_SUCCESS, nil
 }
+
+// rdpAvPair adapts the RDP AV_PAIR parsing to the shared ntlm.AvPairEntry interface.
+type rdpAvPair struct {
+	id    uint16
+	value []byte
+}
+
+func (p *rdpAvPair) GetAvID() uint16  { return p.id }
+func (p *rdpAvPair) GetValue() []byte { return p.value }
 
 func readAvItem(responseBytes []byte, startIndex int, currentIndex int, targetInfoLen int) (*AVItem, error) {
 	var avItem AVItem

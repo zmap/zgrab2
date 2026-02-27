@@ -22,17 +22,7 @@ rdp_scan_response = SubRecord(
                     }
                 ),
                 "failure_code": String(),
-                "ntlm": SubRecord(
-                    {
-                        "os_version": String(),
-                        "target_name": String(),
-                        "netbios_computer_name": String(),
-                        "netbios_domain_name": String(),
-                        "dns_computer_name": String(),
-                        "dns_domain_name": String(),
-                        "forest_name": String(),
-                    }
-                ),
+                "ntlm": zgrab2.ntlm_info,
                 "tls": zgrab2.tls_log,
             }
         )

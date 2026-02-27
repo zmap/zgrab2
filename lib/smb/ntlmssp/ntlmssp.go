@@ -141,6 +141,10 @@ type AvPair struct {
 	AvLen uint16 `smb:"len:Value"`
 	Value []byte
 }
+
+func (p AvPair) GetAvID() uint16  { return p.AvID }
+func (p AvPair) GetValue() []byte { return p.Value }
+
 type AvPairSlice []AvPair
 
 func (p AvPair) Size() uint64 {

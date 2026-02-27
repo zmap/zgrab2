@@ -414,6 +414,16 @@ services:
       - "3389:3389"
     command: ["username", "password", "no"]
 
+  rdp_standard:
+    build:
+      context: ./rdp/standard
+    container_name: zgrab_rdp_standard
+    networks:
+      - rdp-standard-network
+    privileged: true
+    hostname: "target"
+    command: ["username", "password", "no"]
+
   redis_default:
     <<: *redis-template
     networks:
@@ -734,3 +744,8 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.184/30
+  rdp-standard-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.188/30

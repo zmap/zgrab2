@@ -1,6 +1,9 @@
 package rdp
 
-import "github.com/zmap/zgrab2"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/ntlm"
+)
 
 // -----------------------------------------------------------------------
 // X.224 / RDP Negotiation constants and types (MS-RDPBCGR §2.2.1)
@@ -148,18 +151,6 @@ type OSVersion struct {
 // Result types
 // -----------------------------------------------------------------------
 
-// NTLMInfo holds NTLM fingerprinting results, populated only when the
-// server supports CredSSP (NLA).
-type NTLMInfo struct {
-	OSVersion           string `json:"os_version,omitempty"`
-	TargetName          string `json:"target_name,omitempty"`
-	NetBIOSComputerName string `json:"netbios_computer_name,omitempty"`
-	NetBIOSDomainName   string `json:"netbios_domain_name,omitempty"`
-	DNSComputerName     string `json:"dns_computer_name,omitempty"`
-	DNSDomainName       string `json:"dns_domain_name,omitempty"`
-	ForestName          string `json:"forest_name,omitempty"`
-}
-
 // RDPResult is the output of the RDP scan.
 type RDPResult struct {
 	// X.224 negotiation results (populated for all RDP servers)
@@ -168,7 +159,7 @@ type RDPResult struct {
 	FailureCode      string            `json:"failure_code,omitempty"`
 
 	// NTLM results (populated only for Microsoft RDP with CredSSP/NLA)
-	NTLM   *NTLMInfo      `json:"ntlm,omitempty"`
+	NTLM   *ntlm.Info     `json:"ntlm,omitempty"`
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
