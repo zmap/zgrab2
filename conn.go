@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
+	"os"
 	"golang.org/x/time/rate"
 
 	"github.com/censys/cidranger"
@@ -301,7 +301,14 @@ type SharedSocketConn struct {
 	parent     *SharedSocket
 	recvCh     chan ReadResult
 	closed     atomic.Bool
+	done   chan struct{}
 	remoteAddr net.Addr
+	readDeadline time.Time
+	writeDeadline time.Time
+	deadlineMu	  sync.Mutex
+	readTimer 		*time.Timer
+	writeTimer	 	*time.Timer
+
 }
 
 type SharedDialer struct {
@@ -831,11 +838,15 @@ func (s *SharedSocket) AddConnection(network string, remoteAddr net.Addr, callba
 
 	// Expose a client connection to the client
 	client_conn := &SharedSocketConn{
-		cb:         callback,
-		parent:     s,
-		recvCh:     make(chan ReadResult, s.bufferLength),
-		closed:     atomic.Bool{}, // Zero value is false
-		remoteAddr: remoteAddr,
+		cb:         	callback,
+		parent:     	s,
+		recvCh:     	make(chan ReadResult, s.bufferLength),
+		closed:     	atomic.Bool{}, // Zero value is false
+		done:   		make(chan struct{}),
+		remoteAddr: 	remoteAddr,	
+		readDeadline: 	time.Time{},
+		writeDeadline: 	time.Time{},
+		deadlineMu:	  	sync.Mutex{},
 	}
 
 	// Add this client connection
@@ -908,6 +919,22 @@ func (s *SharedSocket) ReadFromLoop() {
 	}
 }
 
+func resetTimer(t **time.Timer, d time.Duration) <-chan time.Time {
+    if *t == nil {
+        *t = time.NewTimer(d)
+        return (*t).C
+    }
+    if !(*t).Stop() {
+        // timer already fired; drain if needed
+        select {
+        case <-(*t).C:
+        default:
+        }
+    }
+    (*t).Reset(d)
+    return (*t).C
+}
+
 func getUDPSharedSocket(localAddr string) (*SharedSocket, error) {
 	udpOnce.Do(func() {
 		var addr *net.UDPAddr
@@ -944,7 +971,6 @@ func getUDPSharedSocket(localAddr string) (*SharedSocket, error) {
 		}
 		udpInitErr = nil
 
-		// TODO: Uncomment when read from loop is integrated
 		go udpSharedSocket.ReadFromLoop()
 	})
 
@@ -953,21 +979,56 @@ func getUDPSharedSocket(localAddr string) (*SharedSocket, error) {
 
 // Shared Socket Conn implementation. Acts as a translator between net.Listen and net.Dial
 // (i.e. exposes an interface of net.conn, but operates on packetConn of listen)
-func (c *SharedSocketConn) Read(p []byte) (n int, err error) {
-	if c.closed.Load() || c.parent.closed.Load() {
-		return 0, net.ErrClosed
-	}
-	readResult := <-c.recvCh
-	copy(p, readResult.packet)
-	logrus.Debugf("Local address for packet to %v: %v", c.remoteAddr, c.LocalAddr())
-	return readResult.n, readResult.err
+func (c *SharedSocketConn) Read(p []byte) (int, error) {
+    if c.closed.Load() || c.parent.closed.Load() {
+        return 0, net.ErrClosed
+    }
+
+    dl := c.readDeadline // ideally read under a mutex if it can change concurrently
+    if dl.IsZero() {
+        readResult := <-c.recvCh
+        n := copy(p, readResult.packet[:readResult.n])
+        return n, readResult.err
+    }
+
+    remain := time.Until(dl)
+    if remain <= 0 {
+        return 0, os.ErrDeadlineExceeded
+    }
+
+    tc := resetTimer(&c.readTimer, remain)
+
+    select {
+    case rr := <-c.recvCh:
+        n := copy(p, rr.packet[:rr.n])
+        return n, rr.err
+    case <-tc:
+        return 0, os.ErrDeadlineExceeded
+    case <-c.done:
+        return 0, net.ErrClosed
+    }
 }
 
 // Write function to implement net.conn
 func (c *SharedSocketConn) Write(p []byte) (n int, err error) {
-	if c.closed.Load() || c.parent.closed.Load() {
+		if c.closed.Load() || c.parent.closed.Load() {
 		return 0, net.ErrClosed
 	}
+
+	now := time.Now()
+	dl := c.writeDeadline
+
+	// If deadline exists and already expired → timeout immediately
+	if !dl.IsZero() && !dl.After(now) {
+		return 0, &net.OpError{
+			Op:   "write",
+			Net:  c.parent.network,
+			Addr: c.remoteAddr,
+			Err:  os.ErrDeadlineExceeded,
+		}
+	}
+
+	// For UDP this usually does not block
 	return c.parent.conn.WriteTo(p, c.RemoteAddr())
 }
 
@@ -1012,23 +1073,30 @@ func (c *SharedSocketConn) RemoteAddr() net.Addr {
 
 // TODO: Implement deadline functions on a per client basis
 func (c *SharedSocketConn) SetDeadline(t time.Time) error {
-	readErr := c.SetReadDeadline(t)
-	if readErr != nil {
-		return readErr
+	err := c.SetReadDeadline(t)
+	if err != nil {
+		return err
 	}
-	writeErr := c.SetWriteDeadline(t)
-	if writeErr != nil {
-		return writeErr
+	err = c.SetWriteDeadline(t)
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
+// Todo: add client specific read deadline 
 func (c *SharedSocketConn) SetReadDeadline(t time.Time) error {
-	return c.parent.conn.SetReadDeadline(t)
+    // c.deadlineMu.Lock()
+    c.readDeadline = t
+    // c.deadlineMu.Unlock()
+    return nil
 }
 
 func (c *SharedSocketConn) SetWriteDeadline(t time.Time) error {
-	return c.parent.conn.SetWriteDeadline(t)
+	// c.deadlineMu.Lock()
+    c.writeDeadline = t
+    // c.deadlineMu.Unlock()
+    return nil
 }
 
 func isUDPNetwork(network string) bool {

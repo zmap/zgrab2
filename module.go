@@ -7,7 +7,6 @@ import (
 	"net"
 	"strconv"
 	"time"
-	log "github.com/sirupsen/logrus"
 	"github.com/censys/cidranger"
 )
 
@@ -145,7 +144,6 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 					dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 						// TransportAgnosticDialer only connects to a single target
 						address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
-						log.Infof("Tried to use Shared Socket")
 						return GetDefaultUDPReuseDialer(config.BaseFlags)(ctx, target, address)
 					}
 				} else {
