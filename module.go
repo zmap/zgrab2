@@ -82,85 +82,85 @@ type DialerGroupConfig struct {
 }
 
 // Validate checks for various incompatibilities in the DialerGroupConfig
-func (config *DialerGroupConfig) Validate() error {
-	if config.BaseFlags == nil {
+func (cfg *DialerGroupConfig) Validate() error {
+	if cfg.BaseFlags == nil {
 		return errors.New("BaseFlags must be set")
 	}
-	switch config.TransportAgnosticDialerProtocol {
+	switch cfg.TransportAgnosticDialerProtocol {
 	case TransportUDP:
-		if config.TLSEnabled {
+		if cfg.TLSEnabled {
 			// blocking this for now since it's untested. When a module is added that needs this we can unblock it and test.
 			return errors.New("TLS-over-UDP (DTLS) is not currently supported")
 		}
 	case TransportTCP, reservedTransportProtocol:
 		// nothing to validate here
 	default:
-		return fmt.Errorf("invalid TransportAgnosticDialerProtocol: %d", config.TransportAgnosticDialerProtocol)
+		return fmt.Errorf("invalid TransportAgnosticDialerProtocol: %d", cfg.TransportAgnosticDialerProtocol)
 	}
-	if config.TLSEnabled && config.TLSFlags == nil {
+	if cfg.TLSEnabled && cfg.TLSFlags == nil {
 		return errors.New("TLS flags must be set if TLSEnabled is true")
 	}
 	return nil
 }
 
-func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup, error) {
-	if err := config.Validate(); err != nil {
+func (cfg *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup, error) {
+	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config did not pass validation: %w", err)
 	}
 	dialerGroup := new(DialerGroup)
 	// DialerGroup has two types of dialers, the L4Dialer and the TransportAgnosticDialer.
 	// A module will use one or the other based on NeedSeparateL4Dialer
-	if config.NeedSeparateL4Dialer {
+	if cfg.NeedSeparateL4Dialer {
 		dialerGroup.L4Dialer = func(scanTarget *ScanTarget) func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return func(ctx context.Context, network, addr string) (net.Conn, error) {
 				switch network {
 				case "udp", "udp4", "udp6":
-					return GetDefaultUDPDialer(config.BaseFlags)(ctx, scanTarget, addr)
+					return GetDefaultUDPDialer(cfg.BaseFlags)(ctx, scanTarget, addr)
 				case "tcp", "tcp4", "tcp6":
-					return GetDefaultTCPDialer(config.BaseFlags)(ctx, scanTarget, addr)
+					return GetDefaultTCPDialer(cfg.BaseFlags)(ctx, scanTarget, addr)
 				default:
 					return nil, fmt.Errorf("unsupported network type: %s", network)
 				}
 			}
 		}
-		if config.TLSEnabled {
+		if cfg.TLSEnabled {
 			// module needs both L4 dialer and TLS wrapper
-			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(config.TLSFlags)
+			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(cfg.TLSFlags)
 		}
 	} else {
 		// module only needs a TransportAgnosticDialer
-		if config.TLSEnabled {
+		if cfg.TLSEnabled {
 			dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 				// TransportAgnosticDialer only connects to a single target
 				address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
-				return GetDefaultTLSDialer(config.BaseFlags, config.TLSFlags)(ctx, target, address)
+				return GetDefaultTLSDialer(cfg.BaseFlags, cfg.TLSFlags)(ctx, target, address)
 			}
 		} else {
 			// module only needs a TransportAgnosticDialer, so we set it based on the protocol
-			switch config.TransportAgnosticDialerProtocol {
+			switch cfg.TransportAgnosticDialerProtocol {
 			case TransportUDP:
 				//TODO: (BB) Add comprehensive logic for shared dialer
-				if config.SupportsSharedSocketDialer {
+				if( cfg.SupportsSharedSocketDialer && config.NetworkingOptions.UseSharedSocketDialer){
 					dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 						// TransportAgnosticDialer only connects to a single target
 						address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
-						return GetDefaultUDPReuseDialer(config.BaseFlags)(ctx, target, address)
+						return GetDefaultUDPReuseDialer(cfg.BaseFlags)(ctx, target, address)
 					}
 				} else {
 					dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 						// TransportAgnosticDialer only connects to a single target
 						address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
-						return GetDefaultUDPDialer(config.BaseFlags)(ctx, target, address)
+						return GetDefaultUDPDialer(cfg.BaseFlags)(ctx, target, address)
 					}
 				}
 			case TransportTCP:
 				dialerGroup.TransportAgnosticDialer = func(ctx context.Context, target *ScanTarget) (net.Conn, error) {
 					// TransportAgnosticDialer only connects to a single target
 					address := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
-					return GetDefaultTCPDialer(config.BaseFlags)(ctx, target, address)
+					return GetDefaultTCPDialer(cfg.BaseFlags)(ctx, target, address)
 				}
 			default:
-				return nil, fmt.Errorf("unsupported TransportAgnosticDialerProtocol: %d", config.TransportAgnosticDialerProtocol)
+				return nil, fmt.Errorf("unsupported TransportAgnosticDialerProtocol: %d", cfg.TransportAgnosticDialerProtocol)
 			}
 		}
 	}

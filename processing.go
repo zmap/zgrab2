@@ -167,7 +167,7 @@ func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 func GetDefaultUDPReuseDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error){
-		defaultCallback := func(network string, srcIP net.IP, srcPort uint, actualPacket []byte, 	) bool {
+		defaultCallback := func(network string, srcIP net.IP, srcPort uint, actualPacket []byte, ) bool {
 			if srcIP.Equal( t.IP ) && srcPort == t.Port {
 				return true
 			}
