@@ -77,7 +77,8 @@ type DialerGroupConfig struct {
 	TLSEnabled bool
 	TLSFlags   *TLSFlags // must be non-nil if TLSEnabled is true
 
-	// Enables support of Shared Socket Dialer
+	// Denotes support for shared socket re-use for given module. This configuration is possible only with IP/UDP based
+	// configurations.
 	SupportsSharedSocketDialer bool
 }
 
