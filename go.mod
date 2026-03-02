@@ -1,8 +1,6 @@
 module github.com/zmap/zgrab2
 
-go 1.24.0
-
-toolchain go1.24.7
+go 1.25.0
 
 require (
 	github.com/censys/cidranger v1.1.3
@@ -15,7 +13,7 @@ require (
 	github.com/zmap/zcrypto v0.0.0-20260218025106-1e860df7ce02
 	github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9
 	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.40.0
 	golang.org/x/time v0.14.0
