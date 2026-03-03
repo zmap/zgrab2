@@ -453,10 +453,27 @@ func NewDialer(value *Dialer) *Dialer {
 
 // SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
 // the IP or port, respectively, will be un-set and the system will choose.
-func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16) error {
+// If targetIP is non-nil, localIPs are filtered to match the target's address family (IPv4 or IPv6)
+// to prevent protocol mismatch errors when both IPv4 and IPv6 local addresses are configured.
+func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16, targetIP net.IP) error {
 	var localIP net.IP
 	if len(localIPs) != 0 {
-		localIP = localIPs[rand.Intn(len(localIPs))]
+		candidates := localIPs
+		if targetIP != nil {
+			targetIsIPv4 := targetIP.To4() != nil
+			filtered := make([]net.IP, 0, len(localIPs))
+			for _, ip := range localIPs {
+				ipIsIPv4 := ip.To4() != nil
+				if ipIsIPv4 == targetIsIPv4 {
+					filtered = append(filtered, ip)
+				}
+			}
+			if len(filtered) > 0 {
+				candidates = filtered
+			}
+			// If no matching-family addresses exist, fall back to the full list
+		}
+		localIP = candidates[rand.Intn(len(candidates))]
 	}
 	var localPort int
 	if len(localPorts) != 0 {
