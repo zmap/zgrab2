@@ -19,6 +19,7 @@ type ScanResults struct {
 	ConnectReturnCode byte           `json:"connect_return_code,omitempty"`
 	Response          string         `json:"response,omitempty"`
 	TLSLog            *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSUsed           bool           `json:"tls_used,omitempty"`
 }
 
 // Flags are the MQTT-specific command-line flags.
@@ -26,8 +27,9 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	V5     bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
-	UseTLS bool `long:"tls" description:"Use TLS for the MQTT connection"`
+	V5                bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
+	UseTLS            bool `long:"tls" description:"Use TLS for the MQTT connection"`
+	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --tls."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -75,6 +77,9 @@ func (m *Module) Description() string {
 
 // Validate flags
 func (f *Flags) Validate(_ []string) error {
+	if f.AllowTLSDowngrade && !f.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --tls")
+	}
 	return nil
 }
 
@@ -106,6 +111,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
 		TLSFlags:                        &f.TLSFlags,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -299,13 +305,25 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 
 // Scan performs the configured scan on the MQTT server.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn    net.Conn
+		err     error
+		tlsUsed bool
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+		tlsUsed = scanner.config.UseTLS
+	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 
 	mqtt := Connection{conn: conn, config: scanner.config}
+	mqtt.results.TLSUsed = tlsUsed
 
 	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		// if the passed in connection is a TLS connection, try to grab the log

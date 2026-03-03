@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 
 	amqpLib "github.com/rabbitmq/amqp091-go"
 	log "github.com/sirupsen/logrus"
@@ -20,8 +21,9 @@ type Flags struct {
 	AuthUser         string `long:"auth-user" description:"Username to use for authentication. Must be used with --auth-pass. No auth is attempted if not provided."`
 	AuthPass         string `long:"auth-pass" description:"Password to use for authentication. Must be used with --auth-user. No auth is attempted if not provided."`
 
-	UseTLS          bool `long:"use-tls" description:"Use TLS to connect to the server. Note that AMQPS uses a different default port (5671) than AMQP (5672) and you will need to specify that port manually with -p."`
-	zgrab2.TLSFlags `group:"TLS Options"`
+	UseTLS            bool `long:"use-tls" description:"Use TLS to connect to the server. Note that AMQPS uses a different default port (5671) than AMQP (5672) and you will need to specify that port manually with -p."`
+	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --use-tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --use-tls."`
+	zgrab2.TLSFlags   `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -91,7 +93,8 @@ type Result struct {
 
 	Tune *connectionTune `json:"tune,omitempty"`
 
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog  *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSUsed bool           `json:"tls_used,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -128,6 +131,9 @@ func (flags *Flags) Validate(_ []string) error {
 	if flags.AuthPass != "" && flags.AuthUser == "" {
 		return errors.New("must provide --auth-user if --auth-pass is set")
 	}
+	if flags.AllowTLSDowngrade && !flags.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --use-tls")
+	}
 	return nil
 }
 
@@ -149,6 +155,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
 		TLSFlags:                        &f.TLSFlags,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -183,7 +190,18 @@ func (scanner *Scanner) GetScanMetadata() any {
 }
 
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn    net.Conn
+		err     error
+		tlsUsed bool
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+		tlsUsed = scanner.config.UseTLS
+	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%v): %w", target.String(), err)
 	}
@@ -191,6 +209,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// Setup result and connection cleanup
 	result := &Result{
 		AuthSuccess: false,
+		TLSUsed:     tlsUsed,
 	}
 	defer func() {
 		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {

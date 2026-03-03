@@ -19,9 +19,10 @@ import (
 // Flags holds the command-line configuration for the fox scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
-	UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	zgrab2.BaseFlags  `group:"Basic Options"`
+	zgrab2.TLSFlags   `group:"TLS Options"`
+	UseTLS            bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --use-tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --use-tls."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -62,6 +63,9 @@ func (module *Module) Description() string {
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
 func (flags *Flags) Validate(_ []string) error {
+	if flags.AllowTLSDowngrade && !flags.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --use-tls")
+	}
 	return nil
 }
 
@@ -79,6 +83,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      scanner.config.UseTLS,
 		TLSFlags:                        &f.TLSFlags,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -119,7 +124,18 @@ func (scanner *Scanner) GetScanMetadata() any {
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn    net.Conn
+		err     error
+		tlsUsed bool
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+		tlsUsed = scanner.config.UseTLS
+	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}
@@ -128,6 +144,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
 	result := new(FoxLog)
+	result.TLSUsed = tlsUsed
 	// Attempt to read TLS Log from connection. If it's not a TLS connection then the log will just be empty.
 	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		result.TLSLog = tlsConn.GetLog()

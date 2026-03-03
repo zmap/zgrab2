@@ -63,5 +63,6 @@ type FoxLog struct {
 	// AuthAgentType corresponds to the "authAgentTypeSpecs" field.
 	AuthAgentType string `json:"auth_agent_type,omitempty"`
 
-	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSLog  *zgrab2.TLSLog `json:"tls,omitempty"`
+	TLSUsed bool           `json:"tls_used,omitempty"`
 }
