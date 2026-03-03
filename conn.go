@@ -474,8 +474,8 @@ func filterLocalAddrsByFamily(localIPs []net.IP, targetIP net.IP) []net.IP {
 
 // SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
 // the IP or port, respectively, will be un-set and the system will choose.
-// If targetIP is non-nil, localIPs are filtered to match the target's address family (IPv4 or IPv6)
-// to prevent protocol mismatch errors when both IPv4 and IPv6 local addresses are configured.
+// If targetIP is non-nil, localIPs are filtered to match the target's address family (IPv4 or IPv6) to prevent
+// protocol mismatch errors when both IPv4 and IPv6 local addresses are configured.
 func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16, targetIP net.IP) error {
 	var localIP net.IP
 	if len(localIPs) != 0 {
