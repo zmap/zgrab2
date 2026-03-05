@@ -26,8 +26,9 @@ type Flags struct {
 	zgrab2.BaseFlags
 	zgrab2.TLSFlags
 
-	V5     bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
-	UseTLS bool `long:"tls" description:"Use TLS for the MQTT connection"`
+	V5                bool `long:"v5" description:"Scanning MQTT v5.0. Otherwise scanning MQTT v3.1.1"`
+	UseTLS            bool `long:"tls" description:"Use TLS for the MQTT connection"`
+	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --tls."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -75,6 +76,9 @@ func (m *Module) Description() string {
 
 // Validate flags
 func (f *Flags) Validate(_ []string) error {
+	if f.AllowTLSDowngrade && !f.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --tls")
+	}
 	return nil
 }
 
@@ -106,6 +110,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
 		TLSFlags:                        &f.TLSFlags,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -299,7 +304,16 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 
 // Scan performs the configured scan on the MQTT server.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn net.Conn
+		err  error
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", target.String(), err)
 	}
