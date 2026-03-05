@@ -13,7 +13,6 @@ mqtt_scan_response = SubRecord(
         "connect_return_code": Unsigned32BitInteger(),
         "response": String(),
         "tls": zgrab2.tls_log,
-        "tls_used": Boolean(doc="Whether TLS was successfully negotiated."),
     }
 )
 

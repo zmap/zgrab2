@@ -59,13 +59,12 @@ type Scanner struct {
 
 // ScanResults instances are returned by the module's Scan function.
 type Results struct {
-	Banner  string         `json:"banner,omitempty"`
-	Length  int            `json:"length,omitempty"`
-	TLSLog  *zgrab2.TLSLog `json:"tls,omitempty"`
-	TLSUsed bool           `json:"tls_used,omitempty"`
-	MD5     string         `json:"md5,omitempty"`
-	SHA1    string         `json:"sha1,omitempty"`
-	SHA256  string         `json:"sha256,omitempty"`
+	Banner string         `json:"banner,omitempty"`
+	Length int            `json:"length,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
+	MD5    string         `json:"md5,omitempty"`
+	SHA1   string         `json:"sha1,omitempty"`
+	SHA256 string         `json:"sha256,omitempty"`
 }
 
 var ErrNoMatch = errors.New("pattern did not match")
@@ -183,12 +182,10 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	)
 
 	if scanner.config.AllowTLSDowngrade {
-		var tlsUsed bool
-		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, err
 		}
-		results.TLSUsed = tlsUsed
 	} else {
 		for try := 0; try < scanner.config.MaxTries; try++ {
 			conn, err = dialGroup.Dial(ctx, target)
@@ -200,7 +197,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if err != nil {
 			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("failed to connect to %v: %w", target.String(), err)
 		}
-		results.TLSUsed = scanner.config.UseTLS
 	}
 
 	defer func() {

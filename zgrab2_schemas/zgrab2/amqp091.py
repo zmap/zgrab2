@@ -40,7 +40,6 @@ result_schema = SubRecord(
                 "auth_success": Boolean(),
                 "tune": connection_tune,
                 "tls": zgrab2.tls_log,
-                "tls_used": Boolean(doc="Whether TLS was successfully negotiated."),
             }
         )
     },

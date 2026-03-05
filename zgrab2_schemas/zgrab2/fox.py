@@ -31,7 +31,6 @@ fox_scan_response = SubRecord(
                 "sys_info": String(),
                 "agent_auth_type": String(),
                 "tls": zgrab2.tls_log,
-                "tls_used": Boolean(doc="Whether TLS was successfully negotiated."),
             }
         )
     },

@@ -19,7 +19,6 @@ type ScanResults struct {
 	ConnectReturnCode byte           `json:"connect_return_code,omitempty"`
 	Response          string         `json:"response,omitempty"`
 	TLSLog            *zgrab2.TLSLog `json:"tls,omitempty"`
-	TLSUsed           bool           `json:"tls_used,omitempty"`
 }
 
 // Flags are the MQTT-specific command-line flags.
@@ -306,16 +305,14 @@ func readVariableByteInteger(r io.Reader) ([]byte, error) {
 // Scan performs the configured scan on the MQTT server.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
-		conn    net.Conn
-		err     error
-		tlsUsed bool
+		conn net.Conn
+		err  error
 	)
 
 	if scanner.config.AllowTLSDowngrade {
-		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
 	} else {
 		conn, err = dialGroup.Dial(ctx, target)
-		tlsUsed = scanner.config.UseTLS
 	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", target.String(), err)
@@ -323,7 +320,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	defer zgrab2.CloseConnAndHandleError(conn)
 
 	mqtt := Connection{conn: conn, config: scanner.config}
-	mqtt.results.TLSUsed = tlsUsed
 
 	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		// if the passed in connection is a TLS connection, try to grab the log

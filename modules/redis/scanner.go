@@ -163,9 +163,6 @@ type Result struct {
 
 	// TLSLog is the standard TLS log for the connection if used
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
-
-	// TLSUsed indicates whether TLS was successfully negotiated.
-	TLSUsed bool `json:"tls_used,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module
@@ -335,27 +332,22 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 // StartScan opens a connection to the target and sets up a scan instance for it
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
 	var (
-		conn    net.Conn
-		err     error
-		tlsUsed bool
+		conn net.Conn
+		err  error
 	)
 
 	if scanner.config.AllowTLSDowngrade {
-		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
 	} else {
 		conn, err = dialGroup.Dial(ctx, target)
-		tlsUsed = scanner.config.UseTLS
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not establish connection to %s: %w", target.String(), err)
 	}
 
 	result := &Result{}
-	result.TLSUsed = tlsUsed
-	if tlsUsed {
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
-			result.TLSLog = tlsConn.GetLog()
-		}
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		result.TLSLog = tlsConn.GetLog()
 	}
 
 	return &scan{

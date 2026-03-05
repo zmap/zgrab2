@@ -125,16 +125,14 @@ func (scanner *Scanner) GetScanMetadata() any {
 // 5. Attempt to read any / all of the data fields from the Log struct
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
-		conn    net.Conn
-		err     error
-		tlsUsed bool
+		conn net.Conn
+		err  error
 	)
 
 	if scanner.config.AllowTLSDowngrade {
-		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
 	} else {
 		conn, err = dialGroup.Dial(ctx, target)
-		tlsUsed = scanner.config.UseTLS
 	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
@@ -144,7 +142,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		zgrab2.CloseConnAndHandleError(conn)
 	}(conn)
 	result := new(FoxLog)
-	result.TLSUsed = tlsUsed
 	// Attempt to read TLS Log from connection. If it's not a TLS connection then the log will just be empty.
 	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		result.TLSLog = tlsConn.GetLog()

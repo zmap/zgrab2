@@ -15,9 +15,6 @@ banner_scan_response = SubRecord(
                 "banner": String(),
                 "length": Unsigned32BitInteger(),
                 "tls": zgrab2.tls_log,
-                "tls_used": Boolean(
-                    doc="Whether TLS was successfully negotiated. Only set when --tls is used."
-                ),
                 "md5": String(),
                 "sha1": String(),
                 "sha256": String(),

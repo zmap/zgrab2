@@ -93,8 +93,7 @@ type Result struct {
 
 	Tune *connectionTune `json:"tune,omitempty"`
 
-	TLSLog  *zgrab2.TLSLog `json:"tls,omitempty"`
-	TLSUsed bool           `json:"tls_used,omitempty"`
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // RegisterModule registers the zgrab2 module.
@@ -191,16 +190,14 @@ func (scanner *Scanner) GetScanMetadata() any {
 
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var (
-		conn    net.Conn
-		err     error
-		tlsUsed bool
+		conn net.Conn
+		err  error
 	)
 
 	if scanner.config.AllowTLSDowngrade {
-		conn, tlsUsed, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
 	} else {
 		conn, err = dialGroup.Dial(ctx, target)
-		tlsUsed = scanner.config.UseTLS
 	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%v): %w", target.String(), err)
@@ -209,7 +206,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	// Setup result and connection cleanup
 	result := &Result{
 		AuthSuccess: false,
-		TLSUsed:     tlsUsed,
 	}
 	defer func() {
 		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
