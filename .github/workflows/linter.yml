@@ -47,7 +47,7 @@ jobs:
           fi
       - name: Upload formatted files
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: formatted-files
           path: /tmp/gofmt
