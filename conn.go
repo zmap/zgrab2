@@ -451,12 +451,36 @@ func NewDialer(value *Dialer) *Dialer {
 	return value.SetDefaults()
 }
 
+// filterLocalAddrsByFamily filters localIPs to only include addresses matching the address family of targetIP.
+// If targetIP is nil or no local IPs are provided, we return the original list.
+// If no local IPs match the target's address family, we return the original list to allow dialing to proceed and fail
+// with the more informative error from the dial attempt, rather than failing with an empty address list.
+func filterLocalAddrsByFamily(localIPs []net.IP, targetIP net.IP) []net.IP {
+	if targetIP == nil || len(localIPs) == 0 {
+		return localIPs
+	}
+	targetIsIPv4 := targetIP.To4() != nil
+	filtered := make([]net.IP, 0, len(localIPs))
+	for _, ip := range localIPs {
+		if (ip.To4() != nil) == targetIsIPv4 {
+			filtered = append(filtered, ip)
+		}
+	}
+	if len(filtered) == 0 {
+		return localIPs
+	}
+	return filtered
+}
+
 // SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
 // the IP or port, respectively, will be un-set and the system will choose.
-func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16) error {
+// If targetIP is non-nil, localIPs are filtered to match the target's address family (IPv4 or IPv6) to prevent
+// protocol mismatch errors when both IPv4 and IPv6 local addresses are configured.
+func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16, targetIP net.IP) error {
 	var localIP net.IP
 	if len(localIPs) != 0 {
-		localIP = localIPs[rand.Intn(len(localIPs))]
+		candidates := filterLocalAddrsByFamily(localIPs, targetIP)
+		localIP = candidates[rand.Intn(len(candidates))]
 	}
 	var localPort int
 	if len(localPorts) != 0 {
