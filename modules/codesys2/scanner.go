@@ -146,29 +146,26 @@ func (scanner *Scanner) ScanWithByteOrder(ctx context.Context, dialGroup *zgrab2
 	var header CodeSysV2Header
 	_, err = io.ReadFull(c.getUnderlyingConn(), headerbytes)
 	if err != nil {
-		//log.Fatalf("Unexpected error reading CodesysV2 header: %v", err)
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
 	}
 	err = UnMarshal(headerbytes, order, &header)
 	if err != nil {
-		//log.Fatalf("Unexpected error unmarshaling CodesysV2 packet: %v", err)
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("failed to read CodeSysV2 Header")
 	} else if header.Magic != CodeSysV2Magic {
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("didn't receive CodesysV2 packet magic")
 	} else if (header.Length & 0xff000000) != 0 {
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("seems like the wrong byte order of the protocol")
 	}
-	payloadbytes := make([]byte, header.Length)
-	_, err = io.ReadFull(c.getUnderlyingConn(), payloadbytes)
+	// Now we know the total size, create the full buffer
+	fullPacketBytes := make([]byte, HeaderSize+header.Length)
+	copy(fullPacketBytes, headerbytes)
+	_, err = io.ReadFull(c.getUnderlyingConn(), fullPacketBytes[HeaderSize:])
 	if err != nil {
-		//log.Fatalf("Unexpected error reading CodesysV2 payload: %v", err)
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
 	}
-	fullpacketbytes := append(headerbytes, payloadbytes...)
 	var res CodeSysV2LoginResponse
-	err = UnMarshal(fullpacketbytes, order, &res)
+	err = UnMarshal(fullPacketBytes, order, &res)
 	if err != nil {
-		//log.Fatalf("Unexpected error unmarshaling CodesysV2 packet: %v", err)
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, err
 	}
 
