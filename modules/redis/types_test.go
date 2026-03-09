@@ -345,7 +345,7 @@ func TestRedisArray(t *testing.T) {
 	conn, io := getConnection()
 
 	// Slowly build up array, checking its encoding after each element is added
-	var array RedisArray
+	array := make(RedisArray, 0, 6) // Prealloc
 	e0 := SimpleString("foo")
 	e1 := BulkString([]byte(bigBulkString))
 	e2 := Integer(0)
