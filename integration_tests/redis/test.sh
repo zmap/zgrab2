@@ -21,6 +21,8 @@ for cfg in $configs; do
     echo "redis/test: Testing $CONTAINER_NAME"
     CONTAINER_NAME=$CONTAINER_NAME "$ZGRAB_ROOT/docker-runner/docker-run.sh" redis > "$ZGRAB_OUTPUT/redis/${cfg}-normal.json"
     CONTAINER_NAME=$CONTAINER_NAME "$ZGRAB_ROOT/docker-runner/docker-run.sh" redis --inline > "$ZGRAB_OUTPUT/redis/${cfg}-inline.json"
+    # TLS downgrade: Redis containers don't support TLS, so --allow-tls-downgrade should fall back to plaintext
+    CONTAINER_NAME=$CONTAINER_NAME "$ZGRAB_ROOT/docker-runner/docker-run.sh" redis --use-tls --allow-tls-downgrade > "$ZGRAB_OUTPUT/redis/${cfg}-tls-downgrade.json"
 #     CONTAINER_NAME=$CONTAINER_NAME EXTRA_DOCKER_ARGS=$EXTRA_DOCKER_ARGS "$ZGRAB_ROOT/docker-runner/docker-run.sh" redis --mappings "$MOUNT_CONTAINER/mappings.json" > "$ZGRAB_OUTPUT/redis/${cfg}-normal-mappings.json"
 #     CONTAINER_NAME=$CONTAINER_NAME EXTRA_DOCKER_ARGS=$EXTRA_DOCKER_ARGS "$ZGRAB_ROOT/docker-runner/docker-run.sh" redis --inline --mappings "$MOUNT_CONTAINER/mappings.yaml" > "$ZGRAB_OUTPUT/redis/${cfg}-inline-mappings.json"
 #     CONTAINER_NAME=$CONTAINER_NAME EXTRA_DOCKER_ARGS=$EXTRA_DOCKER_ARGS "$ZGRAB_ROOT/docker-runner/docker-run.sh" redis --custom-commands "$MOUNT_CONTAINER/extra-commands.json" > "$ZGRAB_OUTPUT/redis/${cfg}-normal-extra.json"

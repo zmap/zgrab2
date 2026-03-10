@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,13 +34,14 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 
-	CustomCommands   string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
-	Mappings         string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
-	MaxInputFileSize int64  `long:"max-input-file-size" default:"102400" description:"Maximum size for either input file."`
-	Password         string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
-	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
-	UseTLS           bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	CustomCommands    string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
+	Mappings          string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
+	MaxInputFileSize  int64  `long:"max-input-file-size" default:"102400" description:"Maximum size for either input file."`
+	Password          string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
+	DoInline          bool   `long:"inline" description:"Send commands using the inline syntax"`
+	UseTLS            bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	AllowTLSDowngrade bool   `long:"allow-tls-downgrade" description:"If --use-tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --use-tls."`
+	zgrab2.TLSFlags   `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface
@@ -189,6 +191,9 @@ func (module *Module) Description() string {
 
 // Validate checks that the flags are valid
 func (flags *Flags) Validate(_ []string) error {
+	if flags.AllowTLSDowngrade && !flags.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --use-tls")
+	}
 	return nil
 }
 
@@ -210,6 +215,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSFlags:                        &f.TLSFlags,
 		TLSEnabled:                      f.UseTLS,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -325,15 +331,29 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 
 // StartScan opens a connection to the target and sets up a scan instance for it
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn net.Conn
+		err  error
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("could not establish connection to %s: %w", target.String(), err)
+	}
+
+	result := &Result{}
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		result.TLSLog = tlsConn.GetLog()
 	}
 
 	return &scan{
 		target:  target,
 		scanner: scanner,
-		result:  &Result{},
+		result:  result,
 		conn: &Connection{
 			scanner: scanner,
 			conn:    conn,
