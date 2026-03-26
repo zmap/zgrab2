@@ -139,6 +139,16 @@ services:
     depends_on:
       - ipp_service_base
 
+  ldap:
+    build:
+      context: ./ldap/container
+    container_name: "zgrab_ldap"
+    networks:
+      - ldap-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
   managesieve:
     image: stalwartlabs/stalwart:latest
     container_name: "zgrab_managesieve"
@@ -788,3 +798,8 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.192/30
+  ldap-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.196/30
