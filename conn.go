@@ -605,7 +605,7 @@ var DefaultSharedSocketCallback = func(t *ScanTarget) Callback {
 			}
 			return false
 		}
-}	
+}
 
 type ReadResult struct {
 	packet []byte
@@ -748,7 +748,7 @@ type SharedDialer struct {
 	closed atomic.Bool
 }
 
-// DialContext acts like (net.dialer).dialContext, but serves as a buffer between underlying listen connection 
+// DialContext acts like (net.dialer).dialContext, but serves as a buffer between underlying listen connection
 // and the dial interface
 func (d *SharedDialer) DialContextSharedDialer(ctx context.Context, network, address string, callback Callback) (net.Conn, error) {
 	switch {
@@ -1019,9 +1019,9 @@ func NewSharedDialer(value *SharedDialer) *SharedDialer {
 }
 
 /*
-SharedSocketConn implements the net.Conn interface (https://pkg.go.dev/net#Conn) 
-on top of a SharedSocket, allowing multiple logical "connections" to share a 
-single underlying socket (e.g., a UDP PacketConn). It acts as an adapter between 
+SharedSocketConn implements the net.Conn interface (https://pkg.go.dev/net#Conn)
+on top of a SharedSocket, allowing multiple logical "connections" to share a
+single underlying socket (e.g., a UDP PacketConn). It acts as an adapter between
 the connection-oriented API expected by callers and the packet-oriented semantics
 of the parent socket.
 
@@ -1047,8 +1047,8 @@ guarantees depend on the underlying transport.
 
 This abstraction enables high-performance scanning workloads by reducing the
 number of kernel sockets while maintaining compatibility with existing code
-that expects independent net.Conn instances. 
-*/ 
+that expects independent net.Conn instances.
+*/
 type SharedSocketConn struct {
 	cb         Callback
 	parent     *SharedSocket

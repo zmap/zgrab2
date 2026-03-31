@@ -66,6 +66,8 @@ type NetworkingOptions struct {
 	UserIPv4Choice       *bool         `long:"resolve-ipv4" description:"Use IPv4 for resolving domains (accept A records). True by default, use only --resolve-ipv6 for IPv6 only resolution. If used with --resolve-ipv6, will use both IPv4 and IPv6."`
 	UserIPv6Choice       *bool         `long:"resolve-ipv6" description:"Use IPv6 for resolving domains (accept AAAA records). IPv6 is disabled by default. If --resolve-ipv4 is not set and --resolve-ipv6 is, will only use IPv6. If used with --resolve-ipv4, will use both IPv4 and IPv6."`
 	ServerRateLimit      int           `long:"server-rate-limit" description:"Per-IP rate limit for connections to targets per second."`
+	UseSharedSocketDialer bool `long:"shared-socket" description:"Use the experimental SharedSocket dialer when supported by a module (currently intended for UDP-heavy modules)."`
+
 }
 
 // Config is the high level framework options that will be parsed
