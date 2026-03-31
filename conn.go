@@ -453,8 +453,7 @@ func NewDialer(value *Dialer) *Dialer {
 
 // filterLocalAddrsByFamily filters localIPs to only include addresses matching the address family of targetIP.
 // If targetIP is nil or no local IPs are provided, we return the original list.
-// If no local IPs match the target's address family, we return the original list to allow dialing to proceed and fail
-// with the more informative error from the dial attempt, rather than failing with an empty address list.
+// If no local IPs match the target's address family, we return an empty list.
 func filterLocalAddrsByFamily(localIPs []net.IP, targetIP net.IP) []net.IP {
 	if targetIP == nil || len(localIPs) == 0 {
 		return localIPs
@@ -462,12 +461,10 @@ func filterLocalAddrsByFamily(localIPs []net.IP, targetIP net.IP) []net.IP {
 	targetIsIPv4 := targetIP.To4() != nil
 	filtered := make([]net.IP, 0, len(localIPs))
 	for _, ip := range localIPs {
-		if (ip.To4() != nil) == targetIsIPv4 {
+		ipIsIPv4 := ip.To4() != nil
+		if ipIsIPv4 == targetIsIPv4 {
 			filtered = append(filtered, ip)
 		}
-	}
-	if len(filtered) == 0 {
-		return localIPs
 	}
 	return filtered
 }
@@ -480,6 +477,9 @@ func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPort
 	var localIP net.IP
 	if len(localIPs) != 0 {
 		candidates := filterLocalAddrsByFamily(localIPs, targetIP)
+		if len(candidates) == 0 {
+			return fmt.Errorf("no selected local IPs %v match the address family of the target IP %s, so target would not be reachable", localIPs, targetIP.String())
+		}
 		localIP = candidates[rand.Intn(len(candidates))]
 	}
 	var localPort int

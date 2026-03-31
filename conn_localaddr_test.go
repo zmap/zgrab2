@@ -47,8 +47,8 @@ func TestFilterLocalAddrsByFamily_NilTarget(t *testing.T) {
 
 func TestFilterLocalAddrsByFamily_NoMatchFallsBack(t *testing.T) {
 	result := filterLocalAddrsByFamily([]net.IP{testIPv6a, testIPv6b}, testTargetIPv4)
-	if len(result) != 2 {
-		t.Fatalf("expected fallback to full list (2 addrs), got %d: %v", len(result), result)
+	if len(result) != 0 {
+		t.Fatalf("expected empty list, got %d: %v", len(result), result)
 	}
 }
 
