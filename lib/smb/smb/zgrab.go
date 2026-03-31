@@ -10,6 +10,7 @@ import (
 
 	"unicode/utf16"
 
+	"github.com/zmap/zgrab2/lib/ntlm"
 	"github.com/zmap/zgrab2/lib/smb/gss"
 	"github.com/zmap/zgrab2/lib/smb/ntlmssp"
 	"github.com/zmap/zgrab2/lib/smb/smb/encoder"
@@ -80,6 +81,10 @@ type SessionSetupLog struct {
 
 	// NegotiateFlags are the flags from the challenge packet
 	NegotiateFlags uint32 `json:"negotiate_flags"`
+
+	// NTLMInfo contains OS version, domain, and host details extracted from
+	// the NTLM Challenge message's Version and TargetInfo fields.
+	NTLMInfo *ntlm.Info `json:"ntlm,omitempty"`
 }
 
 // Parse the SMB version and dialect; version string
@@ -535,6 +540,19 @@ func (ls *LoggedSession) LoggedNegotiateProtocol(setup bool) error {
 	}
 	logStruct.SessionSetupLog.TargetName = wstring(challenge.TargetName)
 	logStruct.SessionSetupLog.NegotiateFlags = challenge.NegotiateFlags
+
+	// Extract NTLM fingerprint info from the challenge's Version and TargetInfo.
+	info := new(ntlm.Info)
+	info.OSVersion = ntlm.VersionFromUint64(challenge.Version)
+	info.TargetName = wstring(challenge.TargetName)
+	if challenge.TargetInfo != nil {
+		pairs := make([]ntlm.AvPairEntry, len(*challenge.TargetInfo))
+		for i := range *challenge.TargetInfo {
+			pairs[i] = (*challenge.TargetInfo)[i]
+		}
+		ntlm.InfoFromAvPairs(info, pairs)
+	}
+	logStruct.SessionSetupLog.NTLMInfo = info
 
 	return nil
 }
