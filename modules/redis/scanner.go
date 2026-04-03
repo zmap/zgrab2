@@ -521,5 +521,5 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	result.QuitResponse = forceToString(quitResponse)
 	result.TLSLog = scan.conn.GetTLSLog()
-	return zgrab2.SCAN_SUCCESS, &result, nil
+	return zgrab2.SCAN_SUCCESS, result, nil
 }
