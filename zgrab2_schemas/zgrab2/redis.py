@@ -102,6 +102,7 @@ redis_scan_response = SubRecord(
                     ),
                     doc="The responses from the user-passed custom commands.",
                 ),
+                "tls": zgrab2.tls_log,
             }
         )
     },
