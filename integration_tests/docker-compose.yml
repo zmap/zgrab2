@@ -127,9 +127,11 @@ services:
     container_name: "zgrab_managesieve"
     networks:
       - managesieve-network
+    environment:
+      - STALWART_RECOVERY_ADMIN=admin:testpassword123
+    volumes:
+      - ./managesieve/config.json:/etc/stalwart/config.json
     hostname: "target"
-    depends_on:
-      - service_base
 
   memcached-1.6.0:
     image: "memcached:1.6.0"
