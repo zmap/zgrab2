@@ -3,6 +3,9 @@ ZGrab 2.0
 
 ZGrab is a fast, modular application-layer network scanner designed for completing large Internet-wide surveys. ZGrab is built to work with ZMap (ZMap identifies L4 responsive hosts, ZGrab performs in-depth, follow-up L7 handshakes). Unlike many other network scanners, ZGrab outputs detailed transcripts of network handshakes (e.g., all messages exchanged in a TLS handshake) for offline analysis.  
 
+> [!TIP]
+> If you're just getting started with ZGrab2 and are interested in using it in combination with [ZMap](https://github.com/zmap/zmap) in a measurement pipeline, check out our [Getting Started with ZMap and ZGrab2 guide](https://github.com/zmap/.github/blob/main/wiki/getting-started-with-zmap-and-zgrab2.md).
+
 ZGrab 2.0 contains a new, modular ZGrab framework, which fully supersedes https://github.com/zmap/zgrab.
 
 ZGrab offers modules for a variety of protocols. Currently, we offer:
