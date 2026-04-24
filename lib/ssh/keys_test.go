@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/zmap/zcrypto/dsa"
+	"github.com/zmap/zcrypto/dsa"
 	"golang.org/x/crypto/ed25519"
 
 	"github.com/zmap/zgrab2/lib/ssh/testdata"
@@ -31,7 +31,7 @@ func rawKey(pub PublicKey) any {
 	case *rsaPublicKey:
 		return (*rsa.PublicKey)(k)
 	case *dsaPublicKey:
-		return (*dsaPublicKey)(k)
+		return (*dsa.PublicKey)(k)
 	case *ecdsaPublicKey:
 		return (*ecdsa.PublicKey)(k)
 	case ed25519PublicKey:
