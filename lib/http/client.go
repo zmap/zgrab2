@@ -750,7 +750,7 @@ func (c *Client) do(req *Request) (retres *Response, reterr error) {
 			// See https://golang.org/issue/3795
 			ue := uerr(err)
 			ue.(*url.Error).URL = loc
-			return resp, err
+			return resp, ue
 		}
 
 		req.closeBody()
@@ -822,7 +822,7 @@ func (c *Client) makeHeadersCopier(ireq *Request) func(*Request) {
 }
 
 func defaultCheckRedirect(req *Request, res *Response, via []*Request) error {
-	if len(via) >= 10 {
+	if len(via) >= 11 {
 		return errors.New("stopped after 10 redirects")
 	}
 	return nil
