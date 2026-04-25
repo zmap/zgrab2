@@ -1,6 +1,7 @@
 package zgrab2
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/csv"
 	"fmt"
@@ -349,7 +350,14 @@ func (z *TLSConnection) Handshake() error {
 		log.HandshakeLog = z.GetHandshakeLog()
 	}()
 	return z.Conn.Handshake()
+}
 
+func (z *TLSConnection) HandshakeContext(ctx context.Context) error {
+	log := z.GetLog()
+	defer func() {
+		log.HandshakeLog = z.GetHandshakeLog()
+	}()
+	return z.Conn.HandshakeContext(ctx)
 }
 
 // Close the underlying connection.

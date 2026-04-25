@@ -208,11 +208,15 @@ func (c *TimeoutConnection) checkContext() error {
 func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
 	ret := &TimeoutConnection{
 		ctx:            ctx,
-		Conn:           conn,
 		SessionTimeout: sessionTimeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
+	}
+	if castConn, ok := conn.(*TimeoutConnection); ok {
+		ret.Conn = castConn.Conn // don't want to wrap TimeoutConnection in another TimeoutConnection
+	} else {
+		ret.Conn = conn
 	}
 	if sessionTimeout > 0 {
 		ret.ctx, ret.Cancel = context.WithTimeout(ctx, sessionTimeout)
