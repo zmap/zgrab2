@@ -107,7 +107,10 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 		if castConn, ok := conn.(*TimeoutConnection); ok {
 			// Reset the context on the connection to the main one, not the handshake one
 			castConn.ctx = ctx
-			castConn.SaturateTimeoutsToReadAndWriteTimeouts()
+
+			if err = castConn.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
+				return nil, err
+			}
 		}
 		return conn, nil
 	}

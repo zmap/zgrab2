@@ -68,11 +68,12 @@ type TimeoutConnection struct {
 }
 
 // SaturateTimeoutsToReadAndWriteTimeouts gets the minimum of the context deadline, the timeout, and the read/write timeouts
-// and sets the read/write timeouts accordingly. This is necessary because the underlying connection only supports a
+// and sets the read/write timeouts accordingly on the underlying connection. This is necessary because the underlying connection only supports a
 // deadline on reads and a deadline on writes, so we need to compute the minimum of all these to find what to set the
 // underlying conn's read/write deadlines to.
-func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
+func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() error {
 	// Get the minimum of the context deadline and the timeout
+	var readTimeout, writeTimeout time.Duration
 	minDeadline := int64(math.MaxInt64)
 	if ctxDeadline, ok := c.ctx.Deadline(); ok {
 		minDeadline = int64(time.Until(ctxDeadline))
@@ -80,20 +81,26 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 	if c.SessionTimeout > 0 {
 		minDeadline = min(minDeadline, int64(c.SessionTimeout))
 	}
-	c.SessionTimeout = time.Duration(minDeadline)
 
 	// Now we'll check read and write timeouts.
 	if c.ReadTimeout > 0 {
-		c.ReadTimeout = time.Duration(min(minDeadline, int64(c.ReadTimeout)))
+		readTimeout = time.Duration(min(minDeadline, int64(c.ReadTimeout)))
 	} else {
-		c.ReadTimeout = time.Duration(minDeadline)
+		readTimeout = time.Duration(minDeadline)
 	}
 
 	if c.WriteTimeout > 0 {
-		c.WriteTimeout = time.Duration(min(minDeadline, int64(c.WriteTimeout)))
+		writeTimeout = time.Duration(min(minDeadline, int64(c.WriteTimeout)))
 	} else {
-		c.WriteTimeout = time.Duration(minDeadline)
+		writeTimeout = time.Duration(minDeadline)
 	}
+	if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
+		return fmt.Errorf("cannot set read deadline: %w", err)
+	}
+	if err := c.Conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return fmt.Errorf("cannot set write deadline: %w", err)
+	}
+	return nil
 }
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
@@ -105,8 +112,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 	if c.BytesRead+len(b) >= c.BytesReadLimit {
 		b = b[0 : c.BytesReadLimit-c.BytesRead]
 	}
-	c.SaturateTimeoutsToReadAndWriteTimeouts()
-	if err = c.Conn.SetReadDeadline(time.Now().Add(c.ReadTimeout)); err != nil {
+	if err = c.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
 		return 0, err
 	}
 	n, err = c.Conn.Read(b)
@@ -133,8 +139,7 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
-	c.SaturateTimeoutsToReadAndWriteTimeouts()
-	if err = c.Conn.SetWriteDeadline(time.Now().Add(c.WriteTimeout)); err != nil {
+	if err = c.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
 		return 0, err
 	}
 	n, err = c.Conn.Write(b)
@@ -205,7 +210,7 @@ func (c *TimeoutConnection) checkContext() error {
 }
 
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
-func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
+func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (*TimeoutConnection, error) {
 	ret := &TimeoutConnection{
 		ctx:            ctx,
 		SessionTimeout: sessionTimeout,
@@ -223,8 +228,10 @@ func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, re
 	} else {
 		ret.ctx, ret.Cancel = context.WithCancel(ctx)
 	}
-	ret.SaturateTimeoutsToReadAndWriteTimeouts()
-	return ret
+	if err := ret.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
+		return nil, fmt.Errorf("error setting initial deadlines on connection: %w", err)
+	}
+	return ret, nil
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
@@ -309,7 +316,10 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	if err != nil {
 		return nil, fmt.Errorf("dial context failed: %w", err)
 	}
-	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	ret, err := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	if err != nil {
+		return nil, err
+	}
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
