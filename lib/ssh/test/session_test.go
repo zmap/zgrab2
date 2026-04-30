@@ -411,6 +411,9 @@ func TestKeyExchanges(t *testing.T) {
 			conf := clientConfig()
 			// Don't fail if sshd doesn't have the kex.
 			conf.KeyExchanges = append([]string{kex}, kexOrder...)
+			conf.GexMinBits = 1024
+			conf.GexMaxBits = 8192
+			conf.GexPreferredBits = 2048
 			conn, err := server.TryDial(conf)
 			if err == nil {
 				conn.Close()
