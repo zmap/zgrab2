@@ -204,12 +204,19 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 	if len(input.Domain) > 0 && input.IP == nil {
 		// If there's an issue with resolving the target, then no module will be able to scan it.
 		onResolutionFailure := func(input ScanTarget, mon *Monitor, err error) *Grab {
+			port := input.Port
 			for _, scannerName := range orderedScanners {
 				// send a failure to the monitor for each scanner
 				mon.statusesChan <- moduleStatus{name: scannerName, st: statusFailure}
+				// Resolve port from scanner config if not set on the target
+				if port == 0 {
+					if dgc, ok := defaultDialerGroupConfigToScanners[scannerName]; ok {
+						port = dgc.BaseFlags.Port
+					}
+				}
 			}
 			return &Grab{
-				Port:   input.Port,
+				Port:   port,
 				Domain: input.Domain,
 				Error:  err.Error(),
 			}
@@ -229,6 +236,16 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 			return onResolutionFailure(input, m, fmt.Errorf("could not resolve domain %s: %w", input.Domain, err))
 		}
 		input.IP = reachableIPs[rand.Intn(len(reachableIPs))]
+	}
+	// Resolve the port from scanner config if not set on the target (i.e. port came from CLI flags,
+	// not CSV input). This ensures the port appears in the Grab output even if no scanner's tag matches.
+	if input.Port == 0 {
+		for _, scannerName := range orderedScanners {
+			if dgc, ok := defaultDialerGroupConfigToScanners[scannerName]; ok && dgc.BaseFlags.Port != 0 {
+				input.Port = dgc.BaseFlags.Port
+				break
+			}
+		}
 	}
 	for _, scannerName := range orderedScanners {
 		scanner := scanners[scannerName]
