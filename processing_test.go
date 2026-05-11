@@ -17,13 +17,14 @@ import (
 	zgrab2 "github.com/zmap/zgrab2" // adjust import path to match your module
 )
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+
+// This file incudes tests to verify our timeouts at different phases of a connection, ie: TCP SYN, TLS handshake, read,
+// and write on a connection
 
 const connectTimeout = 300 * time.Millisecond
 const targetTimeout = 2 * time.Second
 
-// baseFlags returns a BaseFlags whose ConnectTimeout is short enough for tests
-// to stay snappy while still being observable.
+// baseFlags returns a BaseFlags whose ConnectTimeout is short so tests stay efficient
 func baseFlags() *zgrab2.BaseFlags {
 	return &zgrab2.BaseFlags{
 		ConnectTimeout: connectTimeout,
@@ -102,9 +103,7 @@ func assertTimedOutNear(t *testing.T, elapsed, min, max time.Duration) {
 //
 // We listen on a port with SO_REUSEPORT via net.Listen but immediately close
 // the *listener* without accepting anything.  The kernel will send RST/ignore
-// SYNs depending on the OS.  The most portable and reliable approach is to
-// bind to an address that is not listening at all — we find a free port, close
-// it, then target that port.  The dialer must time out within ConnectTimeout.
+// SYNs depending on the OS. The dialer must time out within ConnectTimeout.
 
 func TestTCPDialer_NoTCPHandshake_TimesOut(t *testing.T) {
 	// Find a port that is definitely not listening.
@@ -202,7 +201,6 @@ func TestTLSDialer_TCPOkTLSHangs_TimesOut(t *testing.T) {
 // The dialer should return a valid *TLSConnection with no error.
 
 func TestTLSDialer_FullHandshake_Succeeds(t *testing.T) {
-	//serverCfg, caPool := selfSignedCert(t)
 	serverCfg, _ := selfSignedCert(t)
 
 	ln, err := tls.Listen("tcp", "127.0.0.1:0", serverCfg)
@@ -255,8 +253,7 @@ func TestTLSDialer_FullHandshake_Succeeds(t *testing.T) {
 // The server completes TLS, drains whatever the client sends (so the client
 // Write returns immediately), and then parks without ever writing a response.
 // The client Write succeeds fast; the subsequent Read blocks until the
-// TargetTimeout deadline fires.  This is the canonical request/response hang:
-// the payload gets through, but the reply never arrives.
+// TargetTimeout deadline fires.
 //
 // Key distinctions from scenario 3:
 //   - Write succeeds immediately (server is reading) — only Read blocks.
