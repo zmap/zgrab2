@@ -15,10 +15,11 @@
 package keys
 
 import (
-	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"math/big"
+
+	"github.com/zmap/zcrypto/rsa"
 )
 
 type RSAPublicKey struct {
@@ -26,7 +27,7 @@ type RSAPublicKey struct {
 }
 
 type auxRSAPublicKey struct {
-	Exponent int    `json:"exponent"`
+	Exponent *big.Int    `json:"exponent"`
 	Modulus  []byte `json:"modulus"`
 	Length   int    `json:"length"`
 }

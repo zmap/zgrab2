@@ -12,7 +12,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/md5"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
@@ -29,6 +28,7 @@ import (
 	"github.com/zmap/zgrab2/lib/ssh/internal/bcrypt_pbkdf"
 
 	"github.com/zmap/zcrypto/dsa"
+	"github.com/zmap/zcrypto/rsa"
 
 	"golang.org/x/crypto/ed25519"
 
@@ -371,120 +371,6 @@ func (r *rsaPublicKey) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ret)
 }
 
-// rsaLargeEPublicKey holds an RSA public key whose exponent is too large to
-// fit in rsa.PublicKey.E (int). Such keys are valid per RFC 4253 but are
-// rejected by the Go standard library. They appear in some FIPS test vectors
-// and are supported here for security-research scanning purposes.
-type rsaLargeEPublicKey struct {
-	N *big.Int
-	E *big.Int
-}
-
-func (r *rsaLargeEPublicKey) Type() string { return "ssh-rsa" }
-
-func (r *rsaLargeEPublicKey) Marshal() []byte {
-	wirekey := struct {
-		Name string
-		E    *big.Int
-		N    *big.Int
-	}{KeyAlgoRSA, r.E, r.N}
-	return Marshal(&wirekey)
-}
-
-// pkcs1v15DigestPrefixes mirrors the hashPrefixes table in the Go standard
-// library verbatim.
-// https://github.com/golang/go/blob/go1.23.0/src/crypto/rsa/pkcs1v15.go#L265-L274
-var pkcs1v15DigestPrefixes = map[crypto.Hash][]byte{
-	crypto.MD5:       {0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10},
-	crypto.SHA1:      {0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14},
-	crypto.SHA224:    {0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c},
-	crypto.SHA256:    {0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20},
-	crypto.SHA384:    {0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30},
-	crypto.SHA512:    {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40},
-	crypto.MD5SHA1:   {}, // A special TLS case which doesn't use an ASN1 prefix.
-	crypto.RIPEMD160: {0x30, 0x20, 0x30, 0x08, 0x06, 0x06, 0x28, 0xcf, 0x06, 0x03, 0x00, 0x31, 0x04, 0x14},
-}
-
-func (r *rsaLargeEPublicKey) Verify(data []byte, sig *Signature) error {
-	supportedAlgos := algorithmsForKeyFormat(r.Type())
-	if !contains(supportedAlgos, sig.Format) {
-		return fmt.Errorf("ssh: signature type %s for key type %s", sig.Format, r.Type())
-	}
-	hash := hashFuncs[sig.Format]
-	h := hash.New()
-	h.Write(data)
-	digest := h.Sum(nil)
-	return verifyRSAPKCS1v15LargeE(r.N, r.E, hash, digest, sig.Blob)
-}
-
-// verifyRSAPKCS1v15LargeE performs PKCS#1 v1.5 signature verification for RSA
-// keys whose exponent does not fit in an int (as required by crypto/rsa).
-//
-// The logic mirrors crypto/rsa.VerifyPKCS1v15 (go1.23.0 L345–377) combined
-// with crypto/rsa.pkcs1v15ConstructEM (go1.23.0 L307–335), substituting
-// big.Int modular exponentiation for the internal rsa.encrypt call.
-// https://github.com/golang/go/blob/go1.23.0/src/crypto/rsa/pkcs1v15.go#L345
-func verifyRSAPKCS1v15LargeE(n, e *big.Int, hash crypto.Hash, hashed, sig []byte) error {
-	keyLen := (n.BitLen() + 7) / 8
-	// https://github.com/golang/go/blob/go1.23.0/src/crypto/rsa/pkcs1v15.go#L360
-	if len(sig) != keyLen {
-		return errors.New("ssh: invalid signature")
-	}
-
-	// RSA public operation: em = sig^e mod n, left-padded to keyLen bytes.
-	// Mirrors rsa.encrypt(pub, sig) at go1.23.0/src/crypto/rsa.go#L494.
-	m := new(big.Int).SetBytes(sig)
-	m.Exp(m, e, n)
-	em := make([]byte, keyLen)
-	mBytes := m.Bytes()
-	copy(em[keyLen-len(mBytes):], mBytes)
-
-	// Construct the expected EM and compare byte-for-byte.
-	// Mirrors pkcs1v15ConstructEM: go1.23.0/pkcs1v15.go#L307-L335.
-	prefix, ok := pkcs1v15DigestPrefixes[hash]
-	if !ok {
-		return errors.New("ssh: unsupported hash algorithm for large-E RSA verification")
-	}
-	if len(hashed) != hash.Size() {
-		return errors.New("ssh: invalid hash length")
-	}
-	// https://github.com/golang/go/blob/go1.23.0/src/crypto/rsa/pkcs1v15.go#L324
-	// RFC 8017 §9.2 step 3: PS must be at least 8 bytes, so the minimum EM
-	// length is len(prefix) + len(hashed) + 2 (header) + 8 (PS min) + 1 (0x00).
-	if keyLen < len(prefix)+len(hashed)+2+8+1 {
-		return errors.New("ssh: key too small for hash")
-	}
-	// EM = 0x00 || 0x01 || PS || 0x00 || T  where T = prefix || hashed.
-	// https://github.com/golang/go/blob/go1.23.0/src/crypto/rsa/pkcs1v15.go#L327
-	expected := make([]byte, keyLen)
-	expected[1] = 1
-	for i := 2; i < keyLen-len(prefix)-len(hashed)-1; i++ {
-		expected[i] = 0xff
-	}
-	copy(expected[keyLen-len(prefix)-len(hashed):], prefix)
-	copy(expected[keyLen-len(hashed):], hashed)
-	// End mirror of pkcs1v15ConstructEM
-
-	// https://github.com/golang/go/blob/go1.23.0/src/crypto/rsa/pkcs1v15.go#L373
-	if !bytes.Equal(em, expected) {
-		return errors.New("ssh: invalid signature")
-	}
-	return nil
-}
-
-func (r *rsaLargeEPublicKey) MarshalJSON() ([]byte, error) {
-	aux := struct {
-		Exponent *big.Int `json:"exponent"`
-		Modulus  []byte   `json:"modulus"`
-		Length   int      `json:"length"`
-	}{
-		Exponent: r.E,
-		Modulus:  r.N.Bytes(),
-		Length:   r.N.BitLen(),
-	}
-	return json.Marshal(&aux)
-}
-
 // parseRSA parses an RSA key according to RFC 4253, section 6.6.
 func parseRSA(in []byte) (out PublicKey, rest []byte, err error) {
 	var w struct {
@@ -496,26 +382,18 @@ func parseRSA(in []byte) (out PublicKey, rest []byte, err error) {
 		return nil, nil, err
 	}
 
-	if w.E.BitLen() > 24 {
-		// Exponent is too large for rsa.PublicKey.E (int); use rsaLargeEPublicKey.
-		if w.E.Sign() <= 0 || w.E.Bit(0) == 0 {
-			return nil, nil, errors.New("ssh: incorrect exponent")
-		}
-		return &rsaLargeEPublicKey{N: w.N, E: w.E}, w.Rest, nil
-	}
-	e := w.E.Int64()
-	if e < 3 || e&1 == 0 {
+	e := w.E
+	if e.Cmp(big.NewInt(3)) <= 0 || e.Bit(0) == 0 {
 		return nil, nil, errors.New("ssh: incorrect exponent")
 	}
 
 	var key rsa.PublicKey
-	key.E = int(e)
+	key.E = e
 	key.N = w.N
 	return (*rsaPublicKey)(&key), w.Rest, nil
 }
 
 func (r *rsaPublicKey) Marshal() []byte {
-	e := new(big.Int).SetInt64(int64(r.E))
 	// RSA publickey struct layout should match the struct used by
 	// parseRSACert in the github.com/zmap/zgrab2/lib/agent package.
 	wirekey := struct {
@@ -524,7 +402,7 @@ func (r *rsaPublicKey) Marshal() []byte {
 		N    *big.Int
 	}{
 		KeyAlgoRSA,
-		e,
+		r.E,
 		r.N,
 	}
 	return Marshal(&wirekey)
@@ -1488,7 +1366,7 @@ func parseOpenSSHPrivateKey(key []byte, decrypt openSSHDecryptFunc) (crypto.Priv
 		pk := &rsa.PrivateKey{
 			PublicKey: rsa.PublicKey{
 				N: key.N,
-				E: int(key.E.Int64()),
+				E: key.E,
 			},
 			D:      key.D,
 			Primes: []*big.Int{key.P, key.Q},
