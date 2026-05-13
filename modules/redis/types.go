@@ -336,7 +336,8 @@ func (conn *Connection) readRedisArray(depth int) (RedisValue, error) {
 	for i = 0; i < numElements; i++ {
 		ret[i], err = conn.readRedisValueDepth(depth + 1)
 		if err != nil {
-			return nil, err
+			// Return partial array with what we collected so far
+			return ret[:i], err
 		}
 	}
 	return ret, nil

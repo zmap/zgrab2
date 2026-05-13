@@ -135,12 +135,24 @@ func TestReadRedisValue_MaxDepthExceeded(t *testing.T) {
 	conn, client := newTestConnection(data)
 	defer client.Close()
 
-	_, err := conn.ReadRedisValue()
+	val, err := conn.ReadRedisValue()
 	if err == nil {
 		t.Fatal("expected ErrMaxDepthExceeded, got nil")
 	}
 	if !errors.Is(err, ErrMaxDepthExceeded) {
 		t.Fatalf("expected ErrMaxDepthExceeded, got: %v", err)
+	}
+	// Should still return partial data — the outer arrays that were collected
+	if val == nil {
+		t.Fatal("expected partial data to be returned along with the error")
+	}
+	arr, ok := val.(RedisArray)
+	if !ok {
+		t.Fatalf("expected RedisArray partial result, got %T", val)
+	}
+	// The outermost array should have 0 elements (its only child errored)
+	if len(arr) != 0 {
+		t.Fatalf("expected 0-element partial array at top level, got %d", len(arr))
 	}
 }
 
@@ -205,6 +217,35 @@ func TestReadRedisValue_NestedArrayValid(t *testing.T) {
 	}
 	if string(arr[1].(SimpleString)) != "b" {
 		t.Fatal("expected outer value 'b'")
+	}
+}
+
+func TestReadRedisArray_PartialDataOnError(t *testing.T) {
+	// *3\r\n+a\r\n+b\r\n — array expects 3 elements but connection closes after 2
+	// Should return the 2 collected elements along with the error
+	data := []byte("*3\r\n+a\r\n+b\r\n")
+	conn, client := newTestConnection(data)
+	defer client.Close()
+
+	val, err := conn.ReadRedisValue()
+	if err == nil {
+		t.Fatal("expected error for incomplete array, got nil")
+	}
+	if val == nil {
+		t.Fatal("expected partial data to be returned with the error")
+	}
+	arr, ok := val.(RedisArray)
+	if !ok {
+		t.Fatalf("expected RedisArray, got %T", val)
+	}
+	if len(arr) != 2 {
+		t.Fatalf("expected 2 collected elements, got %d", len(arr))
+	}
+	if string(arr[0].(SimpleString)) != "a" {
+		t.Fatal("expected first element 'a'")
+	}
+	if string(arr[1].(SimpleString)) != "b" {
+		t.Fatal("expected second element 'b'")
 	}
 }
 
