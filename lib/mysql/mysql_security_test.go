@@ -132,8 +132,8 @@ func TestReadHandshakePacket_LongServerVersionTruncatesRest(t *testing.T) {
 	longVersion := strings.Repeat("x", 200)
 	body := []byte{0x0a}
 	body = append(body, []byte(longVersion)...)
-	body = append(body, 0x00)     // NUL terminator
-	body = append(body, 0x01)     // only 1 byte of rest
+	body = append(body, 0x00) // NUL terminator
+	body = append(body, 0x01) // only 1 byte of rest
 	c := &Connection{}
 	_, err := c.readHandshakePacket(body)
 	if err == nil {
@@ -147,13 +147,13 @@ func TestReadHandshakePacket_AuthPluginDataLenUnderflow(t *testing.T) {
 	body := buildMinimalHandshake("5.7.0")
 	// Extend rest to 31+ bytes to enter the non-short path
 	// We need: 15 (already have) + 16 more = CharSet(1) + StatusFlags(2) + CapFlagsHigh(2) + AuthPluginDataLen(1) + Reserved(10) = 16
-	body = append(body, 0x21)                                      // CharacterSet
-	body = append(body, 0x00, 0x00)                                // StatusFlags
+	body = append(body, 0x21)       // CharacterSet
+	body = append(body, 0x00, 0x00) // StatusFlags
 	capFlagsHigh := make([]byte, 2)
 	binary.LittleEndian.PutUint16(capFlagsHigh, uint16(CLIENT_PLUGIN_AUTH>>16))
-	body = append(body, capFlagsHigh...)                           // CapabilityFlags high
-	body = append(body, 2)                                         // AuthPluginDataLen = 2 (< 8, triggers underflow in old code)
-	body = append(body, make([]byte, 10)...)                       // Reserved
+	body = append(body, capFlagsHigh...)     // CapabilityFlags high
+	body = append(body, 2)                   // AuthPluginDataLen = 2 (< 8, triggers underflow in old code)
+	body = append(body, make([]byte, 10)...) // Reserved
 
 	c := &Connection{}
 	pkt, err := c.readHandshakePacket(body)
