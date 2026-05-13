@@ -68,16 +68,25 @@ func readInstanceNumber(b []byte) (leftovers []byte, instanceNumber uint32, err 
 	buf := bytes.NewBuffer(b)
 	leftovers = b
 	var openByte, appByte, closeByte byte
-	if openByte, err = buf.ReadByte(); openByte != 0x3e {
+	if openByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if openByte != 0x3e {
+		err = errInvalidPacket
 		return
 	}
-	if appByte, err = buf.ReadByte(); appByte != 0xc4 {
+	if appByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if appByte != 0xc4 {
+		err = errInvalidPacket
 		return
 	}
 	if err = binary.Read(buf, binary.BigEndian, &instanceNumber); err != nil {
 		return
 	}
-	if closeByte, err = buf.ReadByte(); closeByte != 0x3f {
+	if closeByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if closeByte != 0x3f {
+		err = errInvalidPacket
 		return
 	}
 	bytesRead := len(b) - buf.Len()
@@ -90,10 +99,16 @@ func readVendorID(b []byte) (leftovers []byte, vendorID uint16, err error) {
 	buf := bytes.NewBuffer(b)
 	leftovers = b
 	var openByte, appByte, closeByte byte
-	if openByte, err = buf.ReadByte(); openByte != 0x3e {
+	if openByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if openByte != 0x3e {
+		err = errInvalidPacket
 		return
 	}
-	if appByte, err = buf.ReadByte(); appByte != 0x22 && appByte != 0x21 {
+	if appByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if appByte != 0x22 && appByte != 0x21 {
+		err = errInvalidPacket
 		return
 	}
 	if appByte == 0x22 {
@@ -107,7 +122,10 @@ func readVendorID(b []byte) (leftovers []byte, vendorID uint16, err error) {
 		}
 		vendorID = uint16(vendorIDByte)
 	}
-	if closeByte, err = buf.ReadByte(); closeByte != 0x3f {
+	if closeByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if closeByte != 0x3f {
+		err = errInvalidPacket
 		return
 	}
 	bytesRead := len(b) - buf.Len()
@@ -119,10 +137,16 @@ func readStringProperty(b []byte) (leftovers []byte, value string, err error) {
 	buf := bytes.NewBuffer(b)
 	leftovers = b
 	var openByte, appByte, closeByte, lengthByte byte
-	if openByte, err = buf.ReadByte(); openByte != 0x3e {
+	if openByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if openByte != 0x3e {
+		err = errInvalidPacket
 		return
 	}
-	if appByte, err = buf.ReadByte(); appByte&0xF8 != 0x70 {
+	if appByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if appByte&0xF8 != 0x70 {
+		err = errInvalidPacket
 		return
 	}
 	lengthBits := appByte & 0x07
@@ -143,7 +167,10 @@ func readStringProperty(b []byte) (leftovers []byte, value string, err error) {
 		return
 	}
 	value = string(propertyBytes[1:])
-	if closeByte, err = buf.ReadByte(); closeByte != 0x3f {
+	if closeByte, err = buf.ReadByte(); err != nil {
+		return
+	} else if closeByte != 0x3f {
+		err = errInvalidPacket
 		return
 	}
 	bytesRead := len(b) - buf.Len()
