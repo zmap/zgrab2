@@ -14,6 +14,16 @@ on:
       - 'modules/mqtt/**'
       - 'modules/mssql/**'
       - 'modules/ntp/**'
+      - 'modules/enip/**'
+      - 'modules/codesys2/**'
+      - 'modules/memcached/**'
+      - 'modules/ipp/**'
+      - 'modules/rdp/**'
+      - 'modules/postgres/**'
+      - 'modules/dnp3/**'
+      - 'modules/modbus/**'
+      - 'modules/socks5/**'
+      - 'modules/telnet/**'
       - 'lib/mysql/**'
       - 'lib/smb/**'
 
@@ -45,6 +55,26 @@ jobs:
             package: ./modules/ntp/...
           - module: smb
             package: ./lib/smb/smb/encoder/...
+          - module: enip
+            package: ./modules/enip/...
+          - module: codesys2
+            package: ./modules/codesys2/...
+          - module: memcached
+            package: ./modules/memcached/...
+          - module: ipp
+            package: ./modules/ipp/...
+          - module: rdp
+            package: ./modules/rdp/...
+          - module: postgres
+            package: ./modules/postgres/...
+          - module: dnp3
+            package: ./modules/dnp3/...
+          - module: modbus
+            package: ./modules/modbus/...
+          - module: socks5
+            package: ./modules/socks5/...
+          - module: telnet
+            package: ./modules/telnet/...
     steps:
       - name: Check out source
         uses: actions/checkout@v6

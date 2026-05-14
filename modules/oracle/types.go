@@ -119,7 +119,7 @@ func getSliceReader(data []byte) *sliceReader {
 }
 
 func (reader *sliceReader) Read(output []byte) (int, error) {
-	if reader.Data == nil {
+	if len(reader.Data) == 0 {
 		return 0, io.EOF
 	}
 	n := len(output)

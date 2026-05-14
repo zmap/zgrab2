@@ -16,18 +16,41 @@ test:
 	go test -v -failfast ./...
 
 FUZZ_TIME ?= 30s
-FUZZ_PACKAGES = ./modules/redis/... ./modules/siemens/... ./modules/bacnet/... ./modules/oracle/... ./modules/mongodb/... ./modules/mqtt/... ./modules/mssql/... ./modules/ntp/... ./lib/mysql/... ./lib/smb/smb/encoder/...
+FUZZ_PARALLEL ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+FUZZ_PACKAGES = \
+	./modules/redis/... \
+	./modules/siemens/... \
+	./modules/bacnet/... \
+	./modules/oracle/... \
+	./modules/mongodb/... \
+	./modules/mqtt/... \
+	./modules/mssql/... \
+	./modules/ntp/... \
+	./modules/enip/... \
+	./modules/codesys2/... \
+	./modules/memcached/... \
+	./modules/ipp/... \
+	./modules/rdp/... \
+	./modules/postgres/... \
+	./modules/dnp3/... \
+	./modules/modbus/... \
+	./modules/socks5/... \
+	./modules/telnet/... \
+	./lib/mysql/... \
+	./lib/smb/smb/encoder/...
 
 fuzz:
-	@echo "Running fuzz tests ($(FUZZ_TIME) per target)..."
+	@echo "Running fuzz tests ($(FUZZ_TIME) per target, $(FUZZ_PARALLEL) parallel)..."
 	@for pkg in $(FUZZ_PACKAGES); do \
 		fuzz_funcs=$$(go test -list 'Fuzz.*' $$pkg 2>/dev/null | grep '^Fuzz'); \
 		for func in $$fuzz_funcs; do \
-			echo ""; \
-			echo "=== Fuzzing $$func in $$pkg ==="; \
-			go test -fuzz="^$$func$$" -fuzztime=$(FUZZ_TIME) $$pkg || true; \
+			echo "$$pkg $$func"; \
 		done; \
-	done
+	done | xargs -P$(FUZZ_PARALLEL) -L1 sh -c ' \
+		echo "=== Fuzzing $$2 in $$1 ==="; \
+		go test -run=^$$ -fuzz="^$$2$$" -fuzztime=$(FUZZ_TIME) "$$1" 2>&1; \
+		echo "--- Done $$2 in $$1 (exit $$?) ---" \
+	' _
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
