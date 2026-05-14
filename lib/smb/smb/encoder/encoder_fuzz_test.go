@@ -32,7 +32,7 @@ type SimpleFuzzStruct struct {
 // FuzzUnmarshal exercises the encoder's Unmarshal function with various binary inputs
 func FuzzUnmarshal(f *testing.F) {
 	// Seed 1: Valid SimpleFuzzStruct
-	seed1 := make([]byte, 18) // 4 + 2 + 4 + 8 bytes
+	seed1 := make([]byte, 18)                    // 4 + 2 + 4 + 8 bytes
 	copy(seed1[0:4], []byte("\xFE\x53\x4D\x42")) // Magic: ╙■SMB
 	binary.LittleEndian.PutUint16(seed1[4:6], 42)
 	binary.LittleEndian.PutUint32(seed1[6:10], 0x00000000)
@@ -56,17 +56,17 @@ func FuzzUnmarshal(f *testing.F) {
 
 	// Seed 5: Valid FuzzTestStruct with fixed and variable fields
 	seed5 := make([]byte, 64)
-	seed5[0] = 0x01                                      // U8Field
-	binary.LittleEndian.PutUint16(seed5[1:3], 0x0200)   // U16Field
-	binary.LittleEndian.PutUint32(seed5[3:7], 0x03000000) // U32Field
-	binary.LittleEndian.PutUint64(seed5[7:15], 0x0400000000000000) // U64Field
+	seed5[0] = 0x01                                                            // U8Field
+	binary.LittleEndian.PutUint16(seed5[1:3], 0x0200)                          // U16Field
+	binary.LittleEndian.PutUint32(seed5[3:7], 0x03000000)                      // U32Field
+	binary.LittleEndian.PutUint64(seed5[7:15], 0x0400000000000000)             // U64Field
 	copy(seed5[15:23], []byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22}) // FixedBytes
-	binary.LittleEndian.PutUint16(seed5[23:25], 4)      // LenField (length of VarBytes)
-	binary.LittleEndian.PutUint16(seed5[25:27], 33)     // OffsetField (offset to VarBytes)
+	binary.LittleEndian.PutUint16(seed5[23:25], 4)                             // LenField (length of VarBytes)
+	binary.LittleEndian.PutUint16(seed5[25:27], 33)                            // OffsetField (offset to VarBytes)
 	// VarBytes at offset 33 (4 bytes)
 	copy(seed5[33:37], []byte{0xDE, 0xAD, 0xBE, 0xEF})
 	// NestedStruct after offset/len fields
-	binary.LittleEndian.PutUint16(seed5[27:29], 0x1234) // NestedStruct.A
+	binary.LittleEndian.PutUint16(seed5[27:29], 0x1234)     // NestedStruct.A
 	binary.LittleEndian.PutUint32(seed5[29:33], 0x56789ABC) // NestedStruct.B
 	f.Add(seed5)
 
@@ -122,27 +122,27 @@ type SMBHeaderV1 struct {
 func FuzzUnmarshalSMBHeader(f *testing.F) {
 	// Seed 1: Valid SMB2 header
 	v2seed := make([]byte, 64)
-	copy(v2seed[0:4], []byte("\xFE\x53\x4D\x42")) // ╙■SMB
-	binary.LittleEndian.PutUint16(v2seed[4:6], 64)    // StructureSize
-	binary.LittleEndian.PutUint16(v2seed[6:8], 1)     // CreditCharge
-	binary.LittleEndian.PutUint32(v2seed[8:12], 0)    // Status (OK)
-	binary.LittleEndian.PutUint16(v2seed[12:14], 0)   // Command (Negotiate)
-	binary.LittleEndian.PutUint16(v2seed[14:16], 1)   // Credits
-	binary.LittleEndian.PutUint32(v2seed[16:20], 0)   // Flags
-	binary.LittleEndian.PutUint32(v2seed[20:24], 0)   // NextCommand
-	binary.LittleEndian.PutUint64(v2seed[24:32], 1)   // MessageID
-	binary.LittleEndian.PutUint32(v2seed[32:36], 0)   // Reserved
-	binary.LittleEndian.PutUint32(v2seed[36:40], 0)   // TreeID
-	binary.LittleEndian.PutUint64(v2seed[40:48], 0)   // SessionID
+	copy(v2seed[0:4], []byte("\xFE\x53\x4D\x42"))   // ╙■SMB
+	binary.LittleEndian.PutUint16(v2seed[4:6], 64)  // StructureSize
+	binary.LittleEndian.PutUint16(v2seed[6:8], 1)   // CreditCharge
+	binary.LittleEndian.PutUint32(v2seed[8:12], 0)  // Status (OK)
+	binary.LittleEndian.PutUint16(v2seed[12:14], 0) // Command (Negotiate)
+	binary.LittleEndian.PutUint16(v2seed[14:16], 1) // Credits
+	binary.LittleEndian.PutUint32(v2seed[16:20], 0) // Flags
+	binary.LittleEndian.PutUint32(v2seed[20:24], 0) // NextCommand
+	binary.LittleEndian.PutUint64(v2seed[24:32], 1) // MessageID
+	binary.LittleEndian.PutUint32(v2seed[32:36], 0) // Reserved
+	binary.LittleEndian.PutUint32(v2seed[36:40], 0) // TreeID
+	binary.LittleEndian.PutUint64(v2seed[40:48], 0) // SessionID
 	// Signature (16 bytes) at offset 48-64
 	f.Add(v2seed)
 
 	// Seed 2: Valid SMB1 header
 	v1seed := make([]byte, 32)
-	copy(v1seed[0:4], []byte("\xFF\x53\x4D\x42")) // ˙■SMB
-	v1seed[4] = 0x72                                 // Command (Negotiate)
-	binary.LittleEndian.PutUint32(v1seed[5:9], 0)  // Status
-	v1seed[9] = 0x18                                 // Flags
+	copy(v1seed[0:4], []byte("\xFF\x53\x4D\x42"))        // ˙■SMB
+	v1seed[4] = 0x72                                     // Command (Negotiate)
+	binary.LittleEndian.PutUint32(v1seed[5:9], 0)        // Status
+	v1seed[9] = 0x18                                     // Flags
 	binary.LittleEndian.PutUint16(v1seed[10:12], 0xc843) // Flags2
 	binary.LittleEndian.PutUint16(v1seed[12:14], 0)      // PIDHigh
 	// SecurityFeatures (8 bytes) at offset 14-22
@@ -198,9 +198,9 @@ func FuzzUnmarshalVariableLength(f *testing.F) {
 	// Seed 1: Valid variable length structure
 	seed1 := make([]byte, 32)
 	copy(seed1[0:4], []byte("HEAD"))
-	binary.LittleEndian.PutUint16(seed1[4:6], 8)   // DataLen
-	binary.LittleEndian.PutUint16(seed1[6:8], 12)  // DataOffset
-	binary.LittleEndian.PutUint32(seed1[8:12], 0)  // Padding
+	binary.LittleEndian.PutUint16(seed1[4:6], 8)  // DataLen
+	binary.LittleEndian.PutUint16(seed1[6:8], 12) // DataOffset
+	binary.LittleEndian.PutUint32(seed1[8:12], 0) // Padding
 	copy(seed1[12:20], []byte("TESTDATA"))
 	f.Add(seed1)
 
@@ -215,16 +215,16 @@ func FuzzUnmarshalVariableLength(f *testing.F) {
 	// Seed 3: Invalid offset (beyond buffer)
 	seed3 := make([]byte, 12)
 	copy(seed3[0:4], []byte("HEAD"))
-	binary.LittleEndian.PutUint16(seed3[4:6], 100)   // DataLen = 100
-	binary.LittleEndian.PutUint16(seed3[6:8], 1000)  // DataOffset = 1000 (invalid)
+	binary.LittleEndian.PutUint16(seed3[4:6], 100)  // DataLen = 100
+	binary.LittleEndian.PutUint16(seed3[6:8], 1000) // DataOffset = 1000 (invalid)
 	binary.LittleEndian.PutUint32(seed3[8:12], 0)
 	f.Add(seed3)
 
 	// Seed 4: Overlapping offset
 	seed4 := make([]byte, 20)
 	copy(seed4[0:4], []byte("HEAD"))
-	binary.LittleEndian.PutUint16(seed4[4:6], 4)  // DataLen = 4
-	binary.LittleEndian.PutUint16(seed4[6:8], 2)  // DataOffset = 2 (overlaps header)
+	binary.LittleEndian.PutUint16(seed4[4:6], 4) // DataLen = 4
+	binary.LittleEndian.PutUint16(seed4[6:8], 2) // DataOffset = 2 (overlaps header)
 	binary.LittleEndian.PutUint32(seed4[8:12], 0)
 	f.Add(seed4)
 

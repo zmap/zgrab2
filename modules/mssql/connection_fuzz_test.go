@@ -10,10 +10,10 @@ func FuzzReadPacket(f *testing.F) {
 	// TDS packet header is 8 bytes: type(1), status(1), length(2, big-endian), SPID(2), packetID(1), window(1)
 	// Followed by payload (if any)
 	f.Add([]byte("\x04\x01\x00\x0b\x00\x00\x00\x00\x00\x00\x00"))
-	
+
 	// Seed with a minimal valid packet (just header, no payload)
 	f.Add([]byte("\x04\x01\x00\x08\x00\x00\x00\x00"))
-	
+
 	// Seed with a packet with some payload
 	f.Add([]byte("\x04\x01\x00\x10\x00\x00\x00\x00TESTDATA"))
 

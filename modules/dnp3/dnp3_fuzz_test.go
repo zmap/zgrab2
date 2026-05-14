@@ -12,7 +12,7 @@ func FuzzGetDNP3Banner(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		clientConn, serverConn := net.Pipe()
 		done := make(chan struct{})
-		
+
 		go func() {
 			defer close(done)
 			defer serverConn.Close()

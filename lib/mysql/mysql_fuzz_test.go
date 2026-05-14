@@ -14,12 +14,12 @@ func FuzzReadHandshakePacket(f *testing.F) {
 		0x01, 0x00, 0x00, 0x00, // thread ID (4 bytes)
 		// auth-plugin-data-part-1 (8 bytes)
 		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-		0x00,                   // filler
-		0xff, 0xf7,             // capability flags (lower 2 bytes)
-		0x21,                   // character set
-		0x02, 0x00,             // status flags
-		0x0f, 0x80,             // capability flags (upper 2 bytes)
-		0x15,                   // auth plugin data length (21)
+		0x00,       // filler
+		0xff, 0xf7, // capability flags (lower 2 bytes)
+		0x21,       // character set
+		0x02, 0x00, // status flags
+		0x0f, 0x80, // capability flags (upper 2 bytes)
+		0x15,                                                       // auth plugin data length (21)
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // reserved (10 bytes)
 		// auth-plugin-data-part-2 (12 bytes + NUL)
 		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x00,
@@ -88,6 +88,6 @@ func FuzzReadNulString(f *testing.F) {
 	f.Add([]byte{0x68, 0x65, 0x6c, 0x6c, 0x6f})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _ = readNulString(data)
+		_, _, _ = readNulString(data)
 	})
 }
