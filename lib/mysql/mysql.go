@@ -329,10 +329,21 @@ func (p *HandshakePacket) MarshalJSON() ([]byte, error) {
 }
 
 func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) {
+	if len(body) < 1 {
+		return nil, fmt.Errorf("handshake packet too short: %d bytes", len(body))
+	}
 	var rest []byte
+	var err error
 	ret := new(HandshakePacket)
 	ret.ProtocolVersion = body[0]
-	ret.ServerVersion, rest = readNulString(body[1:])
+	ret.ServerVersion, rest, err = readNulString(body[1:])
+	if err != nil {
+		return nil, fmt.Errorf("error reading ServerVersion: %w", err)
+	}
+	// Minimum fields before the "short handshake" branch: ConnectionID(4) + AuthPluginData1(8) + Filler1(1) + CapabilityFlags(2) = 15 bytes
+	if len(rest) < 15 {
+		return nil, fmt.Errorf("handshake packet too short after ServerVersion: need 15 bytes, got %d", len(rest))
+	}
 	ret.ConnectionID = binary.LittleEndian.Uint32(rest[0:4])
 	ret.AuthPluginData1 = rest[4:12]
 	ret.Filler1 = rest[12]
@@ -347,12 +358,13 @@ func (c *Connection) readHandshakePacket(body []byte) (*HandshakePacket, error) 
 		ret.AuthPluginDataLen = rest[20]
 		if (ret.CapabilityFlags & CLIENT_PLUGIN_AUTH) != 0 {
 			ret.Reserved = rest[21:31]
-			part2Len := ret.AuthPluginDataLen - 8
+			// Use int arithmetic to avoid byte underflow when AuthPluginDataLen < 8
+			part2Len := int(ret.AuthPluginDataLen) - 8
 			// part-2-len = MAX(13, auth_plugin_data_len - 8)
 			if part2Len < 13 {
 				part2Len = 13
 			}
-			if byte(len(rest)-31) >= part2Len {
+			if len(rest)-31 >= part2Len {
 				ret.AuthPluginData2 = rest[31 : 31+part2Len]
 				if ret.CapabilityFlags&CLIENT_SECURE_CONNECTION != 0 {
 					// If AuthPluginName does include a NUL terminator, strip it.
@@ -482,6 +494,9 @@ type ERRPacket struct {
 }
 
 func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
+	if len(body) < 3 {
+		return nil, fmt.Errorf("ERR packet too short: need at least 3 bytes, got %d", len(body))
+	}
 	ret := new(ERRPacket)
 	ret.Header = body[0]
 	ret.ErrorCode = binary.LittleEndian.Uint16(body[1:3])
@@ -493,6 +508,9 @@ func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 		// This is a valid case -- e.g. client hostname not allowed
 	}
 	if flags&CLIENT_PROTOCOL_41 != 0 {
+		if len(rest) < 6 {
+			return nil, fmt.Errorf("ERR packet too short for CLIENT_PROTOCOL_41: need 6 bytes after error code, got %d", len(rest))
+		}
 		ret.SQLStateMarker = string(rest[0:1])
 		ret.SQLState = string(rest[1:6])
 		rest = rest[6:]
@@ -797,9 +815,12 @@ func (c *Connection) Disconnect() error {
 }
 
 // NUL STRING type from https://web.archive.org/web/20160316113745/https://dev.mysql.com/doc/internals/en/string.html
-func readNulString(body []byte) (string, []byte) {
+func readNulString(body []byte) (string, []byte, error) {
 	nul := strings.Index(string(body), "\x00")
-	return string(body[:nul]), body[nul+1:]
+	if nul < 0 {
+		return "", nil, fmt.Errorf("no NUL terminator found in %d-byte body", len(body))
+	}
+	return string(body[:nul]), body[nul+1:], nil
 }
 
 // LEN INT type from https://web.archive.org/web/20160316122921/https://dev.mysql.com/doc/internals/en/integer.html
@@ -824,8 +845,8 @@ func readLenInt(body []byte) (uint64, []byte, error) {
 		// two little-endian bytes
 		return uint64(binary.LittleEndian.Uint16(body[1:3])), body[3:], nil
 	case 0xfd:
-		// three little-endian bytes (ignore fourth)
-		return uint64(binary.LittleEndian.Uint32(body[1:5]) & 0x00ffffff), body[4:], nil
+		// three little-endian bytes
+		return uint64(body[1]) | uint64(body[2])<<8 | uint64(body[3])<<16, body[4:], nil
 	case 0xfe:
 		if bodyLen < 9 {
 			return 0, nil, fmt.Errorf("invalid data: first byte=0xfe, required size=8, got %d", bodyLen-1)
@@ -846,5 +867,5 @@ func readLenString(body []byte) (string, []byte, error) {
 	if uint64(len(rest)) < length {
 		return "", nil, fmt.Errorf("string length 0x%x longer than remaining body size 0x%x", length, len(rest))
 	}
-	return string(rest[:length]), rest[length+1:], nil
+	return string(rest[:length]), rest[length:], nil
 }
