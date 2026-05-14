@@ -17,7 +17,6 @@ import (
 	zgrab2 "github.com/zmap/zgrab2" // adjust import path to match your module
 )
 
-
 // This file incudes tests to verify our timeouts at different phases of a connection, ie: TCP SYN, TLS handshake, read,
 // and write on a connection
 
