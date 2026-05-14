@@ -25,15 +25,13 @@ func FuzzNegotiateOptions(f *testing.F) {
 		go func() {
 			defer close(done)
 			defer serverConn.Close()
-			// Send fuzz data immediately
+			// Send fuzz data then close write direction so NegotiateOptions
+			// sees EOF instead of blocking forever on Read.
 			serverConn.Write(data)
-			// Keep reading to drain any responses (ignore errors)
-			buf := make([]byte, 1024)
-			for {
-				if _, err := serverConn.Read(buf); err != nil {
-					break
-				}
-			}
+			// Use CloseWrite if available, otherwise just close.
+			// net.Pipe returns *net.pipe which doesn't have CloseWrite,
+			// so we close fully — NegotiateOptions will get an error on Read.
+			serverConn.Close()
 		}()
 
 		logStruct := &TelnetLog{}
