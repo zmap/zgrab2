@@ -311,6 +311,9 @@ func parseResponse(result []byte) (*statResponse, error) {
 	}
 	keyLength := int(binary.BigEndian.Uint16(result[2:4]))
 	totalBody := int(binary.BigEndian.Uint32(result[8:12]))
+	if totalBody < 0 {
+		return nil, fmt.Errorf("invalid total body length: %d", totalBody)
+	}
 	// Check if the given keylength and the total body
 	// fit in the actual packet bounds
 	var key, val string
@@ -356,12 +359,12 @@ func CleanBinary(results []byte) ([]string, error) {
 		} else if !opCodeCorrect {
 			return nil, errors.New("invalid opcode")
 		}
+		trimmedResults = append(trimmedResults, stat)
 		if int(response.TotalBody) <= len(results)-24 {
 			results = results[24+int(response.TotalBody):]
 		} else {
 			break
 		}
-		trimmedResults = append(trimmedResults, stat)
 	}
 	if len(trimmedResults) == 0 {
 		return nil, errors.New("no valid stats found in binary response")
