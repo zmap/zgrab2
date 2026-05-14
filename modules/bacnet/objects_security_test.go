@@ -8,11 +8,11 @@ import (
 // --- readInstanceNumber tests ---
 
 func buildInstanceNumber(open, app byte, instanceNum uint32, close byte) []byte {
-	buf := []byte{open, app}
-	numBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(numBytes, instanceNum)
-	buf = append(buf, numBytes...)
-	buf = append(buf, close)
+	buf := make([]byte, 7)
+	buf[0] = open
+	buf[1] = app
+	binary.BigEndian.PutUint32(buf[2:], instanceNum)
+	buf[6] = close
 	return buf
 }
 
@@ -73,11 +73,11 @@ func TestReadInstanceNumber_TruncatedAfterApp(t *testing.T) {
 // --- readVendorID tests ---
 
 func TestReadVendorID_Valid16Bit(t *testing.T) {
-	buf := []byte{0x3e, 0x22}
-	vendorBytes := make([]byte, 2)
-	binary.BigEndian.PutUint16(vendorBytes, 0x1234)
-	buf = append(buf, vendorBytes...)
-	buf = append(buf, 0x3f)
+	buf := make([]byte, 5)
+	buf[0] = 0x3e
+	buf[1] = 0x22
+	binary.BigEndian.PutUint16(buf[2:], 0x1234) // Vendor Bytes
+	buf[4] = 0x3f
 
 	_, vendorID, err := readVendorID(buf)
 	if err != nil {
@@ -133,9 +133,11 @@ func TestReadVendorID_Empty(t *testing.T) {
 // --- readStringProperty tests ---
 
 func buildStringProperty(open, appByte byte, content []byte, close byte) []byte {
-	buf := []byte{open, appByte}
-	buf = append(buf, content...)
-	buf = append(buf, close)
+	buf := make([]byte, 2+len(content)+1)
+	buf[0] = open
+	buf[1] = appByte
+	copy(buf[2:], content)
+	buf[len(buf)-1] = close
 	return buf
 }
 
