@@ -27,9 +27,9 @@ type RSAPublicKey struct {
 }
 
 type auxRSAPublicKey struct {
-	Exponent *big.Int    `json:"exponent"`
-	Modulus  []byte `json:"modulus"`
-	Length   int    `json:"length"`
+	Exponent *big.Int `json:"exponent"`
+	Modulus  []byte   `json:"modulus"`
+	Length   int      `json:"length"`
 }
 
 type RSAClientParams struct {
