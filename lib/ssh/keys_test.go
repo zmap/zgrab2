@@ -19,9 +19,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zmap/zcrypto/dsa"
 	_ "github.com/zmap/zcrypto/dsa"
 	"github.com/zmap/zcrypto/rsa"
-	"github.com/zmap/zcrypto/dsa"
 	"golang.org/x/crypto/ed25519"
 
 	"github.com/zmap/zgrab2/lib/ssh/testdata"
