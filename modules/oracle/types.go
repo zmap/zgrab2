@@ -1600,11 +1600,17 @@ func DecodeDescriptor(descriptor string) (Descriptor, error) {
 			rest = strings.TrimSpace(rest[eq:])
 		case ')':
 			// Close paren: pop off the last 'object' suffix
+			if len(path) == 0 {
+				return nil, ErrInvalidData
+			}
 			path = path[0 : len(path)-1]
 			// Consume the ')'
 			rest = strings.TrimSpace(rest[1:])
 		case '=':
 			rest = strings.TrimSpace(rest[1:])
+			if len(rest) == 0 {
+				return nil, ErrInvalidData
+			}
 			if rest[0] != '(' {
 				// What follows is a primitive
 				closer := -1

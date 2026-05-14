@@ -10,7 +10,7 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test fuzz install uninstall
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test fuzz check-fuzz-coverage install uninstall
 
 test:
 	go test -v -failfast ./...
@@ -51,6 +51,9 @@ fuzz:
 		go test -run=^$$ -fuzz="^$$2$$" -fuzztime=$(FUZZ_TIME) "$$1" 2>&1; \
 		echo "--- Done $$2 in $$1 (exit $$?) ---" \
 	' _
+
+check-fuzz-coverage:
+	@scripts/check-fuzz-coverage.sh
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")

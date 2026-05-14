@@ -6,28 +6,21 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'modules/redis/**'
-      - 'modules/siemens/**'
-      - 'modules/bacnet/**'
-      - 'modules/oracle/**'
-      - 'modules/mongodb/**'
-      - 'modules/mqtt/**'
-      - 'modules/mssql/**'
-      - 'modules/ntp/**'
-      - 'modules/enip/**'
-      - 'modules/codesys2/**'
-      - 'modules/memcached/**'
-      - 'modules/ipp/**'
-      - 'modules/rdp/**'
-      - 'modules/postgres/**'
-      - 'modules/dnp3/**'
-      - 'modules/modbus/**'
-      - 'modules/socks5/**'
-      - 'modules/telnet/**'
-      - 'lib/mysql/**'
-      - 'lib/smb/**'
+      - 'modules/**'
+      - 'lib/**'
 
 jobs:
+  fuzz-coverage:
+    name: Check fuzz coverage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Check fuzz test coverage
+        run: scripts/check-fuzz-coverage.sh
+
   fuzz:
     name: Fuzz ${{ matrix.module }}
     runs-on: ubuntu-latest
