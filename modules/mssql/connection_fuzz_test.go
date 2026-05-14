@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"bytes"
 	"net"
 	"testing"
 )
@@ -38,5 +39,16 @@ func FuzzReadPacket(f *testing.F) {
 
 		// Try to read a packet - let any panics propagate
 		tdsConn.ReadPacket()
+	})
+}
+
+func FuzzReadTDSHeader(f *testing.F) {
+	// Seed: 8 bytes (TDS header: type, status, length(2), spid(2), packetid, window)
+	f.Add([]byte{0x04, 0x01, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00})
+	f.Add([]byte{0x04, 0x01, 0x00, 0x10, 0x00, 0x01, 0x01, 0x00})
+	f.Add([]byte{0x12, 0x01, 0x00, 0x20, 0x00, 0x00, 0x02, 0x00})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		_, _ = readTDSHeader(bytes.NewReader(data))
 	})
 }

@@ -34,10 +34,15 @@ for pkg_dir in $(find modules lib -type f -name '*.go' ! -name '*_test.go' \
     fi
 
     # Function-level coverage: count parse functions (excluding test files) vs fuzz functions
-    parse_count=$(find "$pkg_dir" -maxdepth 1 -name '*.go' ! -name '*_test.go' \
-        -exec grep -Ehc 'func.*([Uu]nmarshal|[Uu]n[Mm]arshal|[Dd]ecode[A-Za-z]|[Pp]arse[A-Za-z]|[Rr]ead[A-Za-z])' {} + 2>/dev/null \
-        | awk '{s+=$1} END{print s+0}')
-    fuzz_count=$(grep -c '^func Fuzz' "$pkg_dir"/*_fuzz_test.go 2>/dev/null || echo 0)
+    parse_count=0
+    while IFS= read -r n; do
+        parse_count=$((parse_count + n))
+    done < <(find "$pkg_dir" -maxdepth 1 -name '*.go' ! -name '*_test.go' \
+        -exec grep -Ehc 'func.*([Uu]nmarshal|[Uu]n[Mm]arshal|[Dd]ecode[A-Za-z]|[Pp]arse[A-Za-z]|[Rr]ead[A-Za-z])' {} + 2>/dev/null || true)
+    fuzz_count=0
+    while IFS= read -r n; do
+        fuzz_count=$((fuzz_count + n))
+    done < <(grep -c '^func Fuzz' "$pkg_dir"/*_fuzz_test.go 2>/dev/null || true)
 
     if [ "$parse_count" -gt 0 ] && [ "$fuzz_count" -lt $(( (parse_count + 2) / 3 )) ]; then
         low_coverage+=("$pkg_dir: $fuzz_count fuzz targets for ~$parse_count parse functions")

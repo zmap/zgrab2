@@ -37,7 +37,9 @@ FUZZ_PACKAGES = \
 	./modules/socks5/... \
 	./modules/telnet/... \
 	./lib/mysql/... \
-	./lib/smb/smb/encoder/...
+	./lib/ntlm/... \
+	./lib/smb/smb/encoder/... \
+	./modules/pptp/...
 
 fuzz:
 	@echo "Running fuzz tests ($(FUZZ_TIME) per target, $(FUZZ_PARALLEL) parallel)..."
