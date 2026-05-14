@@ -306,12 +306,15 @@ type statResponse struct {
 //
 //	https://docs.memcached.org/protocols/binary/#example-10
 func parseResponse(result []byte) (*statResponse, error) {
-	keyLength := binary.BigEndian.Uint16(result[2:4])
-	totalBody := binary.BigEndian.Uint32(result[8:12])
+	if len(result) < 24 {
+		return nil, fmt.Errorf("response too short: %d bytes", len(result))
+	}
+	keyLength := int(binary.BigEndian.Uint16(result[2:4]))
+	totalBody := int(binary.BigEndian.Uint32(result[8:12]))
 	// Check if the given keylength and the total body
-	// fit in the actualy packet bounds
+	// fit in the actual packet bounds
 	var key, val string
-	if uint32(keyLength) < totalBody && uint16(len(result)) >= 24+keyLength && uint32(len(result)) >= 24+totalBody {
+	if keyLength <= totalBody && 24+keyLength <= len(result) && 24+totalBody <= len(result) {
 		key = string(result[24 : 24+keyLength])
 		val = string(result[24+keyLength : 24+totalBody])
 	} else {
@@ -320,11 +323,11 @@ func parseResponse(result []byte) (*statResponse, error) {
 	returnVal := statResponse{
 		result[0],
 		result[1],
-		keyLength,
+		uint16(keyLength),
 		result[4],
 		result[5],
 		binary.BigEndian.Uint16(result[6:8]),
-		totalBody,
+		uint32(totalBody),
 		binary.BigEndian.Uint32(result[12:16]),
 		binary.BigEndian.Uint64(result[16:24]),
 		key,
@@ -353,8 +356,10 @@ func CleanBinary(results []byte) ([]string, error) {
 		} else if !opCodeCorrect {
 			return nil, errors.New("invalid opcode")
 		}
-		if uint32(len(results)) >= 24+response.TotalBody {
-			results = results[24+response.TotalBody:]
+		if int(response.TotalBody) <= len(results)-24 {
+			results = results[24+int(response.TotalBody):]
+		} else {
+			break
 		}
 		trimmedResults = append(trimmedResults, stat)
 	}
