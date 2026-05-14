@@ -17,29 +17,7 @@ test:
 
 FUZZ_TIME ?= 30s
 FUZZ_PARALLEL ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-FUZZ_PACKAGES = \
-	./modules/redis/... \
-	./modules/siemens/... \
-	./modules/bacnet/... \
-	./modules/oracle/... \
-	./modules/mongodb/... \
-	./modules/mqtt/... \
-	./modules/mssql/... \
-	./modules/ntp/... \
-	./modules/enip/... \
-	./modules/codesys2/... \
-	./modules/memcached/... \
-	./modules/ipp/... \
-	./modules/rdp/... \
-	./modules/postgres/... \
-	./modules/dnp3/... \
-	./modules/modbus/... \
-	./modules/socks5/... \
-	./modules/telnet/... \
-	./lib/mysql/... \
-	./lib/ntlm/... \
-	./lib/smb/smb/encoder/... \
-	./modules/pptp/...
+FUZZ_PACKAGES = $(shell find modules lib -name '*_fuzz_test.go' -exec dirname {} \; | sort -u | sed 's|$$|/...|')
 
 fuzz:
 	@echo "Running fuzz tests ($(FUZZ_TIME) per target, $(FUZZ_PARALLEL) parallel)..."

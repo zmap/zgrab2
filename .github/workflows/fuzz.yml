@@ -21,57 +21,33 @@ jobs:
       - name: Check fuzz test coverage
         run: scripts/check-fuzz-coverage.sh
 
+  discover:
+    name: Discover fuzz targets
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.find.outputs.packages }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Find packages with fuzz tests
+        id: find
+        run: |
+          PACKAGES=$(find modules lib -name '*_fuzz_test.go' -exec dirname {} \; \
+            | sort -u \
+            | sed 's|^|./|; s|$|/...|' \
+            | jq -R . | jq -sc .)
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+          echo "Found fuzz packages: $PACKAGES"
+
   fuzz:
-    name: Fuzz ${{ matrix.module }}
+    name: Fuzz ${{ matrix.package }}
+    needs: discover
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - module: redis
-            package: ./modules/redis/...
-          - module: mysql
-            package: ./lib/mysql/...
-          - module: siemens
-            package: ./modules/siemens/...
-          - module: bacnet
-            package: ./modules/bacnet/...
-          - module: oracle
-            package: ./modules/oracle/...
-          - module: mongodb
-            package: ./modules/mongodb/...
-          - module: mqtt
-            package: ./modules/mqtt/...
-          - module: mssql
-            package: ./modules/mssql/...
-          - module: ntp
-            package: ./modules/ntp/...
-          - module: smb
-            package: ./lib/smb/smb/encoder/...
-          - module: enip
-            package: ./modules/enip/...
-          - module: codesys2
-            package: ./modules/codesys2/...
-          - module: memcached
-            package: ./modules/memcached/...
-          - module: ipp
-            package: ./modules/ipp/...
-          - module: rdp
-            package: ./modules/rdp/...
-          - module: postgres
-            package: ./modules/postgres/...
-          - module: dnp3
-            package: ./modules/dnp3/...
-          - module: modbus
-            package: ./modules/modbus/...
-          - module: socks5
-            package: ./modules/socks5/...
-          - module: telnet
-            package: ./modules/telnet/...
-          - module: ntlm
-            package: ./lib/ntlm/...
-          - module: pptp
-            package: ./modules/pptp/...
+        package: ${{ fromJson(needs.discover.outputs.packages) }}
     steps:
       - name: Check out source
         uses: actions/checkout@v6
