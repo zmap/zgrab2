@@ -1145,10 +1145,10 @@ func ParseRawPrivateKey(pemBytes []byte) (any, error) {
 
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		return x509.ParsePKCS1PrivateKey(block.Bytes)
+		return ztoolsX509.ParsePKCS1PrivateKey(block.Bytes)
 	// RFC5208 - https://tools.ietf.org/html/rfc5208
 	case "PRIVATE KEY":
-		return x509.ParsePKCS8PrivateKey(block.Bytes)
+		return ztoolsX509.ParsePKCS8PrivateKey(block.Bytes)
 	case "EC PRIVATE KEY":
 		return x509.ParseECPrivateKey(block.Bytes)
 	case "DSA PRIVATE KEY":
@@ -1187,7 +1187,7 @@ func ParseRawPrivateKeyWithPassphrase(pemBytes, passphrase []byte) (interface{},
 
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		return x509.ParsePKCS1PrivateKey(buf)
+		return ztoolsX509.ParsePKCS1PrivateKey(buf)
 	case "EC PRIVATE KEY":
 		return x509.ParseECPrivateKey(buf)
 	case "DSA PRIVATE KEY":
