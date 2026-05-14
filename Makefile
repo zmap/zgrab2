@@ -16,8 +16,9 @@ test:
 	go test -v -failfast ./...
 
 FUZZ_TIME ?= 30s
-FUZZ_PARALLEL ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+FUZZ_PARALLEL ?= $(shell cpus=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4); quarter=$$((cpus / 4)); [ $$quarter -gt 4 ] && echo $$quarter || echo 4)
 FUZZ_PACKAGES = $(shell find modules lib -name '*_fuzz_test.go' -exec dirname {} \; | sort -u | sed 's|^|./|; s|$$|/...|')
+
 
 fuzz:
 	@echo "Running fuzz tests ($(FUZZ_TIME) per target, $(FUZZ_PARALLEL) parallel)..."
