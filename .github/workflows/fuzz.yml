@@ -62,4 +62,8 @@ jobs:
 
       - name: Run fuzz tests
         run: |
-          go test -fuzz=. -fuzztime=60s ${{ matrix.package }}
+          FUZZ_FUNCS=$(go test -list 'Fuzz.*' ${{ matrix.package }} 2>/dev/null | grep '^Fuzz' || true)
+          for func in $FUZZ_FUNCS; do
+            echo "=== Fuzzing $func ==="
+            go test -fuzz="^${func}$" -fuzztime=60s ${{ matrix.package }}
+          done

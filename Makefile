@@ -21,9 +21,12 @@ FUZZ_PACKAGES = ./modules/redis/... ./modules/siemens/... ./modules/bacnet/... .
 fuzz:
 	@echo "Running fuzz tests ($(FUZZ_TIME) per target)..."
 	@for pkg in $(FUZZ_PACKAGES); do \
-		echo ""; \
-		echo "=== Fuzzing $$pkg ==="; \
-		go test -fuzz=. -fuzztime=$(FUZZ_TIME) $$pkg || true; \
+		fuzz_funcs=$$(go test -list 'Fuzz.*' $$pkg 2>/dev/null | grep '^Fuzz'); \
+		for func in $$fuzz_funcs; do \
+			echo ""; \
+			echo "=== Fuzzing $$func in $$pkg ==="; \
+			go test -fuzz="^$$func$$" -fuzztime=$(FUZZ_TIME) $$pkg || true; \
+		done; \
 	done
 
 lint:
