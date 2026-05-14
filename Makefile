@@ -10,10 +10,21 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test install uninstall
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test fuzz install uninstall
 
 test:
 	go test -v -failfast ./...
+
+FUZZ_TIME ?= 30s
+FUZZ_PACKAGES = ./modules/redis/... ./modules/siemens/... ./modules/bacnet/... ./modules/oracle/... ./modules/mongodb/... ./modules/mqtt/... ./modules/mssql/... ./modules/ntp/... ./lib/mysql/... ./lib/smb/smb/encoder/...
+
+fuzz:
+	@echo "Running fuzz tests ($(FUZZ_TIME) per target)..."
+	@for pkg in $(FUZZ_PACKAGES); do \
+		echo ""; \
+		echo "=== Fuzzing $$pkg ==="; \
+		go test -fuzz=. -fuzztime=$(FUZZ_TIME) $$pkg || true; \
+	done
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")

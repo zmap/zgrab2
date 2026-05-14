@@ -1,0 +1,65 @@
+name: Fuzz Testing
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6am UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'modules/redis/**'
+      - 'modules/siemens/**'
+      - 'modules/bacnet/**'
+      - 'modules/oracle/**'
+      - 'modules/mongodb/**'
+      - 'modules/mqtt/**'
+      - 'modules/mssql/**'
+      - 'modules/ntp/**'
+      - 'lib/mysql/**'
+      - 'lib/smb/**'
+
+jobs:
+  fuzz:
+    name: Fuzz ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: redis
+            package: ./modules/redis/...
+          - module: mysql
+            package: ./lib/mysql/...
+          - module: siemens
+            package: ./modules/siemens/...
+          - module: bacnet
+            package: ./modules/bacnet/...
+          - module: oracle
+            package: ./modules/oracle/...
+          - module: mongodb
+            package: ./modules/mongodb/...
+          - module: mqtt
+            package: ./modules/mqtt/...
+          - module: mssql
+            package: ./modules/mssql/...
+          - module: ntp
+            package: ./modules/ntp/...
+          - module: smb
+            package: ./lib/smb/smb/encoder/...
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Read go version
+        id: go_version
+        run: |
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
+
+      - name: Run fuzz tests
+        run: |
+          go test -fuzz=. -fuzztime=60s ${{ matrix.package }}
