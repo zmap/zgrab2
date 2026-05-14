@@ -426,23 +426,24 @@ func (conn *Connection) readRedisValueDepth(depth int) (RedisValue, error) {
 	if depth > maxRecursionDepth {
 		return nil, ErrMaxDepthExceeded
 	}
-	readersByDepth := map[byte]func(*Connection) (RedisValue, error){
-		'+': func(conn *Connection) (RedisValue, error) { return conn.readSimpleString() },
-		':': func(conn *Connection) (RedisValue, error) { return conn.readInteger() },
-		'-': func(conn *Connection) (RedisValue, error) { return conn.readErrorMessage() },
-		'$': func(conn *Connection) (RedisValue, error) { return conn.readBulkString() },
-		'*': func(conn *Connection) (RedisValue, error) { return conn.readRedisArray(depth) },
-	}
 	v, err := conn.read(1)
 	if err != nil {
 		return nil, err
 	}
-	ch := v[0]
-	reader, ok := readersByDepth[ch]
-	if !ok {
+	switch v[0] {
+	case '+':
+		return conn.readSimpleString()
+	case ':':
+		return conn.readInteger()
+	case '-':
+		return conn.readErrorMessage()
+	case '$':
+		return conn.readBulkString()
+	case '*':
+		return conn.readRedisArray(depth)
+	default:
 		return nil, ErrInvalidData
 	}
-	return reader(conn)
 }
 
 func (conn *Connection) GetTLSLog() *zgrab2.TLSLog {

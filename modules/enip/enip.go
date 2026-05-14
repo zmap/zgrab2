@@ -1433,7 +1433,7 @@ func (identity *CIPIdentity) UnMarshal(identityBytes []byte) error {
 		identity.ProductNameLength = identityBytes[32]
 
 		if len(identityBytes) >= CIPIdentityMinSize+int(identity.ProductNameLength) {
-			identity.ProductName = string(identityBytes[33 : 33+identity.ProductNameLength])
+			identity.ProductName = string(identityBytes[33 : 33+int(identity.ProductNameLength)])
 		}
 
 		return nil
@@ -1514,6 +1514,9 @@ func (c *EnipCon) GetCIPIdentity() (CIPIdentity, error) {
 			}
 			Type := binary.LittleEndian.Uint16(payload[offset : offset+2])
 			Length := binary.LittleEndian.Uint16(payload[offset+2 : offset+4])
+			if offset+4+int(Length) > len(payload) {
+				break
+			}
 			if Type == CIPIdentityType && Length >= CIPIdentityMinSize {
 				err := identity.UnMarshal(payload[offset+4 : offset+4+int(Length)])
 				if err != nil {
