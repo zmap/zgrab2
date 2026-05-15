@@ -12,7 +12,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/md5"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
@@ -29,6 +28,7 @@ import (
 	"github.com/zmap/zgrab2/lib/ssh/internal/bcrypt_pbkdf"
 
 	"github.com/zmap/zcrypto/dsa"
+	"github.com/zmap/zcrypto/rsa"
 
 	"golang.org/x/crypto/ed25519"
 
@@ -382,22 +382,18 @@ func parseRSA(in []byte) (out PublicKey, rest []byte, err error) {
 		return nil, nil, err
 	}
 
-	if w.E.BitLen() > 24 {
-		return nil, nil, errors.New("ssh: exponent too large")
-	}
-	e := w.E.Int64()
-	if e < 3 || e&1 == 0 {
+	e := w.E
+	if e.Cmp(big.NewInt(3)) <= 0 || e.Bit(0) == 0 {
 		return nil, nil, errors.New("ssh: incorrect exponent")
 	}
 
 	var key rsa.PublicKey
-	key.E = int(e)
+	key.E = e
 	key.N = w.N
 	return (*rsaPublicKey)(&key), w.Rest, nil
 }
 
 func (r *rsaPublicKey) Marshal() []byte {
-	e := new(big.Int).SetInt64(int64(r.E))
 	// RSA publickey struct layout should match the struct used by
 	// parseRSACert in the github.com/zmap/zgrab2/lib/agent package.
 	wirekey := struct {
@@ -406,7 +402,7 @@ func (r *rsaPublicKey) Marshal() []byte {
 		N    *big.Int
 	}{
 		KeyAlgoRSA,
-		e,
+		r.E,
 		r.N,
 	}
 	return Marshal(&wirekey)
@@ -1149,10 +1145,10 @@ func ParseRawPrivateKey(pemBytes []byte) (any, error) {
 
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		return x509.ParsePKCS1PrivateKey(block.Bytes)
+		return ztoolsX509.ParsePKCS1PrivateKey(block.Bytes)
 	// RFC5208 - https://tools.ietf.org/html/rfc5208
 	case "PRIVATE KEY":
-		return x509.ParsePKCS8PrivateKey(block.Bytes)
+		return ztoolsX509.ParsePKCS8PrivateKey(block.Bytes)
 	case "EC PRIVATE KEY":
 		return x509.ParseECPrivateKey(block.Bytes)
 	case "DSA PRIVATE KEY":
@@ -1191,7 +1187,7 @@ func ParseRawPrivateKeyWithPassphrase(pemBytes, passphrase []byte) (interface{},
 
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		return x509.ParsePKCS1PrivateKey(buf)
+		return ztoolsX509.ParsePKCS1PrivateKey(buf)
 	case "EC PRIVATE KEY":
 		return x509.ParseECPrivateKey(buf)
 	case "DSA PRIVATE KEY":
@@ -1370,7 +1366,7 @@ func parseOpenSSHPrivateKey(key []byte, decrypt openSSHDecryptFunc) (crypto.Priv
 		pk := &rsa.PrivateKey{
 			PublicKey: rsa.PublicKey{
 				N: key.N,
-				E: int(key.E.Int64()),
+				E: key.E,
 			},
 			D:      key.D,
 			Primes: []*big.Int{key.P, key.Q},
