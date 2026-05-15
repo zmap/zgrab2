@@ -9,7 +9,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -21,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/zmap/zcrypto/dsa"
+	_ "github.com/zmap/zcrypto/dsa"
+	"github.com/zmap/zcrypto/rsa"
 	"golang.org/x/crypto/ed25519"
 
 	"github.com/zmap/zgrab2/lib/ssh/testdata"
