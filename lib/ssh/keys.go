@@ -388,8 +388,8 @@ func parseRSA(in []byte) (out PublicKey, rest []byte, err error) {
 	}
 
 	var key rsa.PublicKey
-	key.E = e
-	key.N = w.N
+	key.E = new(big.Int).Set(w.E)
+	key.N = new(big.Int).Set(w.N)
 	return (*rsaPublicKey)(&key), w.Rest, nil
 }
 
@@ -402,8 +402,8 @@ func (r *rsaPublicKey) Marshal() []byte {
 		N    *big.Int
 	}{
 		KeyAlgoRSA,
-		r.E,
-		r.N,
+		new(big.Int).Set(r.E),
+		new(big.Int).Set(r.N),
 	}
 	return Marshal(&wirekey)
 }
@@ -1365,8 +1365,8 @@ func parseOpenSSHPrivateKey(key []byte, decrypt openSSHDecryptFunc) (crypto.Priv
 
 		pk := &rsa.PrivateKey{
 			PublicKey: rsa.PublicKey{
-				N: key.N,
-				E: key.E,
+				N: new(big.Int).Set(key.N),
+				E: new(big.Int).Set(key.E),
 			},
 			D:      key.D,
 			Primes: []*big.Int{key.P, key.Q},
