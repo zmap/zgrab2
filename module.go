@@ -123,7 +123,7 @@ func (config *DialerGroupConfig) GetDefaultDialerGroupFromConfig() (*DialerGroup
 		}
 		if config.TLSEnabled {
 			// module needs both L4 dialer and TLS wrapper
-			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(config.TLSFlags)
+			dialerGroup.TLSWrapper = GetDefaultTLSWrapper(config.BaseFlags, config.TLSFlags)
 		}
 	} else {
 		// module only needs a TransportAgnosticDialer
