@@ -155,7 +155,7 @@ func GetDefaultTLSWrapper(baseFlags *BaseFlags, tlsFlags *TLSFlags) func(ctx con
 		handshakeCtx := ctx
 		if baseFlags.ConnectTimeout > 0 {
 			var cancel context.CancelFunc
-			handshakeCtx, cancel = context.WithTimeout(ctx, baseFlags.ConnectTimeout)
+			handshakeCtx, cancel = context.WithTimeout(ctx, tlsFlags.TLSHandshakeTimeout)
 			defer cancel()
 		}
 		err = tlsConn.HandshakeContext(handshakeCtx)

@@ -37,6 +37,8 @@ func init() {
 // Common flags for TLS configuration -- include this in your module's ScanFlags implementation to use the common TLS code
 // Adapted from modules/ssh.go
 type TLSFlags struct {
+	TLSHandshakeTimeout time.Duration `long:"tls-handshake-timeout" default:"20s" description:"Maximum time to wait for TLS handshake to complete" json:"handshake_timeout"`
+
 	Config *tls.Config // Config is ready to use TLS configuration
 
 	SessionTicket        bool `long:"session-ticket" description:"Send support for TLS Session Tickets and output ticket if presented" json:"session"`
