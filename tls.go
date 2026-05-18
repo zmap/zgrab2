@@ -332,7 +332,8 @@ type TLSConnection struct {
 
 type TLSLog struct {
 	// TODO include TLSFlags?
-	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
+	HandshakeLog      *tls.ServerHandshake `json:"handshake_log"`
+	HandshakeComplete bool                 `json:"handshake_complete"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
@@ -348,8 +349,12 @@ func (z *TLSConnection) Handshake() error {
 	defer func() {
 		log.HandshakeLog = z.GetHandshakeLog()
 	}()
-	return z.Conn.Handshake()
+	err := z.Conn.Handshake()
+	if err == nil {
+		log.HandshakeComplete = true
+	}
 
+	return err
 }
 
 // Close the underlying connection.
