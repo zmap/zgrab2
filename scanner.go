@@ -17,7 +17,11 @@ var orderedScanners []string
 var defaultDialerGroupToScanners map[string]*DialerGroup
 var defaultDialerGroupConfigToScanners map[string]*DialerGroupConfig
 var ipRateLimiter *ratelimit.PerObjectRateLimiter[netip.Addr]
-var dnsRateLimiter *rate.Limiter
+// dnsRateLimiter is initialised to the default rate here so that lookupIPs
+// never panics on a nil receiver when ValidateAndHandleFrameworkConfiguration
+// has not been called. ValidateAndHandleFrameworkConfiguration overwrites this
+// with the user-supplied value when invoked.
+var dnsRateLimiter = rate.NewLimiter(rate.Limit(10_000), 10_000)
 
 const (
 	maxLRUSize = 10_000_000       // Limiters track IP connects per second. There's no way we'll have over 10 million unique IPs per second, so this should be plenty.
