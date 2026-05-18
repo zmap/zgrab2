@@ -1,12 +1,12 @@
 package smtp
 
 import (
-	stdtls "crypto/tls"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	stdtls "crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"context"
 	"encoding/pem"
 	"errors"
 	"math/big"

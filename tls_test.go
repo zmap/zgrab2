@@ -1,9 +1,9 @@
 package zgrab2
 
 import (
-	stdtls "crypto/tls"
 	"crypto/rand"
 	"crypto/rsa"
+	stdtls "crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
