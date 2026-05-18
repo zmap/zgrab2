@@ -203,6 +203,45 @@ func (d *DialerGroup) GetTLSDialer(ctx context.Context, t *ScanTarget) func(netw
 	}
 }
 
+// DialTLSDowngrade dials a TCP connection and attempts a TLS handshake. If the
+// handshake fails and allowDowngrade is true, the poisoned connection is closed
+// and a fresh plaintext TCP connection is returned instead. Returns the
+// connection, whether TLS was successfully negotiated, and any error.
+func (d *DialerGroup) DialTLSDowngrade(ctx context.Context, target *ScanTarget, allowDowngrade bool) (net.Conn, bool, error) {
+	if d.L4Dialer == nil {
+		return nil, false, errors.New("no L4 dialer set")
+	}
+	if d.TLSWrapper == nil {
+		return nil, false, errors.New("no TLS wrapper set")
+	}
+
+	addr := net.JoinHostPort(target.Host(), strconv.Itoa(int(target.Port)))
+
+	conn, err := d.L4Dialer(target)(ctx, "tcp", addr)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to connect to %v: %w", target.String(), err)
+	}
+
+	tlsConn, tlsErr := d.TLSWrapper(ctx, target, conn)
+	if tlsErr == nil {
+		return tlsConn, true, nil
+	}
+
+	// TLS handshake failed
+	if !allowDowngrade {
+		CloseConnAndHandleError(conn)
+		return nil, false, fmt.Errorf("TLS handshake failed for %v: %w", target.String(), tlsErr)
+	}
+
+	// Handshake poisoned the connection; reconnect plaintext
+	CloseConnAndHandleError(conn)
+	conn, err = d.L4Dialer(target)(ctx, "tcp", addr)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to reconnect to %v after TLS downgrade: %w", target.String(), err)
+	}
+	return conn, false, nil
+}
+
 // ScanResponse is the result of a scan on a single host
 type ScanResponse struct {
 	// Status is required for all responses.
