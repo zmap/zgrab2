@@ -57,4 +57,19 @@ for version in $VERSIONS; do
   doTest $version "--auth-user guest --auth-pass guest"
 done
 
+# TLS downgrade test: AMQP containers don't serve TLS on default port, so downgrade should fall back to plaintext
+for version in $VERSIONS; do
+  CONTAINER_NAME="zgrab_amqp091-${version}"
+  OUTPUT_FILE="$ZGRAB_OUTPUT/amqp091/${version}-tls-downgrade.json"
+  echo "amqp091/test: Testing TLS downgrade on RabbitMQ ${version}..."
+  CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh amqp091 --use-tls --allow-tls-downgrade --target-timeout 10s >$OUTPUT_FILE
+  SERVER_VERSION=$(jp -u data.amqp091.result.server_properties.version <$OUTPUT_FILE)
+  if [[ "$SERVER_VERSION" == "$version" ]]; then
+    echo "amqp091/test: TLS downgrade test passed: server version $SERVER_VERSION"
+  else
+    echo "amqp091/test: TLS downgrade test failed: Got $SERVER_VERSION, expected $version"
+    status=1
+  fi
+done
+
 exit $status
