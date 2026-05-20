@@ -20,8 +20,11 @@ import (
 // This file incudes tests to verify our timeouts at different phases of a connection, ie: TCP SYN, TLS handshake, read,
 // and write on a connection
 
-const connectTimeout = 300 * time.Millisecond
-const targetTimeout = 2 * time.Second
+const (
+	connectTimeout      = 300 * time.Millisecond
+	tlsHandshakeTimeout = 800 * time.Millisecond
+	targetTimeout       = 2 * time.Second
+)
 
 // baseFlags returns a BaseFlags whose ConnectTimeout is short so tests stay efficient
 func baseFlags() *zgrab2.BaseFlags {
@@ -141,7 +144,7 @@ func TestTCPDialer_NoTCPHandshake_TimesOut(t *testing.T) {
 //
 // A TCP server accepts the connection and then does nothing — it neither sends
 // a TLS ServerHello nor closes the socket.  GetDefaultTLSWrapper (called via
-// GetDefaultTLSDialer) must time out within ConnectTimeout.
+// GetDefaultTLSDialer) must time out within TLSHandshakeTimeout.
 
 func TestTLSDialer_TCPOkTLSHangs_TimesOut(t *testing.T) {
 	// Start a server that accepts TCP but never speaks TLS.
@@ -172,10 +175,9 @@ func TestTLSDialer_TCPOkTLSHangs_TimesOut(t *testing.T) {
 	}()
 
 	flags := baseFlags()
-	tlsFlags := &zgrab2.TLSFlags{
-		// Skip verification — we have no real cert on this fake server.
-		// The handshake will hang before certs are exchanged anyway.
-	}
+	// Skip verification — we have no real cert on this fake server.
+	// The handshake will hang before certs are exchanged anyway.
+	tlsFlags := &zgrab2.TLSFlags{TLSHandshakeTimeout: tlsHandshakeTimeout}
 	dialer := zgrab2.GetDefaultTLSDialer(flags, tlsFlags)
 	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1")}
 
@@ -188,8 +190,10 @@ func TestTLSDialer_TCPOkTLSHangs_TimesOut(t *testing.T) {
 	if err == nil {
 		t.Error("expected an error, got nil")
 	}
+	lowerBound := time.Duration(float64(tlsHandshakeTimeout) * 0.8)
+	upperBound := time.Duration(float64(tlsHandshakeTimeout) * 1.2)
 
-	assertTimedOutNear(t, elapsed, connectTimeout/2, connectTimeout*2)
+	assertTimedOutNear(t, elapsed, lowerBound, upperBound)
 	t.Logf("scenario 2 elapsed=%v err=%v", elapsed, err)
 }
 
@@ -226,7 +230,7 @@ func TestTLSDialer_FullHandshake_Succeeds(t *testing.T) {
 		}
 	}()
 
-	dialer := zgrab2.GetDefaultTLSDialer(baseFlags(), &zgrab2.TLSFlags{})
+	dialer := zgrab2.GetDefaultTLSDialer(baseFlags(), &zgrab2.TLSFlags{TLSHandshakeTimeout: time.Second * 15})
 	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1")}
 
 	ctx, cancel := context.WithTimeout(context.Background(), targetTimeout)
@@ -287,7 +291,7 @@ func TestTLSDialer_ServerReadsButNeverReplies_ReadTimesOutAfterTargetTimeout(t *
 		}
 	}()
 
-	dialer := zgrab2.GetDefaultTLSDialer(baseFlags(), &zgrab2.TLSFlags{})
+	dialer := zgrab2.GetDefaultTLSDialer(baseFlags(), &zgrab2.TLSFlags{TLSHandshakeTimeout: time.Second * 15})
 	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1")}
 
 	ctx, cancel := context.WithTimeout(context.Background(), targetTimeout)
