@@ -20,8 +20,8 @@ func TestCertLogin(t *testing.T) {
 	s := newServer(t)
 	defer s.Shutdown()
 
-	// Use a key different from the default.
-	clientKey := testSigners["dsa"]
+	// Use a key different from the default. DSA dropped in OpenSSH 9.8+ (macOS ships 9.8+).
+	clientKey := testSigners["rsa"]
 	caAuthKey := testSigners["ecdsa"]
 	cert := &ssh.Certificate{
 		Key:             clientKey.PublicKey(),

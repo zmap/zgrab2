@@ -94,9 +94,23 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 		if err != nil {
 			return nil, fmt.Errorf("could not set random local address: %w", err)
 		}
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		handshakeCtx := ctx
+		if flags.ConnectTimeout > 0 {
+			var cancel context.CancelFunc
+			handshakeCtx, cancel = context.WithTimeout(ctx, flags.ConnectTimeout)
+			defer cancel()
+		}
+		conn, err := dialer.DialContext(handshakeCtx, "tcp", addr)
 		if err != nil {
 			return nil, err
+		}
+		if castConn, ok := conn.(*TimeoutConnection); ok {
+			// Reset the context on the connection to the main one, not the handshake one
+			castConn.ctx = ctx
+
+			if err = castConn.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
+				return nil, err
+			}
 		}
 		return conn, nil
 	}
@@ -109,12 +123,12 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 		if err != nil {
 			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %w", err)
 		}
-		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
+		return GetDefaultTLSWrapper(flags, tlsFlags)(ctx, t, l4Conn)
 	}
 }
 
 // GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
-func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+func GetDefaultTLSWrapper(baseFlags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
 	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
 		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
 		if err != nil {
@@ -138,7 +152,13 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 			Conn:  *(tls.Client(conn, tlsConfig)),
 			flags: tlsFlags,
 		}
-		err = tlsConn.Handshake()
+		handshakeCtx := ctx
+		if baseFlags.ConnectTimeout > 0 {
+			var cancel context.CancelFunc
+			handshakeCtx, cancel = context.WithTimeout(ctx, tlsFlags.TLSHandshakeTimeout)
+			defer cancel()
+		}
+		err = tlsConn.HandshakeContext(handshakeCtx)
 		if err != nil && tlsConn.log == nil {
 			// If the handshake fails and we have no log, just return error
 			return nil, fmt.Errorf("could not perform tls handshake for target %s: %w", t.String(), err)

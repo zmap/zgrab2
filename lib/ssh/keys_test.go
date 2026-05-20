@@ -9,7 +9,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -20,7 +19,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zmap/zcrypto/dsa"
 	_ "github.com/zmap/zcrypto/dsa"
+	"github.com/zmap/zcrypto/rsa"
 	"golang.org/x/crypto/ed25519"
 
 	"github.com/zmap/zgrab2/lib/ssh/testdata"
@@ -31,7 +32,7 @@ func rawKey(pub PublicKey) any {
 	case *rsaPublicKey:
 		return (*rsa.PublicKey)(k)
 	case *dsaPublicKey:
-		return (*dsaPublicKey)(k)
+		return (*dsa.PublicKey)(k)
 	case *ecdsaPublicKey:
 		return (*ecdsa.PublicKey)(k)
 	case ed25519PublicKey:

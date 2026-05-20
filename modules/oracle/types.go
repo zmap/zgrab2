@@ -119,7 +119,7 @@ func getSliceReader(data []byte) *sliceReader {
 }
 
 func (reader *sliceReader) Read(output []byte) (int, error) {
-	if reader.Data == nil {
+	if len(reader.Data) == 0 {
 		return 0, io.EOF
 	}
 	n := len(output)
@@ -594,6 +594,13 @@ func (reader *chainedReader) readNew(dest *[]byte, size int) *chainedReader {
 	if reader.err != nil {
 		return reader
 	}
+	// TNS packets are limited to uint16 length; reject sizes that indicate
+	// arithmetic underflow (e.g. uint16 subtraction wrapping) or that would
+	// cause excessive allocation.
+	if size < 0 || size > 0xFFFF {
+		reader.err = ErrInvalidData
+		return reader
+	}
 	ret := make([]byte, size)
 	_, err := io.ReadFull(reader.reader, ret)
 	reader.err = err
@@ -664,6 +671,9 @@ func ReadTNSConnect(reader io.Reader, header *TNSHeader) (*TNSConnect, error) {
 	next.read(&ret.CrossFacility1)
 	next.read(&ret.ConnectionID0)
 	next.read(&ret.ConnectionID1)
+	if ret.DataOffset < 0x3A {
+		return nil, ErrInvalidData
+	}
 	unknownLen := ret.DataOffset - 0x3A
 	next.readNew(&ret.Unknown3A, int(unknownLen))
 	next.readNewString(&ret.ConnectDescriptor, int(ret.DataLength))
@@ -788,6 +798,9 @@ func ReadTNSAccept(reader io.Reader, header *TNSHeader) (*TNSAccept, error) {
 	next.read(&ret.DataOffset)
 	next.read(&ret.ConnectFlags0)
 	next.read(&ret.ConnectFlags1)
+	if ret.DataOffset < 24 {
+		return nil, ErrInvalidData
+	}
 	unknownLen := ret.DataOffset - 16 - 8
 	next.readNew(&ret.Unknown18, int(unknownLen))
 	next.readNew(&ret.AcceptData, int(ret.DataLength))
@@ -891,6 +904,9 @@ func (packet *TNSRedirect) GetType() PacketType {
 // ReadTNSRedirect reads a TNSRedirect packet from the stream, which should
 // point to the first byte after the TNSHeader.
 func ReadTNSRedirect(reader io.Reader, header *TNSHeader) (*TNSRedirect, error) {
+	if header.Length < 10 {
+		return nil, ErrInvalidData
+	}
 	ret := new(TNSRedirect)
 	next := startReading(reader)
 	next.read(&ret.DataLength)
@@ -1058,6 +1074,9 @@ func (packet *TNSData) GetType() PacketType {
 // ReadTNSData reads a TNSData packet from the stream, which should point to the
 // first byte after the TNSHeader.
 func ReadTNSData(reader io.Reader, header *TNSHeader) (*TNSData, error) {
+	if header.Length < 10 {
+		return nil, ErrInvalidData
+	}
 	ret := new(TNSData)
 	next := startReading(reader)
 	next.read(&ret.DataFlags)
@@ -1600,11 +1619,17 @@ func DecodeDescriptor(descriptor string) (Descriptor, error) {
 			rest = strings.TrimSpace(rest[eq:])
 		case ')':
 			// Close paren: pop off the last 'object' suffix
+			if len(path) == 0 {
+				return nil, ErrInvalidData
+			}
 			path = path[0 : len(path)-1]
 			// Consume the ')'
 			rest = strings.TrimSpace(rest[1:])
 		case '=':
 			rest = strings.TrimSpace(rest[1:])
+			if len(rest) == 0 {
+				return nil, ErrInvalidData
+			}
 			if rest[0] != '(' {
 				// What follows is a primitive
 				closer := -1

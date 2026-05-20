@@ -322,10 +322,12 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 		exec = scan.conn.SendInlineCommand
 	}
 	ret, err := exec(cmd, args...)
-	if err != nil {
-		return nil, err
+	if ret != nil {
+		scan.result.RawCommandOutput = append(scan.result.RawCommandOutput, ret.Encode())
 	}
-	scan.result.RawCommandOutput = append(scan.result.RawCommandOutput, ret.Encode())
+	if err != nil {
+		return ret, err
+	}
 	return ret, nil
 }
 

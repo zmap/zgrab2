@@ -386,11 +386,12 @@ func testBytesReadLimitOn(t *testing.T, connector timeoutConnector) error {
 			return err
 		}
 	}
-	for i := 0; i < 10; i++ {
+	for i := 10; i < 20; i++ {
 		if err := runBytesReadLimitTrial(t, connector, i, readLimitTestConfig.runMultiSend); err != nil {
 			return err
 		}
 	}
+	time.Sleep(1 * time.Second)
 	return nil
 }
 
