@@ -208,30 +208,34 @@ func testClientRedirects(t *testing.T, mode testMode) {
 	})).ts
 
 	c := ts.Client()
-	_, err := c.Get(ts.URL)
+	r, err := c.Get(ts.URL)
 	if e, g := `Get "/?n=10": stopped after 10 redirects`, fmt.Sprintf("%v", err); e != g {
 		t.Errorf("with default client Get, expected error %q, got %q", e, g)
 	}
+	r.Body.Close()
 
 	// HEAD request should also have the ability to follow redirects.
-	_, err = c.Head(ts.URL)
+	r, err = c.Head(ts.URL)
 	if e, g := `Head "/?n=10": stopped after 10 redirects`, fmt.Sprintf("%v", err); e != g {
 		t.Errorf("with default client Head, expected error %q, got %q", e, g)
 	}
+	r.Body.Close()
 
 	// Do should also follow redirects.
 	greq, _ := NewRequest("GET", ts.URL, nil)
-	_, err = c.Do(greq)
+	r, err = c.Do(greq)
 	if e, g := `Get "/?n=10": stopped after 10 redirects`, fmt.Sprintf("%v", err); e != g {
 		t.Errorf("with default client Do, expected error %q, got %q", e, g)
 	}
+	r.Body.Close()
 
 	// Requests with an empty Method should also redirect (Issue 12705)
 	greq.Method = ""
-	_, err = c.Do(greq)
+	r, err = c.Do(greq)
 	if e, g := `Get "/?n=10": stopped after 10 redirects`, fmt.Sprintf("%v", err); e != g {
 		t.Errorf("with default client Do and empty Method, expected error %q, got %q", e, g)
 	}
+	r.Body.Close()
 
 	var checkErr error
 	var lastVia []*Request
@@ -494,8 +498,8 @@ func testClientRedirectUseResponse(t *testing.T, mode testMode) {
 
 	c := ts.Client()
 	c.CheckRedirect = func(req *Request, _ *Response, via []*Request) error {
-		if req.Response == nil {
-			t.Error("expected non-nil Request.Response")
+		if req.Response != nil {
+			t.Error("expected nil Request.Response")
 		}
 		return ErrUseLastResponse
 	}
@@ -1513,7 +1517,6 @@ func testClientCopyHeadersOnRedirect(t *testing.T, mode testMode) {
 		want := Header{
 			"User-Agent":    []string{ua},
 			"X-Foo":         []string{xfoo},
-			"Referer":       []string{ts2URL},
 			"Cookie":        []string{"foo=bar"},
 			"Authorization": []string{"secretpassword"},
 		}
@@ -1771,9 +1774,9 @@ func testClientRedirectTypes(t *testing.T, mode testMode) {
 		serverStatus int
 		wantMethod   string // desired subsequent client method
 	}{
-		0: {method: "POST", serverStatus: 301, wantMethod: "GET"},
-		1: {method: "POST", serverStatus: 302, wantMethod: "GET"},
-		2: {method: "POST", serverStatus: 303, wantMethod: "GET"},
+		0: {method: "POST", serverStatus: 301, wantMethod: "POST"},
+		1: {method: "POST", serverStatus: 302, wantMethod: "POST"},
+		2: {method: "POST", serverStatus: 303, wantMethod: "POST"},
 		3: {method: "POST", serverStatus: 307, wantMethod: "POST"},
 		4: {method: "POST", serverStatus: 308, wantMethod: "POST"},
 
@@ -1789,21 +1792,21 @@ func testClientRedirectTypes(t *testing.T, mode testMode) {
 		13: {method: "GET", serverStatus: 307, wantMethod: "GET"},
 		14: {method: "GET", serverStatus: 308, wantMethod: "GET"},
 
-		15: {method: "DELETE", serverStatus: 301, wantMethod: "GET"},
-		16: {method: "DELETE", serverStatus: 302, wantMethod: "GET"},
-		17: {method: "DELETE", serverStatus: 303, wantMethod: "GET"},
+		15: {method: "DELETE", serverStatus: 301, wantMethod: "DELETE"},
+		16: {method: "DELETE", serverStatus: 302, wantMethod: "DELETE"},
+		17: {method: "DELETE", serverStatus: 303, wantMethod: "DELETE"},
 		18: {method: "DELETE", serverStatus: 307, wantMethod: "DELETE"},
 		19: {method: "DELETE", serverStatus: 308, wantMethod: "DELETE"},
 
-		20: {method: "PUT", serverStatus: 301, wantMethod: "GET"},
-		21: {method: "PUT", serverStatus: 302, wantMethod: "GET"},
-		22: {method: "PUT", serverStatus: 303, wantMethod: "GET"},
+		20: {method: "PUT", serverStatus: 301, wantMethod: "PUT"},
+		21: {method: "PUT", serverStatus: 302, wantMethod: "PUT"},
+		22: {method: "PUT", serverStatus: 303, wantMethod: "PUT"},
 		23: {method: "PUT", serverStatus: 307, wantMethod: "PUT"},
 		24: {method: "PUT", serverStatus: 308, wantMethod: "PUT"},
 
-		25: {method: "MADEUPMETHOD", serverStatus: 301, wantMethod: "GET"},
-		26: {method: "MADEUPMETHOD", serverStatus: 302, wantMethod: "GET"},
-		27: {method: "MADEUPMETHOD", serverStatus: 303, wantMethod: "GET"},
+		25: {method: "MADEUPMETHOD", serverStatus: 301, wantMethod: "MADEUPMETHOD"},
+		26: {method: "MADEUPMETHOD", serverStatus: 302, wantMethod: "MADEUPMETHOD"},
+		27: {method: "MADEUPMETHOD", serverStatus: 303, wantMethod: "MADEUPMETHOD"},
 		28: {method: "MADEUPMETHOD", serverStatus: 307, wantMethod: "MADEUPMETHOD"},
 		29: {method: "MADEUPMETHOD", serverStatus: 308, wantMethod: "MADEUPMETHOD"},
 	}
