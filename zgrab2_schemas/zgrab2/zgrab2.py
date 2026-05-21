@@ -69,7 +69,13 @@ base_scan_response = SubRecord(
 
 # zgrab2/tls.go: TLSLog
 tls_log = SubRecord(
-    {"handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log.")}
+    {
+        "handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log."),
+        "handshake_completed_successfully": Boolean(
+            required=False,
+            doc="True if the TLS handshake completed successfully.",
+        ),
+    }
 )
 
 ntlm_info = SubRecord(
