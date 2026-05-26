@@ -448,7 +448,7 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 			DisableCompression:   false,
 			MaxIdleConnsPerHost:  scanner.config.MaxRedirects,
 			RawHeaderBuffer:      scanner.config.RawHeaders,
-			EnableJA4SSignatures: scanner.config.TLSFlags.EnableJA4SSignatures,
+			EnableJA4SSignatures: scanner.config.EnableJA4SSignatures,
 		}
 		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)

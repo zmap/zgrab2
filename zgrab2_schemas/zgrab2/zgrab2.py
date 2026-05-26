@@ -69,7 +69,17 @@ base_scan_response = SubRecord(
 
 # zgrab2/tls.go: TLSLog
 tls_log = SubRecord(
-    {"handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log.")}
+    {
+        "handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log."),
+        "ja3s": String(
+            required=False,
+            doc="JA3S TLS server fingerprint.",
+        ),
+        "ja4s": String(
+            required=False,
+            doc="JA4S TLS server fingerprint (only present when --enable-ja4s-signatures is set).",
+        ),
+    }
 )
 
 ntlm_info = SubRecord(
