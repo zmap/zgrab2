@@ -34,6 +34,7 @@ import (
 	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/fingerprint"
 	"github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http2/hpack"
@@ -1405,8 +1406,16 @@ func (cc *ClientConn) roundTrip(req *http.Request, streamf func(*clientStream)) 
 			// zgrab2 - grab TLS Log from our successful response
 			switch conn := cs.cc.tconn.(type) {
 			case *tls.Conn:
-				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
-				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+				// The HTTP/2 upgrade in lib/http/transport.go extracts the inner
+				// *tls.Conn from the *TLSConnection, so this path is always taken
+				// for HTTP/2 over zgrab2 TLS connections.
+				hl := conn.GetHandshakeLog()
+				tlsLog := &zgrab2.TLSLog{HandshakeLog: hl}
+				if hl != nil {
+					tlsLog.JA3S = fingerprint.JA3S(hl)
+					tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, hl)
+				}
+				req.TLSLog = tlsLog
 			case *zgrab2.TLSConnection:
 				req.TLSLog = conn.GetLog()
 			}

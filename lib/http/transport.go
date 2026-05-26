@@ -35,6 +35,7 @@ import (
 	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/fingerprint"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
@@ -651,7 +652,13 @@ func (t *Transport) roundTrip(req *Request) (_ *Response, err error) {
 			switch conn := pconn.conn.(type) {
 			case *tls.Conn:
 				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
-				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+				hl := conn.GetHandshakeLog()
+				tlsLog := &zgrab2.TLSLog{HandshakeLog: hl}
+				if hl != nil {
+					tlsLog.JA3S = fingerprint.JA3S(hl)
+					tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, hl)
+				}
+				req.TLSLog = tlsLog
 			case *zgrab2.TLSConnection:
 				req.TLSLog = conn.GetLog()
 			}

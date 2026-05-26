@@ -18,6 +18,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
+
+	"github.com/zmap/zgrab2/lib/fingerprint"
 )
 
 func init() {
@@ -336,6 +338,8 @@ type TLSConnection struct {
 type TLSLog struct {
 	// TODO include TLSFlags?
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
+	JA3S         string               `json:"ja3s,omitempty"`
+	JA4S         string               `json:"ja4s,omitempty"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
@@ -347,18 +351,28 @@ func (z *TLSConnection) GetLog() *TLSLog {
 }
 
 func (z *TLSConnection) Handshake() error {
-	log := z.GetLog()
+	tlsLog := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.GetHandshakeLog()
+		tlsLog.HandshakeLog = z.GetHandshakeLog()
+		if tlsLog.HandshakeLog != nil {
+			tlsLog.JA3S = fingerprint.JA3S(tlsLog.HandshakeLog)
+			tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+		}
 	}()
+
 	return z.Conn.Handshake()
 }
 
 func (z *TLSConnection) HandshakeContext(ctx context.Context) error {
-	log := z.GetLog()
+	tlsLog := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.GetHandshakeLog()
+		tlsLog.HandshakeLog = z.GetHandshakeLog()
+		if tlsLog.HandshakeLog != nil {
+			tlsLog.JA3S = fingerprint.JA3S(tlsLog.HandshakeLog)
+			tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+		}
 	}()
+
 	return z.Conn.HandshakeContext(ctx)
 }
 
