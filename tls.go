@@ -78,6 +78,10 @@ type TLSFlags struct {
 	// TODO: format?
 	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
 	OverrideSH  bool   `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
+	// EnableJA4SSignatures enables computation of JA4S TLS server fingerprints.
+	// JA4S is subject to commercial licensing restrictions; see https://github.com/FoxIO-LLC/ja4.
+	// JA3S (always enabled) is BSD-3 licensed and free for all use.
+	EnableJA4SSignatures bool `long:"enable-ja4s-signatures" description:"Compute JA4S TLS server fingerprints (subject to commercial licensing; see https://github.com/FoxIO-LLC/ja4)"`
 }
 
 // rootCAsStore is a struct to hold the value of the last x509.CertPool fetched using the RootCAs flag in TLSFlags
@@ -356,7 +360,9 @@ func (z *TLSConnection) Handshake() error {
 		tlsLog.HandshakeLog = z.GetHandshakeLog()
 		if tlsLog.HandshakeLog != nil {
 			tlsLog.JA3S = fingerprint.JA3S(tlsLog.HandshakeLog)
-			tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+			if z.flags != nil && z.flags.EnableJA4SSignatures {
+				tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+			}
 		}
 	}()
 

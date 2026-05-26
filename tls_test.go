@@ -97,7 +97,7 @@ func TestTLSLogJSON(t *testing.T) {
 	})
 }
 
-func TestHandshakeComputesFingerprints(t *testing.T) {
+func TestHandshakeJA3SAlwaysComputed(t *testing.T) {
 	cert := generateTLSTestCert(t)
 	clientConn, serverConn := net.Pipe()
 
@@ -120,9 +120,41 @@ func TestHandshakeComputesFingerprints(t *testing.T) {
 
 	tlsLog := tlsConn.GetLog()
 	if tlsLog.JA3S == "" {
+		t.Error("JA3S should be computed after a successful handshake (always enabled)")
+	}
+	if tlsLog.JA4S != "" {
+		t.Error("JA4S should not be computed when --enable-ja4s-signatures flag is not set")
+	}
+}
+
+func TestHandshakeJA4SComputedOnlyWhenEnabled(t *testing.T) {
+	cert := generateTLSTestCert(t)
+	clientConn, serverConn := net.Pipe()
+
+	done := make(chan error, 1)
+	go func() {
+		srv := stdtls.Server(serverConn, &stdtls.Config{Certificates: []stdtls.Certificate{cert}})
+		done <- srv.Handshake()
+		srv.Close()
+	}()
+
+	flags := &TLSFlags{EnableJA4SSignatures: true}
+	tlsConn := TLSConnection{
+		Conn:  *zcryptotls.Client(clientConn, &zcryptotls.Config{InsecureSkipVerify: true}),
+		flags: flags,
+	}
+	if err := tlsConn.Handshake(); err != nil {
+		t.Fatalf("unexpected handshake error: %v", err)
+	}
+	if srvErr := <-done; srvErr != nil {
+		t.Fatalf("server-side handshake error: %v", srvErr)
+	}
+
+	tlsLog := tlsConn.GetLog()
+	if tlsLog.JA3S == "" {
 		t.Error("JA3S should be computed after a successful handshake")
 	}
 	if tlsLog.JA4S == "" {
-		t.Error("JA4S should be computed after a successful handshake")
+		t.Error("JA4S should be computed when --enable-ja4s-signatures is set")
 	}
 }

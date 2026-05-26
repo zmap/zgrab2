@@ -265,6 +265,12 @@ func (t *Transport) disableCompression() bool {
 	return t.DisableCompression || (t.t1 != nil && t.t1.DisableCompression)
 }
 
+// enableJA4SSignatures reports whether JA4S TLS server fingerprint computation
+// has been enabled on the underlying HTTP/1 transport.
+func (t *Transport) enableJA4SSignatures() bool {
+	return t.t1 != nil && t.t1.EnableJA4SSignatures
+}
+
 // ConfigureTransport configures a net/http HTTP/1 Transport to use HTTP/2.
 // It returns an error if t1 has already been HTTP/2-enabled.
 //
@@ -1413,7 +1419,9 @@ func (cc *ClientConn) roundTrip(req *http.Request, streamf func(*clientStream)) 
 				tlsLog := &zgrab2.TLSLog{HandshakeLog: hl}
 				if hl != nil {
 					tlsLog.JA3S = fingerprint.JA3S(hl)
-					tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, hl)
+					if cs.cc.t.enableJA4SSignatures() {
+						tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, hl)
+					}
 				}
 				req.TLSLog = tlsLog
 			case *zgrab2.TLSConnection:
