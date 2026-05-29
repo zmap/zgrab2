@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"text/template"
 
@@ -187,6 +188,12 @@ func (s *server) TryDialWithAddr(config *ssh.ClientConfig, addr string) (*ssh.Cl
 	sshd, err := exec.LookPath("sshd")
 	if err != nil {
 		s.t.Skipf("skipping test: %v", err)
+	}
+
+	// macOS sshd calls bsm_audit_session_setup() post-auth, which requires
+	// root. As non-root, sshd exits before responding to channel opens.
+	if runtime.GOOS == "darwin" && os.Getuid() != 0 {
+		s.t.Skipf("skipping on darwin: sshd BSM audit requires root (uid=%d)", os.Getuid())
 	}
 
 	c1, c2, err := unixConnection()

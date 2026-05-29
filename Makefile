@@ -10,14 +10,31 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test install uninstall
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test fuzz check-fuzz-coverage install uninstall
 
-# Test currently only runs on the modules folder because some of the 
-# third-party libraries in lib (e.g. http) are failing.
 test:
-	go test -v -failfast .
-	cd lib/output/test && go test -v -failfast ./...
-	cd modules && go test -v -failfast ./...
+	go test -v -failfast ./...
+
+FUZZ_TIME ?= 30s
+FUZZ_PARALLEL ?= $(shell cpus=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4); quarter=$$((cpus / 4)); [ $$quarter -gt 4 ] && echo $$quarter || echo 4)
+FUZZ_PACKAGES = $(shell find modules lib -name '*_fuzz_test.go' -exec dirname {} \; | sort -u | sed 's|^|./|; s|$$|/...|')
+
+
+fuzz:
+	@echo "Running fuzz tests ($(FUZZ_TIME) per target, $(FUZZ_PARALLEL) parallel)..."
+	@for pkg in $(FUZZ_PACKAGES); do \
+		fuzz_funcs=$$(go test -list 'Fuzz.*' $$pkg 2>/dev/null | grep '^Fuzz'); \
+		for func in $$fuzz_funcs; do \
+			echo "$$pkg $$func"; \
+		done; \
+	done | xargs -P$(FUZZ_PARALLEL) -L1 sh -c ' \
+		echo "=== Fuzzing $$2 in $$1 ==="; \
+		go test -run=^$$ -fuzz="^$$2$$" -fuzztime=$(FUZZ_TIME) "$$1" 2>&1; \
+		echo "--- Done $$2 in $$1 (exit $$?) ---" \
+	' _
+
+check-fuzz-coverage:
+	@scripts/check-fuzz-coverage.sh
 
 lint:
 	gofmt -s -w $(shell find . -type f -name '*.go'| grep -v "/.template/")
@@ -71,6 +88,7 @@ integration-test-build:
 	fi; \
 	echo "Filtered services: $$TEST_SERVICES"; \
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build --no-cache service_base; \
+	docker compose -p zgrab -f integration_tests/docker-compose.yml build ipp_service_base smtp_service_base; \
 	docker compose -p zgrab -f integration_tests/docker-compose.yml build $$TEST_SERVICES; \
 	docker compose -p zgrab -f integration_tests/docker-compose.yml up -d $$TEST_SERVICES
 

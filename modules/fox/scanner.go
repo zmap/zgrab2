@@ -19,10 +19,10 @@ import (
 // Flags holds the command-line configuration for the fox scan module.
 // Populated by the framework.
 type Flags struct {
-	zgrab2.BaseFlags `group:"Basic Options"`
-	zgrab2.TLSFlags  `group:"TLS Options"`
-	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	UseTLS           bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	zgrab2.BaseFlags  `group:"Basic Options"`
+	zgrab2.TLSFlags   `group:"TLS Options"`
+	UseTLS            bool `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --use-tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --use-tls."`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -38,7 +38,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("fox", "fox", module.Description(), 1911, &module)
+	_, err := zgrab2.AddCommand("fox", "Niagara Fox IoT and Building Automation Communication Protocol (Fox)", module.Description(), 1911, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -63,6 +63,9 @@ func (module *Module) Description() string {
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
 func (flags *Flags) Validate(_ []string) error {
+	if flags.AllowTLSDowngrade && !flags.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --use-tls")
+	}
 	return nil
 }
 
@@ -75,6 +78,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      scanner.config.UseTLS,
 		TLSFlags:                        &f.TLSFlags,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -103,6 +107,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Scan probes for a Tridium Fox service.
 // 1. Opens a TCP connection to the configured port (default 1911)
 // 2. Sends a static query
@@ -110,7 +119,16 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 // 4. If the response has the Fox response prefix, mark the scan as having detected the service.
 // 5. Attempt to read any / all of the data fields from the Log struct
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn net.Conn
+		err  error
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+	}
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("unable to dial target (%s): %w", target.String(), err)
 	}

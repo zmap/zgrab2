@@ -1,0 +1,73 @@
+name: Fuzz Testing
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6am UTC
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'modules/**'
+      - 'lib/**'
+
+jobs:
+  fuzz-coverage:
+    name: Check fuzz coverage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Check fuzz test coverage
+        run: scripts/check-fuzz-coverage.sh
+
+  discover:
+    name: Discover fuzz targets
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.find.outputs.packages }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Find packages with fuzz tests
+        id: find
+        run: |
+          PACKAGES=$(find modules lib -name '*_fuzz_test.go' -exec dirname {} \; \
+            | sort -u \
+            | sed 's|^|./|; s|$|/...|' \
+            | jq -R . | jq -sc .)
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+          echo "Found fuzz packages: $PACKAGES"
+
+  fuzz:
+    name: Fuzz ${{ matrix.package }}
+    needs: [discover, fuzz-coverage]
+    if: ${{ !failure() }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.packages) }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Read go version
+        id: go_version
+        run: |
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
+
+      - name: Run fuzz tests
+        run: |
+          FUZZ_FUNCS=$(go test -list 'Fuzz.*' ${{ matrix.package }} 2>/dev/null | grep '^Fuzz' || true)
+          for func in $FUZZ_FUNCS; do
+            echo "=== Fuzzing $func ==="
+            go test -fuzz="^${func}$" -fuzztime=15s -timeout=120s ${{ matrix.package }}
+          done

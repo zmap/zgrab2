@@ -23,6 +23,10 @@ CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --v5
 CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --tls -p 8883 > $ZGRAB_OUTPUT/mqtt/mqtt_tls.json
 CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --tls --v5 -p 8883 > $ZGRAB_OUTPUT/mqtt/mqtt_tls_v5.json
 
+# TLS downgrade tests
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --tls --allow-tls-downgrade -p 1883 > $ZGRAB_OUTPUT/mqtt/tls_downgrade_plain_port.json
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh mqtt --tls --allow-tls-downgrade -p 8883 > $ZGRAB_OUTPUT/mqtt/tls_downgrade_tls_port.json
+
 # Dump the docker logs
 echo "mqtt/test: BEGIN docker logs from $CONTAINER_NAME [{("
 docker logs --tail all $CONTAINER_NAME

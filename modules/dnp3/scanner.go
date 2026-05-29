@@ -19,7 +19,6 @@ import (
 // Populated by the framework.
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"` // TODO: Support UDP?
-	Verbose          bool                    `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -35,7 +34,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("dnp3", "dnp3", module.Description(), 20000, &module)
+	_, err := zgrab2.AddCommand("dnp3", "Distributed Network Protocol 3 (DNP3)", module.Description(), 20000, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,6 +95,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Scan probes for a DNP3 service.

@@ -14,64 +14,7 @@ import (
 	"runtime/debug"
 
 	"github.com/sirupsen/logrus"
-	flags "github.com/zmap/zflags"
 )
-
-var parser *flags.Parser
-
-const defaultDNSPort = "53"
-
-func init() {
-	parser = flags.NewParser(&config, flags.Default)
-	desc := []string{
-		// Using a long single line so the terminal can handle wrapping, except for Input/Examples which should be on
-		// separate lines
-		"zgrab2 is fast, modular L7 application-layer scanner. It is commonly used with tools like ZMap which identify " +
-			"\"potential services\", or services we know are active on a given IP + port, and these are fed into ZGrab2 " +
-			"to confirm and provide details of the service. It has support for a number of protocols listed below as " +
-			"'Available commands' including SSH and HTTP. By default, zgrab2 will accept input from stdin and output " +
-			"results to stdout, with updates and logs to stderr. Please see 'zgrab2 <command> --help' for more details " +
-			"on a specific command.",
-		"Input is taken from stdin or --input-file, if specified. Input is CSV-formatted with 'IP, Domain, Tag, Port' " +
-			"or simply 'IP' or 'Domain'. See README.md for more details.",
-		"",
-		"Example usages:",
-		"echo '1.1.1.1' | zgrab2 tls          # Scan 1.1.1.1 with TLS",
-		"echo example.com | zgrab2 http     # Scan example.com with HTTP",
-	}
-	parser.LongDescription = strings.Join(desc, "\n")
-}
-
-// NewIniParser creates and returns a ini parser initialized
-// with the default parser
-func NewIniParser() *flags.IniParser {
-	return flags.NewIniParser(parser)
-}
-
-// AddCommand adds a module to the parser and returns a pointer to
-// a flags.command object or an error
-func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
-	cmd, err := parser.AddCommand(command, shortDescription, longDescription, m)
-	if err != nil {
-		return nil, err
-	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
-	cmd.FindOptionByLongName("name").Default = []string{command}
-	modules[command] = m
-	return cmd, nil
-}
-
-// ParseCommandLine parses the commands given on the command line
-// and validates the framework configuration (global options)
-// immediately after parsing
-func ParseCommandLine(flags []string) ([]string, string, ScanFlags, error) {
-	posArgs, moduleType, f, err := parser.ParseCommandLine(flags)
-	if err == nil {
-		validateFrameworkConfiguration()
-	}
-	sf, _ := f.(ScanFlags)
-	return posArgs, moduleType, sf, err
-}
 
 // ReadAvaiable reads what it can without blocking for more than
 // defaultReadTimeout per read, or defaultTotalTimeout for the whole session.

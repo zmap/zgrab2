@@ -441,6 +441,9 @@ var connTestConfigs = []connTimeoutTestConfig{
 // TestTimeoutConnectionTimeouts tests that the TimeoutConnection behaves as expected with respect
 // to timeouts.
 func TestTimeoutConnectionTimeouts(t *testing.T) {
+	// Higher limits for testing
+	config.ServerRateLimit = 1_000
+	config.DNSServerRateLimit = 1_000
 	temp := make([]connTimeoutTestConfig, 0, len(connTestConfigs)*3)
 	// Make three copies of connTestConfigs, one with each dial method.
 	for _, cfg := range connTestConfigs {

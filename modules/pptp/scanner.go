@@ -25,7 +25,6 @@ type ScanResults struct {
 // Flags are the PPTP-specific command-line flags.
 type Flags struct {
 	zgrab2.BaseFlags
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -42,7 +41,7 @@ type Scanner struct {
 // RegisterModule registers the pptp zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("pptp", "PPTP", module.Description(), 1723, &module)
+	_, err := zgrab2.AddCommand("pptp", "Point-to-Point Tunneling Protocol (PPTP)", module.Description(), 1723, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,6 +77,11 @@ func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
 }
 
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
 // Init initializes the Scanner instance with the flags from the command line.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
@@ -106,7 +110,7 @@ func (scanner *Scanner) GetTrigger() string {
 
 // PPTP Start-Control-Connection-Request message constants
 const (
-	PPTP_MAGIC_COOKIE       = 0x1A2B3C4D
+	PPTP_MAGIC_COOKIE       = 0x1A2B3C4D // PPTP Magic Cookie in bytes, see RFC 2637 section 1.4
 	PPTP_CONTROL_MESSAGE    = 1
 	PPTP_START_CONN_REQUEST = 1
 	PPTP_PROTOCOL_VERSION   = 0x0100 // Split into two 16-bit values for binary.BigEndian.PutUint16
@@ -138,24 +142,33 @@ func createSCCRMessage() []byte {
 }
 
 // Read response from the PPTP server
-func (pptp *Connection) readResponse() (string, error) {
+func (pptp *Connection) readResponse() (string, []byte, error) {
 	buffer := make([]byte, 1024)
 	if err := pptp.conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		return "", fmt.Errorf("could not set read deadline: %w", err)
+		return "", nil, fmt.Errorf("could not set read deadline: %w", err)
 	}
 	n, err := pptp.conn.Read(buffer)
 	if err != nil {
-		return "", err
+		return "", nil, fmt.Errorf("could not read response: %w", err)
 	}
-	return string(buffer[:n]), nil
+	return string(buffer[:n]), buffer[:n], nil
+}
+
+// Validate that the response contains the correct PPTP magic cookie
+func validateMagicCookie(response []byte) bool {
+	if len(response) < 8 {
+		return false
+	}
+	receivedMagicCookie := binary.BigEndian.Uint32(response[4:8])
+	return receivedMagicCookie == PPTP_MAGIC_COOKIE
 }
 
 // Scan performs the configured scan on the PPTP server
-func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, t *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
 	var err error
-	conn, err := dialGroup.Dial(ctx, t)
+	conn, err := dialGroup.Dial(ctx, target)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %s: %w", target.String(), err)
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 
@@ -167,18 +180,22 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	request := createSCCRMessage()
 	_, err = pptp.conn.Write(request)
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message to target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message to target %s: %w", target.String(), err)
 	}
 
 	// Read the response
-	response, err := pptp.readResponse()
+	respStr, respBytes, err := pptp.readResponse()
 	if err != nil {
-		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response from target %s: %w", t.String(), err)
+		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response from target %s: %w", target.String(), err)
 	}
 
 	// Store the banner and control message
 	pptp.results.Banner = string(request)
-	pptp.results.ControlMessage = response
+	pptp.results.ControlMessage = respStr
+
+	if !validateMagicCookie(respBytes) {
+		return zgrab2.SCAN_PROTOCOL_ERROR, &pptp.results, fmt.Errorf("invalid PPTP magic cookie in response from target %s", target.String())
+	}
 
 	return zgrab2.SCAN_SUCCESS, &pptp.results, nil
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/zmap/zgrab2"
 )
@@ -23,14 +24,14 @@ const uint16Size = 2
 type ReconnectFunction func() (net.Conn, error)
 
 // GetS7Banner scans the target for S7 information, reconnecting if necessary.
-func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunction) error {
+func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunction, readTimeout time.Duration) error {
 	// Attempt connection
 	var connPacketBytes, connResponseBytes []byte
 	connPacketBytes, err := makeCOTPConnectionPacketBytes(uint16(0x102), uint16(0x100))
 	if err != nil {
 		return fmt.Errorf("could not make COTP connection packet bytes: %w", err)
 	}
-	connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
+	connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes, readTimeout)
 	if len(connResponseBytes) == 0 || err != nil {
 		zgrab2.CloseConnAndHandleError(connection)
 		connection, err = reconnect()
@@ -42,7 +43,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 		if err != nil {
 			return fmt.Errorf("could not make COTP connection packet bytes: %w", err)
 		}
-		connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes)
+		connResponseBytes, err = sendRequestReadResponse(connection, connPacketBytes, readTimeout)
 		if err != nil {
 			return fmt.Errorf("could not send request and read response: %w", err)
 		}
@@ -58,7 +59,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	if err != nil {
 		return fmt.Errorf("could not make request packet bytes: %w", err)
 	}
-	_, err = sendRequestReadResponse(connection, requestPacketBytes)
+	_, err = sendRequestReadResponse(connection, requestPacketBytes, readTimeout)
 	if err != nil {
 		return fmt.Errorf("could not send s7 request and read response: %w", err)
 	}
@@ -66,7 +67,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	logStruct.IsS7 = true
 
 	// Make Module Identification request
-	moduleIdentificationResponse, err := readRequest(connection, S7_SZL_MODULE_IDENTIFICATION)
+	moduleIdentificationResponse, err := readRequest(connection, S7_SZL_MODULE_IDENTIFICATION, readTimeout)
 	if err != nil {
 		return fmt.Errorf("could not read module identification response: %w", err)
 	}
@@ -76,7 +77,7 @@ func GetS7Banner(logStruct *S7Log, connection net.Conn, reconnect ReconnectFunct
 	}
 
 	// Make Component Identification request
-	componentIdentificationResponse, err := readRequest(connection, S7_SZL_COMPONENT_IDENTIFICATION)
+	componentIdentificationResponse, err := readRequest(connection, S7_SZL_COMPONENT_IDENTIFICATION, readTimeout)
 	if err != nil {
 		return fmt.Errorf("could not read component identification response: %w", err)
 	}
@@ -139,11 +140,11 @@ func makeRequestPacketBytes(pduType byte, parameters []byte, data []byte) ([]byt
 }
 
 // Send a generic packet request and return the response
-func sendRequestReadResponse(connection net.Conn, requestBytes []byte) ([]byte, error) {
+func sendRequestReadResponse(connection net.Conn, requestBytes []byte, readTimeout time.Duration) ([]byte, error) {
 	if n, err := connection.Write(requestBytes); err != nil {
 		return nil, fmt.Errorf("error encountered after writing %d bytes: %w", n, err)
 	}
-	responseBytes, err := zgrab2.ReadAvailable(connection)
+	responseBytes, err := zgrab2.ReadAvailableWithOptions(connection, len(requestBytes), readTimeout, 0, 4096)
 	if err != nil {
 		return nil, err
 	}
@@ -356,12 +357,12 @@ func parseModuleIdentificationRequest(logStruct *S7Log, s7Packet *S7Packet) erro
 	return nil
 }
 
-func readRequest(connection net.Conn, slzId uint16) (packet S7Packet, err error) {
+func readRequest(connection net.Conn, slzId uint16, readTimeout time.Duration) (packet S7Packet, err error) {
 	readRequestBytes, err := makeReadRequestBytes(slzId)
 	if err != nil {
 		return packet, err
 	}
-	readResponse, err := sendRequestReadResponse(connection, readRequestBytes)
+	readResponse, err := sendRequestReadResponse(connection, readRequestBytes, readTimeout)
 	if err != nil {
 		return packet, err
 	}

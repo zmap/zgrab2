@@ -95,7 +95,6 @@ type ScanResults struct {
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	zgrab2.TLSFlags  `group:"TLS Options"`
-	Verbose          bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 
 	//FIXME: Borrowed from http module, determine whether this is all needed
 	MaxSize      int    `long:"max-size" default:"256" description:"Max kilobytes to read in response to an IPP request"`
@@ -131,7 +130,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("ipp", "ipp", module.Description(), 631, &module)
+	_, err := zgrab2.AddCommand("ipp", "Internet Printing Protocol (IPP)", module.Description(), 631, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -199,6 +198,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // FIXME: Add some error handling somewhere in here, unless errors should just be ignored and we get what we get
@@ -666,8 +670,8 @@ func (scan *scan) getCheckRedirect(scanner *Scanner) func(*http.Request, *http.R
 }
 
 // Taken from zgrab2 http library, slightly modified to use slightly leaner scan object
-func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) func(net, addr string) (net.Conn, error) {
-	return func(net, addr string) (net.Conn, error) {
+func (scan *scan) getTLSDialer(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) func(ctx context.Context, net, addr string) (net.Conn, error) {
+	return func(ctx context.Context, net, addr string) (net.Conn, error) {
 		tlsConn, err := dialGroup.GetTLSDialer(ctx, target)("tcp", addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to establish TLS connection to %s: %w", addr, err)
@@ -713,7 +717,7 @@ func (scanner *Scanner) tryGrabForVersions(ctx context.Context, target *zgrab2.S
 		DisableCompression:  false,
 		MaxIdleConnsPerHost: scanner.config.MaxRedirects,
 	}
-	transport.DialTLS = newScan.getTLSDialer(ctx, target, dialGroup)
+	transport.DialTLSContext = newScan.getTLSDialer(ctx, target, dialGroup)
 	transport.DialContext = zgrab2.GetTimeoutConnectionDialer(scanner.config.ConnectTimeout, scanner.config.TargetTimeout).DialContext
 	newScan.client.CheckRedirect = newScan.getCheckRedirect(scanner)
 	newScan.client.UserAgent = scanner.config.UserAgent

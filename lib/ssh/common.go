@@ -291,12 +291,20 @@ type Config struct {
 	// is used.
 	MACs []string
 
+	// The allowed compression algorithms. Only 'none' is supported.
+	CompressionAlgorithms []string
+
 	// A pointer to the handshake log IOT allow incremental building
 	ConnLog *HandshakeLog
 
 	// Whether or not the package should operate in verbose mode
 	// (save more output)
 	Verbose bool
+
+	// If true, the client will collect SSH extensions (if any) as per RFC 8308 by completing the
+	// SSH transport layer protocol. If false, the client will still collect extensions if
+	// either CollectUserAuth is true or DontAuthenticate is false.
+	CollectExtensions bool
 
 	GexMinBits       uint
 	GexMaxBits       uint
@@ -329,6 +337,10 @@ func (c *Config) SetDefaults() {
 
 	if c.MACs == nil {
 		c.MACs = supportedMACs
+	}
+
+	if c.CompressionAlgorithms == nil {
+		c.CompressionAlgorithms = supportedCompressions
 	}
 
 	if c.RekeyThreshold == 0 {

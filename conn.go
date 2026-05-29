@@ -8,7 +8,10 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/netip"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/censys/cidranger"
 
@@ -65,11 +68,12 @@ type TimeoutConnection struct {
 }
 
 // SaturateTimeoutsToReadAndWriteTimeouts gets the minimum of the context deadline, the timeout, and the read/write timeouts
-// and sets the read/write timeouts accordingly. This is necessary because the underlying connection only supports a
+// and sets the read/write timeouts accordingly on the underlying connection. This is necessary because the underlying connection only supports a
 // deadline on reads and a deadline on writes, so we need to compute the minimum of all these to find what to set the
 // underlying conn's read/write deadlines to.
-func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
+func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() error {
 	// Get the minimum of the context deadline and the timeout
+	var readTimeout, writeTimeout time.Duration
 	minDeadline := int64(math.MaxInt64)
 	if ctxDeadline, ok := c.ctx.Deadline(); ok {
 		minDeadline = int64(time.Until(ctxDeadline))
@@ -77,20 +81,26 @@ func (c *TimeoutConnection) SaturateTimeoutsToReadAndWriteTimeouts() {
 	if c.SessionTimeout > 0 {
 		minDeadline = min(minDeadline, int64(c.SessionTimeout))
 	}
-	c.SessionTimeout = time.Duration(minDeadline)
 
 	// Now we'll check read and write timeouts.
 	if c.ReadTimeout > 0 {
-		c.ReadTimeout = time.Duration(min(minDeadline, int64(c.ReadTimeout)))
+		readTimeout = time.Duration(min(minDeadline, int64(c.ReadTimeout)))
 	} else {
-		c.ReadTimeout = time.Duration(minDeadline)
+		readTimeout = time.Duration(minDeadline)
 	}
 
 	if c.WriteTimeout > 0 {
-		c.WriteTimeout = time.Duration(min(minDeadline, int64(c.WriteTimeout)))
+		writeTimeout = time.Duration(min(minDeadline, int64(c.WriteTimeout)))
 	} else {
-		c.WriteTimeout = time.Duration(minDeadline)
+		writeTimeout = time.Duration(minDeadline)
 	}
+	if err := c.Conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
+		return fmt.Errorf("cannot set read deadline: %w", err)
+	}
+	if err := c.Conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return fmt.Errorf("cannot set write deadline: %w", err)
+	}
+	return nil
 }
 
 // TimeoutConnection.Read calls Read() on the underlying connection, using any configured deadlines
@@ -102,8 +112,7 @@ func (c *TimeoutConnection) Read(b []byte) (n int, err error) {
 	if c.BytesRead+len(b) >= c.BytesReadLimit {
 		b = b[0 : c.BytesReadLimit-c.BytesRead]
 	}
-	c.SaturateTimeoutsToReadAndWriteTimeouts()
-	if err = c.Conn.SetReadDeadline(time.Now().Add(c.ReadTimeout)); err != nil {
+	if err = c.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
 		return 0, err
 	}
 	n, err = c.Conn.Read(b)
@@ -130,8 +139,7 @@ func (c *TimeoutConnection) Write(b []byte) (n int, err error) {
 	if err = c.checkContext(); err != nil {
 		return 0, err
 	}
-	c.SaturateTimeoutsToReadAndWriteTimeouts()
-	if err = c.Conn.SetWriteDeadline(time.Now().Add(c.WriteTimeout)); err != nil {
+	if err = c.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
 		return 0, err
 	}
 	n, err = c.Conn.Write(b)
@@ -202,22 +210,28 @@ func (c *TimeoutConnection) checkContext() error {
 }
 
 // NewTimeoutConnection returns a new TimeoutConnection with the appropriate defaults.
-func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) *TimeoutConnection {
+func NewTimeoutConnection(ctx context.Context, conn net.Conn, sessionTimeout, readTimeout, writeTimeout time.Duration, bytesReadLimit int) (*TimeoutConnection, error) {
 	ret := &TimeoutConnection{
 		ctx:            ctx,
-		Conn:           conn,
 		SessionTimeout: sessionTimeout,
 		ReadTimeout:    readTimeout,
 		WriteTimeout:   writeTimeout,
 		BytesReadLimit: bytesReadLimit,
+	}
+	if castConn, ok := conn.(*TimeoutConnection); ok {
+		ret.Conn = castConn.Conn // don't want to wrap TimeoutConnection in another TimeoutConnection
+	} else {
+		ret.Conn = conn
 	}
 	if sessionTimeout > 0 {
 		ret.ctx, ret.Cancel = context.WithTimeout(ctx, sessionTimeout)
 	} else {
 		ret.ctx, ret.Cancel = context.WithCancel(ctx)
 	}
-	ret.SaturateTimeoutsToReadAndWriteTimeouts()
-	return ret
+	if err := ret.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
+		return nil, fmt.Errorf("error setting initial deadlines on connection: %w", err)
+	}
+	return ret, nil
 }
 
 // Dialer provides Dial and DialContext methods to get connections with the given timeout.
@@ -279,6 +293,22 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 				}
 			}
 		}
+		// Check rate limits
+		ip := net.ParseIP(host)
+		ipAddr, ok := netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("invalid IP address: %s", host)
+		}
+		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, &ScanError{
+					Status: SCAN_CONNECTION_TIMEOUT,
+					Err:    fmt.Errorf("dialing IP %s timed out or was cancelled while waiting for rate limit token", host),
+				}
+			}
+			return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
+		}
+
 		// can proceed with dialing the IP address, not blocklisted
 		conn, err = d.Dialer.DialContext(ctx, network, address)
 	}
@@ -286,7 +316,10 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	if err != nil {
 		return nil, fmt.Errorf("dial context failed: %w", err)
 	}
-	ret := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	ret, err := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
+	if err != nil {
+		return nil, err
+	}
 	ret.BytesReadLimit = d.BytesReadLimit
 	ret.ReadLimitExceededAction = d.ReadLimitExceededAction
 	return ret, nil
@@ -317,20 +350,30 @@ func (d *Dialer) dialContextDomain(ctx context.Context, network, host, port stri
 		d.Timeout = originalDialerTimeout // Restore the original timeout after dialing
 	}()
 	d.Timeout = singleIPTimeout // Dialer will only wait for this amount of time for each IP
+	var conn net.Conn
 	for _, ip := range usableIPs {
-		conn, err := d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		conn, err = d.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 		if err == nil {
 			return conn, nil
 		}
 	}
 	return nil, &ScanError{
 		Status: SCAN_CONNECTION_TIMEOUT,
-		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout", host),
+		Err:    fmt.Errorf("failed to connect to any IPs for domain %s within timeout. Last IP errored with: %w", host, err),
 	}
 
 }
 
 func (d *Dialer) lookupIPs(ctx context.Context, host string) ([]net.IP, error) {
+	if err := dnsRateLimiter.Wait(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, &ScanError{
+				Status: SCAN_CONNECTION_TIMEOUT,
+				Err:    fmt.Errorf("dns lookup %s timed out or was cancelled while waiting for rate limit token", host),
+			}
+		}
+		return nil, fmt.Errorf("failed to wait for rate limiter for DNS: %w", err)
+	}
 	ips, err := d.Resolver.LookupIP(ctx, "ip", host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve domain %s: %w", host, err)
@@ -422,12 +465,36 @@ func NewDialer(value *Dialer) *Dialer {
 	return value.SetDefaults()
 }
 
+// filterLocalAddrsByFamily filters localIPs to only include addresses matching the address family of targetIP.
+// If targetIP is nil or no local IPs are provided, we return the original list.
+// If no local IPs match the target's address family, we return an empty list.
+func filterLocalAddrsByFamily(localIPs []net.IP, targetIP net.IP) []net.IP {
+	if targetIP == nil || len(localIPs) == 0 {
+		return localIPs
+	}
+	targetIsIPv4 := targetIP.To4() != nil
+	filtered := make([]net.IP, 0, len(localIPs))
+	for _, ip := range localIPs {
+		ipIsIPv4 := ip.To4() != nil
+		if ipIsIPv4 == targetIsIPv4 {
+			filtered = append(filtered, ip)
+		}
+	}
+	return filtered
+}
+
 // SetRandomLocalAddr sets a random local address and port for the dialer. If either localIPs or localPorts are empty,
 // the IP or port, respectively, will be un-set and the system will choose.
-func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16) error {
+// If targetIP is non-nil, localIPs are filtered to match the target's address family (IPv4 or IPv6) to prevent
+// protocol mismatch errors when both IPv4 and IPv6 local addresses are configured.
+func (d *Dialer) SetRandomLocalAddr(network string, localIPs []net.IP, localPorts []uint16, targetIP net.IP) error {
 	var localIP net.IP
 	if len(localIPs) != 0 {
-		localIP = localIPs[rand.Intn(len(localIPs))]
+		candidates := filterLocalAddrsByFamily(localIPs, targetIP)
+		if len(candidates) == 0 {
+			return fmt.Errorf("no selected local IPs %v match the address family of the target IP %s, so target would not be reachable", localIPs, targetIP.String())
+		}
+		localIP = candidates[rand.Intn(len(candidates))]
 	}
 	var localPort int
 	if len(localPorts) != 0 {

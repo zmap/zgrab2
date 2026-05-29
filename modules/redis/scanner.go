@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,14 +34,14 @@ import (
 type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 
-	CustomCommands   string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
-	Mappings         string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
-	MaxInputFileSize int64  `long:"max-input-file-size" default:"102400" description:"Maximum size for either input file."`
-	Password         string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
-	DoInline         bool   `long:"inline" description:"Send commands using the inline syntax"`
-	Verbose          bool   `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
-	UseTLS           bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
-	zgrab2.TLSFlags  `group:"TLS Options"`
+	CustomCommands    string `long:"custom-commands" description:"Pathname for JSON/YAML file that contains extra commands to execute. WARNING: This is sent in the clear."`
+	Mappings          string `long:"mappings" description:"Pathname for JSON/YAML file that contains mappings for command names."`
+	MaxInputFileSize  int64  `long:"max-input-file-size" default:"102400" description:"Maximum size for either input file."`
+	Password          string `long:"password" description:"Set a password to use to authenticate to the server. WARNING: This is sent in the clear."`
+	DoInline          bool   `long:"inline" description:"Send commands using the inline syntax"`
+	UseTLS            bool   `long:"use-tls" description:"Sends probe with a TLS connection. Loads TLS module command options."`
+	AllowTLSDowngrade bool   `long:"allow-tls-downgrade" description:"If --use-tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --use-tls."`
+	zgrab2.TLSFlags   `group:"TLS Options"`
 }
 
 // Module implements the zgrab2.Module interface
@@ -167,7 +168,7 @@ type Result struct {
 // RegisterModule registers the zgrab2 module
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("redis", "redis", module.Description(), 6379, &module)
+	_, err := zgrab2.AddCommand("redis", "In-Memmory Key-Value Database (Redis)", module.Description(), 6379, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -190,6 +191,9 @@ func (module *Module) Description() string {
 
 // Validate checks that the flags are valid
 func (flags *Flags) Validate(_ []string) error {
+	if flags.AllowTLSDowngrade && !flags.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --use-tls")
+	}
 	return nil
 }
 
@@ -206,6 +210,7 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		BaseFlags:                       &f.BaseFlags,
 		TLSFlags:                        &f.TLSFlags,
 		TLSEnabled:                      f.UseTLS,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
 }
@@ -312,24 +317,40 @@ func (scan *scan) SendCommand(cmd string, args ...string) (RedisValue, error) {
 		exec = scan.conn.SendInlineCommand
 	}
 	ret, err := exec(cmd, args...)
-	if err != nil {
-		return nil, err
+	if ret != nil {
+		scan.result.RawCommandOutput = append(scan.result.RawCommandOutput, ret.Encode())
 	}
-	scan.result.RawCommandOutput = append(scan.result.RawCommandOutput, ret.Encode())
+	if err != nil {
+		return ret, err
+	}
 	return ret, nil
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn net.Conn
+		err  error
+	)
+
+	if scanner.config.AllowTLSDowngrade {
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("could not establish connection to %s: %w", target.String(), err)
+	}
+
+	result := &Result{}
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		result.TLSLog = tlsConn.GetLog()
 	}
 
 	return &scan{
 		target:  target,
 		scanner: scanner,
-		result:  &Result{},
+		result:  result,
 		conn: &Connection{
 			scanner: scanner,
 			conn:    conn,
@@ -366,6 +387,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Converts the string to a Uint32 if possible. If not, returns 0 (the zero value of a uin32)
@@ -492,5 +518,5 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	result.QuitResponse = forceToString(quitResponse)
 	result.TLSLog = scan.conn.GetTLSLog()
-	return zgrab2.SCAN_SUCCESS, &result, nil
+	return zgrab2.SCAN_SUCCESS, result, nil
 }

@@ -70,7 +70,7 @@ type readLimitTestConfig struct {
 func checkedSendReceive(t *testing.T, conn *TimeoutConnection, size int) (result error) {
 	// helper to report + return an error
 	tErrorf := func(format string, args ...any) error {
-		result = fmt.Errorf(format, args)
+		result = fmt.Errorf(format, args...)
 		t.Error(result)
 		return result
 	}
@@ -386,11 +386,12 @@ func testBytesReadLimitOn(t *testing.T, connector timeoutConnector) error {
 			return err
 		}
 	}
-	for i := 0; i < 10; i++ {
+	for i := 10; i < 20; i++ {
 		if err := runBytesReadLimitTrial(t, connector, i, readLimitTestConfig.runMultiSend); err != nil {
 			return err
 		}
 	}
+	time.Sleep(1 * time.Second)
 	return nil
 }
 
@@ -402,6 +403,9 @@ func testBytesReadLimitOn(t *testing.T, connector timeoutConnector) error {
 // 5. Repeat 10 times
 // 6. Repeat the above 10 more times, except in #3, split the send across five packets
 func TestBytesReadLimit(t *testing.T) {
+	// Higher limits for testing
+	config.ServerRateLimit = 1_000
+	config.DNSServerRateLimit = 1_000
 	connectors := make(map[string]timeoutConnector)
 	// Create a fresh connector for each configuration
 	for cfgName, cfg := range readLimitTestConfigs {

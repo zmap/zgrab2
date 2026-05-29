@@ -19,9 +19,6 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 	// SetupSession tells the client to continue the handshake up to the point where credentials would be needed.
 	SetupSession bool `long:"setup-session" description:"After getting the response from the negotiation request, send a setup session packet."`
-
-	// Verbose requests more verbose logging / output.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -37,7 +34,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("smb", "smb", module.Description(), 445, &module)
+	_, err := zgrab2.AddCommand("smb", "Server Message Block (SMB)", module.Description(), 445, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,6 +95,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // Scan performs the following:

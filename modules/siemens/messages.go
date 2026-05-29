@@ -139,9 +139,9 @@ func (cotpDataPacket *COTPDataPacket) Unmarshal(bytes []byte) error {
 		return errInvalidPacket
 	}
 
-	headerSize := bytes[0]
+	headerSize := int(bytes[0])
 
-	if int(headerSize+1) > len(bytes) {
+	if headerSize+1 > len(bytes) {
 		return errInvalidPacket
 	}
 
@@ -204,8 +204,8 @@ func (s7Packet *S7Packet) Marshal() ([]byte, error) {
 
 // Unmarshal decodes a S7Packet from binary.
 func (s7Packet *S7Packet) Unmarshal(bytes []byte) (err error) {
-	if len(bytes) < 1 {
-		return errInvalidPacket
+	if len(bytes) < 10 {
+		return errS7PacketTooShort
 	}
 
 	if protocolId := bytes[0]; protocolId != S7_PROTOCOL_ID {
@@ -218,6 +218,9 @@ func (s7Packet *S7Packet) Unmarshal(bytes []byte) (err error) {
 	switch pduType {
 	case S7_ACKNOWLEDGEMENT, S7_RESPONSE:
 		headerSize = 12
+		if len(bytes) < 12 {
+			return errS7PacketTooShort
+		}
 		s7Packet.Error = binary.BigEndian.Uint16(bytes[10:12])
 	case S7_REQUEST, S7_REQUEST_USER_DATA:
 		headerSize = 10

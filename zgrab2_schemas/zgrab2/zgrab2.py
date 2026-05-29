@@ -54,6 +54,7 @@ base_scan_response = SubRecord(
     {
         "status": Enum(values=STATUS_VALUES, doc="The status of the request."),
         "protocol": String(doc="The identifier of the protocol being scanned."),
+        "port": Unsigned32BitInteger(doc="The port the scan was executed on."),
         "timestamp": DateTime(doc="The time the scan was started."),
         "result": SubRecord(
             {}, required=False
@@ -68,7 +69,33 @@ base_scan_response = SubRecord(
 
 # zgrab2/tls.go: TLSLog
 tls_log = SubRecord(
-    {"handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log.")}
+    {
+        "handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log."),
+        "handshake_completed_successfully": Boolean(
+            required=False,
+            doc="True if the TLS handshake completed successfully.",
+        ),
+        "ja3s": String(
+            required=False,
+            doc="JA3S TLS server fingerprint.",
+        ),
+        "ja4s": String(
+            required=False,
+            doc="JA4S TLS server fingerprint (only present when --enable-ja4s-signatures is set).",
+        ),
+    }
+)
+
+ntlm_info = SubRecord(
+    {
+        "os_version": String(),
+        "target_name": String(),
+        "netbios_computer_name": String(),
+        "netbios_domain_name": String(),
+        "dns_computer_name": String(),
+        "dns_domain_name": String(),
+        "forest_name": String(),
+    }
 )
 
 

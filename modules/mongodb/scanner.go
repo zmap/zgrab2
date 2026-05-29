@@ -218,7 +218,7 @@ func (scanner *Scanner) GetName() string {
 }
 
 // Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "mongodb"
 }
 
@@ -249,6 +249,11 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 // Description returns an overview of this module.
 func (module *Module) Description() string {
 	return "Perform a handshake with a MongoDB server"
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it.
@@ -384,7 +389,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("mongodb", "mongodb", module.Description(), 27017, &module)
+	_, err := zgrab2.AddCommand("mongodb", "Document-oriented Database (MongoDB)", module.Description(), 27017, &module)
 	if err != nil {
 		log.Fatal(err)
 	}

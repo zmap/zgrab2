@@ -90,13 +90,27 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 				}
 			}
 		}
-		err := dialer.SetRandomLocalAddr("tcp", config.localAddrs, config.localPorts)
+		err := dialer.SetRandomLocalAddr("tcp", config.localAddrs, config.localPorts, t.IP)
 		if err != nil {
 			return nil, fmt.Errorf("could not set random local address: %w", err)
 		}
-		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		handshakeCtx := ctx
+		if flags.ConnectTimeout > 0 {
+			var cancel context.CancelFunc
+			handshakeCtx, cancel = context.WithTimeout(ctx, flags.ConnectTimeout)
+			defer cancel()
+		}
+		conn, err := dialer.DialContext(handshakeCtx, "tcp", addr)
 		if err != nil {
 			return nil, err
+		}
+		if castConn, ok := conn.(*TimeoutConnection); ok {
+			// Reset the context on the connection to the main one, not the handshake one
+			castConn.ctx = ctx
+
+			if err = castConn.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
+				return nil, err
+			}
 		}
 		return conn, nil
 	}
@@ -109,12 +123,12 @@ func GetDefaultTLSDialer(flags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.
 		if err != nil {
 			return nil, fmt.Errorf("could not initiate a L4 connection with L4 dialer: %w", err)
 		}
-		return GetDefaultTLSWrapper(tlsFlags)(ctx, t, l4Conn)
+		return GetDefaultTLSWrapper(flags, tlsFlags)(ctx, t, l4Conn)
 	}
 }
 
 // GetDefaultTLSWrapper uses the TLS flags to create a wrapper that upgrades a TCP connection to a TLS connection.
-func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
+func GetDefaultTLSWrapper(baseFlags *BaseFlags, tlsFlags *TLSFlags) func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
 	return func(ctx context.Context, t *ScanTarget, conn net.Conn) (*TLSConnection, error) {
 		tlsConfig, err := tlsFlags.GetTLSConfigForTarget(t)
 		if err != nil {
@@ -138,9 +152,19 @@ func GetDefaultTLSWrapper(tlsFlags *TLSFlags) func(ctx context.Context, t *ScanT
 			Conn:  *(tls.Client(conn, tlsConfig)),
 			flags: tlsFlags,
 		}
-		err = tlsConn.Handshake()
-		if err != nil {
+		handshakeCtx := ctx
+		if baseFlags.ConnectTimeout > 0 {
+			var cancel context.CancelFunc
+			handshakeCtx, cancel = context.WithTimeout(ctx, tlsFlags.TLSHandshakeTimeout)
+			defer cancel()
+		}
+		err = tlsConn.HandshakeContext(handshakeCtx)
+		if err != nil && tlsConn.log == nil {
+			// If the handshake fails and we have no log, just return error
 			return nil, fmt.Errorf("could not perform tls handshake for target %s: %w", t.String(), err)
+		} else if err != nil {
+			// We'll return both the error and the connection so ZGrab can return the handshake log
+			return &tlsConn, fmt.Errorf("could not successfully complete tls handshake for target %s: %w", t.String(), err)
 		}
 		return &tlsConn, err
 	}
@@ -151,7 +175,7 @@ func GetDefaultUDPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 	// create dialer once and reuse it
 	return func(ctx context.Context, t *ScanTarget, addr string) (net.Conn, error) {
 		dialer := GetTimeoutConnectionDialer(flags.ConnectTimeout, flags.TargetTimeout)
-		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts, t.IP)
 		if err != nil {
 			return nil, fmt.Errorf("could not set random local address: %w", err)
 		}
@@ -212,7 +236,7 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 		}
 		// resolve the target's IP here once, so it doesn't need to be resolved in each module
 		dialer := NewDialer(nil)
-		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts)
+		err := dialer.SetRandomLocalAddr("udp", config.localAddrs, config.localPorts, nil)
 		if err != nil {
 			return onResolutionFailure(input, m, fmt.Errorf("could not set random local address: %w", err))
 		}

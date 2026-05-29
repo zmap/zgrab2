@@ -7,7 +7,7 @@ package cookiejar
 import (
 	"fmt"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +20,10 @@ var tNow = time.Date(2013, 1, 1, 12, 0, 0, 0, time.UTC)
 
 // testPSL implements PublicSuffixList with just two rules: "co.uk"
 // and the default rule "*".
+// The implementation has two intentional bugs:
+//
+//	PublicSuffix("www.buggy.psl") == "xy"
+//	PublicSuffix("www2.buggy.psl") == "com"
 type testPSL struct{}
 
 func (testPSL) String() string {
@@ -28,6 +32,12 @@ func (testPSL) String() string {
 func (testPSL) PublicSuffix(d string) string {
 	if d == "co.uk" || strings.HasSuffix(d, ".co.uk") {
 		return "co.uk"
+	}
+	if d == "www.buggy.psl" {
+		return "xy"
+	}
+	if d == "www2.buggy.psl" {
+		return "com"
 	}
 	return d[strings.LastIndex(d, ".")+1:]
 }
@@ -126,6 +136,17 @@ var canonicalHostTests = map[string]string{
 	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
 	"www.bücher.de":           "www.xn--bcher-kva.de",
 	"www.example.com.":        "www.example.com",
+	// TODO: Fix canonicalHost so that all of the following malformed
+	// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+	".":                       "",
+	"..":                      ".",
+	"...":                     "..",
+	".net":                    ".net",
+	".net.":                   ".net",
+	"a..":                     "a.",
+	"b.a..":                   "b.a.",
+	"weird.stuff...":          "weird.stuff..",
 	"[bad.unmatched.bracket:": "error",
 }
 
@@ -134,7 +155,7 @@ func TestCanonicalHost(t *testing.T) {
 		got, err := canonicalHost(h)
 		if want == "error" {
 			if err == nil {
-				t.Errorf("%q: got nil error, want non-nil", h)
+				t.Errorf("%q: got %q and nil error, want non-nil", h, got)
 			}
 			continue
 		}
@@ -177,6 +198,17 @@ var jarKeyTests = map[string]string{
 	"co.uk":               "co.uk",
 	"uk":                  "uk",
 	"192.168.0.5":         "192.168.0.5",
+	"www.buggy.psl":       "www.buggy.psl",
+	"www2.buggy.psl":      "buggy.psl",
+	// The following are actual outputs of canonicalHost for
+	// malformed inputs to canonicalHost (see above).
+	"":              "",
+	".":             ".",
+	"..":            ".",
+	".net":          ".net",
+	"a.":            "a.",
+	"b.a.":          "a.",
+	"weird.stuff..": ".",
 }
 
 func TestJarKey(t *testing.T) {
@@ -198,6 +230,15 @@ var jarKeyNilPSLTests = map[string]string{
 	"co.uk":               "co.uk",
 	"uk":                  "uk",
 	"192.168.0.5":         "192.168.0.5",
+	// The following are actual outputs of canonicalHost for
+	// malformed inputs to canonicalHost.
+	"":              "",
+	".":             ".",
+	"..":            "..",
+	".net":          ".net",
+	"a.":            "a.",
+	"b.a.":          "a.",
+	"weird.stuff..": "stuff..",
 }
 
 func TestJarKeyNilPSL(t *testing.T) {
@@ -212,6 +253,7 @@ var isIPTests = map[string]bool{
 	"127.0.0.1":            true,
 	"1.2.3.4":              true,
 	"2001:4860:0:2001::68": true,
+	"::1%zone":             true,
 	"example.com":          false,
 	"1.1.1.300":            false,
 	"www.foo.bar.net":      false,
@@ -266,8 +308,8 @@ var domainAndTypeTests = [...]struct {
 	{"foo.sso.example.com", "sso.example.com", "sso.example.com", false, nil},
 	{"bar.co.uk", "bar.co.uk", "bar.co.uk", false, nil},
 	{"foo.bar.co.uk", ".bar.co.uk", "bar.co.uk", false, nil},
-	{"127.0.0.1", "127.0.0.1", "", false, errNoHostname},
-	{"2001:4860:0:2001::68", "2001:4860:0:2001::68", "2001:4860:0:2001::68", false, errNoHostname},
+	{"127.0.0.1", "127.0.0.1", "127.0.0.1", true, nil},
+	{"2001:4860:0:2001::68", "2001:4860:0:2001::68", "2001:4860:0:2001::68", true, nil},
 	{"www.example.com", ".", "", false, errMalformedDomain},
 	{"www.example.com", "..", "", false, errMalformedDomain},
 	{"www.example.com", "other.com", "", false, errIllegalDomain},
@@ -288,7 +330,7 @@ func TestDomainAndType(t *testing.T) {
 	for _, tc := range domainAndTypeTests {
 		domain, hostOnly, err := jar.domainAndType(tc.host, tc.domain)
 		if err != tc.wantErr {
-			t.Errorf("%q/%q: got %q error, want %q",
+			t.Errorf("%q/%q: got %q error, want %v",
 				tc.host, tc.domain, err, tc.wantErr)
 			continue
 		}
@@ -309,7 +351,7 @@ func expiresIn(delta int) string {
 	return "expires=" + t.Format(time.RFC1123)
 }
 
-// mustParseURL parses s to an URL and panics on error.
+// mustParseURL parses s to a URL and panics on error.
 func mustParseURL(s string) *url.URL {
 	u, err := url.Parse(s)
 	if err != nil || u.Scheme == "" || u.Host == "" {
@@ -363,10 +405,15 @@ func (test jarTest) run(t *testing.T, jar *Jar) {
 			if !cookie.Expires.After(now) {
 				continue
 			}
-			cs = append(cs, cookie.Name+"="+cookie.Value)
+
+			v := cookie.Value
+			if strings.ContainsAny(v, " ,") || cookie.Quoted {
+				v = `"` + v + `"`
+			}
+			cs = append(cs, cookie.Name+"="+v)
 		}
 	}
-	sort.Strings(cs)
+	slices.Sort(cs)
 	got := strings.Join(cs, " ")
 
 	// Make sure jar content matches our expectations.
@@ -380,7 +427,7 @@ func (test jarTest) run(t *testing.T, jar *Jar) {
 		now = now.Add(1001 * time.Millisecond)
 		var s []string
 		for _, c := range jar.cookies(mustParseURL(query.toURL), now) {
-			s = append(s, c.Name+"="+c.Value)
+			s = append(s, c.String())
 		}
 		if got := strings.Join(s, " "); got != query.want {
 			t.Errorf("Test %q #%d\ngot  %q\nwant %q", test.description, i, got, query.want)
@@ -554,6 +601,21 @@ var basicsTests = [...]jarTest{
 		[]query{{"http://192.168.0.10", "a=1"}},
 	},
 	{
+		"Domain cookies on IP.",
+		"http://192.168.0.10",
+		[]string{
+			"a=1; domain=192.168.0.10",  // allowed
+			"b=2; domain=172.31.9.9",    // rejected, can't set cookie for other IP
+			"c=3; domain=.192.168.0.10", // rejected like in most browsers
+		},
+		"a=1",
+		[]query{
+			{"http://192.168.0.10", "a=1"},
+			{"http://172.31.9.9", ""},
+			{"http://www.fancy.192.168.0.10", ""},
+		},
+	},
+	{
 		"Port is ignored #1.",
 		"http://www.host.test/",
 		[]string{"a=1"},
@@ -572,6 +634,32 @@ var basicsTests = [...]jarTest{
 			{"http://www.host.test", "a=1"},
 			{"http://www.host.test:8080/", "a=1"},
 			{"http://www.host.test:1234/", "a=1"},
+		},
+	},
+	{
+		"IPv6 zone is not treated as a host.",
+		"https://example.com/",
+		[]string{"a=1"},
+		"a=1",
+		[]query{
+			{"https://[::1%25.example.com]:80/", ""},
+		},
+	},
+	{
+		"Retrieval of cookies with quoted values", // issue #46443
+		"http://www.host.test/",
+		[]string{
+			`cookie-1="quoted"`,
+			`cookie-2="quoted with spaces"`,
+			`cookie-3="quoted,with,commas"`,
+			`cookie-4= ,`,
+		},
+		`cookie-1="quoted" cookie-2="quoted with spaces" cookie-3="quoted,with,commas" cookie-4=" ,"`,
+		[]query{
+			{
+				"http://www.host.test",
+				`cookie-1="quoted" cookie-2="quoted with spaces" cookie-3="quoted,with,commas" cookie-4=" ,"`,
+			},
 		},
 	},
 }
@@ -615,7 +703,7 @@ var updateAndDeleteTests = [...]jarTest{
 		},
 	},
 	{
-		"Clear Secure flag from a http.",
+		"Clear Secure flag from an http.",
 		"http://www.host.test/",
 		[]string{
 			"b=xx",
@@ -887,9 +975,16 @@ var chromiumBasicsTests = [...]jarTest{
 	{
 		"TestIpAddress #3.",
 		"http://1.2.3.4/foo",
-		[]string{"a=1; domain=1.2.3.4"},
+		[]string{"a=1; domain=1.2.3.3"},
 		"",
 		[]query{{"http://1.2.3.4/foo", ""}},
+	},
+	{
+		"TestIpAddress #4.",
+		"http://1.2.3.4/foo",
+		[]string{"a=1; domain=1.2.3.4"},
+		"a=1",
+		[]query{{"http://1.2.3.4/foo", "a=1"}},
 	},
 	{
 		"TestNonDottedAndTLD #2.",
@@ -1264,5 +1359,20 @@ func TestDomainHandling(t *testing.T) {
 	for _, test := range domainHandlingTests {
 		jar := newTestJar()
 		test.run(t, jar)
+	}
+}
+
+func TestIssue19384(t *testing.T) {
+	cookies := []*http.Cookie{{Name: "name", Value: "value"}}
+	for _, host := range []string{"", ".", "..", "..."} {
+		jar, _ := New(nil)
+		u := &url.URL{Scheme: "http", Host: host, Path: "/"}
+		if got := jar.Cookies(u); len(got) != 0 {
+			t.Errorf("host %q, got %v", host, got)
+		}
+		jar.SetCookies(u, cookies)
+		if got := jar.Cookies(u); len(got) != 1 || got[0].Value != "value" {
+			t.Errorf("host %q, got %v", host, got)
+		}
 	}
 }

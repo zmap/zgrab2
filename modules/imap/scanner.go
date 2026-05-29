@@ -64,9 +64,6 @@ type Flags struct {
 
 	// StartTLS indicates that the client should attempt to update the connection to TLS.
 	StartTLS bool `long:"starttls" description:"Send STLS before negotiating"`
-
-	// Verbose indicates that there should be more verbose logging.
-	Verbose bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
 // Module implements the zgrab2.Module interface.
@@ -82,7 +79,7 @@ type Scanner struct {
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("imap", "imap", module.Description(), 143, &module)
+	_, err := zgrab2.AddCommand("imap", "Internet Message Access Protocol (IMAP)", module.Description(), 143, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -150,6 +147,11 @@ func (scanner *Scanner) Protocol() string {
 
 func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
 	return scanner.dialerGroupConfig
+}
+
+// GetScanMetadata returns any metadata on the scan itself from this module.
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
 }
 
 func getIMAPError(response string) error {

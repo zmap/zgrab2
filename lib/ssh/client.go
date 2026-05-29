@@ -303,11 +303,6 @@ type ClientConfig struct {
 	// A Timeout of zero means no timeout.
 	Timeout time.Duration
 
-	// If true, the client will collect SSH extensions (if any) as per RFC 8308 by completing the
-	// SSH transport layer protocol. If false, the client will still collect extensions if
-	// either CollectUserAuth is true or DontAuthenticate is false.
-	CollectExtensions bool
-
 	// If true, the client will collect authentication methods by sending a 'none' authentication
 	// request even if DontAuthenticate is true. If false, the client will still collect
 	// authentication methods if DontAuthenticate is false.

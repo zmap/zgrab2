@@ -128,6 +128,9 @@ func TestClientAuthPublicKey(t *testing.T) {
 			PublicKeys(signer),
 		},
 		HostKeyCallback: InsecureIgnoreHostKey(),
+		Config: Config{
+			CollectExtensions: true,
+		},
 	}
 	if err := tryAuth(t, config); err != nil {
 		t.Fatalf("unable to dial remote side: %s", err)

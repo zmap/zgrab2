@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"crypto/rsa"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zmap/zcrypto/rsa"
 	"github.com/zmap/zcrypto/tls"
 	"golang.org/x/sys/unix"
 
@@ -38,7 +38,7 @@ var testSNICertificate = fromHex("308201f23082015da003020102020100300b06092a8648
 var testRSAPrivateKey = &rsa.PrivateKey{
 	PublicKey: rsa.PublicKey{
 		N: bigFromString("131650079503776001033793877885499001334664249354723305978524647182322416328664556247316495448366990052837680518067798333412266673813370895702118944398081598789828837447552603077848001020611640547221687072142537202428102790818451901395596882588063427854225330436740647715202971973145151161964464812406232198521"),
-		E: 65537,
+		E: big.NewInt(65537),
 	},
 	D: bigFromString("29354450337804273969007277378287027274721892607543397931919078829901848876371746653677097639302788129485893852488285045793268732234230875671682624082413996177431586734171663258657462237320300610850244186316880055243099640544518318093544057213190320837094958164973959123058337475052510833916491060913053867729"),
 	Primes: []*big.Int{
@@ -405,7 +405,7 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T) {
 		Port:           80,
 		ConnectTimeout: time.Second * 10,
 	}
-	tlsFlags := &zgrab2.TLSFlags{}
+	tlsFlags := &zgrab2.TLSFlags{TLSHandshakeTimeout: time.Second * 15}
 	dialerGroupConfig := zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       baseFlags,
@@ -433,6 +433,7 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T) {
 	if cfg.expectedStatus == zgrab2.SCAN_SUCCESS {
 		if response == nil {
 			t.Fatalf("Expected response, but got none")
+			return // to please linter, though Fatal exits
 		}
 
 		statusCode := response.Status

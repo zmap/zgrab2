@@ -12,13 +12,13 @@ jobs:
     name: Python Formatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: psf/black@stable
   go-fmt:
     name: Go Formatter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Read go version
         id: go_version
         run: |
@@ -27,7 +27,7 @@ jobs:
           # Set the variable as an output
           echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Run go fmt
@@ -47,7 +47,7 @@ jobs:
           fi
       - name: Upload formatted files
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: formatted-files
           path: /tmp/gofmt
@@ -55,11 +55,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/checkout@v6
+      - name: Read go version
+        id: go_version
+        run: |
+          # Read the variable from the file
+          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+          # Set the variable as an output
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+      - name: Set up Go
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.23"
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Other lint
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
@@ -80,4 +87,4 @@ jobs:
                 echo "No issues found by gofmt."
             fi
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8.0.0
+        uses: golangci/golangci-lint-action@v9.2.1
