@@ -18,6 +18,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/zmap/zcrypto/tls"
 	"github.com/zmap/zcrypto/x509"
+
+	"github.com/zmap/zgrab2/lib/fingerprint"
 )
 
 func init() {
@@ -76,6 +78,10 @@ type TLSFlags struct {
 	// TODO: format?
 	ClientHello string `long:"client-hello" description:"Set an explicit ClientHello (base64 encoded)"`
 	OverrideSH  bool   `long:"override-sig-hash" description:"Override the default SignatureAndHashes TLS option with more expansive default"`
+	// EnableJA4SSignatures enables computation of JA4S TLS server fingerprints.
+	// JA4S is subject to commercial licensing restrictions; see https://github.com/FoxIO-LLC/ja4.
+	// JA3S (always enabled) is BSD-3 licensed and free for all use.
+	EnableJA4SSignatures bool `long:"enable-ja4s-signatures" description:"Compute JA4S TLS server fingerprints (subject to commercial licensing; see https://github.com/FoxIO-LLC/ja4)"`
 }
 
 // rootCAsStore is a struct to hold the value of the last x509.CertPool fetched using the RootCAs flag in TLSFlags
@@ -336,6 +342,8 @@ type TLSConnection struct {
 type TLSLog struct {
 	// TODO include TLSFlags?
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
+	JA3S         string               `json:"ja3s,omitempty"`
+	JA4S         string               `json:"ja4s,omitempty"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
@@ -347,18 +355,32 @@ func (z *TLSConnection) GetLog() *TLSLog {
 }
 
 func (z *TLSConnection) Handshake() error {
-	log := z.GetLog()
+	tlsLog := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.GetHandshakeLog()
+		tlsLog.HandshakeLog = z.GetHandshakeLog()
+		if tlsLog.HandshakeLog != nil {
+			tlsLog.JA3S = fingerprint.JA3S(tlsLog.HandshakeLog)
+			if z.flags != nil && z.flags.EnableJA4SSignatures {
+				tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+			}
+		}
 	}()
+
 	return z.Conn.Handshake()
 }
 
 func (z *TLSConnection) HandshakeContext(ctx context.Context) error {
-	log := z.GetLog()
+	tlsLog := z.GetLog()
 	defer func() {
-		log.HandshakeLog = z.GetHandshakeLog()
+		tlsLog.HandshakeLog = z.GetHandshakeLog()
+		if tlsLog.HandshakeLog != nil {
+			tlsLog.JA3S = fingerprint.JA3S(tlsLog.HandshakeLog)
+			if z.flags != nil && z.flags.EnableJA4SSignatures {
+				tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+			}
+		}
 	}()
+
 	return z.Conn.HandshakeContext(ctx)
 }
 

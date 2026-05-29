@@ -6343,9 +6343,10 @@ func TestTransportClone(t *testing.T) {
 		TLSNextProto: map[string]func(authority string, c *tls.Conn) RoundTripper{
 			"foo": func(authority string, c *tls.Conn) RoundTripper { panic("") },
 		},
-		ReadBufferSize:  1,
-		WriteBufferSize: 1,
-		RawHeaderBuffer: true,
+		ReadBufferSize:       1,
+		WriteBufferSize:      1,
+		RawHeaderBuffer:      true,
+		EnableJA4SSignatures: true,
 	}
 	tr2 := tr.Clone()
 	rv := reflect.ValueOf(tr2).Elem()

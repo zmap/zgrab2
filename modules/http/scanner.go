@@ -443,11 +443,12 @@ func (scanner *Scanner) newHTTPScan(ctx context.Context, target *zgrab2.ScanTarg
 	} else {
 		// Use http.Transport, which may be automatically upgraded to HTTP/2 by http.Client
 		transport := &http.Transport{
-			Proxy:               nil, // TODO: implement proxying
-			DisableKeepAlives:   false,
-			DisableCompression:  false,
-			MaxIdleConnsPerHost: scanner.config.MaxRedirects,
-			RawHeaderBuffer:     scanner.config.RawHeaders,
+			Proxy:                nil, // TODO: implement proxying
+			DisableKeepAlives:    false,
+			DisableCompression:   false,
+			MaxIdleConnsPerHost:  scanner.config.MaxRedirects,
+			RawHeaderBuffer:      scanner.config.RawHeaders,
+			EnableJA4SSignatures: scanner.config.EnableJA4SSignatures,
 		}
 		transport.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			deadlineCtx, cancelFunc := ret.withDeadlineContext(ctx)
