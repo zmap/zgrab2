@@ -405,7 +405,7 @@ func (cfg *readLimitTestConfig) runTest(t *testing.T) {
 		Port:           80,
 		ConnectTimeout: time.Second * 10,
 	}
-	tlsFlags := &zgrab2.TLSFlags{}
+	tlsFlags := &zgrab2.TLSFlags{TLSHandshakeTimeout: time.Second * 15}
 	dialerGroupConfig := zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       baseFlags,

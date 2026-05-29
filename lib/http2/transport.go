@@ -34,6 +34,7 @@ import (
 	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/fingerprint"
 	"github.com/zmap/zgrab2/lib/http"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http2/hpack"
@@ -262,6 +263,12 @@ func (t *Transport) maxHeaderListSize() uint32 {
 
 func (t *Transport) disableCompression() bool {
 	return t.DisableCompression || (t.t1 != nil && t.t1.DisableCompression)
+}
+
+// enableJA4SSignatures reports whether JA4S TLS server fingerprint computation
+// has been enabled on the underlying HTTP/1 transport.
+func (t *Transport) enableJA4SSignatures() bool {
+	return t.t1 != nil && t.t1.EnableJA4SSignatures
 }
 
 // ConfigureTransport configures a net/http HTTP/1 Transport to use HTTP/2.
@@ -1405,8 +1412,18 @@ func (cc *ClientConn) roundTrip(req *http.Request, streamf func(*clientStream)) 
 			// zgrab2 - grab TLS Log from our successful response
 			switch conn := cs.cc.tconn.(type) {
 			case *tls.Conn:
-				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
-				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+				// The HTTP/2 upgrade in lib/http/transport.go extracts the inner
+				// *tls.Conn from the *TLSConnection, so this path is always taken
+				// for HTTP/2 over zgrab2 TLS connections.
+				hl := conn.GetHandshakeLog()
+				tlsLog := &zgrab2.TLSLog{HandshakeLog: hl}
+				if hl != nil {
+					tlsLog.JA3S = fingerprint.JA3S(hl)
+					if cs.cc.t.enableJA4SSignatures() {
+						tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, hl)
+					}
+				}
+				req.TLSLog = tlsLog
 			case *zgrab2.TLSConnection:
 				req.TLSLog = conn.GetLog()
 			}

@@ -35,6 +35,7 @@ import (
 	"github.com/zmap/zcrypto/tls"
 
 	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/lib/fingerprint"
 	"github.com/zmap/zgrab2/lib/http/httptrace"
 	"github.com/zmap/zgrab2/lib/http/internal/ascii"
 )
@@ -302,6 +303,11 @@ type Transport struct {
 	// Enable raw read buffering and raw header extraction
 	// zgrab2-specific
 	RawHeaderBuffer bool
+
+	// EnableJA4SSignatures enables computation of JA4S TLS server fingerprints.
+	// JA4S is subject to commercial licensing restrictions; see https://github.com/FoxIO-LLC/ja4.
+	// zgrab2-specific
+	EnableJA4SSignatures bool
 }
 
 func (t *Transport) writeBufferSize() int {
@@ -344,6 +350,7 @@ func (t *Transport) Clone() *Transport {
 		WriteBufferSize:        t.WriteBufferSize,
 		ReadBufferSize:         t.ReadBufferSize,
 		RawHeaderBuffer:        t.RawHeaderBuffer,
+		EnableJA4SSignatures:   t.EnableJA4SSignatures,
 	}
 	if t.TLSClientConfig != nil {
 		t2.TLSClientConfig = t.TLSClientConfig.Clone()
@@ -651,7 +658,15 @@ func (t *Transport) roundTrip(req *Request) (_ *Response, err error) {
 			switch conn := pconn.conn.(type) {
 			case *tls.Conn:
 				// TODO/HACK: This is a local fork of the library, so it should always be a zgrab2.TLSConnection...
-				req.TLSLog = &zgrab2.TLSLog{HandshakeLog: conn.GetHandshakeLog()}
+				hl := conn.GetHandshakeLog()
+				tlsLog := &zgrab2.TLSLog{HandshakeLog: hl}
+				if hl != nil {
+					tlsLog.JA3S = fingerprint.JA3S(hl)
+					if t.EnableJA4SSignatures {
+						tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, hl)
+					}
+				}
+				req.TLSLog = tlsLog
 			case *zgrab2.TLSConnection:
 				req.TLSLog = conn.GetLog()
 			}

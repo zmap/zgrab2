@@ -14,9 +14,9 @@ require (
 	github.com/sirupsen/logrus v1.9.4
 	github.com/zmap/zcrypto v0.0.0-20260514033604-a1159eb3cad9
 	github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9
-	golang.org/x/crypto v0.51.0
-	golang.org/x/net v0.54.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/crypto v0.52.0
+	golang.org/x/net v0.55.0
+	golang.org/x/sys v0.45.0
 	golang.org/x/term v0.43.0
 	golang.org/x/time v0.15.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c

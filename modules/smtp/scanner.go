@@ -254,6 +254,19 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	defer zgrab2.CloseConnAndHandleError(conn)
 	result := &ScanResults{}
+
+	// tlsActive is set to true once a TLS handshake has succeeded, causing
+	// subsequent application-layer errors to map to SCAN_POST_TLS_APPLICATION_ERROR
+	// instead of SCAN_APPLICATION_ERROR.
+	tlsActive := false
+	appErrStatus := func() zgrab2.ScanStatus {
+		if tlsActive {
+			return zgrab2.SCAN_POST_TLS_APPLICATION_ERROR
+		}
+
+		return zgrab2.SCAN_APPLICATION_ERROR
+	}
+
 	if scanner.config.SMTPSecure {
 		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
@@ -261,11 +274,14 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 		var tlsConn *zgrab2.TLSConnection
 		tlsConn, err = tlsWrapper(ctx, target, conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not open TLS connection: %w", err)
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
 		}
-		result.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("could not complete TLS handshake: %w", err)
+		}
 		result.ImplicitTLS = true
+		tlsActive = true
 		conn = tlsConn
 	}
 	smtpConn := Connection{Conn: conn}
@@ -274,6 +290,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if !scanner.config.SMTPSecure {
 			result = nil
 		}
+
 		return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not read response from %s: %w", target.String(), err)
 	}
 	// Quit early if we didn't get a valid response
@@ -281,6 +298,9 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	sr, bannerResponseCode := VerifySMTPContents(banner)
 	if sr == zgrab2.SCAN_PROTOCOL_ERROR {
 		return sr, nil, fmt.Errorf("invalid response for SMTP: %s", banner)
+	}
+	if tlsActive && sr == zgrab2.SCAN_APPLICATION_ERROR {
+		sr = zgrab2.SCAN_POST_TLS_APPLICATION_ERROR
 	}
 	result.Banner = banner
 	serverSupportsEHLO := strings.Contains(result.Banner, "ESMTP")
@@ -290,7 +310,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		// server supports EHLO, use Extended Hello
 		ret, err := smtpConn.SendCommand(getCommand("EHLO", target.Domain))
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send EHLO command: %w", err)
+			return appErrStatus(), result, fmt.Errorf("could not send EHLO command: %w", err)
 		}
 		result.EHLO = ret
 		moduleMetadata.incrementHostsSupportingEHLO() // mark that we found a host that supports EHLO
@@ -298,7 +318,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		// send a HELO msg since server doesn't support EHLO
 		ret, err := smtpConn.SendCommand(getCommand("HELO", target.Domain))
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send HELO command: %w", err)
+			return appErrStatus(), result, fmt.Errorf("could not send HELO command: %w", err)
 		}
 		result.HELO = ret
 		moduleMetadata.incrementHostsSupportingHELO() // mark that we found a host that supports HELO
@@ -306,7 +326,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if scanner.config.SendHELP {
 		ret, err := smtpConn.SendCommand("HELP")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not send HELP command: %w", err)
+			return appErrStatus(), result, fmt.Errorf("could not send HELP command: %w", err)
 		}
 		result.HELP = ret
 	}
@@ -331,22 +351,26 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("no TLS wrapper found. SMTP with SMTPSecure requires a TLS wrapper")
 		}
 		tlsConn, err := tlsWrapper(ctx, target, smtpConn.Conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("could not initiate a TLS connection: %w", err)
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
 		}
-		result.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("could not complete TLS handshake: %w", err)
+		}
+		tlsActive = true
 		smtpConn.Conn = tlsConn
 		moduleMetadata.incrementHostsSupportingSTARTTLS() // mark that we found a host that supports STARTTLS
 	}
 	if scanner.config.SendQUIT {
 		ret, err := smtpConn.SendCommand("QUIT")
 		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("could not send QUIT command: %w", err)
+			return appErrStatus(), result, fmt.Errorf("could not send QUIT command: %w", err)
 		}
 		result.QUIT = ret
 	}
-	if sr == zgrab2.SCAN_APPLICATION_ERROR {
+	if sr == zgrab2.SCAN_APPLICATION_ERROR || sr == zgrab2.SCAN_POST_TLS_APPLICATION_ERROR {
 		return sr, result, fmt.Errorf("SMTP error code %d returned in banner grab for target %s", bannerResponseCode, target.String())
 	}
+
 	return sr, result, nil
 }

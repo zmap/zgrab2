@@ -15,6 +15,9 @@ banner_scan_response = SubRecord(
                 "banner": String(),
                 "length": Unsigned32BitInteger(),
                 "tls": zgrab2.tls_log,
+                "md5": String(),
+                "sha1": String(),
+                "sha256": String(),
             }
         )
     },
