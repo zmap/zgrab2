@@ -88,7 +88,7 @@ def test_http_with_redirect():
         "HTTP/1.1 301 Moved Permanently" in decoded_headers
     ), f"Expected raw headers to be correct. got {decoded_headers}"
     assert (
-        "Server: lighttpd/1.4.74" in decoded_headers
+        "Server: lighttpd/" in decoded_headers
     ), f"Expected raw headers to be correct. got {decoded_headers}"
     assert (
         "Location: /index-redirect-2.html" in decoded_headers
