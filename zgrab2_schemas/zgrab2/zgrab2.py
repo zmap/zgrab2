@@ -71,6 +71,10 @@ base_scan_response = SubRecord(
 tls_log = SubRecord(
     {
         "handshake_log": zcrypto.TLSHandshake(doc="The TLS handshake log."),
+        "handshake_completed_successfully": Boolean(
+            required=False,
+            doc="True if the TLS handshake completed successfully.",
+        ),
         "ja3s": String(
             required=False,
             doc="JA3S TLS server fingerprint.",

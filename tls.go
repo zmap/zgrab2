@@ -344,6 +344,9 @@ type TLSLog struct {
 	HandshakeLog *tls.ServerHandshake `json:"handshake_log"`
 	JA3S         string               `json:"ja3s,omitempty"`
 	JA4S         string               `json:"ja4s,omitempty"`
+	// HandshakeCompletedSuccessfully is true only when the full TLS handshake
+	// succeeded; false on any handshake error regardless of how far it got.
+	HandshakeCompletedSuccessfully bool `json:"handshake_completed_successfully"`
 }
 
 func (z *TLSConnection) GetLog() *TLSLog {
@@ -365,8 +368,12 @@ func (z *TLSConnection) Handshake() error {
 			}
 		}
 	}()
+	err := z.Conn.Handshake()
+	if err == nil {
+		tlsLog.HandshakeCompletedSuccessfully = true
+	}
 
-	return z.Conn.Handshake()
+	return err
 }
 
 func (z *TLSConnection) HandshakeContext(ctx context.Context) error {
@@ -380,8 +387,12 @@ func (z *TLSConnection) HandshakeContext(ctx context.Context) error {
 			}
 		}
 	}()
+	err := z.Conn.HandshakeContext(ctx)
+	if err == nil {
+		tlsLog.HandshakeCompletedSuccessfully = true
+	}
 
-	return z.Conn.HandshakeContext(ctx)
+	return err
 }
 
 // Close the underlying connection.

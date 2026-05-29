@@ -45,6 +45,51 @@ func generateTLSTestCert(t *testing.T) stdtls.Certificate {
 	return cert
 }
 
+func TestHandshakeCompletedSuccessfully_FalseAfterFailedHandshake(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	// Close server immediately so the TLS handshake has nowhere to go.
+	serverConn.Close()
+
+	tlsConn := TLSConnection{
+		Conn: *zcryptotls.Client(clientConn, &zcryptotls.Config{InsecureSkipVerify: true}),
+	}
+	_ = tlsConn.Handshake() // expected to fail
+
+	log := tlsConn.GetLog()
+	if log.HandshakeCompletedSuccessfully {
+		t.Error("HandshakeCompletedSuccessfully should be false after a failed handshake")
+	}
+}
+
+func TestHandshakeCompletedSuccessfully_TrueAfterSuccessfulHandshake(t *testing.T) {
+	cert := generateTLSTestCert(t)
+	clientConn, serverConn := net.Pipe()
+
+	done := make(chan error, 1)
+	go func() {
+		srv := stdtls.Server(serverConn, &stdtls.Config{Certificates: []stdtls.Certificate{cert}})
+		done <- srv.Handshake()
+		srv.Close()
+	}()
+
+	flags := &TLSFlags{EnableJA4SSignatures: true}
+	tlsConn := TLSConnection{
+		Conn:  *zcryptotls.Client(clientConn, &zcryptotls.Config{InsecureSkipVerify: true}),
+		flags: flags,
+	}
+	if err := tlsConn.Handshake(); err != nil {
+		t.Fatalf("unexpected handshake error: %v", err)
+	}
+	if srvErr := <-done; srvErr != nil {
+		t.Fatalf("server-side handshake error: %v", srvErr)
+	}
+
+	log := tlsConn.GetLog()
+	if !log.HandshakeCompletedSuccessfully {
+		t.Error("HandshakeCompletedSuccessfully should be true after a successful handshake")
+	}
+}
+
 func TestTLSLogJSON(t *testing.T) {
 	t.Run("ja3s and ja4s omitted when empty", func(t *testing.T) {
 		tlsLog := &TLSLog{
