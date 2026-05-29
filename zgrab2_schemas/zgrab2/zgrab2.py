@@ -75,6 +75,14 @@ tls_log = SubRecord(
             required=False,
             doc="True if the TLS handshake completed successfully.",
         ),
+        "ja3s": String(
+            required=False,
+            doc="JA3S TLS server fingerprint.",
+        ),
+        "ja4s": String(
+            required=False,
+            doc="JA4S TLS server fingerprint (only present when --enable-ja4s-signatures is set).",
+        ),
     }
 )
 
