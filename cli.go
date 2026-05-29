@@ -71,6 +71,24 @@ func NewIniParser() *flags.IniParser {
 	return newIniParser
 }
 
+// RegisterableScanModule is a ScanModule that carries its own CLI registration metadata,
+// allowing RegisterModule to register it without any extra arguments.
+type RegisterableScanModule interface {
+	ScanModule
+	Protocol() string
+	ShortDescription() string
+	DefaultPort() int
+}
+
+// RegisterModule registers a self-describing module with the CLI parsers.
+// This is the preferred registration path for modules that embed BaseModule.
+func RegisterModule(m RegisterableScanModule) {
+	_, err := AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m.DefaultPort(), m)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 // AddCommand adds a module to the parser and returns a pointer to
 // a flags.command object or an error
 func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {

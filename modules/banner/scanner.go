@@ -15,7 +15,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"reflect"
 	"regexp"
 	"strconv"
 	"time"
@@ -51,17 +50,18 @@ type Module struct {
 	*zgrab2.BaseModule
 }
 
-// Create the module with metadata
 func NewModule() *Module {
 	return &Module{
 		BaseModule: zgrab2.NewBaseModule(
 			"banner",
-			"Fetch a raw banner by sending a static probe and checking the result against a regular expression",
+			"Fetch a raw banner from a server with optional regex matching",
+			"Fetch a raw banner by sending a static probe and checking the result against an optional regular expression",
 			80,
-			reflect.TypeOf(Flags{}),
 		),
 	}
 }
+
+func (m *Module) NewFlags() any { return new(Flags) }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
@@ -85,21 +85,7 @@ var ErrNoMatch = errors.New("pattern did not match")
 
 // RegisterModule is called by modules/banner.go to register the scanner.
 func RegisterModule() {
-	m := NewModule()
-	_, err := zgrab2.AddCommand(m.Protocol(), "Grabs the server's response to an arbitrary probe with optional regex matching", m.Description(), m.DefaultPort(), &m)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
+	zgrab2.RegisterModule(NewModule())
 }
 
 // NewScanner returns a new Scanner instance.
@@ -107,16 +93,6 @@ func (module *Module) NewScanner() zgrab2.Scanner {
 	return &Scanner{
 		BaseScanner: zgrab2.NewBaseScanner(module.Protocol()),
 	}
-}
-
-// Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
-	return "banner"
-}
-
-// InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
 }
 
 // Validate validates the flags and returns nil on success.
@@ -132,26 +108,12 @@ func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Fetch a raw banner by sending a static probe and checking the result against an optional regular expression"
-}
-
-// Help returns the module's help string.
-func (f *Flags) Help() string {
-	return ""
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
-	return nil
-}
-
 // Init initializes the Scanner with the command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	var err error
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.SetBaseFlags(&f.BaseFlags)
 	if scanner.config.Pattern != "" {
 		scanner.regex = regexp.MustCompile(scanner.config.Pattern)
 	}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -49,25 +48,31 @@ type Scanner interface {
 	GetScanMetadata() any
 }
 
-// BaseScanner provides default implementations for common scanner methods
+// BaseScanner provides default implementations for common Scanner methods.
+// Embed this in your Scanner struct and call SetBaseFlags(&f.BaseFlags) inside Init().
 type BaseScanner struct {
 	protocol          string
+	baseFlags         *BaseFlags
 	DialerGroupConfig *DialerGroupConfig
 }
 
-// NewBaseScanner creates a new base scanner
+// NewBaseScanner creates a BaseScanner for the given protocol identifier.
 func NewBaseScanner(protocol string) *BaseScanner {
 	return &BaseScanner{protocol: protocol}
 }
 
-// Protocol returns the protocol identifier
-func (scanner *BaseScanner) Protocol() string {
-	return scanner.protocol
+// SetBaseFlags stores the parsed BaseFlags so GetName and GetTrigger can read them.
+// Call this inside your scanner's Init() after casting the flags.
+func (s *BaseScanner) SetBaseFlags(f *BaseFlags) {
+	s.baseFlags = f
 }
 
-func (scanner *BaseScanner) GetDialerGroupConfig() *DialerGroupConfig {
-	return scanner.DialerGroupConfig
-}
+func (s *BaseScanner) Protocol() string                    { return s.protocol }
+func (s *BaseScanner) GetDialerGroupConfig() *DialerGroupConfig { return s.DialerGroupConfig }
+func (s *BaseScanner) GetName() string                     { return s.baseFlags.Name }
+func (s *BaseScanner) GetTrigger() string                  { return s.baseFlags.Trigger }
+func (s *BaseScanner) InitPerSender(int) error             { return nil }
+func (s *BaseScanner) GetScanMetadata() any                { return nil }
 
 // TransportProtocol is an enum for the transport layer protocol of a module
 type TransportProtocol uint
@@ -293,48 +298,36 @@ type ScanModule interface {
 	Description() string
 }
 
-// ModuleInfo holds metadata about a module
+// ModuleInfo holds metadata about a module used for CLI registration.
 type ModuleInfo struct {
-	Protocol    string
-	Description string
-	DefaultPort int
-	FlagsType   reflect.Type
+	Protocol         string
+	ShortDescription string
+	Description      string
+	DefaultPort      int
 }
 
-// BaseModule provides default implementations for common module methods
+// BaseModule provides default implementations for the CLI-registration methods of ScanModule.
+// Embed this in your Module struct. You still need to implement NewFlags() and NewScanner().
 type BaseModule struct {
 	info ModuleInfo
 }
 
-// NewBaseModule creates a new base module with the given info
-func NewBaseModule(protocol, description string, defaultPort int, flagsType reflect.Type) *BaseModule {
+// NewBaseModule creates a BaseModule with the given registration metadata.
+func NewBaseModule(protocol, shortDescription, description string, defaultPort int) *BaseModule {
 	return &BaseModule{
 		info: ModuleInfo{
-			Protocol:    protocol,
-			Description: description,
-			DefaultPort: defaultPort,
-			FlagsType:   flagsType,
+			Protocol:         protocol,
+			ShortDescription: shortDescription,
+			Description:      description,
+			DefaultPort:      defaultPort,
 		},
 	}
 }
 
-// NewFlags creates a new instance of the flags type
-func (m *BaseModule) NewFlags() any {
-	return reflect.New(m.info.FlagsType).Interface()
-}
-
-// Description returns the module description
-func (m *BaseModule) Description() string {
-	return m.info.Description
-}
-
-func (m *BaseModule) Protocol() string {
-	return m.info.Protocol
-}
-
-func (m *BaseModule) DefaultPort() int {
-	return m.info.DefaultPort
-}
+func (m *BaseModule) Protocol() string         { return m.info.Protocol }
+func (m *BaseModule) ShortDescription() string { return m.info.ShortDescription }
+func (m *BaseModule) Description() string      { return m.info.Description }
+func (m *BaseModule) DefaultPort() int         { return m.info.DefaultPort }
 
 // ScanFlags is an interface which must be implemented by all types sent to
 // the flag parser
