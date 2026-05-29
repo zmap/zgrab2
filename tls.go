@@ -375,7 +375,9 @@ func (z *TLSConnection) HandshakeContext(ctx context.Context) error {
 		tlsLog.HandshakeLog = z.GetHandshakeLog()
 		if tlsLog.HandshakeLog != nil {
 			tlsLog.JA3S = fingerprint.JA3S(tlsLog.HandshakeLog)
-			tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+			if z.flags != nil && z.flags.EnableJA4SSignatures {
+				tlsLog.JA4S = fingerprint.JA4S(fingerprint.JA4SProtocolTLS, tlsLog.HandshakeLog)
+			}
 		}
 	}()
 
