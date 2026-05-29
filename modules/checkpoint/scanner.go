@@ -1,174 +1,174 @@
-// Package checkpoint contains the zgrab2 Module implementation for checkpoint
-//
-// The output is the banner, any responses to the AUTH TLS/AUTH SSL commands,
-// and any TLS logs.
+// Package checkpoint contains the zgrab2 Module implementation for the Checkpoint
+// firewall admin protocol, by default on port 264.
+// It probes for the service and extracts the firewall hostname from the response.
 package checkpoint
 
 import (
-	"net"
+	"context"
+	"fmt"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/zmap/zgrab2"
 )
 
 // ScanResults is the output of the scan.
-// Identical to the original from zgrab, with the addition of TLSLog.
 type ScanResults struct {
-    // Firewall Host CN=
+	// FirewallHost is the CN field from the firewall's DN response (e.g. "fw1.example.com").
 	FirewallHost string `json:"firewall_host,omitempty"`
-    // Host : 0=
+	// Host is the O field from the firewall's DN response (e.g. "example.com").
 	Host string `json:"host,omitempty"`
 }
 
-// Flags
 type Flags struct {
 	zgrab2.BaseFlags
-
-	Verbose     bool `long:"verbose" description:"More verbose logging, include debug fields in the scan results"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
-}
+type Module struct{}
 
-// Scanner implements the zgrab2.Scanner interface, and holds the state
-// for a single scan.
 type Scanner struct {
-	config *Flags
+	config            *Flags
+	dialerGroupConfig *zgrab2.DialerGroupConfig
 }
 
-// Connection holds the state for a single connection to the FTP server.
-type Connection struct {
-	config  *Flags
-	results ScanResults
-	conn    net.Conn
-}
-
-// RegisterModule registers the checkpoint zgrab2 module.
 func RegisterModule() {
 	var module Module
-	_, err := zgrab2.AddCommand("checkpoint", "CHECKPOINT", module.Description(), 264, &module)
+	_, err := zgrab2.AddCommand("checkpoint", "Check Point Firewall-1 topology protocol", module.Description(), 264, &module)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-// NewFlags returns the default flags object to be filled in with the
-// command-line arguments.
-func (m *Module) NewFlags() interface{} {
+func (m *Module) NewFlags() any {
 	return new(Flags)
 }
 
-// NewScanner returns a new Scanner instance.
 func (m *Module) NewScanner() zgrab2.Scanner {
 	return new(Scanner)
 }
 
 // Description returns an overview of this module.
 func (m *Module) Description() string {
-	return "Get the Checkpoint Admin interface hostname"
+	return "Probe for Check Point Firewall-1 and retrieve the firewall hostname via the topology protocol"
 }
 
-// Validate flags
-func (f *Flags) Validate(args []string) (err error) {
+func (f *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns this module's help string.
 func (f *Flags) Help() string {
 	return ""
 }
 
-// Protocol returns the protocol identifer for the scanner.
-func (s *Scanner) Protocol() string {
+func (scanner *Scanner) Protocol() string {
 	return "checkpoint"
 }
 
-// Init initializes the Scanner instance with the flags from the command
-// line.
-func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
+	return scanner.dialerGroupConfig
+}
+
+func (scanner *Scanner) GetScanMetadata() any {
+	return nil
+}
+
+// Init initializes the Scanner instance with the flags from the command line.
+func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
-	s.config = f
+	scanner.config = f
+	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		BaseFlags:                       &f.BaseFlags,
+	}
 	return nil
 }
 
-// InitPerSender does nothing in this module.
-func (s *Scanner) InitPerSender(senderID int) error {
+func (scanner *Scanner) InitPerSender(senderID int) error {
 	return nil
 }
 
-// GetName returns the configured name for the Scanner.
-func (s *Scanner) GetName() string {
-	return s.config.Name
+func (scanner *Scanner) GetName() string {
+	return scanner.config.Name
 }
 
-// GetTrigger returns the Trigger defined in the Flags.
 func (scanner *Scanner) GetTrigger() string {
 	return scanner.config.Trigger
 }
 
-// Send the first header
-func (cnx *Connection)sendHeader1() ([]byte, error) {
-    _, err := cnx.conn.Write([]byte("\x51\x00\x00\x00\x00\x00\x00\x21"))
-    if err != nil {
-        return nil, err
-    }
-    responseBytes, err := zgrab2.ReadAvailable(cnx.conn)
-    if err != nil {
-        return nil, err
-    }
-    return responseBytes, nil
-}
+// See Metasploit's implementation for spec
+// https://github.com/rapid7/metasploit-framework/blob/master/modules/auxiliary/gather/checkpoint_hostname.rb#L59
 
-// Send the first header
-func (cnx *Connection)sendHeader2() ([]byte, error) {
-    _, err := cnx.conn.Write([]byte("\x00\x00\x00\x0bsecuremote\x00"))
-    if err != nil {
-        return nil, err
-    }
-    responseBytes, err := zgrab2.ReadAvailable(cnx.conn)
-    if err != nil {
-        return nil, err
-    }
-    return responseBytes, nil
-}
+// probePacket1 is the initial handshake packet sent to identify a Checkpoint service.
+var probePacket1 = []byte{0x51, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21}
 
-func (cnx *Connection)decodeAnswer(answer []byte) {
-    if (len(answer) > 12) {
-        ret := string(answer[4:len(answer)-8])
-        s := strings.Split(ret, ",")
-        if len(s) == 2 {
-            cnx.results.FirewallHost = s[0][3:]
-            cnx.results.Host = s[1][2:]
-        }
-    }
-}
+// probePacket2 requests the topology/hostname information.
+var probePacket2 = []byte{0x00, 0x00, 0x00, 0x0b, 's', 'e', 'c', 'u', 'r', 'e', 'r', 'e', 'm', 'o', 't', 'e', 0x00}
 
-// Scan connects to port 264
-// * Send a first header
-// * If the answer if indeed from checkpoint, sends a second header
-// * Grab the hostname returned
-func (scanner *Scanner) Scan(target zgrab2.ScanTarget) (status zgrab2.ScanStatus, result interface{}, thrown error) {
-	var err error
-	conn, err := target.Open(&scanner.config.BaseFlags)
-	if err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, err
+// decodeResponse parses a Checkpoint topology response into FirewallHost and Host.
+// The wire format is: 4-byte length prefix, then "CN=<host>,O=<domain>", then 8 trailing bytes.
+func decodeResponse(answer []byte, results *ScanResults) error {
+	// Need at least 4 (header) + 1 (data) + 8 (trailer) = 13 bytes for any content.
+	if len(answer) < 13 {
+		return fmt.Errorf("response too short (%d bytes)", len(answer))
 	}
-    defer conn.Close()
+	payload := string(answer[4 : len(answer)-8])
+	parts := strings.SplitN(payload, ",", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("unexpected response format: %q", payload)
+	}
+	cn, o := parts[0], parts[1]
+	// Expect "CN=<value>" and "O=<value>"
+	if !strings.HasPrefix(cn, "CN=") || !strings.HasPrefix(o, "O=") {
+		return fmt.Errorf("unexpected DN fields: %q", payload)
+	}
+	results.FirewallHost = cn[3:]
+	results.Host = o[2:]
+	return nil
+}
 
-	results := ScanResults{}
+// Scan connects to port 264 and runs the Checkpoint topology probe:
+//  1. Send a fixed 8-byte identification packet.
+//  2. Verify the response starts with 0x59 ('Y'), indicating a Checkpoint service.
+//  3. Send the "securemote" request packet.
+//  4. Parse the returned DN to extract the firewall hostname.
+func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
+	conn, err := dialGroup.Dial(ctx, target)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to %s: %w", target.String(), err)
+	}
+	defer zgrab2.CloseConnAndHandleError(conn)
 
-	cnx := Connection{conn: conn, config: scanner.config, results: results}
-    _, err = cnx.sendHeader1()
-    if err != nil {
-		return zgrab2.TryGetScanStatus(err), &cnx.results, err
-    }
-    answer, err := cnx.sendHeader2()
-    if err != nil {
-		return zgrab2.TryGetScanStatus(err), &cnx.results, err
-    }
-    cnx.decodeAnswer(answer)
+	results := &ScanResults{}
 
-	return zgrab2.SCAN_SUCCESS, &cnx.results, nil
+	// Step 1: send identification probe.
+	if _, err = conn.Write(probePacket1); err != nil {
+		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error sending probe to %s: %w", target.String(), err)
+	}
+	resp1, err := zgrab2.ReadAvailable(conn)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error reading probe response from %s: %w", target.String(), err)
+	}
+
+	// Step 2: verify this is a Checkpoint service
+	const Y = 0x59 // the letter 'Y', which Checkpoint uses to indicate a valid response to the initial probe
+	if len(resp1) == 0 || resp1[0] != Y {
+		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("not a Checkpoint service at %s: unexpected response %x", target.String(), resp1)
+	}
+
+	// Step 3: request topology/hostname.
+	if _, err = conn.Write(probePacket2); err != nil {
+		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error sending topology request to %s: %w", target.String(), err)
+	}
+	resp2, err := zgrab2.ReadAvailable(conn)
+	if err != nil {
+		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error reading topology response from %s: %w", target.String(), err)
+	}
+
+	// Step 4: parse the DN out of the response.
+	if err = decodeResponse(resp2, results); err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("error decoding response from %s: %w", target.String(), err)
+	}
+
+	return zgrab2.SCAN_SUCCESS, results, nil
 }
