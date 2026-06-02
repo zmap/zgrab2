@@ -200,10 +200,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 
 		// Initiate TLS Handshake
 		tlsConn, err := dialerGroup.TLSWrapper(ctx, target, conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("could not initiate a TLS connection with server that says it supports STARTTLS: %w", err)
+		if tlsConn != nil {
+			results.TLSLog = tlsConn.GetLog()
 		}
-		results.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, results, fmt.Errorf("could not initiate a TLS connection with server that says it supports STARTTLS: %w", err)
+		}
 
 		// After TLS handshake, read capabilities again
 		// RFC 5804 Section 2.2 - "After the TLS layer is established, the server MUST re-issue the
@@ -213,7 +215,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 		// STARTTLS capability."
 		postTLSCapResponse, err := scanner.readResponse(tlsConn, scanner.config.BannerTimeout)
 		if err != nil {
-			return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to read post-TLS capabilities: %v", err)
+			return zgrab2.SCAN_POST_TLS_APPLICATION_ERROR, results, fmt.Errorf("failed to read post-TLS capabilities: %v", err)
 		}
 		postTLSCapResponse = strings.ReplaceAll(postTLSCapResponse, "\"", "")
 		results.PostTLSCapabilities = strings.Split(postTLSCapResponse, "\n")

@@ -353,11 +353,15 @@ func (scanner *Scanner) DoSSL(ctx context.Context, sql *Connection, dialGroup *z
 	if tlsWrapper == nil {
 		return errors.New("dial group does not have a TLS wrapper")
 	}
-	if conn, err = tlsWrapper(ctx, sql.Target, sql.Connection); err != nil {
+	conn, err = tlsWrapper(ctx, sql.Target, sql.Connection)
+	if conn != nil {
+		// Store even on failure so GetTLSLog captures partial handshake data.
+		sql.Connection = conn
+	}
+	if err != nil {
 		return fmt.Errorf("could not wrap connection in TLS to %s: %w", sql.Target.String(), err)
 	}
-	// Replace sql.Connection to allow future calls to go over the secure connection
-	sql.Connection = conn
+
 	return nil
 }
 
@@ -383,7 +387,7 @@ func (scanner *Scanner) newConnection(ctx context.Context, target *zgrab2.ScanTa
 		}
 		if hasSSL {
 			if err = scanner.DoSSL(ctx, &sql, dialGroup); err != nil {
-				return nil, zgrab2.NewScanError(zgrab2.SCAN_APPLICATION_ERROR, err)
+				return nil, zgrab2.NewScanError(zgrab2.SCAN_HANDSHAKE_ERROR, err)
 			}
 			sql.IsSSL = true
 		}
