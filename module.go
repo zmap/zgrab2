@@ -408,6 +408,13 @@ func (b *BaseFlags) GetName() string {
 	return b.Name
 }
 
+// Help satisfies the zflags ZCommander interface so that Validate() is called
+// on all Flags structs during ini parsing. Modules with extra help text should
+// override this method on their own Flags struct.
+func (b *BaseFlags) Help() string {
+	return ""
+}
+
 // GetModule returns the registered module that corresponds to the given name
 // or nil otherwise
 func GetModule(name string) Module {
