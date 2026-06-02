@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/mongodb"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/mongodb"
+)
 
 func init() {
-	mongodb.RegisterModule()
+	zgrab2.RegisterModule(mongodb.NewModule())
 }

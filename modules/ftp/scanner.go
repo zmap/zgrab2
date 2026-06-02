@@ -89,11 +89,6 @@ type Connection struct {
 	conn    net.Conn
 }
 
-// RegisterModule registers the ftp zgrab2 module.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate flags
 func (f *Flags) Validate(_ []string) (err error) {
 	if f.FTPAuthTLS && f.ImplicitTLS {

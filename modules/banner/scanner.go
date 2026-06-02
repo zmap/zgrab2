@@ -83,11 +83,6 @@ type Results struct {
 
 var ErrNoMatch = errors.New("pattern did not match")
 
-// RegisterModule is called by modules/banner.go to register the scanner.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // NewScanner returns a new Scanner instance.
 func (module *Module) NewScanner() zgrab2.Scanner {
 	return &Scanner{

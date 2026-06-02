@@ -89,11 +89,6 @@ type Scanner struct {
 	config *Flags
 }
 
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.

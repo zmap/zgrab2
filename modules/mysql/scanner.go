@@ -159,9 +159,6 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
 }
 
-// RegisterModule is called by modules/mysql.go to register the scanner.
-func RegisterModule() { zgrab2.RegisterModule(NewModule()) }
-
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	*zgrab2.BaseScanner

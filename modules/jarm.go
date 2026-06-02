@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/jarm"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/jarm"
+)
 
 func init() {
-	jarm.RegisterModule()
+	zgrab2.RegisterModule(jarm.NewModule())
 }

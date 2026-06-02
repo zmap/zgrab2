@@ -169,6 +169,3 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	return zgrab2.SCAN_SUCCESS, result, nil
 }
-
-// RegisterModule is called by modules/mssql.go's init()
-func RegisterModule() { zgrab2.RegisterModule(NewModule()) }

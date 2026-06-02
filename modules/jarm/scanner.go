@@ -48,11 +48,6 @@ type Results struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
-// RegisterModule registers the scanner.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // GetPort returns the port being scanned.
 func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port

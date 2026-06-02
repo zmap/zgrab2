@@ -60,11 +60,6 @@ type Connection struct {
 	results ScanResults
 }
 
-// RegisterModule registers the MQTT zgrab2 module.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate flags
 func (f *Flags) Validate(_ []string) error {
 	if f.AllowTLSDowngrade && !f.UseTLS {

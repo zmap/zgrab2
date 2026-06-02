@@ -806,11 +806,6 @@ type Scanner struct {
 	config *Flags
 }
 
-// RegisterModule registers the module with zgrab2
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate checks that the flags are valid
 func (cfg *Flags) Validate(_ []string) error {
 	return nil

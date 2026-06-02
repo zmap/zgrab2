@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/managesieve"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/managesieve"
+)
 
 func init() {
-	managesieve.RegisterModule()
+	zgrab2.RegisterModule(managesieve.NewModule())
 }

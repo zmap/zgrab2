@@ -56,11 +56,6 @@ type Connection struct {
 	conn    net.Conn
 }
 
-// RegisterModule registers the socks5 zgrab2 module.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate flags
 func (f *Flags) Validate(_ []string) (err error) {
 	return

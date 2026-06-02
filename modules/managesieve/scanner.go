@@ -43,9 +43,6 @@ func (m *Module) NewScanner() zgrab2.Scanner {
 	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
 }
 
-// RegisterModule registers the ManageSieve module with zgrab2
-func RegisterModule() { zgrab2.RegisterModule(NewModule()) }
-
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
 	*zgrab2.BaseScanner

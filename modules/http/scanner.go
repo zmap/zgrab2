@@ -108,7 +108,7 @@ type Module struct {
 	*zgrab2.BaseModule
 }
 
-func newModule() *Module {
+func NewModule() *Module {
 	return &Module{
 		BaseModule: zgrab2.NewBaseModule("http", "Hypertext Transfer Protocol (HTTP)", strings.Join([]string{
 			"Send an HTTP request and read the response, optionally following redirects. ",
@@ -652,18 +652,4 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
-}
-
-// RegisterModule is called by modules/http.go to register this module with the
-// zgrab2 framework.
-func RegisterModule() {
-	m := newModule()
-	cmd, err := zgrab2.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m.DefaultPort(), m)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// The above AddCommand will set the default port to 0, but we'll set it dynamically in Init(), removing the default
-	cmd.FindOptionByLongName("port").Default = nil
-	// Add custom port description for http vs. https
-	cmd.FindOptionByLongName("port").Description = "Specify port to grab on (default: 80 for HTTP, 443 when used with --use-https)"
 }

@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/pop3"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/pop3"
+)
 
 func init() {
-	pop3.RegisterModule()
+	zgrab2.RegisterModule(pop3.NewModule())
 }

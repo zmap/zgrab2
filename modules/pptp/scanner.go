@@ -49,11 +49,6 @@ type Scanner struct {
 	config *Flags
 }
 
-// RegisterModule registers the pptp zgrab2 module.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate flags
 func (f *Flags) Validate(_ []string) (err error) {
 	return

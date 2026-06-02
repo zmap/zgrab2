@@ -533,7 +533,3 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}
 	return zgrab2.SCAN_SUCCESS, &results, nil
 }
-
-// RegisterModule is called by modules/postgres.go's init(), to register
-// the postgres module with the zgrab2 framework.
-func RegisterModule() { zgrab2.RegisterModule(NewModule()) }

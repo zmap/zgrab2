@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/socks5"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/socks5"
+)
 
 func init() {
-	socks5.RegisterModule()
+	zgrab2.RegisterModule(socks5.NewModule())
 }

@@ -178,11 +178,6 @@ type Result struct {
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// RegisterModule registers the zgrab2 module
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // Validate checks that the flags are valid
 func (flags *Flags) Validate(_ []string) error {
 	if flags.AllowTLSDowngrade && !flags.UseTLS {

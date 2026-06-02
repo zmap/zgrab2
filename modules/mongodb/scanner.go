@@ -226,11 +226,6 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	zgrab2.RegisterModule(NewModule())
-}
-
 // StartScan opens a connection to the target and sets up a scan instance for it.
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
 	conn, err := dialGroup.Dial(ctx, target)
