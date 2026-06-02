@@ -2,5 +2,4 @@
 FROM zgrab2_service_base:latest
 
 RUN apt-get install -y \
-  cups \
-  cups-pdf
+  cups
