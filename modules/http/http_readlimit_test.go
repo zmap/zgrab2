@@ -170,8 +170,8 @@ func (cfg *readLimitTestConfig) runFakeHTTPServer(t *testing.T) <-chan error {
 
 // Get an HTTP scanner module with the desired config
 func (cfg *readLimitTestConfig) getScanner(t *testing.T) *Scanner {
-	var module Module
-	flags := module.NewFlags().(*Flags)
+	m := NewModule()
+	flags := m.NewFlags().(*Flags)
 	flags.Endpoint = "/"
 	flags.Method = "GET"
 	flags.UserAgent = "Mozilla/5.0 zgrab/0.x"
@@ -184,7 +184,7 @@ func (cfg *readLimitTestConfig) getScanner(t *testing.T) *Scanner {
 	flags.Port = uint(cfg.port)
 	flags.UseHTTPS = cfg.tls
 	zgrab2.DefaultBytesReadLimit = cfg.maxReadSize
-	scanner := module.NewScanner()
+	scanner := m.NewScanner()
 	scanner.Init(flags)
 	return scanner.(*Scanner)
 }
