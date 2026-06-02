@@ -57,9 +57,12 @@ func TestMySQLTLSHandshakeError(t *testing.T) {
 		TLSWrapper: testhelpers.MakeFailingTLSWrapper(),
 	}
 
-	status, _, _ := scanner.Scan(context.Background(), dialGroup, target)
+	status, result, _ := scanner.Scan(context.Background(), dialGroup, target)
 	if status != zgrab2.SCAN_HANDSHAKE_ERROR {
 		t.Errorf("expected SCAN_HANDSHAKE_ERROR, got %s", status)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result on handshake error")
 	}
 }
 

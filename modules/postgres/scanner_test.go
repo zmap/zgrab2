@@ -77,12 +77,16 @@ func TestPostgresHandshakeCompletedSuccessfully(t *testing.T) {
 		TLSWrapper: testhelpers.MakeInsecureTLSWrapper(),
 	}
 
-	_, result, _ := scanner.Scan(context.Background(), dialGroup, target)
+	status, result, _ := scanner.Scan(context.Background(), dialGroup, target)
 	if err := <-srvDone; err != nil {
 		t.Logf("server goroutine: %v", err)
 	}
-	// The scan may not return SCAN_SUCCESS (post-TLS postgres conversation
-	// fails since the server closed), but TLSLog must be populated.
+	// The server closes after the handshake, so the scan will not reach
+	// SCAN_SUCCESS, but the TLS handshake did complete — SCAN_HANDSHAKE_ERROR
+	// would indicate a regression where HandshakeCompletedSuccessfully is lost.
+	if status == zgrab2.SCAN_HANDSHAKE_ERROR {
+		t.Errorf("unexpected SCAN_HANDSHAKE_ERROR: TLS handshake completed successfully")
+	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
