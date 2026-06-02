@@ -275,6 +275,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %v: %w", target.String(), err)
 	}
+	defer func() { zgrab2.CloseConnAndHandleError(conn) }()
 	if scanner.config.ImplicitTLS {
 		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
@@ -301,7 +302,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 		results.TLSLog = tlsConn.GetLog()
 	}
-	defer func() { zgrab2.CloseConnAndHandleError(conn) }()
 	ftp := Connection{conn: conn, config: scanner.config, results: results}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
