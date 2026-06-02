@@ -94,10 +94,10 @@ type Flags struct {
 
 func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
 	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("smtp", "Simple Mail Transfer Protocol (SMTP)",
-			"Fetch an SMTP server banner, optionally over TLS. By default, if the server advertises support for ESMTP in "+
-				"the banner, we'll send an EHLO command and an HELO command otherwise. If the server advertises support for "+
-				"STARTTLS, we'll send that command and negotiate a TLS connection. "+
-				"This can be overridden with the various override flags.", 25)
+		"Fetch an SMTP server banner, optionally over TLS. By default, if the server advertises support for ESMTP in "+
+			"the banner, we'll send an EHLO command and an HELO command otherwise. If the server advertises support for "+
+			"STARTTLS, we'll send that command and negotiate a TLS connection. "+
+			"This can be overridden with the various override flags.", 25)
 }
 
 // Scanner implements the zgrab2.Scanner interface.

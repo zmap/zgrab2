@@ -162,12 +162,14 @@ func init() {
 	zgrab2.RegisterModule(&SSHModule{})
 }
 
-func (m *SSHModule) NewFlags() any          { return new(SSHFlags) }
+func (m *SSHModule) NewFlags() any              { return new(SSHFlags) }
 func (m *SSHModule) NewScanner() zgrab2.Scanner { return new(SSHScanner) }
-func (m *SSHModule) Protocol() string         { return "ssh" }
-func (m *SSHModule) ShortDescription() string { return "Secure Shell (SSH)" }
-func (m *SSHModule) Description() string      { return "Fetch an SSH server banner and collect key exchange information" }
-func (m *SSHModule) DefaultPort() int         { return 22 }
+func (m *SSHModule) Protocol() string           { return "ssh" }
+func (m *SSHModule) ShortDescription() string   { return "Secure Shell (SSH)" }
+func (m *SSHModule) Description() string {
+	return "Fetch an SSH server banner and collect key exchange information"
+}
+func (m *SSHModule) DefaultPort() int { return 22 }
 
 func (f *SSHFlags) Validate(_ []string) error {
 	return nil

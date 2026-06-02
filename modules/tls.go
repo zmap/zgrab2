@@ -24,7 +24,7 @@ func init() {
 	zgrab2.RegisterModule(&TLSModule{})
 }
 
-func (m *TLSModule) NewFlags() any             { return new(TLSFlags) }
+func (m *TLSModule) NewFlags() any              { return new(TLSFlags) }
 func (m *TLSModule) NewScanner() zgrab2.Scanner { return new(TLSScanner) }
 func (m *TLSModule) Protocol() string           { return "tls" }
 func (m *TLSModule) ShortDescription() string   { return "Transport Layer Security (TLS)" }

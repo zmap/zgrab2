@@ -48,11 +48,11 @@ type Flags struct {
 // Module is the implementation of the zgrab2.Module interface.
 func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
 	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner](
-			"banner",
-			"Fetch a raw banner from a server with optional regex matching",
-			"Fetch a raw banner by sending a static probe and checking the result against an optional regular expression",
-			80,
-		)
+		"banner",
+		"Fetch a raw banner from a server with optional regex matching",
+		"Fetch a raw banner by sending a static probe and checking the result against an optional regular expression",
+		80,
+	)
 }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
