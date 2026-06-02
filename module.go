@@ -73,7 +73,7 @@ func (s *BaseScanner) GetName() string                          { return s.baseF
 func (s *BaseScanner) GetTrigger() string                       { return s.baseFlags.Trigger }
 func (s *BaseScanner) InitPerSender(int) error                  { return nil }
 func (s *BaseScanner) GetScanMetadata() any                     { return nil }
-func (s *BaseScanner) initBaseScanner(protocol string)          { s.protocol = protocol }
+func (s *BaseScanner) InitBaseScanner(protocol string)          { s.protocol = protocol }
 
 // TransportProtocol is an enum for the transport layer protocol of a module
 type TransportProtocol uint
@@ -347,7 +347,7 @@ func (m *BaseModule) DefaultPort() int         { return m.info.DefaultPort }
 type typedScanner[T any] interface {
 	*T
 	Scanner
-	initBaseScanner(string)
+	InitBaseScanner(string)
 }
 
 // TypedModule is a generic Module that auto-implements NewFlags and NewScanner
@@ -382,7 +382,7 @@ func (m *TypedModule[F, T, S]) NewFlags() any { return new(F) }
 func (m *TypedModule[F, T, S]) NewScanner() Scanner {
 	t := new(T)
 	s := S(t)
-	s.initBaseScanner(m.Protocol())
+	s.InitBaseScanner(m.Protocol())
 	return s
 }
 
