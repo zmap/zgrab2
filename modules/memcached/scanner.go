@@ -25,26 +25,13 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("memcached", "Distributed Memory Object Cache (Memcached)", "Probe for memcached services", 11211),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("memcached", "Distributed Memory Object Cache (Memcached)", "Probe for memcached services", 11211)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config *Flags
 }
 

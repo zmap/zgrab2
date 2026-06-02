@@ -131,15 +131,11 @@ type Flags struct {
 
 // Scanner is the zgrab2 scanner type for the postgres protocol
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	Config *Flags
 }
 
 // Module is the zgrab2 module for the postgres protocol
-type Module struct {
-	*zgrab2.BaseModule
-}
-
 // decodeAuthMode() decodes the body of an 'R'-type packet and returns a friendlier description of it
 func decodeAuthMode(buf []byte) *AuthenticationMode {
 	// See the 'R' messages in https://www.postgresql.org/docs/10/static/protocol-message-formats.html
@@ -275,16 +271,8 @@ func (results *Results) decodeServerResponse(packets []*ServerPacket) {
 	}
 }
 
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("postgres", "PostgreSQL (Postgres)", "Perform a handshake with a PostgreSQL server", 5432),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("postgres", "PostgreSQL (Postgres)", "Perform a handshake with a PostgreSQL server", 5432)
 }
 
 // Validate checks the arguments; on success, returns nil.

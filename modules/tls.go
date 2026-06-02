@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -23,25 +21,15 @@ type TLSScanner struct {
 }
 
 func init() {
-	var tlsModule TLSModule
-	_, err := zgrab2.AddCommand("tls", "Transport Layer Security (TLS)", tlsModule.Description(), 443, &tlsModule)
-	if err != nil {
-		log.Fatal(err)
-	}
+	zgrab2.RegisterModule(&TLSModule{})
 }
 
-func (m *TLSModule) NewFlags() any {
-	return new(TLSFlags)
-}
-
-func (m *TLSModule) NewScanner() zgrab2.Scanner {
-	return new(TLSScanner)
-}
-
-// Description returns an overview of this module.
-func (m *TLSModule) Description() string {
-	return "Perform a TLS handshake"
-}
+func (m *TLSModule) NewFlags() any             { return new(TLSFlags) }
+func (m *TLSModule) NewScanner() zgrab2.Scanner { return new(TLSScanner) }
+func (m *TLSModule) Protocol() string           { return "tls" }
+func (m *TLSModule) ShortDescription() string   { return "Transport Layer Security (TLS)" }
+func (m *TLSModule) Description() string        { return "Perform a TLS handshake" }
+func (m *TLSModule) DefaultPort() int           { return 443 }
 
 func (f *TLSFlags) Validate(_ []string) error {
 	return nil

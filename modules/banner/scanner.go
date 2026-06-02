@@ -46,26 +46,18 @@ type Flags struct {
 }
 
 // Module is the implementation of the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule(
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner](
 			"banner",
 			"Fetch a raw banner from a server with optional regex matching",
 			"Fetch a raw banner by sending a static probe and checking the result against an optional regular expression",
 			80,
-		),
-	}
+		)
 }
-
-func (m *Module) NewFlags() any { return new(Flags) }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config *Flags
 	regex  *regexp.Regexp
 	probe  []byte
@@ -82,13 +74,6 @@ type Results struct {
 }
 
 var ErrNoMatch = errors.New("pattern did not match")
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{
-		BaseScanner: zgrab2.NewBaseScanner(module.Protocol()),
-	}
-}
 
 // Validate validates the flags and returns nil on success.
 func (f *Flags) Validate(_ []string) error {

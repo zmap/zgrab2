@@ -26,26 +26,13 @@ type Flags struct {
 	BannerTimeout    time.Duration `long:"banner-timeout" description:"Set max for how long to wait for server to send capabilities after connection establishment (0 = no timeout)" default:"10s"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("managesieve", "ManageSieve Protocol", "Scan for Capabilities of ManageSieve servers (RFC 5804)", 4190),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("managesieve", "ManageSieve Protocol", "Scan for Capabilities of ManageSieve servers (RFC 5804)", 4190)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config *Flags
 }
 

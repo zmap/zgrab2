@@ -9,7 +9,7 @@ import (
 
 func init() {
 	m := http.NewModule()
-	cmd, err := zgrab2.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m.DefaultPort(), m)
+	cmd, err := zgrab2.AddCommand(m)
 	if err != nil {
 		log.Fatal(err)
 	}

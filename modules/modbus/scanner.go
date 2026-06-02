@@ -40,26 +40,13 @@ type Flags struct {
 	RequestID        uint16                  `long:"request-id" description:"Override the default request ID." default:"0x5A47"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("modbus", "Open-source PLC Communication Protocol (Modbus)", "Probe for Modbus devices, usually PLCs as part of a SCADA system", 502),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("modbus", "Open-source PLC Communication Protocol (Modbus)", "Probe for Modbus devices, usually PLCs as part of a SCADA system", 502)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config *Flags
 }
 

@@ -13,21 +13,8 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-// Module implements the zgrab2.Module interface
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("mongodb", "Document-oriented Database (MongoDB)", "Perform a handshake with a MongoDB server", 27017),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("mongodb", "Document-oriented Database (MongoDB)", "Perform a handshake with a MongoDB server", 27017)
 }
 
 // Flags contains mongodb-specific command-line flags.
@@ -37,7 +24,7 @@ type Flags struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config              *Flags
 	isMasterMsg         []byte
 	buildInfoCommandMsg []byte

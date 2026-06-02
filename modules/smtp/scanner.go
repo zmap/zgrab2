@@ -92,30 +92,17 @@ type Flags struct {
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("smtp", "Simple Mail Transfer Protocol (SMTP)",
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("smtp", "Simple Mail Transfer Protocol (SMTP)",
 			"Fetch an SMTP server banner, optionally over TLS. By default, if the server advertises support for ESMTP in "+
 				"the banner, we'll send an EHLO command and an HELO command otherwise. If the server advertises support for "+
 				"STARTTLS, we'll send that command and negotiate a TLS connection. "+
-				"This can be overridden with the various override flags.", 25),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+				"This can be overridden with the various override flags.", 25)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config *Flags
 }
 

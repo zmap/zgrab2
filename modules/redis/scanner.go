@@ -44,26 +44,13 @@ type Flags struct {
 	zgrab2.TLSFlags   `group:"TLS Options"`
 }
 
-// Module implements the zgrab2.Module interface
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("redis", "In-Memmory Key-Value Database (Redis)", "Probe for Redis", 6379),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("redis", "In-Memmory Key-Value Database (Redis)", "Probe for Redis", 6379)
 }
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config          *Flags
 	commandMappings map[string]string
 	customCommands  []string

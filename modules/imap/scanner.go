@@ -66,26 +66,13 @@ type Flags struct {
 	StartTLS bool `long:"starttls" description:"Send STLS before negotiating"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("imap", "Internet Message Access Protocol (IMAP)", "Fetch an IMAP banner, optionally over TLS", 143),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("imap", "Internet Message Access Protocol (IMAP)", "Fetch an IMAP banner, optionally over TLS", 143)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config *Flags
 }
 

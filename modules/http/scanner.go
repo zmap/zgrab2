@@ -104,28 +104,16 @@ type RedirectToIP struct {
 }
 
 // Module is an implementation of the zgrab2.Module interface.
-type Module struct {
-	*zgrab2.BaseModule
-}
-
-func NewModule() *Module {
-	return &Module{
-		BaseModule: zgrab2.NewBaseModule("http", "Hypertext Transfer Protocol (HTTP)", strings.Join([]string{
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("http", "Hypertext Transfer Protocol (HTTP)", strings.Join([]string{
 			"Send an HTTP request and read the response, optionally following redirects. ",
 			"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
-		}, "\n"), 0),
-	}
-}
-
-func (m *Module) NewFlags() any { return new(Flags) }
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+		}, "\n"), 0)
 }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	*zgrab2.BaseScanner
+	zgrab2.BaseScanner
 	config        *Flags
 	customHeaders map[string]string
 	decodedHashFn func([]byte) string

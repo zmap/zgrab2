@@ -71,44 +71,32 @@ func NewIniParser() *flags.IniParser {
 	return newIniParser
 }
 
-// RegisterableScanModule is a ScanModule that carries its own CLI registration metadata,
-// allowing RegisterModule to register it without any extra arguments.
-type RegisterableScanModule interface {
-	ScanModule
-	Protocol() string
-	// ShortDescription this is the string printed next to each module in the list of modules when `zgrab2 --help` is called
-	ShortDescription() string
-	// DefaultPort is the typical port that this service is found on and will be used if users don't override
-	DefaultPort() int
-}
-
-// RegisterModule registers a self-describing module with the CLI parsers.
-// This is the preferred registration path for modules that embed BaseModule.
-func RegisterModule(m RegisterableScanModule) {
-	_, err := AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m.DefaultPort(), m)
-	if err != nil {
+// RegisterModule registers a module with the CLI parsers. Fatal on error.
+func RegisterModule(m Module) {
+	if _, err := AddCommand(m); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// AddCommand adds a module to the parser and returns a pointer to
-// a flags.command object or an error
-func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
-	cmd, err := parser.AddCommand(command, shortDescription, longDescription, m)
+// AddCommand registers a module with the CLI parsers and returns the resulting
+// command object. Use this instead of RegisterModule when you need to customize
+// the command after registration (e.g. overriding flag defaults).
+func AddCommand(m Module) (*flags.Command, error) {
+	cmd, err := parser.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m)
 	if err != nil {
 		return nil, fmt.Errorf("could not add command to default parser: %w", err)
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
-	cmd.FindOptionByLongName("name").Default = []string{command}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
+	cmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
 
 	// Add the same command to the ini parser
-	cmd, err = iniParser.AddCommand(command, shortDescription, longDescription, m)
+	cmd, err = iniParser.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m)
 	if err != nil {
 		return nil, fmt.Errorf("could not add command to ini parser: %w", err)
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
-	cmd.FindOptionByLongName("name").Default = []string{command}
-	modules[command] = m
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
+	cmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
+	modules[m.Protocol()] = m
 	return cmd, nil
 }
 
