@@ -785,36 +785,30 @@ type Flags struct {
 
 // Module is the zgrab2 module implementation
 type Module struct {
+	*zgrab2.BaseModule
+}
+
+func NewModule() *Module {
+	return &Module{
+		BaseModule: zgrab2.NewBaseModule("ntp", "Network Time Protocol (NTP)", "Scan for NTP", 123),
+	}
+}
+
+func (m *Module) NewFlags() any { return new(Flags) }
+
+func (m *Module) NewScanner() zgrab2.Scanner {
+	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
 }
 
 // Scanner holds the state for a single scan
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	*zgrab2.BaseScanner
+	config *Flags
 }
 
 // RegisterModule registers the module with zgrab2
 func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("ntp", "Network Time Protocol (NTP)", module.Description(), 123, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a flags instant to be populated with the command line args
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new NTP scanner instance
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Scan for NTP"
+	zgrab2.RegisterModule(NewModule())
 }
 
 // Validate checks that the flags are valid
@@ -826,40 +820,12 @@ func (cfg *Flags) Validate(_ []string) error {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportUDP,
 		NeedSeparateL4Dialer:            false,
 		BaseFlags:                       &f.BaseFlags,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "ntp"
-}
-
-// GetName returns the module's name
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 

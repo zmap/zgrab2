@@ -112,8 +112,23 @@ type Flags struct {
 
 // Module implements the zgrab2.Module interface.
 type Module struct {
-	// TODO: Add any module-global state if necessary
+	*zgrab2.BaseModule
 }
+
+func NewModule() *Module {
+	return &Module{
+		BaseModule: zgrab2.NewBaseModule("ipp", "Internet Printing Protocol (IPP)", "Probe for printers via IPP", 631),
+	}
+}
+
+func (m *Module) NewFlags() any { return new(Flags) }
+
+func (m *Module) NewScanner() zgrab2.Scanner {
+	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
+}
+
+// RegisterModule registers the zgrab2 module.
+func RegisterModule() { zgrab2.RegisterModule(NewModule()) }
 
 type version struct {
 	Major int8
@@ -122,33 +137,8 @@ type version struct {
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
-	// TODO: Add scan state if any is necessary
-}
-
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("ipp", "Internet Printing Protocol (IPP)", module.Description(), 631, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a default Flags object.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Probe for printers via IPP"
+	*zgrab2.BaseScanner
+	config *Flags
 }
 
 // Validate checks that the flags are valid.
@@ -166,42 +156,14 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
-	return "ipp"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 

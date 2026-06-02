@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"net"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 	"github.com/zmap/zgrab2/lib/smb/smb"
 )
@@ -23,36 +21,30 @@ type Flags struct {
 
 // Module implements the zgrab2.Module interface.
 type Module struct {
+	*zgrab2.BaseModule
+}
+
+func NewModule() *Module {
+	return &Module{
+		BaseModule: zgrab2.NewBaseModule("smb", "Server Message Block (SMB)", "Probe for SMB servers (Windows filesharing / SAMBA)", 445),
+	}
+}
+
+func (m *Module) NewFlags() any { return new(Flags) }
+
+func (m *Module) NewScanner() zgrab2.Scanner {
+	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	*zgrab2.BaseScanner
+	config *Flags
 }
 
 // RegisterModule registers the zgrab2 module.
 func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("smb", "Server Message Block (SMB)", module.Description(), 445, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a default Flags object.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Probe for SMB servers (Windows filesharing / SAMBA)"
+	zgrab2.RegisterModule(NewModule())
 }
 
 // Validate checks that the flags are valid.
@@ -66,39 +58,11 @@ func (flags *Flags) Validate(_ []string) error {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
-	return "smb"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 

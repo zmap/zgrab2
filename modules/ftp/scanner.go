@@ -19,8 +19,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -59,13 +57,26 @@ type Flags struct {
 
 // Module implements the zgrab2.Module interface.
 type Module struct {
+	*zgrab2.BaseModule
+}
+
+func NewModule() *Module {
+	return &Module{
+		BaseModule: zgrab2.NewBaseModule("ftp", "File Transfer Protocol (FTP)", "Grab an FTP banner", 21),
+	}
+}
+
+func (m *Module) NewFlags() any { return new(Flags) }
+
+func (m *Module) NewScanner() zgrab2.Scanner {
+	return &Scanner{BaseScanner: zgrab2.NewBaseScanner(m.Protocol())}
 }
 
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	*zgrab2.BaseScanner
+	config *Flags
 }
 
 // Connection holds the state for a single connection to the FTP server.
@@ -80,27 +91,7 @@ type Connection struct {
 
 // RegisterModule registers the ftp zgrab2 module.
 func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("ftp", "File Transfer Protocol (FTP)", module.Description(), 21, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns the default flags object to be filled in with the
-// command-line arguments.
-func (m *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Grab an FTP banner"
+	zgrab2.RegisterModule(NewModule())
 }
 
 // Validate flags
@@ -111,46 +102,18 @@ func (f *Flags) Validate(_ []string) (err error) {
 	return
 }
 
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "ftp"
-}
-
 // Init initializes the Scanner instance with the flags from the command line.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.FTPAuthTLS || f.ImplicitTLS,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the configured name for the Scanner.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 

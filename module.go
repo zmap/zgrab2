@@ -67,12 +67,12 @@ func (s *BaseScanner) SetBaseFlags(f *BaseFlags) {
 	s.baseFlags = f
 }
 
-func (s *BaseScanner) Protocol() string                    { return s.protocol }
+func (s *BaseScanner) Protocol() string                         { return s.protocol }
 func (s *BaseScanner) GetDialerGroupConfig() *DialerGroupConfig { return s.DialerGroupConfig }
-func (s *BaseScanner) GetName() string                     { return s.baseFlags.Name }
-func (s *BaseScanner) GetTrigger() string                  { return s.baseFlags.Trigger }
-func (s *BaseScanner) InitPerSender(int) error             { return nil }
-func (s *BaseScanner) GetScanMetadata() any                { return nil }
+func (s *BaseScanner) GetName() string                          { return s.baseFlags.Name }
+func (s *BaseScanner) GetTrigger() string                       { return s.baseFlags.Trigger }
+func (s *BaseScanner) InitPerSender(int) error                  { return nil }
+func (s *BaseScanner) GetScanMetadata() any                     { return nil }
 
 // TransportProtocol is an enum for the transport layer protocol of a module
 type TransportProtocol uint
@@ -295,6 +295,7 @@ type ScanModule interface {
 	NewScanner() Scanner
 
 	// Description returns a string suitable for use as an overview of this module within usage text.
+	// Useful for adding any info a user may need to know about using a module
 	Description() string
 }
 

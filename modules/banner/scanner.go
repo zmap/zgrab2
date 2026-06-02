@@ -66,9 +66,9 @@ func (m *Module) NewFlags() any { return new(Flags) }
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	*zgrab2.BaseScanner
-	config            *Flags
-	regex             *regexp.Regexp
-	probe             []byte
+	config *Flags
+	regex  *regexp.Regexp
+	probe  []byte
 }
 
 // ScanResults instances are returned by the module's Scan function.
