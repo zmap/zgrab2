@@ -76,7 +76,9 @@ func NewIniParser() *flags.IniParser {
 type RegisterableScanModule interface {
 	ScanModule
 	Protocol() string
+	// ShortDescription this is the string printed next to each module in the list of modules when `zgrab2 --help` is called
 	ShortDescription() string
+	// DefaultPort is the typical port that this service is found on and will be used if users don't override
 	DefaultPort() int
 }
 
