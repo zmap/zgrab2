@@ -1,7 +1,10 @@
 package modules
 
-import rdp "github.com/zmap/zgrab2/modules/rdp"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/rdp"
+)
 
 func init() {
-	rdp.RegisterModule()
+	zgrab2.RegisterModule(rdp.NewModule())
 }

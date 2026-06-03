@@ -8,8 +8,6 @@ import (
 	"net"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -27,90 +25,27 @@ type Flags struct {
 	zgrab2.BaseFlags
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("pptp", "Point-to-Point Tunneling Protocol (PPTP)", "Scan for PPTP", 1723)
 }
 
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
-}
-
-// RegisterModule registers the pptp zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("pptp", "Point-to-Point Tunneling Protocol (PPTP)", module.Description(), 1723, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns the default flags object to be filled in with the
-// command-line arguments.
-func (m *Module) NewFlags() interface{} {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Scan for PPTP"
-}
-
-// Validate flags
-func (f *Flags) Validate(_ []string) (err error) {
-	return
-}
-
-// Help returns this module's help string.
-func (f *Flags) Help() string {
-	return ""
-}
-
-// Protocol returns the protocol identifier for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "pptp"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
-	return nil
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Init initializes the Scanner instance with the flags from the command line.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 	}
 	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the configured name for the Scanner.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
 }
 
 // PPTP Start-Control-Connection-Request message constants

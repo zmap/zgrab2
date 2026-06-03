@@ -131,14 +131,11 @@ type Flags struct {
 
 // Scanner is the zgrab2 scanner type for the postgres protocol
 type Scanner struct {
-	Config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	Config *Flags
 }
 
 // Module is the zgrab2 module for the postgres protocol
-type Module struct {
-}
-
 // decodeAuthMode() decodes the body of an 'R'-type packet and returns a friendlier description of it
 func decodeAuthMode(buf []byte) *AuthenticationMode {
 	// See the 'R' messages in https://www.postgresql.org/docs/10/static/protocol-message-formats.html
@@ -274,29 +271,8 @@ func (results *Results) decodeServerResponse(packets []*ServerPacket) {
 	}
 }
 
-// NewFlags returns a default Flags instance.
-func (m *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns the module's zgrab2.Scanner implementation.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Perform a handshake with a PostgreSQL server"
-}
-
-// Validate checks the arguments; on success, returns nil.
-func (f *Flags) Validate(_ []string) error {
-	return nil
-}
-
-// Help returns the module's help string.
-func (f *Flags) Help() string {
-	return ""
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("postgres", "PostgreSQL (Postgres)", "Perform a handshake with a PostgreSQL server", 5432)
 }
 
 // Init initializes the scanner with the given flags.
@@ -306,7 +282,8 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
@@ -314,35 +291,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		TLSFlags:                        &f.TLSFlags,
 	}
 	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "postgres"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
-	return nil
-}
-
-// GetName returns the name from the parameters.
-func (scanner *Scanner) GetName() string {
-	return scanner.Config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.Config.Trigger
 }
 
 // DoSSL attempts to upgrade the connection to SSL, returning an error on failure.
@@ -571,14 +519,4 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &results, nil
-}
-
-// RegisterModule is called by modules/postgres.go's init(), to register
-// the postgres module with the zgrab2 framework.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("postgres", "PostgreSQL (Postgres)", module.Description(), 5432, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
 }

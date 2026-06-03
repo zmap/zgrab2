@@ -10,7 +10,7 @@ TEST_MODULES ?=
 
 all: zgrab2
 
-.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test fuzz check-fuzz-coverage install uninstall
+.PHONY: all clean integration-test integration-test-clean integration-test-run integration-test-build gofmt test fuzz check-fuzz-coverage install uninstall scaffold-new-module
 
 test:
 	go test -v -failfast ./...
@@ -100,6 +100,9 @@ integration-test-run:
 integration-test-clean:
 	rm -rf zgrab-output
 	docker compose -p zgrab -f integration_tests/docker-compose.yml down
+
+scaffold-new-module:
+	@scripts/scaffold-module.sh "$(PROTO)"
 
 clean:
 	cd cmd/zgrab2 && go clean

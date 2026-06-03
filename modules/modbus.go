@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/modbus"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/modbus"
+)
 
 func init() {
-	modbus.RegisterModule()
+	zgrab2.RegisterModule(modbus.NewModule())
 }

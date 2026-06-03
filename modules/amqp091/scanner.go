@@ -8,7 +8,6 @@ import (
 	"net"
 
 	amqpLib "github.com/rabbitmq/amqp091-go"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/zmap/zgrab2"
 )
@@ -26,14 +25,14 @@ type Flags struct {
 	zgrab2.TLSFlags   `group:"TLS Options"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("amqp091", "Advanced Message Queue Protocol v0.9.1 (AMQP)", "Probe for Advanced Message Queuing Protocol 0.9.1 servers", 5672)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 type connectionTune struct {
@@ -96,34 +95,10 @@ type Result struct {
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("amqp091", "Advanced Message Queue Protocol v0.9.1 (AMQP)", module.Description(), 5672, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a default Flags object.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Probe for Advanced Message Queuing Protocol 0.9.1 servers"
-}
-
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.AuthUser != "" && flags.AuthPass == "" {
 		return errors.New("must provide --auth-pass if --auth-user is set")
 	}
@@ -136,11 +111,6 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns the module's help string.
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the Scanner.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, ok := flags.(*Flags)
@@ -149,42 +119,14 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	}
 
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
 		TLSFlags:                        &f.TLSFlags,
 		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
-	return "amqp091"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 

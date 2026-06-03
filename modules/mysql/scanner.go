@@ -143,47 +143,14 @@ type Flags struct {
 }
 
 // Module is the implementation of the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("mysql", "Open-Source SQL Server Implementation (MySQL)", "Perform a handshake with a MySQL database", 3306)
 }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
-}
-
-// RegisterModule is called by modules/mysql.go to register the scanner.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("mysql", "Open-Source SQL Server Implementation (MySQL)", module.Description(), 3306, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a new default flags object.
-func (m *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner object.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Perform a handshake with a MySQL database"
-}
-
-// Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(_ []string) error {
-	return nil
-}
-
-// Help returns the module's help string.
-func (f *Flags) Help() string {
-	return ""
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Init initializes the Scanner with the command-line flags.
@@ -193,42 +160,14 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "mysql"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetName returns the name from the command line flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 

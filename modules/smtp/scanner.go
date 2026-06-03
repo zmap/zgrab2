@@ -33,8 +33,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -94,47 +92,24 @@ type Flags struct {
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("smtp", "Simple Mail Transfer Protocol (SMTP)",
+		"Fetch an SMTP server banner, optionally over TLS. By default, if the server advertises support for ESMTP in "+
+			"the banner, we'll send an EHLO command and an HELO command otherwise. If the server advertises support for "+
+			"STARTTLS, we'll send that command and negotiate a TLS connection. "+
+			"This can be overridden with the various override flags.", 25)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
-}
-
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("smtp", "Simple Mail Transfer Protocol (SMTP)", module.Description(), 25, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a default Flags object.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Fetch an SMTP server banner, optionally over TLS. By default, if the server advertises support for ESMTP in " +
-		"the banner, we'll send an EHLO command and an HELO command otherwise. If the server advertises support for " +
-		"STARTTLS, we'll send that command and negotiate a TLS connection. " +
-		"This can be overridden with the various override flags."
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.SendSTARTTLSOverride && flags.SMTPSecure {
 		return errors.New("cannot use --smtps and --send-starttls-override at the same time")
 	}
@@ -144,16 +119,12 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns the module's help string.
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the Scanner.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
@@ -163,31 +134,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-// InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
-	return "smtp"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
 func (scanner *Scanner) GetScanMetadata() any {
 	return &moduleMetadata
 }

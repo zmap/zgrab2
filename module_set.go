@@ -2,11 +2,11 @@ package zgrab2
 
 // ModuleSet is a container holding named scan modules. It is a wrapper around a
 // map.
-type ModuleSet map[string]ScanModule
+type ModuleSet map[string]Module
 
 // AddModule adds m to the ModuleSet, accessible via the given name. If the name
 // is already in the ModuleSet, it is overwritten.
-func (s ModuleSet) AddModule(name string, m ScanModule) {
+func (s ModuleSet) AddModule(name string, m Module) {
 	s[name] = m
 }
 
@@ -17,7 +17,7 @@ func (s ModuleSet) RemoveModule(name string) {
 }
 
 // CopyInto copies the modules in s to destination. The sets will be unique, but
-// the underlying ScanModule instances will be the same.
+// the underlying Module instances will be the same.
 func (s ModuleSet) CopyInto(destination ModuleSet) {
 	for name, m := range s {
 		destination[name] = m

@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/smtp"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/smtp"
+)
 
 func init() {
-	smtp.RegisterModule()
+	zgrab2.RegisterModule(smtp.NewModule())
 }

@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/fox"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/fox"
+)
 
 func init() {
-	fox.RegisterModule()
+	zgrab2.RegisterModule(fox.NewModule())
 }

@@ -198,33 +198,82 @@ You can run with this configuration using the following:
 cat input.csv | ./zgrab2 multiple -c config.ini        
 ```
 
-## Adding New Protocols 
+## Adding New Protocols
 
-Add module to modules/ that satisfies the following interfaces: `Scanner`, `ScanModule`, `ScanFlags`.
+Broadly, we welcome contributions of new protocol modules to ZGrab2 for IANA recognized services or ones of significant research/security interest. 
+Feel free to open an issue to discuss your proposed module before starting work to avoid work that may not be accepted.
 
-The flags struct must embed zgrab2.BaseFlags. In the modules `init()` function the following must be included. 
+Requirements for contributing a new module:
+- Clean compile, passes `make lint` and `make test`
+- Integration tests that run against a real service and validate output against a schema.
+
+
+### 1. Scaffold the module
+
+Run the scaffold target to generate the boilerplate:
+
+```shell
+make scaffold-new-module PROTO=myproto
+```
+
+This creates two files:
+- `modules/myproto/scanner.go` — the scanner implementation
+- `modules/myproto.go` — the thin registration wrapper
+
+### 2. Fill in the scanner
+
+Open `modules/myproto/scanner.go` and work through the `// TODO` markers:
+
+**`Scanner.Init`** — cast the flags, call `s.SetBaseFlags`, and configure `DialerGroupConfig`.
+Most TCP modules look like this:
 
 ```go
-func init() {
-    var newModule NewModule
-    _, err := zgrab2.AddCommand("module", "short description", "long description of module", portNumber, &newModule)
-    if err != nil {
-        log.Fatal(err)
+func (s *Scanner) Init(flags zgrab2.ScanFlags) error {
+    f, _ := flags.(*Flags)
+    s.config = f
+    s.SetBaseFlags(&f.BaseFlags)
+    s.DialerGroupConfig = &zgrab2.DialerGroupConfig{
+        TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+        BaseFlags:                       &f.BaseFlags,
     }
+    return nil
 }
 ```
 
-### Output schema
+`DialerGroupConfig` is the mechanism that a module describes it's typical connection behavior to the framework so the framework an provide corresponding Dialers for the module to establish connections to the module's `Scanner.Scan` method.
 
-To add a schema for the new module, add a module under schemas, and update [`zgrab2_schemas/zgrab2/__init__.py`](zgrab2_schemas/zgrab2/__init__.py) to ensure that it is loaded.
+Good examples to follow:
+- Basic UDP example: [`modules/ntp/scanner.go`](modules/ntp/scanner.go)
+- Basic TCP example: [`modules/jarm/scanner.go`](modules/jarm/scanner.go)
+- TCP with Optional TLS: [`modules/fox/scanner.go`](modules/fox/scanner.go)
+- Always TLS: [`modules/tls.go`](modules/tls.go)
+- TCP handshake, application logic, followed by optional TLS handshake and more application logic: [`modules/smtp/scanner.go`](modules/smtp/scanner.go)
 
-See [zgrab2_schemas/README.md](zgrab2_schemas/README.md) for details.
 
-### Integration tests
-To add integration tests for the new module, you'll need to add a test service to scan against to `integration_tests/docker-compose.yml` and a `test.sh` in a folder named after your module.
-Follow the examples in `integration_tests/.template` to create the necessary files.
-See [integration_tests/mysql/*](integration_tests/mysql) for an example.
-The only hard requirement is that the `test.sh` script drops its output in `$ZGRAB_OUTPUT/[your-module]/*.json`, so that it can be validated against the schema.
+### 3. Register the module
+
+Add it to the map in `bin/default_modules.go`and add the corresponding import at the top of that file.
+
+### 4. Output schema
+
+Add a schema file at `zgrab2_schemas/zgrab2/myproto.py` and register it in [`zgrab2_schemas/zgrab2/__init__.py`](zgrab2_schemas/zgrab2/__init__.py).
+See the existing schemas for examples of how to write these files.
+
+### 5. Integration tests
+
+Integration tests are required for all new modules. They ensure the module can always perform a successful handshake against a real service.
+
+Add a test service to `integration_tests/docker-compose.yml` and create an `integration_tests/myproto/` directory.
+
+The only hard requirement is that `test.sh`/`test.py` writes its output to `$ZGRAB_OUTPUT/myproto/*.json` so it can be validated against the schema and the test should sanity-check the response for accuracy.
+
+#### Examples
+In the ideal case, use pre-existing Docker images for minimal and real-world matching test cases.
+If none are available, a custom Dockerfile can be used to set up a test service.
+- [`integration_tests/mysql/`](integration_tests/mysql) - good example of using only a `test.sh` file and pre-existing Docker image to test against
+- [`integration_tests/smtp/`](integration_tests/smtp) - uses 4 separate dockerized services to test different service configurations
+- [`integration_tests/ssh/`](integration_tests/ssh) - example of using a custom Dockerfile to setup a test service
+- [`integration_tests/memcached/test.py`](integration_tests/memcached/test.py) - example of using Python instead of a shell script for running the test. The testing framework can work with either `*.sh` or `*.py` test files.
 
 #### How to Run Integration Tests
 

@@ -8,8 +8,6 @@ import (
 	"io"
 	"net"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -31,15 +29,15 @@ type Flags struct {
 	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --tls."`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("mqtt", "Message Queuing Telemetry Transport (MQTT)", "Perform an MQTT scan", 1883)
 }
 
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Connection holds the state for a single connection to the MQTT server.
@@ -49,55 +47,11 @@ type Connection struct {
 	results ScanResults
 }
 
-// RegisterModule registers the MQTT zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("mqtt", "Message Queuing Telemetry Transport (MQTT)", module.Description(), 1883, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns the default flags object to be filled in with the
-// command-line arguments.
-func (m *Module) NewFlags() interface{} {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Perform an MQTT scan"
-}
-
 // Validate flags
-func (f *Flags) Validate(_ []string) error {
+func (f Flags) Validate(_ []string) error {
 	if f.AllowTLSDowngrade && !f.UseTLS {
 		return errors.New("--allow-tls-downgrade requires --tls")
 	}
-	return nil
-}
-
-// Help returns this module's help string.
-func (f *Flags) Help() string {
-	return ""
-}
-
-// Protocol returns the protocol identifier for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "mqtt"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 
@@ -105,7 +59,8 @@ func (scanner *Scanner) GetScanMetadata() any {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.UseTLS,
@@ -113,21 +68,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the configured name for the Scanner.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
 }
 
 // SendMQTTConnectPacket constructs and sends an MQTT CONNECT packet to the server.

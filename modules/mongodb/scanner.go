@@ -13,8 +13,8 @@ import (
 	"github.com/zmap/zgrab2"
 )
 
-// Module implements the zgrab2.Module interface
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("mongodb", "Document-oriented Database (MongoDB)", "Perform a handshake with a MongoDB server", 27017)
 }
 
 // Flags contains mongodb-specific command-line flags.
@@ -24,12 +24,12 @@ type Flags struct {
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
+	zgrab2.BaseScanner
 	config              *Flags
 	isMasterMsg         []byte
 	buildInfoCommandMsg []byte
 	buildInfoOpMsg      []byte
 	listDatabasesMsg    []byte
-	dialerGroupConfig   *zgrab2.DialerGroupConfig
 }
 
 // scan holds the state for the scan of an individual target
@@ -196,68 +196,15 @@ type Result struct {
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.SetBaseFlags(&f.BaseFlags)
 	scanner.isMasterMsg = getIsMasterMsg()
 	scanner.buildInfoCommandMsg = getBuildInfoQuery()
 	scanner.buildInfoOpMsg = getBuildInfoOpMsg()
 	scanner.listDatabasesMsg = getListDatabasesMsg()
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the name of the scanner
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "mongodb"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Validate checks that the flags are valid
-func (flags *Flags) Validate(_ []string) error {
-	return nil
-}
-
-// Help returns the module's help string
-func (flags *Flags) Help() string {
-	return ""
-}
-
-// NewFlags provides an empty instance of the flags that will be filled in by the framework
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner provides a new scanner instance
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Perform a handshake with a MongoDB server"
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 
@@ -389,13 +336,4 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		return zgrab2.SCAN_PROTOCOL_ERROR, nil, fmt.Errorf("failed to unmarshall buildInfo message from target %s: %w", target.String(), err)
 	}
 	return zgrab2.SCAN_SUCCESS, &result, nil
-}
-
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("mongodb", "Document-oriented Database (MongoDB)", module.Description(), 27017, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
 }

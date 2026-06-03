@@ -1,7 +1,10 @@
 package modules
 
-import enip "github.com/zmap/zgrab2/modules/enip"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/enip"
+)
 
 func init() {
-	enip.RegisterModule()
+	zgrab2.RegisterModule(enip.NewModule())
 }

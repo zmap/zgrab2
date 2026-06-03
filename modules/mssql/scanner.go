@@ -55,39 +55,14 @@ type Flags struct {
 }
 
 // Module is the implementation of zgrab2.Module for the MSSQL protocol.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("mssql", "Microsoft SQL Server (MSSQL)", "Perform a handshake for MSSQL databases", 1433)
 }
 
 // Scanner is the implementation of zgrab2.Scanner for the MSSQL protocol.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
-}
-
-// NewFlags returns a default Flags instance to be populated by the command
-// line flags.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Perform a handshake for MSSQL databases"
-}
-
-// Validate does nothing in this module.
-func (flags *Flags) Validate(_ []string) error {
-	return nil
-}
-
-// Help returns the help string for this module.
-func (flags *Flags) Help() string {
-	return ""
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Init initializes the Scanner instance with the given command-line flags.
@@ -97,42 +72,14 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	if f.Verbose {
 		log.SetLevel(log.DebugLevel)
 	}
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "mssql"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetName returns the configured scanner name.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 
@@ -204,13 +151,4 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, result, nil
-}
-
-// RegisterModule is called by modules/mssql.go's init()
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("mssql", "Microsoft SQL Server (MSSQL)", module.Description(), 1433, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
 }

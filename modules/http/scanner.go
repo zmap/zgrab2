@@ -104,15 +104,19 @@ type RedirectToIP struct {
 }
 
 // Module is an implementation of the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("http", "Hypertext Transfer Protocol (HTTP)", strings.Join([]string{
+		"Send an HTTP request and read the response, optionally following redirects. ",
+		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
+	}, "\n"), 0)
 }
 
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	customHeaders     map[string]string
-	decodedHashFn     func([]byte) string
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config        *Flags
+	customHeaders map[string]string
+	decodedHashFn func([]byte) string
 }
 
 // scan holds the state for a single scan. This may entail multiple connections.
@@ -129,27 +133,8 @@ type scan struct {
 	redirectsToResolvedIPs map[string]string // appended the result of DNS resolution for each
 }
 
-// NewFlags returns an empty Flags object.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new instance Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	desc := []string{
-		"Send an HTTP request and read the response, optionally following redirects. ",
-		"Ex: echo \"en.wikipedia.org\" | ./zgrab2 http --max-redirects=1 --endpoint=\"/wiki/New_York_City\"",
-	}
-	return strings.Join(desc, "\n")
-}
-
 // Validate performs any needed validation on the arguments
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.NoHTTP2 && flags.NoHTTP11 {
 		return errors.New("cannot use both --no-http2 and --no-http1.1. Pick one or neither depending on which version you want to use")
 	}
@@ -157,7 +142,7 @@ func (flags *Flags) Validate(_ []string) error {
 }
 
 // Help returns module-specific help
-func (flags *Flags) Help() string {
+func (flags Flags) Help() string {
 	lines := []string{"By default, the HTTP module will send a plain-text HTTP/1.1 GET request to the target's root path (/).",
 		"HTTP Versions and TLS - HTTP version affects two things: the protocol used in the request and the supported versions advertised in the TLS ALPN header (if TLS is used).",
 		" - Plain-text HTTP/1.1 (default)               zgrab2 http",
@@ -167,19 +152,6 @@ func (flags *Flags) Help() string {
 		" - HTTP/2-only over TLS                        --no-http1.1 --use-https - Use --use-https to connect with TLS instead. Using --use-https --no-http1.1 will only advertise HTTP/2 support ",
 	}
 	return strings.Join(lines, "\n")
-}
-
-// TODO Phillip
-// echo "prstephens.com" | ./zgrab2 http --no-http1.1
-// This is simply erroring, we should provide the request sent and payload received
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "http"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
 }
 
 // Init initializes the scanner with the given flags
@@ -270,7 +242,8 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		log.Panicf("Invalid ComputeDecodedBodyHashAlgorithm choice made it through zflags: %s", scanner.config.ComputeDecodedBodyHashAlgorithm)
 	}
 
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&scanner.config.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &scanner.config.BaseFlags,
@@ -283,21 +256,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	http2.SetLogger(io.Discard)
 
 	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
 }
 
 // Cleanup closes any connections that have been opened during the scan
@@ -314,11 +272,6 @@ func (scan *scan) Cleanup() {
 		}
 		scan.cancelFuncs = nil
 	}
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
-	return nil
 }
 
 // Get a context whose deadline is the earliest of the context's deadline (if it has one) and the
@@ -687,18 +640,4 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &scan.results, nil
-}
-
-// RegisterModule is called by modules/http.go to register this module with the
-// zgrab2 framework.
-func RegisterModule() {
-	var module Module
-	cmd, err := zgrab2.AddCommand("http", "Hypertext Transfer Protocol (HTTP)", module.Description(), 0, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// The above AddCommand will set the default port to 0, but we'll set it dynamically in Init(), removing the default
-	cmd.FindOptionByLongName("port").Default = nil
-	// Add custom port description for http vs. https
-	cmd.FindOptionByLongName("port").Description = "Specify port to grab on (default: 80 for HTTP, 443 when used with --use-https)"
 }

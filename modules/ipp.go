@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/ipp"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/ipp"
+)
 
 func init() {
-	ipp.RegisterModule()
+	zgrab2.RegisterModule(ipp.NewModule())
 }
