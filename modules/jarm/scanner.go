@@ -41,11 +41,6 @@ func (scanner *Scanner) GetPort() uint {
 	return scanner.config.Port
 }
 
-// Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // Init initializes the Scanner with the command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

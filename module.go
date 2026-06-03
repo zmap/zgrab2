@@ -408,6 +408,12 @@ func (b *BaseFlags) GetName() string {
 	return b.Name
 }
 
+// Validate is a no-op default. Modules that need to enforce flag constraints
+// should override this method on their own Flags struct.
+func (b *BaseFlags) Validate(_ []string) error {
+	return nil
+}
+
 // Help satisfies the zflags ZCommander interface so that Validate() is called
 // on all Flags structs during ini parsing. Modules with extra help text should
 // override this method on their own Flags struct.

@@ -65,11 +65,6 @@ type Scanner struct {
 	config *Flags
 }
 
-// Validate does nothing in this module.
-func (flags *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // Init initializes the Scanner instance with the given command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

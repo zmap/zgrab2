@@ -66,11 +66,6 @@ type ScanResults struct {
 	PostTLSCapabilities []string `json:"post_tls_capabilities,omitempty"`
 }
 
-// Validate validates the flags.
-func (flags *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // Init initializes the scanner with the given flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

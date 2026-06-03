@@ -208,11 +208,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	return nil
 }
 
-// Validate checks that the flags are valid
-func (flags *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // StartScan opens a connection to the target and sets up a scan instance for it.
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
 	conn, err := dialGroup.Dial(ctx, target)

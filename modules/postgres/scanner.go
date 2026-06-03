@@ -275,11 +275,6 @@ func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
 	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("postgres", "PostgreSQL (Postgres)", "Perform a handshake with a PostgreSQL server", 5432)
 }
 
-// Validate checks the arguments; on success, returns nil.
-func (f *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // Init initializes the scanner with the given flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

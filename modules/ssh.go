@@ -171,14 +171,6 @@ func (m *SSHModule) Description() string {
 }
 func (m *SSHModule) DefaultPort() int { return 22 }
 
-func (f *SSHFlags) Validate(_ []string) error {
-	return nil
-}
-
-func (f *SSHFlags) Help() string {
-	return ""
-}
-
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*SSHFlags)
 	s.config = f

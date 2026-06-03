@@ -43,11 +43,6 @@ type Connection struct {
 	conn    net.Conn
 }
 
-// Validate flags
-func (f *Flags) Validate(_ []string) (err error) {
-	return
-}
-
 // Init initializes the Scanner instance with the flags from the command line.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

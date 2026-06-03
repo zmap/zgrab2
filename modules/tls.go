@@ -31,14 +31,6 @@ func (m *TLSModule) ShortDescription() string   { return "Transport Layer Securi
 func (m *TLSModule) Description() string        { return "Perform a TLS handshake" }
 func (m *TLSModule) DefaultPort() int           { return 443 }
 
-func (f *TLSFlags) Validate(_ []string) error {
-	return nil
-}
-
-func (f *TLSFlags) Help() string {
-	return ""
-}
-
 func (s *TLSScanner) Init(flags zgrab2.ScanFlags) error {
 	f, ok := flags.(*TLSFlags)
 	if !ok {

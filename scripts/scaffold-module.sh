@@ -40,6 +40,8 @@ type Flags struct {
 }
 
 // TODO: Return an error if flag combinations are invalid.
+// Only required if you have flags to validate. Modules like HTTP have custom flag validation logic, so they'll need to implement this.
+// If you don't, you can omit it.
 func (f *Flags) Validate(_ []string) error {
 	return nil
 }

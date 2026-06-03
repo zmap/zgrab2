@@ -794,11 +794,6 @@ type Scanner struct {
 	config *Flags
 }
 
-// Validate checks that the flags are valid
-func (cfg *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // Init initialized the scanner
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)

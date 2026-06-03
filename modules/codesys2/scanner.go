@@ -30,13 +30,6 @@ type Scanner struct {
 	config *Flags
 }
 
-// Validate checks that the flags are valid.
-// On success, returns nil.
-// On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(_ []string) error {
-	return nil
-}
-
 // Init initializes the Scanner.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
