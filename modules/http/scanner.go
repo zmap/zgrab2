@@ -142,7 +142,7 @@ func (flags Flags) Validate(_ []string) error {
 }
 
 // Help returns module-specific help
-func (flags *Flags) Help() string {
+func (flags Flags) Help() string {
 	lines := []string{"By default, the HTTP module will send a plain-text HTTP/1.1 GET request to the target's root path (/).",
 		"HTTP Versions and TLS - HTTP version affects two things: the protocol used in the request and the supported versions advertised in the TLS ALPN header (if TLS is used).",
 		" - Plain-text HTTP/1.1 (default)               zgrab2 http",
