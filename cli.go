@@ -89,13 +89,14 @@ func AddCommand(m Module) (*flags.Command, error) {
 	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
 	cmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
 
-	// Add the same command to the ini parser
-	cmd, err = iniParser.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m)
+	// Add the same command to the ini parser; discard this cmd since we return
+	// the parser cmd above so callers can customize options on the CLI parser.
+	iniCmd, err := iniParser.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m)
 	if err != nil {
 		return nil, fmt.Errorf("could not add command to ini parser: %w", err)
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
-	cmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
+	iniCmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
+	iniCmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
 	modules[m.Protocol()] = m
 	return cmd, nil
 }
