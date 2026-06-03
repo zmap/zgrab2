@@ -206,11 +206,18 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("TLS wrapper required for mysql")
 		}
-		if tlsConn, err = tlsWrapper(ctx, target, conn); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		tlsConn, err = tlsWrapper(ctx, target, conn)
+		if tlsConn != nil {
+			sql.Connection = tlsConn
 		}
-		// Replace sql.Connection to allow hypothetical future calls to go over the secure connection
-		sql.Connection = tlsConn
+		if err != nil {
+			result := readResultsFromConnectionLog(&sql.ConnectionLog)
+			if result != nil && tlsConn != nil {
+				result.TLSLog = tlsConn.GetLog()
+			}
+
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		}
 	}
 
 	result := readResultsFromConnectionLog(&sql.ConnectionLog)

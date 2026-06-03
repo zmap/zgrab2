@@ -179,10 +179,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		// Perform a TLS handshake immediately
 		var tlsConn *zgrab2.TLSConnection
 		tlsConn, err = tlsWrapper(ctx, target, c)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
 		}
-		result.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		}
 		c = tlsConn
 	}
 	conn := Connection{Conn: c}
@@ -223,10 +225,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 		var tlsConn *zgrab2.TLSConnection
 		tlsConn, err = tlsWrapper(ctx, target, conn.Conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
 		}
-		result.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		}
 		conn.Conn = tlsConn
 	}
 	if scanner.config.SendQUIT {
