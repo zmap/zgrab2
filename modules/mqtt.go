@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/mqtt"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/mqtt"
+)
 
 func init() {
-	mqtt.RegisterModule()
+	zgrab2.RegisterModule(mqtt.NewModule())
 }

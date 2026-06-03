@@ -159,33 +159,17 @@ type SSHScanner struct {
 }
 
 func init() {
-	var sshModule SSHModule
-	_, err := zgrab2.AddCommand("ssh", "Secure Shell (SSH)", sshModule.Description(), 22, &sshModule)
-	if err != nil {
-		log.Fatal(err)
-	}
+	zgrab2.RegisterModule(&SSHModule{})
 }
 
-func (m *SSHModule) NewFlags() any {
-	return new(SSHFlags)
-}
-
-func (m *SSHModule) NewScanner() zgrab2.Scanner {
-	return new(SSHScanner)
-}
-
-// Description returns an overview of this module.
+func (m *SSHModule) NewFlags() any              { return new(SSHFlags) }
+func (m *SSHModule) NewScanner() zgrab2.Scanner { return new(SSHScanner) }
+func (m *SSHModule) Protocol() string           { return "ssh" }
+func (m *SSHModule) ShortDescription() string   { return "Secure Shell (SSH)" }
 func (m *SSHModule) Description() string {
 	return "Fetch an SSH server banner and collect key exchange information"
 }
-
-func (f *SSHFlags) Validate(_ []string) error {
-	return nil
-}
-
-func (f *SSHFlags) Help() string {
-	return ""
-}
+func (m *SSHModule) DefaultPort() int { return 22 }
 
 func (s *SSHScanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*SSHFlags)

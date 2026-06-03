@@ -24,9 +24,9 @@ func _write(writer io.Writer, data []byte) error {
 }
 
 func (cfg *CodeSysV2TestConfig) getScanner(t *testing.T) *Scanner {
-	var module Module
-	scanner := module.NewScanner()
-	flags := module.NewFlags().(*Flags)
+	m := NewModule()
+	scanner := m.NewScanner()
+	flags := m.NewFlags().(*Flags)
 	flags.Port = uint(cfg.port)
 	flags.TargetTimeout = 2 * time.Second
 	scanner.Init(flags)

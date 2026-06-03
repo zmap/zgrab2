@@ -3,7 +3,7 @@ FROM zgrab2_service_base:latest
 # Adapted from https://docs.docker.com/engine/examples/running_ssh_service/#run-a-test_sshd-container
 
 RUN apt-get install -y openssh-server
-RUN mkdir /var/run/sshd
+RUN mkdir -p /var/run/sshd
 RUN echo 'root:password' | chpasswd
 RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 

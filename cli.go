@@ -71,24 +71,33 @@ func NewIniParser() *flags.IniParser {
 	return newIniParser
 }
 
-// AddCommand adds a module to the parser and returns a pointer to
-// a flags.command object or an error
-func AddCommand(command string, shortDescription string, longDescription string, port int, m ScanModule) (*flags.Command, error) {
-	cmd, err := parser.AddCommand(command, shortDescription, longDescription, m)
+// RegisterModule registers a module with the CLI parsers. Fatal on error.
+func RegisterModule(m Module) {
+	if _, err := AddCommand(m); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// AddCommand registers a module with the CLI parsers and returns the resulting
+// command object. Use this instead of RegisterModule when you need to customize
+// the command after registration (e.g. overriding flag defaults).
+func AddCommand(m Module) (*flags.Command, error) {
+	cmd, err := parser.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m)
 	if err != nil {
 		return nil, fmt.Errorf("could not add command to default parser: %w", err)
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
-	cmd.FindOptionByLongName("name").Default = []string{command}
+	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
+	cmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
 
-	// Add the same command to the ini parser
-	cmd, err = iniParser.AddCommand(command, shortDescription, longDescription, m)
+	// Add the same command to the ini parser; discard this cmd since we return
+	// the parser cmd above so callers can customize options on the CLI parser.
+	iniCmd, err := iniParser.AddCommand(m.Protocol(), m.ShortDescription(), m.Description(), m)
 	if err != nil {
 		return nil, fmt.Errorf("could not add command to ini parser: %w", err)
 	}
-	cmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(port)}
-	cmd.FindOptionByLongName("name").Default = []string{command}
-	modules[command] = m
+	iniCmd.FindOptionByLongName("port").Default = []string{strconv.Itoa(m.DefaultPort())}
+	iniCmd.FindOptionByLongName("name").Default = []string{m.Protocol()}
+	modules[m.Protocol()] = m
 	return cmd, nil
 }
 

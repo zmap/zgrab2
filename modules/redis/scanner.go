@@ -44,16 +44,16 @@ type Flags struct {
 	zgrab2.TLSFlags   `group:"TLS Options"`
 }
 
-// Module implements the zgrab2.Module interface
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("redis", "In-Memmory Key-Value Database (Redis)", "Probe for Redis", 6379)
 }
 
 // Scanner implements the zgrab2.Scanner interface
 type Scanner struct {
-	config            *Flags
-	commandMappings   map[string]string
-	customCommands    []string
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config          *Flags
+	commandMappings map[string]string
+	customCommands  []string
 }
 
 // scan holds the state for the scan of an individual target
@@ -165,52 +165,24 @@ type Result struct {
 	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
-// RegisterModule registers the zgrab2 module
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("redis", "In-Memmory Key-Value Database (Redis)", module.Description(), 6379, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags provides an empty instance of the flags that will be filled in by the framework
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner provides a new scanner instance
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Probe for Redis"
-}
-
 // Validate checks that the flags are valid
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.AllowTLSDowngrade && !flags.UseTLS {
 		return errors.New("--allow-tls-downgrade requires --use-tls")
 	}
 	return nil
 }
 
-// Help returns the module's help string
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the scanner
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
+	scanner.SetBaseFlags(&f.BaseFlags)
 	err := scanner.initCommands()
 	if err != nil {
 		log.Fatal(err)
 	}
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 		TLSFlags:                        &f.TLSFlags,
@@ -218,21 +190,6 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
 	}
 	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the name of the scanner
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
 }
 
 // Close cleans up the scanner.
@@ -383,20 +340,6 @@ func forceToString(val RedisValue) string {
 	default:
 		panic("unreachable")
 	}
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "redis"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
-	return nil
 }
 
 // Converts the string to a Uint32 if possible. If not, returns 0 (the zero value of a uin32)

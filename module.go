@@ -48,6 +48,33 @@ type Scanner interface {
 	GetScanMetadata() any
 }
 
+// BaseScanner provides default implementations for common Scanner methods.
+// Embed this in your Scanner struct and call SetBaseFlags(&f.BaseFlags) inside Init().
+type BaseScanner struct {
+	protocol          string
+	baseFlags         *BaseFlags
+	DialerGroupConfig *DialerGroupConfig
+}
+
+// NewBaseScanner creates a BaseScanner for the given protocol identifier.
+func NewBaseScanner(protocol string) *BaseScanner {
+	return &BaseScanner{protocol: protocol}
+}
+
+// SetBaseFlags stores the parsed BaseFlags so GetName and GetTrigger can read them.
+// Call this inside your scanner's Init() after casting the flags.
+func (s *BaseScanner) SetBaseFlags(f *BaseFlags) {
+	s.baseFlags = f
+}
+
+func (s *BaseScanner) Protocol() string                         { return s.protocol }
+func (s *BaseScanner) GetDialerGroupConfig() *DialerGroupConfig { return s.DialerGroupConfig }
+func (s *BaseScanner) GetName() string                          { return s.baseFlags.Name }
+func (s *BaseScanner) GetTrigger() string                       { return s.baseFlags.Trigger }
+func (s *BaseScanner) InitPerSender(int) error                  { return nil }
+func (s *BaseScanner) GetScanMetadata() any                     { return nil }
+func (s *BaseScanner) InitBaseScanner(protocol string)          { s.protocol = protocol }
+
 // TransportProtocol is an enum for the transport layer protocol of a module
 type TransportProtocol uint
 
@@ -258,8 +285,11 @@ type ScanResponse struct {
 	Error     *string `json:"error,omitempty"`
 }
 
-// ScanModule is an interface which represents a module that the framework can manipulate
-type ScanModule interface {
+// Module is the interface that every scan module must implement.
+// It combines factory methods (NewFlags, NewScanner) with the CLI registration
+// metadata (Protocol, ShortDescription, Description, DefaultPort), so both the
+// scan engine and the CLI use a single interface.
+type Module interface {
 	// NewFlags is called by the framework to pass to the argument parser. The parsed flags will be passed
 	// to the scanner created by NewScanner().
 	NewFlags() any
@@ -268,8 +298,85 @@ type ScanModule interface {
 	// the command-line. The framework will then call scanner.Init(name, flags).
 	NewScanner() Scanner
 
-	// Description returns a string suitable for use as an overview of this module within usage text.
+	// Protocol returns the protocol identifier used as the CLI subcommand name and output key.
+	Protocol() string
+
+	// ShortDescription is printed next to the module in `zgrab2 --help`.
+	ShortDescription() string
+
+	// Description returns a longer overview of the module for usage text.
 	Description() string
+
+	// DefaultPort is the well-known port for this protocol, used when the user does not specify --port.
+	DefaultPort() int
+}
+
+// BaseModule provides default implementations for the CLI-registration methods of ScanModule.
+// Embed this in your Module struct. You still need to implement NewFlags() and NewScanner().
+type BaseModule struct {
+	protocol         string
+	shortDescription string
+	description      string
+	defaultPort      int
+}
+
+// NewBaseModule creates a BaseModule with the given registration metadata.
+func NewBaseModule(protocol, shortDescription, description string, defaultPort int) *BaseModule {
+	return &BaseModule{
+		protocol:         protocol,
+		shortDescription: shortDescription,
+		description:      description,
+		defaultPort:      defaultPort,
+	}
+}
+
+func (m *BaseModule) Protocol() string         { return m.protocol }
+func (m *BaseModule) ShortDescription() string { return m.shortDescription }
+func (m *BaseModule) Description() string      { return m.description }
+func (m *BaseModule) DefaultPort() int         { return m.defaultPort }
+
+// typedScanner constrains S to be a pointer to T that satisfies Scanner and
+// can be initialized with a protocol string via the embedded BaseScanner.
+type typedScanner[T any] interface {
+	*T
+	Scanner
+	InitBaseScanner(string)
+}
+
+// TypedModule is a generic Module that auto-implements NewFlags and NewScanner
+//
+// Type parameters:
+//   - F: the Flags struct for this module (e.g. MyFlags). Must implement ScanFlags.
+//   - T: the concrete Scanner struct (e.g. MyScanner). Must embed zgrab2.BaseScanner by value.
+//   - S: the pointer to T (i.e. *MyScanner). Inferred — always pass *MyScanner as the third argument.
+//
+// Usage:
+//
+//	func NewModule() *zgrab2.TypedModule[MyFlags, MyScanner, *MyScanner] {
+//	    return zgrab2.NewTypedModule[MyFlags, MyScanner, *MyScanner]("myproto", ...)
+//	}
+type TypedModule[F ScanFlags, T any, S typedScanner[T]] struct {
+	*BaseModule
+}
+
+// NewTypedModule creates a TypedModule with the given registration metadata.
+//
+//   - protocol: the CLI subcommand name and output key (e.g. "ssh", "http"). Must be unique across all modules.
+//   - shortDescription: one-line label shown next to the module in `zgrab2 --help`.
+//   - description: full explanation of what the module does, shown in `zgrab2 <module> --help`.
+//   - defaultPort: well-known port used when the user does not pass --port.
+func NewTypedModule[F ScanFlags, T any, S typedScanner[T]](protocol, shortDescription, description string, defaultPort int) *TypedModule[F, T, S] {
+	return &TypedModule[F, T, S]{
+		BaseModule: NewBaseModule(protocol, shortDescription, description, defaultPort),
+	}
+}
+
+func (m *TypedModule[F, T, S]) NewFlags() any { return new(F) }
+func (m *TypedModule[F, T, S]) NewScanner() Scanner {
+	t := new(T)
+	s := S(t)
+	s.InitBaseScanner(m.Protocol())
+	return s
 }
 
 // ScanFlags is an interface which must be implemented by all types sent to
@@ -277,7 +384,6 @@ type ScanModule interface {
 type ScanFlags interface {
 	// Help optionally returns any additional help text, e.g. specifying what empty defaults are interpreted as.
 	Help() string
-
 	// Validate enforces all command-line flags and positional arguments have valid values.
 	Validate([]string) error
 }
@@ -293,18 +399,31 @@ type BaseFlags struct {
 }
 
 // GetName returns the name of the respective scanner
-func (b *BaseFlags) GetName() string {
+func (b BaseFlags) GetName() string {
 	return b.Name
+}
+
+// Validate is a no-op default. Modules that need to enforce flag constraints
+// should override this method on their own Flags struct.
+func (b BaseFlags) Validate(_ []string) error {
+	return nil
+}
+
+// Help satisfies the zflags ZCommander interface so that Validate() is called
+// on all Flags structs during ini parsing. Modules with extra help text should
+// override this method on their own Flags struct.
+func (b BaseFlags) Help() string {
+	return ""
 }
 
 // GetModule returns the registered module that corresponds to the given name
 // or nil otherwise
-func GetModule(name string) ScanModule {
+func GetModule(name string) Module {
 	return modules[name]
 }
 
-var modules map[string]ScanModule
+var modules map[string]Module
 
 func init() {
-	modules = make(map[string]ScanModule)
+	modules = make(map[string]Module)
 }

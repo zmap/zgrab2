@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/dnp3"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/dnp3"
+)
 
 func init() {
-	dnp3.RegisterModule()
+	zgrab2.RegisterModule(dnp3.NewModule())
 }

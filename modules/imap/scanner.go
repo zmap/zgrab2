@@ -66,44 +66,20 @@ type Flags struct {
 	StartTLS bool `long:"starttls" description:"Send STLS before negotiating"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("imap", "Internet Message Access Protocol (IMAP)", "Fetch an IMAP banner, optionally over TLS", 143)
 }
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
-}
-
-// RegisterModule registers the zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("imap", "Internet Message Access Protocol (IMAP)", module.Description(), 143, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a default Flags object.
-func (module *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Fetch an IMAP banner, optionally over TLS"
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.StartTLS && flags.IMAPSecure {
 		log.Error("Cannot send both --starttls and --imaps")
 		return zgrab2.ErrInvalidArguments
@@ -111,51 +87,18 @@ func (flags *Flags) Validate(_ []string) error {
 	return nil
 }
 
-// Help returns the module's help string.
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the Scanner.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for a given sender.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the Scanner name defined in the Flags.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Protocol returns the protocol identifier of the scan.
-func (scanner *Scanner) Protocol() string {
-	return "imap"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 
@@ -216,10 +159,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if scanner.config.IMAPSecure {
 		var tlsConn *zgrab2.TLSConnection
 		tlsConn, err = dialGroup.TLSWrapper(ctx, target, c)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %w", target.String(), err)
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
 		}
-		result.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("error wrapping TLS connection for target %s: %w", target.String(), err)
+		}
 		c = tlsConn
 	}
 	conn := Connection{Conn: c}
@@ -245,10 +190,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error in response to STLS command for IMAP %s: %w", target.String(), err)
 		}
 		tlsConn, err := dialGroup.TLSWrapper(ctx, target, c)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping TLS connection for target %s: %w", target.String(), err)
+		if tlsConn != nil {
+			result.TLSLog = tlsConn.GetLog()
 		}
-		result.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, result, fmt.Errorf("error wrapping TLS connection for target %s: %w", target.String(), err)
+		}
 		conn.Conn = tlsConn
 	}
 	if scanner.config.SendCLOSE {

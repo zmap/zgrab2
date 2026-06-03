@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -28,13 +26,14 @@ type Flags struct {
 	BannerTimeout    time.Duration `long:"banner-timeout" description:"Set max for how long to wait for server to send capabilities after connection establishment (0 = no timeout)" default:"10s"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct{}
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("managesieve", "ManageSieve Protocol", "Scan for Capabilities of ManageSieve servers (RFC 5804)", 4190)
+}
 
 // Scanner implements the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // ScanResults holds the results of a ManageSieve scan.
@@ -67,80 +66,18 @@ type ScanResults struct {
 	PostTLSCapabilities []string `json:"post_tls_capabilities,omitempty"`
 }
 
-// RegisterModule registers the ManageSieve module with zgrab2
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("managesieve", "ManageSieve Protocol", module.Description(), 4190, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns a default Flags object.
-func (module *Module) NewFlags() interface{} {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (module *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (module *Module) Description() string {
-	return "Scan for Capabilities of ManageSieve servers (RFC 5804)"
-}
-
-// Validate validates the flags.
-func (flags *Flags) Validate(args []string) error {
-	return nil
-}
-
-// Help returns the module's help string.
-func (flags *Flags) Help() string {
-	return ""
-}
-
 // Init initializes the scanner with the given flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      true,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender initializes the scanner for each sender goroutine.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the scanner name.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the scanner trigger.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// Protocol returns the protocol identifier.
-func (scanner *Scanner) Protocol() string {
-	return "managesieve"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata about the scan (implementing zgrab2.Scanner)
-func (scanner *Scanner) GetScanMetadata() interface{} {
 	return nil
 }
 
@@ -200,10 +137,12 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 
 		// Initiate TLS Handshake
 		tlsConn, err := dialerGroup.TLSWrapper(ctx, target, conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("could not initiate a TLS connection with server that says it supports STARTTLS: %w", err)
+		if tlsConn != nil {
+			results.TLSLog = tlsConn.GetLog()
 		}
-		results.TLSLog = tlsConn.GetLog()
+		if err != nil {
+			return zgrab2.SCAN_HANDSHAKE_ERROR, results, fmt.Errorf("could not initiate a TLS connection with server that says it supports STARTTLS: %w", err)
+		}
 
 		// After TLS handshake, read capabilities again
 		// RFC 5804 Section 2.2 - "After the TLS layer is established, the server MUST re-issue the
@@ -213,7 +152,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGrou
 		// STARTTLS capability."
 		postTLSCapResponse, err := scanner.readResponse(tlsConn, scanner.config.BannerTimeout)
 		if err != nil {
-			return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("failed to read post-TLS capabilities: %v", err)
+			return zgrab2.SCAN_POST_TLS_APPLICATION_ERROR, results, fmt.Errorf("failed to read post-TLS capabilities: %v", err)
 		}
 		postTLSCapResponse = strings.ReplaceAll(postTLSCapResponse, "\"", "")
 		results.PostTLSCapabilities = strings.Split(postTLSCapResponse, "\n")

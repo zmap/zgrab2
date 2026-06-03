@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/postgres"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/postgres"
+)
 
 func init() {
-	postgres.RegisterModule()
+	zgrab2.RegisterModule(postgres.NewModule())
 }

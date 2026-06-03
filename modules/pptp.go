@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/pptp"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/pptp"
+)
 
 func init() {
-	pptp.RegisterModule()
+	zgrab2.RegisterModule(pptp.NewModule())
 }

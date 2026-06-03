@@ -19,8 +19,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/zmap/zgrab2"
 )
 
@@ -57,15 +55,15 @@ type Flags struct {
 	ImplicitTLS bool `long:"implicit-tls" description:"Attempt to connect via a TLS wrapped connection"`
 }
 
-// Module implements the zgrab2.Module interface.
-type Module struct {
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner]("ftp", "File Transfer Protocol (FTP)", "Grab an FTP banner", 21)
 }
 
 // Scanner implements the zgrab2.Scanner interface, and holds the state
 // for a single scan.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config *Flags
 }
 
 // Connection holds the state for a single connection to the FTP server.
@@ -78,84 +76,26 @@ type Connection struct {
 	conn    net.Conn
 }
 
-// RegisterModule registers the ftp zgrab2 module.
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("ftp", "File Transfer Protocol (FTP)", module.Description(), 21, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// NewFlags returns the default flags object to be filled in with the
-// command-line arguments.
-func (m *Module) NewFlags() any {
-	return new(Flags)
-}
-
-// NewScanner returns a new Scanner instance.
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Grab an FTP banner"
-}
-
 // Validate flags
-func (f *Flags) Validate(_ []string) (err error) {
+func (f Flags) Validate(_ []string) (err error) {
 	if f.FTPAuthTLS && f.ImplicitTLS {
 		err = errors.New("cannot specify both '--authtls' and '--implicit-tls' together")
 	}
 	return
 }
 
-// Help returns this module's help string.
-func (f *Flags) Help() string {
-	return ""
-}
-
-// Protocol returns the protocol identifer for the scanner.
-func (scanner *Scanner) Protocol() string {
-	return "ftp"
-}
-
 // Init initializes the Scanner instance with the flags from the command line.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		NeedSeparateL4Dialer:            true,
 		BaseFlags:                       &f.BaseFlags,
 		TLSEnabled:                      f.FTPAuthTLS || f.ImplicitTLS,
 		TLSFlags:                        &f.TLSFlags,
 	}
-	return nil
-}
-
-// InitPerSender does nothing in this module.
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
-}
-
-// GetName returns the configured name for the Scanner.
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
-}
-
-// GetTrigger returns the Trigger defined in the Flags.
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-// GetScanMetadata returns any metadata on the scan itself from this module.
-func (scanner *Scanner) GetScanMetadata() any {
 	return nil
 }
 
@@ -233,22 +173,25 @@ func (ftp *Connection) SetupFTPS() (bool, error) {
 // First sends the AUTH TLS/AUTH SSL command to tell the server we want to
 // do a TLS handshake. If that fails, break. Otherwise, perform the handshake.
 // Taken over from the original zgrab.
-func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.ScanTarget, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error)) error {
+func (ftp *Connection) GetFTPSCertificates(ctx context.Context, target *zgrab2.ScanTarget, tlsWrapper func(ctx context.Context, target *zgrab2.ScanTarget, l4Conn net.Conn) (*zgrab2.TLSConnection, error)) *zgrab2.ScanError {
 	ftpsReady, err := ftp.SetupFTPS()
 
 	if err != nil {
-		return fmt.Errorf("error setting up FTPS: %w", err)
+		return zgrab2.DetectScanError(fmt.Errorf("error setting up FTPS: %w", err))
 	}
 	if !ftpsReady {
 		return nil
 	}
 	var conn *zgrab2.TLSConnection
-	if conn, err = tlsWrapper(ctx, target, ftp.conn); err != nil {
-		return fmt.Errorf("error setting up TLS connection to target %s: %w", target.String(), err)
+	conn, err = tlsWrapper(ctx, target, ftp.conn)
+	if conn != nil {
+		ftp.results.TLSLog = conn.GetLog()
 	}
-	ftp.results.TLSLog = conn.GetLog()
-
+	if err != nil {
+		return zgrab2.NewScanError(zgrab2.SCAN_HANDSHAKE_ERROR, fmt.Errorf("error setting up TLS connection to target %s: %w", target.String(), err))
+	}
 	ftp.conn = conn
+
 	return nil
 }
 
@@ -272,27 +215,33 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error opening connection to target %v: %w", target.String(), err)
 	}
+	defer func() { zgrab2.CloseConnAndHandleError(conn) }()
 	if scanner.config.ImplicitTLS {
 		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("TLS wrapper is required for implicit TLS")
 		}
-		conn, err = tlsWrapper(ctx, target, conn)
-		if err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), err)
+		tlsConn, tlsErr := tlsWrapper(ctx, target, conn)
+		if tlsConn != nil {
+			conn = tlsConn
+		}
+		if tlsErr != nil {
+			result := ScanResults{ImplicitTLS: true}
+			if tlsConn != nil {
+				result.TLSLog = tlsConn.GetLog()
+			}
+
+			return zgrab2.SCAN_HANDSHAKE_ERROR, &result, fmt.Errorf("error wrapping connection in TLS for target %s: %w", target.String(), tlsErr)
 		}
 	}
 	results := ScanResults{
 		ImplicitTLS: scanner.config.ImplicitTLS,
 	}
-	defer func() {
-		// Check if we have a TLS conn and grab the log
-		if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
-			results.TLSLog = tlsConn.GetLog()
-		}
-		// cleanup conn
-		zgrab2.CloseConnAndHandleError(conn)
-	}()
+	// Capture TLSLog now so it is included in ftp.results (a value copy of results).
+	// For the AUTH TLS path, GetFTPSCertificates sets ftp.results.TLSLog directly.
+	if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
+		results.TLSLog = tlsConn.GetLog()
+	}
 	ftp := Connection{conn: conn, config: scanner.config, results: results}
 	is200Banner, err := ftp.GetFTPBanner()
 	if err != nil {
@@ -303,8 +252,8 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if tlsWrapper == nil {
 			return zgrab2.SCAN_INVALID_INPUTS, nil, errors.New("TLS wrapper is required for FTPS")
 		}
-		if err := ftp.GetFTPSCertificates(ctx, target, tlsWrapper); err != nil {
-			return zgrab2.TryGetScanStatus(err), &ftp.results, fmt.Errorf("error getting FTPS certificates for target %s: %w", target.String(), err)
+		if scanErr := ftp.GetFTPSCertificates(ctx, target, tlsWrapper); scanErr != nil {
+			return scanErr.Unpack(&ftp.results)
 		}
 	}
 	return zgrab2.SCAN_SUCCESS, &ftp.results, nil

@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/siemens"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/siemens"
+)
 
 func init() {
-	siemens.RegisterModule()
+	zgrab2.RegisterModule(siemens.NewModule())
 }
