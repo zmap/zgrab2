@@ -397,7 +397,7 @@ type BaseFlags struct {
 }
 
 // GetName returns the name of the respective scanner
-func (b *BaseFlags) GetName() string {
+func (b BaseFlags) GetName() string {
 	return b.Name
 }
 
@@ -410,7 +410,7 @@ func (b BaseFlags) Validate(_ []string) error {
 // Help satisfies the zflags ZCommander interface so that Validate() is called
 // on all Flags structs during ini parsing. Modules with extra help text should
 // override this method on their own Flags struct.
-func (b *BaseFlags) Help() string {
+func (b BaseFlags) Help() string {
 	return ""
 }
 
