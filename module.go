@@ -311,36 +311,29 @@ type Module interface {
 	DefaultPort() int
 }
 
-// ModuleInfo holds metadata about a module used for CLI registration.
-type ModuleInfo struct {
-	Protocol         string
-	ShortDescription string
-	Description      string
-	DefaultPort      int
-}
-
 // BaseModule provides default implementations for the CLI-registration methods of ScanModule.
 // Embed this in your Module struct. You still need to implement NewFlags() and NewScanner().
 type BaseModule struct {
-	info ModuleInfo
+	protocol         string
+	shortDescription string
+	description      string
+	defaultPort      int
 }
 
 // NewBaseModule creates a BaseModule with the given registration metadata.
 func NewBaseModule(protocol, shortDescription, description string, defaultPort int) *BaseModule {
 	return &BaseModule{
-		info: ModuleInfo{
-			Protocol:         protocol,
-			ShortDescription: shortDescription,
-			Description:      description,
-			DefaultPort:      defaultPort,
-		},
+		protocol:         protocol,
+		shortDescription: shortDescription,
+		description:      description,
+		defaultPort:      defaultPort,
 	}
 }
 
-func (m *BaseModule) Protocol() string         { return m.info.Protocol }
-func (m *BaseModule) ShortDescription() string { return m.info.ShortDescription }
-func (m *BaseModule) Description() string      { return m.info.Description }
-func (m *BaseModule) DefaultPort() int         { return m.info.DefaultPort }
+func (m *BaseModule) Protocol() string         { return m.protocol }
+func (m *BaseModule) ShortDescription() string { return m.shortDescription }
+func (m *BaseModule) Description() string      { return m.description }
+func (m *BaseModule) DefaultPort() int         { return m.defaultPort }
 
 // typedScanner constrains S to be a pointer to T that satisfies Scanner and
 // can be initialized with a protocol string via the embedded BaseScanner.
