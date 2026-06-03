@@ -36,7 +36,7 @@ type Scanner struct {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.AllowTLSDowngrade && !flags.UseTLS {
 		return errors.New("--allow-tls-downgrade requires --use-tls")
 	}

@@ -76,7 +76,7 @@ type Results struct {
 var ErrNoMatch = errors.New("pattern did not match")
 
 // Validate validates the flags and returns nil on success.
-func (f *Flags) Validate(_ []string) error {
+func (f Flags) Validate(_ []string) error {
 	if f.Probe != "\\n" && f.ProbeFile != "" {
 		log.Fatal("Cannot set both --probe and --probe-file")
 		return zgrab2.ErrInvalidArguments

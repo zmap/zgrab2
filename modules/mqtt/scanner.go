@@ -48,7 +48,7 @@ type Connection struct {
 }
 
 // Validate flags
-func (f *Flags) Validate(_ []string) error {
+func (f Flags) Validate(_ []string) error {
 	if f.AllowTLSDowngrade && !f.UseTLS {
 		return errors.New("--allow-tls-downgrade requires --tls")
 	}

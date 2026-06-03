@@ -98,7 +98,7 @@ type Result struct {
 // Validate checks that the flags are valid.
 // On success, returns nil.
 // On failure, returns an error instance describing the error.
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.AuthUser != "" && flags.AuthPass == "" {
 		return errors.New("must provide --auth-pass if --auth-user is set")
 	}

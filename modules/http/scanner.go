@@ -134,7 +134,7 @@ type scan struct {
 }
 
 // Validate performs any needed validation on the arguments
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.NoHTTP2 && flags.NoHTTP11 {
 		return errors.New("cannot use both --no-http2 and --no-http1.1. Pick one or neither depending on which version you want to use")
 	}

@@ -10,7 +10,7 @@ type MultipleCommand struct {
 }
 
 // Validate the options sent to MultipleCommand
-func (x *MultipleCommand) Validate(_ []string) error {
+func (x MultipleCommand) Validate(_ []string) error {
 	if x.ConfigFileName == config.InputFileName {
 		return errors.New("cannot receive config file and input file from same source")
 	}
@@ -19,6 +19,6 @@ func (x *MultipleCommand) Validate(_ []string) error {
 }
 
 // Help returns a usage string that will be output at the command line
-func (x *MultipleCommand) Help() string {
+func (x MultipleCommand) Help() string {
 	return ""
 }

@@ -355,7 +355,7 @@ type typedScanner[T any] interface {
 //	func NewModule() *zgrab2.TypedModule[MyFlags, MyScanner, *MyScanner] {
 //	    return zgrab2.NewTypedModule[MyFlags, MyScanner, *MyScanner]("myproto", ...)
 //	}
-type TypedModule[F any, T any, S typedScanner[T]] struct {
+type TypedModule[F ScanFlags, T any, S typedScanner[T]] struct {
 	*BaseModule
 }
 
@@ -365,7 +365,7 @@ type TypedModule[F any, T any, S typedScanner[T]] struct {
 //   - shortDescription: one-line label shown next to the module in `zgrab2 --help`.
 //   - description: full explanation of what the module does, shown in `zgrab2 <module> --help`.
 //   - defaultPort: well-known port used when the user does not pass --port.
-func NewTypedModule[F any, T any, S typedScanner[T]](protocol, shortDescription, description string, defaultPort int) *TypedModule[F, T, S] {
+func NewTypedModule[F ScanFlags, T any, S typedScanner[T]](protocol, shortDescription, description string, defaultPort int) *TypedModule[F, T, S] {
 	return &TypedModule[F, T, S]{
 		BaseModule: NewBaseModule(protocol, shortDescription, description, defaultPort),
 	}
@@ -403,7 +403,7 @@ func (b *BaseFlags) GetName() string {
 
 // Validate is a no-op default. Modules that need to enforce flag constraints
 // should override this method on their own Flags struct.
-func (b *BaseFlags) Validate(_ []string) error {
+func (b BaseFlags) Validate(_ []string) error {
 	return nil
 }
 

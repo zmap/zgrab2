@@ -166,7 +166,7 @@ type Result struct {
 }
 
 // Validate checks that the flags are valid
-func (flags *Flags) Validate(_ []string) error {
+func (flags Flags) Validate(_ []string) error {
 	if flags.AllowTLSDowngrade && !flags.UseTLS {
 		return errors.New("--allow-tls-downgrade requires --use-tls")
 	}

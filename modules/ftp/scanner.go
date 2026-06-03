@@ -77,7 +77,7 @@ type Connection struct {
 }
 
 // Validate flags
-func (f *Flags) Validate(_ []string) (err error) {
+func (f Flags) Validate(_ []string) (err error) {
 	if f.FTPAuthTLS && f.ImplicitTLS {
 		err = errors.New("cannot specify both '--authtls' and '--implicit-tls' together")
 	}
