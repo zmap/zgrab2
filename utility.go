@@ -57,16 +57,30 @@ func (err errTotalTimeout) Temporary() bool {
 // connection's timeout (or, failing that, 1 second).
 // On failure, returns anything it was able to read along with the error.
 func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Duration, totalTimeout time.Duration, maxReadSize int) ([]byte, error) {
-	var totalDeadline time.Time
-	if totalTimeout == 0 {
-		// Would be nice if this could be taken from the SetReadDeadline(), but that's not possible in general
-		const defaultTotalTimeout = 1 * time.Second
-		totalTimeout = defaultTotalTimeout
-		timeoutConn, isTimeoutConn := conn.(*TimeoutConnection)
-		if isTimeoutConn {
-			totalTimeout = timeoutConn.SessionTimeout
+	if timeoutConn, ok := conn.(*TimeoutConnection); ok {
+		// Our custom conn type has internal timeouts it applies on each read, set those
+		if readTimeout > 0 {
+			timeoutConn.ReadTimeout = readTimeout
+		}
+		if totalTimeout > 0 {
+			timeoutConn.SessionTimeout = totalTimeout
+		}
+	} else {
+		// Not our custom timeout, attempt to set the connections ReadDeadline
+		timeout := time.Duration(0)
+		if readTimeout > 0 && totalTimeout > 0 {
+			timeout = min(totalTimeout, readTimeout)
+		} else if readTimeout > 0 {
+			timeout = readTimeout
+		} else if totalTimeout > 0 {
+			timeout = totalTimeout
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return nil, err
 		}
 	}
+
+	var totalDeadline time.Time
 	if totalTimeout > 0 {
 		totalDeadline = time.Now().Add(totalTimeout)
 	}
