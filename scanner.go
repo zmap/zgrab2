@@ -56,7 +56,6 @@ func PrintScanners() {
 
 // RunScanner runs a single scan on a target and returns the resulting data
 func RunScanner(ctx context.Context, scanner Scanner, mon *Monitor, target ScanTarget) (string, ScanResponse) {
-	t := time.Now()
 	dialerGroupConfig, ok := defaultDialerGroupConfigToScanners[scanner.GetName()]
 	if !ok {
 		log.Fatalf("no default dialer group config for %s", scanner.GetName())
@@ -89,6 +88,6 @@ func RunScanner(ctx context.Context, scanner Scanner, mon *Monitor, target ScanT
 		errString := e.Error()
 		err = &errString
 	}
-	resp := ScanResponse{Result: res, Port: target.Port, Protocol: scanner.Protocol(), Error: err, Timestamp: t.Format(time.RFC3339), Status: status}
+	resp := ScanResponse{Result: res, Port: target.Port, Protocol: scanner.Protocol(), Error: err, Timestamp: time.Now().Format(time.RFC3339), Status: status}
 	return scanner.GetName(), resp
 }
