@@ -176,14 +176,14 @@ func TestDecodeTopologyResponse(t *testing.T) {
 			if results.ObjectSuffix != tt.wantObjectSuffix {
 				t.Errorf("SICSuffix: got %q, want %q", results.ObjectSuffix, tt.wantObjectSuffix)
 			}
-			if len(results.SupportedEncryption) != len(tt.wantEncryption) {
+			if len(results.SupportedCiphers) != len(tt.wantEncryption) {
 				t.Errorf("SupportedEncryption len: got %d (%v), want %d (%v)",
-					len(results.SupportedEncryption), results.SupportedEncryption,
+					len(results.SupportedCiphers), results.SupportedCiphers,
 					len(tt.wantEncryption), tt.wantEncryption)
 			} else {
 				for i, c := range tt.wantEncryption {
-					if results.SupportedEncryption[i] != c {
-						t.Errorf("SupportedEncryption[%d]: got %q, want %q", i, results.SupportedEncryption[i], c)
+					if results.SupportedCiphers[i] != c {
+						t.Errorf("SupportedEncryption[%d]: got %q, want %q", i, results.SupportedCiphers[i], c)
 					}
 				}
 			}

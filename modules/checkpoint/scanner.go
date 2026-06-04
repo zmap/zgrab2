@@ -56,8 +56,8 @@ type ScanResults struct {
 	// ObjectSuffix is the trailing dot-component of the O= field in the topology DN.
 	// Its purpose is unknown; it appears stable per management server.
 	ObjectSuffix string `json:"object_suffix,omitempty"`
-	// SupportedEncryption lists the encryption methods advertised in the topology response.
-	SupportedEncryption []string `json:"supported_encryption,omitempty"`
+	// SupportedCiphers lists the ciphers advertised in the topology response.
+	SupportedCiphers []string `json:"supported_ciphers,omitempty"`
 }
 
 type Flags struct {
@@ -155,7 +155,7 @@ func decodeTopologyResponse(answer string, results *ScanResults, includeRaw bool
 	// loc[1] is the end of the regex match, which stops just before the \x00.
 	after := answer[loc[1]:]
 	if nullIdx := strings.IndexByte(after, 0); nullIdx >= 0 {
-		results.SupportedEncryption = parseCipherSuites([]byte(after[nullIdx+1:]))
+		results.SupportedCiphers = parseCipherSuites([]byte(after[nullIdx+1:]))
 	}
 
 	return nil
