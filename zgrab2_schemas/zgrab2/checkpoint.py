@@ -25,4 +25,3 @@ checkpoint_scan_response = SubRecord(
 zschema.registry.register_schema("zgrab2-checkpoint", checkpoint_scan_response)
 
 zgrab2.register_scan_response_type("checkpoint", checkpoint_scan_response)
-
