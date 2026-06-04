@@ -12,7 +12,7 @@ CONTAINER_NAME=zgrab_checkpoint
 OUTPUT_FILE=$ZGRAB_OUTPUT/checkpoint/checkpoint.json
 
 echo "checkpoint/test: Running checkpoint scan against $CONTAINER_NAME"
-CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh checkpoint > $OUTPUT_FILE
+CONTAINER_NAME=$CONTAINER_NAME $ZGRAB_ROOT/docker-runner/docker-run.sh checkpoint --read-timeout=1s> $OUTPUT_FILE
 
 echo "checkpoint/test: BEGIN docker logs from $CONTAINER_NAME [{("
 docker logs --tail all $CONTAINER_NAME

@@ -62,7 +62,7 @@ type ScanResults struct {
 
 type Flags struct {
 	zgrab2.BaseFlags
-	ReadTimeout time.Duration `long:"read-timeout" description:"How long to wait for full reply from probe" default:"5s"`
+	ReadTimeout time.Duration `long:"read-timeout" description:"How long to wait for full reply from probe" default:"2s"`
 	IncludeRaw  bool          `long:"include-raw" description:"Include raw topology response"`
 }
 
@@ -92,7 +92,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if _, err = conn.Write(probePacket1); err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error sending probe to %s: %w", target.String(), err)
 	}
-	resp1, err := zgrab2.ReadAvailableWithOptions(conn, maxReadSize, time.Second*2, 0, maxReadSize)
+	resp1, err := zgrab2.ReadAvailableWithOptions(conn, maxReadSize, scanner.config.ReadTimeout, 0, maxReadSize)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error reading probe response from %s: %w", target.String(), err)
 	}
@@ -107,7 +107,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if _, err = conn.Write(probePacket2); err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error sending topology request to %s: %w", target.String(), err)
 	}
-	resp2, err := zgrab2.ReadAvailableWithOptions(conn, maxReadSize, time.Second*2, 0, maxReadSize)
+	resp2, err := zgrab2.ReadAvailableWithOptions(conn, maxReadSize, scanner.config.ReadTimeout, 0, maxReadSize)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error reading topology response from %s: %w", target.String(), err)
 	}
