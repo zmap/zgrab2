@@ -1,11 +1,14 @@
 package zgrab2
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	stdtls "crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"math/big"
@@ -331,18 +334,23 @@ func TestGetTLSConfig_NoECDHE(t *testing.T) {
 // Failures here mean the flag is parsed into tls.Config correctly (tier 1 passes)
 // but zcrypto is not respecting the config when building the ClientHello.
 
-func runZcryptoHandshakeWithCapture(t *testing.T, clientCfg *zcryptotls.Config, capture func(*zcryptotls.ClientHelloInfo)) error {
+// runStdlibHandshakeWithCapture runs a TLS handshake where zcrypto is the client and
+// stdlib crypto/tls is the server. The server fires capture() with its ClientHelloInfo
+// before responding, giving independent visibility into what zcrypto actually put on the
+// wire — without relying on zcrypto's own server-side parsing to validate zcrypto client
+// behaviour.
+func runStdlibHandshakeWithCapture(t *testing.T, clientCfg *zcryptotls.Config, capture func(*stdtls.ClientHelloInfo)) error {
 	t.Helper()
-	cert := generateZcryptoCert(t)
+	cert := generateTLSTestCert(t)
 	clientConn, serverConn := net.Pipe()
 
 	done := make(chan error, 1)
 	go func() {
-		srv := zcryptotls.Server(serverConn, &zcryptotls.Config{
-			Certificates: []zcryptotls.Certificate{cert},
-			GetConfigForClient: func(chi *zcryptotls.ClientHelloInfo) (*zcryptotls.Config, error) {
+		srv := stdtls.Server(serverConn, &stdtls.Config{
+			Certificates: []stdtls.Certificate{cert},
+			GetConfigForClient: func(chi *stdtls.ClientHelloInfo) (*stdtls.Config, error) {
 				capture(chi)
-				return nil, nil // proceed with original server config
+				return nil, nil
 			},
 		})
 		done <- srv.Handshake()
@@ -373,7 +381,7 @@ func TestClientHello_AdvertisedCipherSuites(t *testing.T) {
 	}
 
 	var gotSuites []uint16
-	if err := runZcryptoHandshakeWithCapture(t, clientCfg, func(chi *zcryptotls.ClientHelloInfo) {
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
 		gotSuites = chi.CipherSuites
 	}); err != nil {
 		t.Fatalf("handshake failed: %v", err)
@@ -400,18 +408,18 @@ func TestClientHello_AdvertisedCurves(t *testing.T) {
 		ExplicitCurvePreferences: true,
 	}
 
-	var gotCurves []zcryptotls.CurveID
-	if err := runZcryptoHandshakeWithCapture(t, clientCfg, func(chi *zcryptotls.ClientHelloInfo) {
+	var gotCurves []stdtls.CurveID
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
 		gotCurves = chi.SupportedCurves
 	}); err != nil {
 		t.Fatalf("handshake failed: %v", err)
 	}
 
-	if !slices.Contains(gotCurves, zcryptotls.CurveP256) {
+	if !slices.Contains(gotCurves, stdtls.CurveP256) {
 		t.Errorf("ClientHello missing expected curve P-256; got %v", gotCurves)
 	}
 	for _, c := range gotCurves {
-		if c == zcryptotls.CurveP384 || c == zcryptotls.CurveP521 || c == zcryptotls.X25519 {
+		if c == stdtls.CurveP384 || c == stdtls.CurveP521 || c == stdtls.X25519 {
 			t.Errorf("ClientHello advertised unrequested curve %v", c)
 		}
 	}
@@ -573,14 +581,14 @@ func TestClientHello_AdvertisedCurves_EnableMLKEM(t *testing.T) {
 		t.Fatalf("GetTLSConfigForTarget: %v", err)
 	}
 
-	var gotCurves []zcryptotls.CurveID
-	if err := runZcryptoHandshakeWithCapture(t, clientCfg, func(chi *zcryptotls.ClientHelloInfo) {
+	var gotCurves []stdtls.CurveID
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
 		gotCurves = chi.SupportedCurves
 	}); err != nil {
 		t.Fatalf("handshake failed: %v", err)
 	}
 
-	if !slices.Contains(gotCurves, zcryptotls.X25519MLKEM768) {
+	if !slices.Contains(gotCurves, stdtls.X25519MLKEM768) {
 		t.Errorf("ClientHello missing X25519MLKEM768; got curves: %v", gotCurves)
 	}
 }
@@ -679,21 +687,414 @@ func TestClientHello_AdvertisedSignatureSchemes(t *testing.T) {
 	// the advertised list through flags and assert specific overrides here.
 	clientCfg := &zcryptotls.Config{}
 
-	var gotSchemes []zcryptotls.SignatureScheme
-	if err := runZcryptoHandshakeWithCapture(t, clientCfg, func(chi *zcryptotls.ClientHelloInfo) {
+	var gotSchemes []stdtls.SignatureScheme
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
 		gotSchemes = chi.SignatureSchemes
 	}); err != nil {
 		t.Fatalf("handshake failed: %v", err)
 	}
 
-	wantPresent := []zcryptotls.SignatureScheme{
-		zcryptotls.PSSWithSHA256,
-		zcryptotls.ECDSAWithP256AndSHA256,
-		zcryptotls.PKCS1WithSHA256,
+	wantPresent := []stdtls.SignatureScheme{
+		stdtls.PSSWithSHA256,
+		stdtls.ECDSAWithP256AndSHA256,
+		stdtls.PKCS1WithSHA256,
 	}
 	for _, want := range wantPresent {
 		if !slices.Contains(gotSchemes, want) {
 			t.Errorf("ClientHello missing expected signature scheme 0x%04x; got: %v", want, gotSchemes)
 		}
+	}
+}
+
+// ---- Tier 1: Boolean extension flags ----
+
+func TestGetTLSConfig_BooleanExtensions(t *testing.T) {
+	// Scenario: Each boolean extension flag sets the corresponding tls.Config field.
+	// Failures here mean the flag is recognised but not wired to the zcrypto config.
+	tests := []struct {
+		name  string
+		flags TLSFlags
+		check func(*testing.T, *zcryptotls.Config)
+	}{
+		{
+			name:  "session-ticket",
+			flags: TLSFlags{SessionTicket: true},
+			check: func(t *testing.T, cfg *zcryptotls.Config) {
+				if !cfg.ForceSessionTicketExt {
+					t.Error("ForceSessionTicketExt should be true when --session-ticket is set")
+				}
+			},
+		},
+		{
+			name:  "extended-master-secret",
+			flags: TLSFlags{ExtendedMasterSecret: true},
+			check: func(t *testing.T, cfg *zcryptotls.Config) {
+				if !cfg.ExtendedMasterSecret {
+					t.Error("ExtendedMasterSecret should be true when --extended-master-secret is set")
+				}
+			},
+		},
+		{
+			name:  "extended-random",
+			flags: TLSFlags{ExtendedRandom: true},
+			check: func(t *testing.T, cfg *zcryptotls.Config) {
+				if !cfg.ExtendedRandom {
+					t.Error("ExtendedRandom should be true when --extended-random is set")
+				}
+			},
+		},
+		{
+			name:  "sct",
+			flags: TLSFlags{SCTExt: true},
+			check: func(t *testing.T, cfg *zcryptotls.Config) {
+				if !cfg.SignedCertificateTimestampExt {
+					t.Error("SignedCertificateTimestampExt should be true when --sct is set")
+				}
+			},
+		},
+		{
+			name:  "dsa-enabled",
+			flags: TLSFlags{DSAEnabled: true},
+			check: func(t *testing.T, cfg *zcryptotls.Config) {
+				if !cfg.ClientDSAEnabled {
+					t.Error("ClientDSAEnabled should be true when --dsa-enabled is set")
+				}
+			},
+		},
+		{
+			name:  "dsa-disabled-by-default",
+			flags: TLSFlags{},
+			check: func(t *testing.T, cfg *zcryptotls.Config) {
+				if cfg.ClientDSAEnabled {
+					t.Error("ClientDSAEnabled should be false by default")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := tt.flags.GetTLSConfigForTarget(nil)
+			if err != nil {
+				t.Fatalf("GetTLSConfigForTarget: %v", err)
+			}
+			tt.check(t, cfg)
+		})
+	}
+}
+
+// ---- Tier 1: SNI flag tests ----
+
+func TestGetTLSConfig_SNI(t *testing.T) {
+	// Scenario: Various combinations of --server-name, --no-sni, and ScanTarget.Domain.
+	// Assert Config.ServerName follows the priority: explicit flag > target domain > empty.
+
+	t.Run("explicit-server-name", func(t *testing.T) {
+		// Scenario: --server-name set with no target. Assert Config.ServerName uses the
+		// explicit value regardless of any target that might later be provided.
+		flags := &TLSFlags{ServerName: "explicit.example.com"}
+		cfg, err := flags.GetTLSConfigForTarget(nil)
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if cfg.ServerName != "explicit.example.com" {
+			t.Errorf("ServerName: got %q, want %q", cfg.ServerName, "explicit.example.com")
+		}
+	})
+
+	t.Run("server-name-from-target", func(t *testing.T) {
+		// Scenario: No --server-name, no --no-sni, target has a domain. Assert
+		// Config.ServerName is set to target.Domain so SNI follows the scan target.
+		flags := &TLSFlags{}
+		cfg, err := flags.GetTLSConfigForTarget(&ScanTarget{Domain: "target.example.com"})
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if cfg.ServerName != "target.example.com" {
+			t.Errorf("ServerName: got %q, want %q", cfg.ServerName, "target.example.com")
+		}
+	})
+
+	t.Run("no-sni-suppresses-server-name", func(t *testing.T) {
+		// Scenario: --no-sni set with a target that has a domain. Assert Config.ServerName
+		// remains empty — NoSNI must override the target domain.
+		flags := &TLSFlags{NoSNI: true}
+		cfg, err := flags.GetTLSConfigForTarget(&ScanTarget{Domain: "target.example.com"})
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if cfg.ServerName != "" {
+			t.Errorf("ServerName should be empty when --no-sni is set, got %q", cfg.ServerName)
+		}
+	})
+
+	t.Run("explicit-server-name-overrides-target", func(t *testing.T) {
+		// Scenario: Both --server-name and a target domain are set. Assert the explicit
+		// --server-name wins; the target domain is ignored for SNI.
+		flags := &TLSFlags{ServerName: "explicit.example.com"}
+		cfg, err := flags.GetTLSConfigForTarget(&ScanTarget{Domain: "target.example.com"})
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if cfg.ServerName != "explicit.example.com" {
+			t.Errorf("ServerName: got %q, want %q", cfg.ServerName, "explicit.example.com")
+		}
+	})
+
+	t.Run("no-target-no-server-name-is-empty", func(t *testing.T) {
+		// Scenario: No flags, no target. Assert Config.ServerName is empty; no SNI will
+		// be sent unless a later stage (e.g. GetDefaultTLSWrapper) sets it.
+		flags := &TLSFlags{}
+		cfg, err := flags.GetTLSConfigForTarget(nil)
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if cfg.ServerName != "" {
+			t.Errorf("ServerName should be empty without target or explicit name, got %q", cfg.ServerName)
+		}
+	})
+}
+
+// ---- Tier 1: VerifyServerCertificate ----
+
+func TestGetTLSConfig_VerifyServerCertificate(t *testing.T) {
+	t.Run("false-sets-insecure-skip-verify", func(t *testing.T) {
+		// Scenario: VerifyServerCertificate=false (default). Assert InsecureSkipVerify=true
+		// so zgrab2 can scan hosts with self-signed or expired certificates.
+		flags := &TLSFlags{VerifyServerCertificate: false}
+		cfg, err := flags.GetTLSConfigForTarget(nil)
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if !cfg.InsecureSkipVerify {
+			t.Error("InsecureSkipVerify should be true when VerifyServerCertificate is false")
+		}
+	})
+
+	t.Run("true-clears-insecure-skip-verify", func(t *testing.T) {
+		// Scenario: --verify-server-certificate set. Assert InsecureSkipVerify=false so
+		// zcrypto will reject certificates that don't chain to a trusted root.
+		flags := &TLSFlags{VerifyServerCertificate: true}
+		cfg, err := flags.GetTLSConfigForTarget(nil)
+		if err != nil {
+			t.Fatalf("GetTLSConfigForTarget: %v", err)
+		}
+		if cfg.InsecureSkipVerify {
+			t.Error("InsecureSkipVerify should be false when VerifyServerCertificate is true")
+		}
+	})
+}
+
+// ---- Tier 1: NextProtos ----
+
+func TestGetTLSConfig_NextProtos(t *testing.T) {
+	// Scenario: --next-protos given as a CSV string. Assert Config.NextProtos is set to
+	// the parsed and whitespace-trimmed slice in the order given.
+	tests := []struct {
+		flag string
+		want []string
+	}{
+		{"h2", []string{"h2"}},
+		{"h2,http/1.1", []string{"h2", "http/1.1"}},
+		{"h2, http/1.1", []string{"h2", "http/1.1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.flag, func(t *testing.T) {
+			flags := &TLSFlags{NextProtos: tt.flag}
+			cfg, err := flags.GetTLSConfigForTarget(nil)
+			if err != nil {
+				t.Fatalf("GetTLSConfigForTarget: %v", err)
+			}
+			if !slices.Equal(cfg.NextProtos, tt.want) {
+				t.Errorf("NextProtos: got %v, want %v", cfg.NextProtos, tt.want)
+			}
+		})
+	}
+}
+
+// ---- Tier 1: ClientRandom ----
+
+func TestGetTLSConfig_ClientRandom(t *testing.T) {
+	// Scenario: --client-random given as a base64-encoded 32-byte value. Assert
+	// Config.ClientRandom holds the decoded bytes so zcrypto uses them verbatim.
+	randomBytes := []byte{
+		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+		0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+		0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+	}
+	flags := &TLSFlags{ClientRandom: base64.StdEncoding.EncodeToString(randomBytes)}
+	cfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+	if !bytes.Equal(cfg.ClientRandom, randomBytes) {
+		t.Errorf("ClientRandom: got %x, want %x", cfg.ClientRandom, randomBytes)
+	}
+}
+
+func TestGetTLSConfig_ClientRandom_InvalidBase64(t *testing.T) {
+	// Scenario: --client-random is not valid base64. Assert GetTLSConfigForTarget returns
+	// an error rather than silently discarding or corrupting the value.
+	flags := &TLSFlags{ClientRandom: "not-valid-base64!!!"}
+	_, err := flags.GetTLSConfigForTarget(nil)
+	if err == nil {
+		t.Error("expected error for invalid base64 --client-random, got nil")
+	}
+}
+
+// ---- Tier 1: Pre-set Config short-circuit ----
+
+func TestGetTLSConfig_AlreadySet(t *testing.T) {
+	// Scenario: TLSFlags.Config is pre-set before GetTLSConfigForTarget is called. Assert
+	// the same pointer is returned without modification. This is the fast path for callers
+	// that build a config directly (e.g. in tests) rather than through CLI flags.
+	existing := &zcryptotls.Config{
+		InsecureSkipVerify: true,
+		MinVersion:         zcryptotls.VersionTLS13,
+	}
+	flags := &TLSFlags{Config: existing}
+	cfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+	if cfg != existing {
+		t.Error("GetTLSConfigForTarget should return the pre-set Config pointer unchanged")
+	}
+}
+
+// ---- Tier 2: SNI on the wire (stdlib server) ----
+
+func TestClientHello_SNI_ServerName(t *testing.T) {
+	// Scenario: --server-name "example.com" set. Assert the ClientHello SNI extension
+	// carries that exact value, independently verified by stdlib's GetConfigForClient.
+	flags := &TLSFlags{ServerName: "example.com"}
+	clientCfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+
+	var gotServerName string
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
+		gotServerName = chi.ServerName
+	}); err != nil {
+		t.Fatalf("handshake failed: %v", err)
+	}
+
+	if gotServerName != "example.com" {
+		t.Errorf("SNI: got %q, want %q", gotServerName, "example.com")
+	}
+}
+
+func TestClientHello_SNI_NoSNI(t *testing.T) {
+	// Scenario: --no-sni set. Assert no SNI extension is sent — stdlib reports an empty
+	// ServerName in ClientHelloInfo when the extension is absent.
+	flags := &TLSFlags{NoSNI: true}
+	clientCfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+
+	var gotServerName string
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
+		gotServerName = chi.ServerName
+	}); err != nil {
+		t.Fatalf("handshake failed: %v", err)
+	}
+
+	if gotServerName != "" {
+		t.Errorf("SNI should be absent when --no-sni is set, got %q", gotServerName)
+	}
+}
+
+// ---- Tier 2: ALPN on the wire (stdlib server) ----
+
+func TestClientHello_NextProtos(t *testing.T) {
+	// Scenario: --next-protos "h2,http/1.1". Assert both protocol names appear in the
+	// ALPN extension of the ClientHello, captured independently by stdlib's server.
+	flags := &TLSFlags{NextProtos: "h2,http/1.1"}
+	clientCfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+
+	var gotProtos []string
+	if err := runStdlibHandshakeWithCapture(t, clientCfg, func(chi *stdtls.ClientHelloInfo) {
+		gotProtos = chi.SupportedProtos
+	}); err != nil {
+		t.Fatalf("handshake failed: %v", err)
+	}
+
+	for _, want := range []string{"h2", "http/1.1"} {
+		if !slices.Contains(gotProtos, want) {
+			t.Errorf("ALPN: missing %q; got %v", want, gotProtos)
+		}
+	}
+}
+
+// ---- Tier 3: VerifyServerCertificate end-to-end ----
+
+func TestVerifyServerCertificate_FailsForUntrustedCert(t *testing.T) {
+	// Scenario: --verify-server-certificate set, no custom RootCAs. Server presents a
+	// self-signed cert that is not in any system trust store. Assert the handshake fails
+	// with a certificate error, confirming InsecureSkipVerify=false is exercised end-to-end
+	// rather than just being set in the config struct.
+	//
+	// A 1s context timeout guards against zcrypto hanging instead of returning an error
+	// on cert failure. Closing clientConn after the client handshake unblocks the server
+	// goroutine in cases where it keeps waiting for client data after receiving the alert.
+	cert := generateZcryptoCert(t)
+	clientConn, serverConn := net.Pipe()
+
+	done := make(chan error, 1)
+	go func() {
+		srv := zcryptotls.Server(serverConn, &zcryptotls.Config{
+			Certificates: []zcryptotls.Certificate{cert},
+		})
+		done <- srv.Handshake()
+		srv.Close()
+	}()
+
+	flags := &TLSFlags{VerifyServerCertificate: true}
+	clientCfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	tlsConn := &TLSConnection{Conn: *zcryptotls.Client(clientConn, clientCfg)}
+	clientErr := tlsConn.HandshakeContext(ctx)
+	clientConn.Close() // unblock server goroutine if still waiting after client abort
+	<-done
+
+	if clientErr == nil {
+		t.Error("expected handshake to fail for untrusted cert with VerifyServerCertificate set, but it succeeded")
+	}
+}
+
+// ---- Tier 3: Version range enforcement ----
+
+func TestNegotiated_Version_MismatchFails(t *testing.T) {
+	// Scenario: Client requires TLS 1.3 only (MinVersion=MaxVersion=TLS13); server only
+	// supports up to TLS 1.2 (MaxVersion=TLS12). Assert the handshake fails because there
+	// is no common version. This confirms --min-version / --max-version constraints are
+	// enforced end-to-end, not merely set in the config struct.
+	flags := &TLSFlags{
+		MinVersion: zcryptotls.VersionTLS13,
+		MaxVersion: zcryptotls.VersionTLS13,
+	}
+	clientCfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+
+	serverCfg := &zcryptotls.Config{
+		MaxVersion: zcryptotls.VersionTLS12,
+	}
+
+	_, err = runZcryptoHandshakeWithServerConfig(t, clientCfg, serverCfg)
+	if err == nil {
+		t.Error("expected handshake to fail when client requires TLS 1.3 and server only supports TLS 1.2")
 	}
 }
