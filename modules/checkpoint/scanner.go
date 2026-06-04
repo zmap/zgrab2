@@ -4,132 +4,79 @@
 package checkpoint
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"regexp"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
+	"time"
 
 	"github.com/zmap/zgrab2"
 )
 
-// ScanResults is the output of the scan.
-type ScanResults struct {
-	// FirewallHost is the CN field from the firewall's DN response (e.g. "fw1.example.com").
-	FirewallHost string `json:"firewall_host,omitempty"`
-	// Host is the O field from the firewall's DN response (e.g. "example.com").
-	Host string `json:"host,omitempty"`
+const maxReadSize = 2048
+
+func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
+	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner](
+		"checkpoint",
+		"Probe for Checkpoint firewalls",
+		"Probe for Checkpoint firewalls, returns whether the host responded with the expected reply to the "+
+			"initial probe and the firewall and smartcenter host after a topology request, if received.",
+		264,
+	)
 }
 
-type Flags struct {
-	zgrab2.BaseFlags
-}
-
-type Module struct{}
-
+// Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
-	config            *Flags
-	dialerGroupConfig *zgrab2.DialerGroupConfig
+	zgrab2.BaseScanner
+	config *Flags
 }
 
-func RegisterModule() {
-	var module Module
-	_, err := zgrab2.AddCommand("checkpoint", "Check Point Firewall-1 topology protocol", module.Description(), 264, &module)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func (m *Module) NewFlags() any {
-	return new(Flags)
-}
-
-func (m *Module) NewScanner() zgrab2.Scanner {
-	return new(Scanner)
-}
-
-// Description returns an overview of this module.
-func (m *Module) Description() string {
-	return "Probe for Check Point Firewall-1 and retrieve the firewall hostname via the topology protocol"
-}
-
-func (f *Flags) Validate(_ []string) error {
-	return nil
-}
-
-func (f *Flags) Help() string {
-	return ""
-}
-
-func (scanner *Scanner) Protocol() string {
-	return "checkpoint"
-}
-
-func (scanner *Scanner) GetDialerGroupConfig() *zgrab2.DialerGroupConfig {
-	return scanner.dialerGroupConfig
-}
-
-func (scanner *Scanner) GetScanMetadata() any {
-	return nil
-}
-
-// Init initializes the Scanner instance with the flags from the command line.
+// Init initializes the Scanner with the command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
 	scanner.config = f
-	scanner.dialerGroupConfig = &zgrab2.DialerGroupConfig{
+	scanner.SetBaseFlags(&f.BaseFlags)
+	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
 		BaseFlags:                       &f.BaseFlags,
 	}
 	return nil
 }
 
-func (scanner *Scanner) InitPerSender(senderID int) error {
-	return nil
+// ScanResults is the output of the scan.
+type ScanResults struct {
+	CheckpointResponseReceived bool   `json:"initial_response_is_checkpoint"`
+	RawTopologyResponse        string `json:"raw_topology_response,omitempty"`
+	// FirewallHost is the CN field from the topology DN (e.g. "fw1.example.com").
+	FirewallHost string `json:"firewall_host,omitempty"`
+	// SmartCenterHost is the management server name from the O= field
+	SmartCenterHost string `json:"smart_center_host,omitempty"`
+	// ObjectSuffix is the trailing dot-component of the O= field in the topology DN.
+	// Its purpose is unknown; it appears stable per management server.
+	ObjectSuffix string `json:"object_suffix,omitempty"`
+	// SupportedEncryption lists the encryption methods advertised in the topology response.
+	SupportedEncryption []string `json:"supported_encryption,omitempty"`
 }
 
-func (scanner *Scanner) GetName() string {
-	return scanner.config.Name
+type Flags struct {
+	zgrab2.BaseFlags
+	ReadTimeout time.Duration `long:"read-timeout" description:"How long to wait for full reply from probe" default:"5s"`
+	IncludeRaw  bool          `long:"include-raw" description:"Include raw topology response"`
 }
 
-func (scanner *Scanner) GetTrigger() string {
-	return scanner.config.Trigger
-}
-
-// See Metasploit's implementation for spec
-// https://github.com/rapid7/metasploit-framework/blob/master/modules/auxiliary/gather/checkpoint_hostname.rb#L59
-
-// probePacket1 is the initial handshake packet sent to identify a Checkpoint service.
-var probePacket1 = []byte{0x51, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21}
-
-// probePacket2 requests the topology/hostname information.
-var probePacket2 = []byte{0x00, 0x00, 0x00, 0x0b, 's', 'e', 'c', 'u', 'r', 'e', 'r', 'e', 'm', 'o', 't', 'e', 0x00}
-
-// decodeResponse parses a Checkpoint topology response into FirewallHost and Host.
-// The wire format is: 4-byte length prefix, then "CN=<host>,O=<domain>", then 8 trailing bytes.
-func decodeResponse(answer []byte, results *ScanResults) error {
-	// Need at least 4 (header) + 1 (data) + 8 (trailer) = 13 bytes for any content.
-	if len(answer) < 13 {
-		return fmt.Errorf("response too short (%d bytes)", len(answer))
-	}
-	payload := string(answer[4 : len(answer)-8])
-	parts := strings.SplitN(payload, ",", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("unexpected response format: %q", payload)
-	}
-	cn, o := parts[0], parts[1]
-	// Expect "CN=<value>" and "O=<value>"
-	if !strings.HasPrefix(cn, "CN=") || !strings.HasPrefix(o, "O=") {
-		return fmt.Errorf("unexpected DN fields: %q", payload)
-	}
-	results.FirewallHost = cn[3:]
-	results.Host = o[2:]
-	return nil
-}
+var (
+	// See Metasploit's implementation for probe spec
+	// https://github.com/rapid7/metasploit-framework/blob/master/modules/auxiliary/gather/checkpoint_hostname.rb#L59
+	probePacket1                       = []byte{0x51, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21} // inital probe packet
+	expectedCheckpointResponseProbeOne = []byte("Y\x00\x00\x00")                                // expected reply to probe 1
+	probePacket2                       = []byte("\x00\x00\x00\x0bsecuremote\x00")               // probe packet to request topology
+)
 
 // Scan connects to port 264 and runs the Checkpoint topology probe:
 //  1. Send a fixed 8-byte identification packet.
-//  2. Verify the response starts with 0x59 ('Y'), indicating a Checkpoint service.
+//  2. Verify the response is the expected Checkpoint response
 //  3. Send the "securemote" request packet.
 //  4. Parse the returned DN to extract the firewall hostname.
 func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, target *zgrab2.ScanTarget) (zgrab2.ScanStatus, any, error) {
@@ -145,30 +92,112 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if _, err = conn.Write(probePacket1); err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error sending probe to %s: %w", target.String(), err)
 	}
-	resp1, err := zgrab2.ReadAvailable(conn)
+	resp1, err := zgrab2.ReadAvailableWithOptions(conn, maxReadSize, time.Second*2, 0, maxReadSize)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error reading probe response from %s: %w", target.String(), err)
 	}
 
 	// Step 2: verify this is a Checkpoint service
-	const Y = 0x59 // the letter 'Y', which Checkpoint uses to indicate a valid response to the initial probe
-	if len(resp1) == 0 || resp1[0] != Y {
-		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("not a Checkpoint service at %s: unexpected response %x", target.String(), resp1)
+	err = decodeCheckpointProbeResponse(resp1, results)
+	if err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("unexpected response to initial Checkpoint probe: %w", err)
 	}
 
 	// Step 3: request topology/hostname.
 	if _, err = conn.Write(probePacket2); err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error sending topology request to %s: %w", target.String(), err)
 	}
-	resp2, err := zgrab2.ReadAvailable(conn)
+	resp2, err := zgrab2.ReadAvailableWithOptions(conn, maxReadSize, time.Second*2, 0, maxReadSize)
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), results, fmt.Errorf("error reading topology response from %s: %w", target.String(), err)
 	}
 
 	// Step 4: parse the DN out of the response.
-	if err = decodeResponse(resp2, results); err != nil {
-		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("error decoding response from %s: %w", target.String(), err)
+	if err = decodeTopologyResponse(string(resp2), results, scanner.config.IncludeRaw); err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, results, fmt.Errorf("error decoding topology response from %s: %w", target.String(), err)
 	}
 
 	return zgrab2.SCAN_SUCCESS, results, nil
+}
+
+// dnRegEx captures the CN and the full O= value up to the first null byte, newline, or comma.
+// The O= value includes the trailing SIC suffix (e.g. "host.com.abc123" or "host..abc123"),
+// which is split out in decodeTopologyResponse.
+var dnRegEx = regexp.MustCompile(`(?i)CN=([^,]+),O=([^,\x00\n]+)`)
+
+// decodeTopologyResponse parses a Checkpoint topology response.
+//
+// Wire layout (after the 4-byte message-length prefix):
+//
+//	CN=<gateway>,O=<management>.<suffix>\x00
+//	[4-byte big-endian count]
+//	( [4-byte len including \x00] <cipher suite>\x00 ) × count
+func decodeTopologyResponse(answer string, results *ScanResults, includeRaw bool) error {
+	if includeRaw {
+		results.RawTopologyResponse = answer
+	}
+
+	loc := dnRegEx.FindStringSubmatchIndex(answer)
+	if loc == nil {
+		return fmt.Errorf("no DN found in response: %q", answer)
+	}
+
+	results.FirewallHost = answer[loc[2]:loc[3]]
+
+	oValue := answer[loc[4]:loc[5]]
+	if idx := strings.LastIndex(oValue, "."); idx >= 0 {
+		results.ObjectSuffix = strings.TrimRight(oValue[idx+1:], ".")
+		oValue = strings.TrimRight(oValue[:idx], ".")
+	}
+	results.SmartCenterHost = oValue
+
+	// Cipher list follows the null terminator that ends the DN field.
+	// loc[1] is the end of the regex match, which stops just before the \x00.
+	after := answer[loc[1]:]
+	if nullIdx := strings.IndexByte(after, 0); nullIdx >= 0 {
+		results.SupportedEncryption = parseCipherSuites([]byte(after[nullIdx+1:]))
+	}
+
+	return nil
+}
+
+// parseCipherSuites decodes the length-prefixed encryption method list from the topology response.
+// Each entry is a 4-byte big-endian length (including the null terminator) followed by the name.
+func parseCipherSuites(data []byte) []string {
+	if len(data) < 4 {
+		return nil
+	}
+	count := binary.BigEndian.Uint32(data[:4])
+	data = data[4:]
+	if count > 256 {
+		return nil
+	}
+	ciphers := make([]string, 0, count)
+	for range count {
+		if len(data) < 4 {
+			break
+		}
+		nameLen := int(binary.BigEndian.Uint32(data[:4]))
+		data = data[4:]
+		if nameLen <= 0 || len(data) < nameLen {
+			break
+		}
+		name := strings.TrimRight(string(data[:nameLen]), "\x00")
+		if name != "" {
+			ciphers = append(ciphers, name)
+		}
+		data = data[nameLen:]
+	}
+	if len(ciphers) == 0 {
+		return nil
+	}
+	return ciphers
+}
+
+func decodeCheckpointProbeResponse(answer []byte, res *ScanResults) error {
+	if bytes.Equal(answer, expectedCheckpointResponseProbeOne) {
+		res.CheckpointResponseReceived = true
+		return nil
+	}
+	return fmt.Errorf("expected: %s, got %s", string(expectedCheckpointResponseProbeOne), string(answer))
 }

@@ -1,7 +1,10 @@
 package modules
 
-import "github.com/zmap/zgrab2/modules/checkpoint"
+import (
+	"github.com/zmap/zgrab2"
+	"github.com/zmap/zgrab2/modules/checkpoint"
+)
 
 func init() {
-	checkpoint.RegisterModule()
+	zgrab2.RegisterModule(checkpoint.NewModule())
 }
