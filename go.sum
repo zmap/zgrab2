@@ -51,6 +51,7 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/weppos/publicsuffix-go v0.50.4-0.20260514081422-6efa9030e80b h1:T43RrpXBdOx9bsj3zprMW5Nrdols4SPGjoH+rmBlFMc=
 github.com/weppos/publicsuffix-go v0.50.4-0.20260514081422-6efa9030e80b/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
+github.com/zmap/zcrypto v0.0.0-20260604051847-2a033832456b h1:6PHUMZ4Tq9qkmYzf0UuXhSNvLa8GtdBbb1yj+WVTXyg=
 github.com/zmap/zcrypto v0.0.0-20260604051847-2a033832456b/go.mod h1:NLxOFQfVm3tB5Wy99IOzDf1HtdUMGkLYWWksZAIGLx0=
 github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9 h1:BZgsVcIPYSVdXlYFL6Ma0iNLbB/fhlyj6DaGwmppfTw=
 github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9/go.mod h1:FsOB4N5XTSZ80AvFx0VV16M9slzoROippViwuiGQv2g=
