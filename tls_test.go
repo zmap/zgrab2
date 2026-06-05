@@ -250,7 +250,7 @@ func TestGetTLSConfig_CipherSuiteHex(t *testing.T) {
 	}{
 		{"0x1301", []uint16{0x1301}},
 		{"0x1301,0x1302", []uint16{0x1301, 0x1302}},
-		{"1301", []uint16{0x1301}}, // without 0x prefix
+		{"1301", []uint16{0x1301}},                   // without 0x prefix
 		{"0x1301, 0x1302", []uint16{0x1301, 0x1302}}, // spaces around comma
 	}
 	for _, tt := range tests {
@@ -404,7 +404,7 @@ func TestClientHello_AdvertisedCurves(t *testing.T) {
 	// Note: --curve-preferences is not yet implemented as a flag, so this test sets
 	// the config directly to verify zcrypto's curve handling in isolation.
 	clientCfg := &zcryptotls.Config{
-		CurvePreferences:       []zcryptotls.CurveID{zcryptotls.CurveP256},
+		CurvePreferences:         []zcryptotls.CurveID{zcryptotls.CurveP256},
 		ExplicitCurvePreferences: true,
 	}
 
@@ -453,11 +453,11 @@ func runZcryptoHandshakeWithServerConfig(t *testing.T, clientCfg *zcryptotls.Con
 }
 
 func TestNegotiated_CipherSuite_TLS13(t *testing.T) {
-	// Client requests only TLS_AES_256_GCM_SHA384; server accepts only that cipher.
-	// Assert the negotiated cipher matches — this is the exact scenario that was broken
-	// before the zcrypto fix where TLS 1.3 cipher suites were always sent as the full set.
-	const wantCipher = zcryptotls.TLS_AES_256_GCM_SHA384
+	// Client restricted to TLS_AES_256_GCM_SHA384 (0x1302) only.
+	// stdlib server is used because it behaves like a real production server: it selects from
+	// what the client offers using its own strict preference order (0x1301 > 0x1302 > 0x1303).
 
+	// Expected behavior - negotiated cipher = 0x1302
 	flags := &TLSFlags{
 		CipherSuite: "0x1302",
 		MinVersion:  zcryptotls.VersionTLS13,
@@ -467,49 +467,35 @@ func TestNegotiated_CipherSuite_TLS13(t *testing.T) {
 		t.Fatalf("GetTLSConfigForTarget: %v", err)
 	}
 
-	serverCfg := &zcryptotls.Config{
-		CipherSuites:             []uint16{wantCipher},
-		PreferServerCipherSuites: true,
-		MinVersion:               zcryptotls.VersionTLS13,
-	}
+	cert := generateTLSTestCert(t)
+	clientConn, serverConn := net.Pipe()
 
-	conn, err := runZcryptoHandshakeWithServerConfig(t, clientCfg, serverCfg)
-	if err != nil {
+	done := make(chan error, 1)
+	go func() {
+		srv := stdtls.Server(serverConn, &stdtls.Config{
+			Certificates: []stdtls.Certificate{cert},
+		})
+		done <- srv.Handshake()
+		srv.Close()
+	}()
+
+	clientCfg.InsecureSkipVerify = true
+	tlsConn := &TLSConnection{Conn: *zcryptotls.Client(clientConn, clientCfg)}
+	if err := tlsConn.Handshake(); err != nil {
+		clientConn.Close()
+		<-done
 		t.Fatalf("handshake failed: %v", err)
 	}
-	log := conn.GetLog()
+	clientConn.Close()
+	<-done
+
+	log := tlsConn.GetLog()
 	if log.HandshakeLog == nil || log.HandshakeLog.ServerHello == nil {
 		t.Fatal("no ServerHello in handshake log")
 	}
 	got := uint16(log.HandshakeLog.ServerHello.CipherSuite)
-	if got != wantCipher {
-		t.Errorf("negotiated cipher: got 0x%04x, want 0x%04x", got, wantCipher)
-	}
-}
-
-func TestNegotiated_CipherSuite_TLS13_MismatchFails(t *testing.T) {
-	// Client restricted to TLS_AES_256_GCM_SHA384 (0x1302).
-	// Server only accepts TLS_AES_128_GCM_SHA256 (0x1301).
-	// With the zcrypto fix: client only advertises 0x1302 → no common cipher → handshake fails.
-	// Without the fix: client advertises all TLS 1.3 ciphers → handshake wrongly succeeds.
-	flags := &TLSFlags{
-		CipherSuite: "0x1302",
-		MinVersion:  zcryptotls.VersionTLS13,
-	}
-	clientCfg, err := flags.GetTLSConfigForTarget(nil)
-	if err != nil {
-		t.Fatalf("GetTLSConfigForTarget: %v", err)
-	}
-
-	serverCfg := &zcryptotls.Config{
-		CipherSuites:             []uint16{zcryptotls.TLS_AES_128_GCM_SHA256},
-		PreferServerCipherSuites: true,
-		MinVersion:               zcryptotls.VersionTLS13,
-	}
-
-	_, err = runZcryptoHandshakeWithServerConfig(t, clientCfg, serverCfg)
-	if err == nil {
-		t.Error("expected handshake to fail when client and server have no cipher suites in common, but it succeeded")
+	if got != zcryptotls.TLS_AES_256_GCM_SHA384 {
+		t.Errorf("negotiated cipher: got 0x%04x, want 0x1302 — stdlib picks 0x1301 if zcrypto advertises all TLS 1.3 ciphers instead of respecting the restriction", got)
 	}
 }
 
