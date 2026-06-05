@@ -222,6 +222,8 @@ func (t *TLSFlags) GetTLSConfigForTarget(target *ScanTarget) (*tls.Config, error
 	}
 
 	if t.CipherSuite != "" {
+		// User wants us to use their ciphers, tell ZCrypto it must use only these
+		ret.ForceSuites = true
 		// allow either one of our standard values (e.g., chrome) or a comma-delimited list of ciphers
 		if _, ok := cipherMap[t.CipherSuite]; ok {
 			ret.CipherSuites = cipherMap[t.CipherSuite]

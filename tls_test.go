@@ -499,6 +499,54 @@ func TestNegotiated_CipherSuite_TLS13(t *testing.T) {
 	}
 }
 
+func TestNegotiated_CipherSuite_TLS13_Mismatch(t *testing.T) {
+	// Client restricted to TLS1.3 and a non-TLS1.3 Cipher
+	// Expected behavior - handshake should fail
+	flags := &TLSFlags{
+		CipherSuite: "0x1302",
+		MinVersion:  zcryptotls.VersionTLS13,
+	}
+	clientCfg, err := flags.GetTLSConfigForTarget(nil)
+	if err != nil {
+		t.Fatalf("GetTLSConfigForTarget: %v", err)
+	}
+
+	cert := generateTLSTestCert(t)
+	clientConn, serverConn := net.Pipe()
+
+	done := make(chan error, 1)
+	go func() {
+		srv := stdtls.Server(serverConn, &stdtls.Config{
+			Certificates: []stdtls.Certificate{cert},
+			CipherSuites: []uint16{zcryptotls.TLS_AES_128_GCM_SHA256},
+
+		})
+		done <- srv.Handshake()
+		srv.Close()
+	}()
+
+	clientCfg.InsecureSkipVerify = true
+	tlsConn := &TLSConnection{Conn: *zcryptotls.Client(clientConn, clientCfg)}
+	if err := tlsConn.Handshake(); err != nil {
+		clientConn.Close()
+		<-done
+		// We don't care if the connection succeeds or fails, only in what the client advertised which we check bellow
+	}
+	clientConn.Close()
+	<-done
+
+	log := tlsConn.GetLog()
+	if log.HandshakeLog == nil || log.HandshakeLog.ServerHello == nil {
+		t.Fatal("no ServerHello in handshake log")
+	}
+	if log.HandshakeLog.ClientHello.CipherSuites[0] != 0x1302 {
+		t.Fatal("client didn't advertise the expected cipher")
+	}
+	if !slices.Equal(log.HandshakeLog.ClientHello.SupportedVersions, []zcryptotls.TLSVersion{zcryptotls.VersionTLS13}) {
+		t.Fatalf("client didn't advertise the expected version: expected just TLS 1.3, got %v", log.HandshakeLog.ClientHello.SupportedVersions)
+	}
+}
+
 func TestNegotiated_CipherSuite_TLS12(t *testing.T) {
 	// Scenario: --cipher-suite 0xC02F (TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256) with
 	// TLS 1.2 pinned on both sides. Assert HandshakeLog.ServerHello.CipherSuite == 0xC02F.
