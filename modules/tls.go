@@ -72,7 +72,7 @@ func (s *TLSScanner) Scan(ctx context.Context, dialerGroup *zgrab2.DialerGroup, 
 		if conn != nil {
 			if tlsConn, ok := conn.(*zgrab2.TLSConnection); ok {
 				if tlsLog := tlsConn.GetLog(); tlsLog != nil {
-					if tlsLog.HandshakeLog.ServerHello != nil {
+					if tlsLog.HandshakeLog != nil && tlsLog.HandshakeLog.ServerHello != nil {
 						// If we got far enough to get a valid ServerHello, then
 						// consider it to be a positive TLS detection.
 						return zgrab2.TryGetScanStatus(err), tlsLog, err
