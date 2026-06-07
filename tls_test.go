@@ -519,7 +519,6 @@ func TestNegotiated_CipherSuite_TLS13_Mismatch(t *testing.T) {
 		srv := stdtls.Server(serverConn, &stdtls.Config{
 			Certificates: []stdtls.Certificate{cert},
 			CipherSuites: []uint16{zcryptotls.TLS_AES_128_GCM_SHA256},
-
 		})
 		done <- srv.Handshake()
 		srv.Close()
