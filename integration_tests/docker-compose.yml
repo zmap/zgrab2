@@ -63,6 +63,17 @@ services:
     depends_on:
       - service_base
 
+  checkpoint:
+    build:
+      context: ./checkpoint/container
+    container_name: "zgrab_checkpoint"
+    networks:
+      - checkpoint-network
+    hostname: "target"
+    environment:
+      CHECKPOINT_HOST: "fw1.example.com"
+      CHECKPOINT_DOMAIN: "example.com"
+
   ftp:
     build:
       context: ./ftp/container
@@ -751,3 +762,8 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.188/30
+  checkpoint-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.192/30

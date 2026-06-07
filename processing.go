@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"runtime/debug"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -258,9 +259,13 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 		}
 		defer func(name string) {
 			if e := recover(); e != nil {
-				log.Errorf("Panic on scanner %s when scanning target %s: %#v", scannerName, input.String(), e)
-				// Bubble out original error (with original stack) in lieu of explicitly logging the stack / error
-				panic(e)
+				log.Errorf("Panic on scanner %s when scanning target %s: %#v\n%s", name, input.String(), e, debug.Stack())
+				errMsg := fmt.Sprintf("panic: %v", e)
+				moduleResult[name] = ScanResponse{
+					Status:   SCAN_UNKNOWN_ERROR,
+					Protocol: name,
+					Error:    &errMsg,
+				}
 			}
 		}(scannerName)
 		name, res := RunScanner(ctx, *scanner, m, input)
