@@ -49,10 +49,10 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/weppos/publicsuffix-go v0.50.4-0.20260507075217-1bd47f85b3da h1:fvG9axse5NWVonGRSWkjrIBP5v6jXxJE2yZxcPILBX4=
-github.com/weppos/publicsuffix-go v0.50.4-0.20260507075217-1bd47f85b3da/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
-github.com/zmap/zcrypto v0.0.0-20260514033604-a1159eb3cad9 h1:k0GSZUpunq/xV9TchM0Y8WGQn2wzpeF0uTBMNN5up+o=
-github.com/zmap/zcrypto v0.0.0-20260514033604-a1159eb3cad9/go.mod h1:fFnCx1pWvIjLONMF4Qkmp3LlwomUZ4VG4aUDYhMDstU=
+github.com/weppos/publicsuffix-go v0.50.4-0.20260529064242-164fc2a0e798 h1:99LORymyDPKDSBE3x3MyFmtPWM3anyMQcalYMBqEZQo=
+github.com/weppos/publicsuffix-go v0.50.4-0.20260529064242-164fc2a0e798/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
+github.com/zmap/zcrypto v0.0.0-20260605180650-cdd78957abdf h1:0TP7FYjQ/YXgxjzwPa1moCRTknPsycm0SwUAhZdec0Y=
+github.com/zmap/zcrypto v0.0.0-20260605180650-cdd78957abdf/go.mod h1:059MjLuhQiC372oHXTBLY0H9a8XeU9XIYe8yACiYQA0=
 github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9 h1:BZgsVcIPYSVdXlYFL6Ma0iNLbB/fhlyj6DaGwmppfTw=
 github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9/go.mod h1:FsOB4N5XTSZ80AvFx0VV16M9slzoROippViwuiGQv2g=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
