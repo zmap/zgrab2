@@ -23,6 +23,7 @@ telnet_scan_response = SubRecord(
                 "do": ListOf(telnet_option),
                 "wont": ListOf(telnet_option),
                 "dont": ListOf(telnet_option),
+                "tls": zgrab2.tls_log,
             }
         )
     },

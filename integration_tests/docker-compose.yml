@@ -531,6 +531,16 @@ services:
     depends_on:
       - service_base
 
+  telnet-tls:
+    container_name: "zgrab_telnet_tls"
+    build:
+      context: ./telnet/tls-container
+    networks:
+        - telnet-tls-network
+    hostname: "target"
+    depends_on:
+      - service_base
+
 networks:
   amqp091-3.12.14-network:
     driver: bridge
@@ -747,6 +757,11 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.176/30
+  telnet-tls-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.196/30
   managesieve-network:
     driver: bridge
     ipam:
