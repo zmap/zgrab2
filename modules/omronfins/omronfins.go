@@ -13,11 +13,10 @@ const (
 	REQ_ADDR_PACKET        = "46494e530000000c000000000000000000000000"
 	QUERY_TCP_PACKET_PART1 = "46494e5300000015000000020000000080000200"
 	QUERY_TCP_PACKET_PART2 = "000000ef05050100"
-
 )
 
-var NOT_ENOUGH_DATA = errors.New("not enough data to Omron Fins Header")
-var NOT_OMRON_FINS = errors.New("not Omron-Fins response")
+var ErrNotEnoughData = errors.New("not enough data to Omron Fins Header")
+var ErrNotOmronFins = errors.New("not Omron-Fins response")
 
 var queryUDPBytes []byte
 var queryReqAddrBytes []byte
@@ -254,7 +253,7 @@ func QueryDeviceTCP(Con net.Conn) (DeviceInfo, error) {
 			return result, err
 		}
 		if read < HeaderSize+TCPHEADERSIZE {
-			return result, NOT_ENOUGH_DATA
+			return result, ErrNotEnoughData
 		} else if (response[TCPHEADERSIZE] == 0xc0 || response[TCPHEADERSIZE] == 0xc1) &&
 			(binary.BigEndian.Uint16(response[TCPHEADERSIZE+10:TCPHEADERSIZE+12]) == 0x501) && read >= 14 {
 			GetDeviceInfo(response, read, TCPHEADERSIZE+12, &result)
@@ -263,7 +262,7 @@ func QueryDeviceTCP(Con net.Conn) (DeviceInfo, error) {
 
 	}
 
-	return result, NOT_OMRON_FINS
+	return result, ErrNotOmronFins
 }
 
 func QueryDeviceUDP(Con net.Conn) (DeviceInfo, error) {
@@ -279,11 +278,11 @@ func QueryDeviceUDP(Con net.Conn) (DeviceInfo, error) {
 	}
 
 	if read < HeaderSize {
-		return result, NOT_ENOUGH_DATA
+		return result, ErrNotEnoughData
 	} else if (response[0] == 0xc0 || response[0] == 0xc1) && (binary.BigEndian.Uint16(response[10:12]) == 0x501) && read >= 14 {
 		GetDeviceInfo(response, read, 12, &result)
 		return result, nil
 	}
 
-	return result, NOT_OMRON_FINS
+	return result, ErrNotOmronFins
 }

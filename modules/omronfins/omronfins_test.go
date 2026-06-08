@@ -16,9 +16,9 @@ import (
 )
 
 func (cfg *OmronFinsTestConfig) getScanner(t *testing.T) *Scanner {
-	var module Module
-	scanner := module.NewScanner()
-	flags := module.NewFlags().(*Flags)
+	m := NewModule()
+	scanner := m.NewScanner()
+	flags := m.NewFlags().(*Flags)
 	flags.Port = uint(cfg.port)
 	flags.TCP = cfg.TCP
 	flags.TargetTimeout = 5 * time.Second

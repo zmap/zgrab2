@@ -24,7 +24,7 @@ type Flags struct {
 // store scanner's state.
 type Scanner struct {
 	zgrab2.BaseScanner
-	config            *Flags
+	config *Flags
 }
 
 // Init implements zgrab2.Scanner
@@ -68,7 +68,6 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	return zgrab2.SCAN_SUCCESS, &result, err
 }
-
 
 // Module is the implementation of the zgrab2.Module interface.
 func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
