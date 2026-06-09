@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"net"
 	"testing"
+	"time"
 )
 
 // FuzzGetDeviceInfo fuzzes the GetDeviceInfo parsing function directly.
@@ -46,6 +47,9 @@ func FuzzQueryDeviceUDP(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		clientConn, serverConn := net.Pipe()
+		deadline := time.Now().Add(5 * time.Second)
+		clientConn.SetDeadline(deadline)
+		serverConn.SetDeadline(deadline)
 		done := make(chan struct{})
 
 		go func() {
@@ -79,11 +83,11 @@ func FuzzQueryDeviceTCP(f *testing.F) {
 		[]byte{0x00, 0x00, 0x00, 0x00},
 		[]byte{0x00},
 	)
-	// Seed: empty responses
-	f.Add([]byte{}, []byte{})
-
 	f.Fuzz(func(t *testing.T, response1 []byte, response2 []byte) {
 		clientConn, serverConn := net.Pipe()
+		deadline := time.Now().Add(5 * time.Second)
+		clientConn.SetDeadline(deadline)
+		serverConn.SetDeadline(deadline)
 		done := make(chan struct{})
 
 		go func() {

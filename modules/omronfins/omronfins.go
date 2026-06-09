@@ -188,6 +188,9 @@ const HeaderSize = 12
 const TCPHEADERSIZE = 16
 
 func GetDeviceInfo(response []byte, length int, offset int, result *DeviceInfo) {
+	if offset+2 > len(response) || offset+2 > length {
+		return
+	}
 	result.ResponseCode = int(binary.BigEndian.Uint16(response[offset : offset+2]))
 	val, ok := ResponseCodeMap[result.ResponseCode]
 	if !ok {
@@ -255,7 +258,7 @@ func QueryDeviceTCP(Con net.Conn) (DeviceInfo, error) {
 		if read < HeaderSize+TCPHEADERSIZE {
 			return result, ErrNotEnoughData
 		} else if (response[TCPHEADERSIZE] == 0xc0 || response[TCPHEADERSIZE] == 0xc1) &&
-			(binary.BigEndian.Uint16(response[TCPHEADERSIZE+10:TCPHEADERSIZE+12]) == 0x501) && read >= 14 {
+			(binary.BigEndian.Uint16(response[TCPHEADERSIZE+10:TCPHEADERSIZE+12]) == 0x501) && read >= TCPHEADERSIZE+14 {
 			GetDeviceInfo(response, read, TCPHEADERSIZE+12, &result)
 			return result, nil
 		}
