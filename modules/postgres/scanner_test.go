@@ -282,3 +282,43 @@ func TestFalsePositive_ServerClosesImmediately(t *testing.T) {
 		t.Errorf("expected non-success for immediately-closing server, got %s", status)
 	}
 }
+
+func TestPreStartupError_OlderPostgres(t *testing.T) {
+	// Older Postgres versions (pre-9.6 in some configurations) respond to
+	// bogus version probes with a pre-startup error: a raw \n\0-terminated
+	// string rather than a structured 'E' packet with tagged fields.
+	// The scanner must accept these as valid detections.
+	preStartupError := []byte("FATAL:  unsupported frontend protocol 0.0: server supports 1.0 to 3.0\n\x00")
+
+	newConn := makeConnPairFunc(func(conn net.Conn) {
+		defer conn.Close()
+		buf := make([]byte, 4096)
+		conn.Read(buf) //nolint:errcheck
+		// Send 'E' header byte followed by the raw error string.
+		// tryReadPacket sees length[0] > 0x00 and reads as pre-startup format.
+		response := append([]byte{'E'}, preStartupError...)
+		conn.Write(response) //nolint:errcheck
+	})
+	scanner := newTestScanner()
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 5432}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer: makeMultiL4Dialer(newConn),
+	}
+
+	status, result, scanErr := scanner.Scan(context.Background(), dialGroup, target)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	pgResult, ok := result.(*Results)
+	if !ok {
+		t.Fatal("expected *Results")
+	}
+	if pgResult.SupportedVersions == "" {
+		t.Error("expected SupportedVersions to be populated for pre-startup error")
+	}
+	// The scan will fail on subsequent connections, but the first probe must
+	// NOT fail with SCAN_PROTOCOL_ERROR from our detection check.
+	if status == zgrab2.SCAN_PROTOCOL_ERROR {
+		t.Errorf("pre-startup error from older Postgres was incorrectly rejected: %v", scanErr)
+	}
+}
