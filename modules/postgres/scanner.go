@@ -427,12 +427,15 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 			// protocol version. If we get anything else, this is not Postgres.
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, fmt.Errorf("expected Postgres error response to version probe, got message type '%c'", response.Type)
 		}
-		decoded := decodeError(response.Body)
-		if !isValidPostgresError(decoded) {
-			// The response had an 'E' type byte but lacked the structured fields
-			// (severity, code, message) that a real Postgres server always includes.
-			return zgrab2.SCAN_PROTOCOL_ERROR, &results, fmt.Errorf("server returned an 'E' packet without valid Postgres error fields")
+		if response.Length > 0 {
+			// Standard structured error packet — validate it has real Postgres fields.
+			decoded := decodeError(response.Body)
+			if !isValidPostgresError(decoded) {
+				return zgrab2.SCAN_PROTOCOL_ERROR, &results, errors.New("server returned an 'E' packet without valid Postgres error fields")
+			}
 		}
+		// Length == 0 means a pre-startup error (raw \n\0-terminated string),
+		// which older Postgres versions use. Still a valid detection.
 		results.SupportedVersions = strings.Trim(string(response.Body), "\x00\r\n ")
 
 		if _, err := sql.ReadAll(); err != nil {
@@ -462,11 +465,18 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		if response.Type != 'E' {
 			return zgrab2.SCAN_PROTOCOL_ERROR, &results, fmt.Errorf("expected Postgres error response to high-version probe, got message type '%c'", response.Type)
 		}
-		decoded := decodeError(response.Body)
-		if !isValidPostgresError(decoded) {
-			return zgrab2.SCAN_PROTOCOL_ERROR, &results, fmt.Errorf("server returned an 'E' packet without valid Postgres error fields")
+		if response.Length > 0 {
+			decoded := decodeError(response.Body)
+			if !isValidPostgresError(decoded) {
+				return zgrab2.SCAN_PROTOCOL_ERROR, &results, errors.New("server returned an 'E' packet without valid Postgres error fields")
+			}
+			results.ProtocolError = decoded
+		} else {
+			// Pre-startup raw error string from older Postgres versions
+			results.ProtocolError = &PostgresError{
+				"message": strings.Trim(string(response.Body), "\x00\r\n "),
+			}
 		}
-		results.ProtocolError = decoded
 
 		if _, err := sql.ReadAll(); err != nil {
 			return err.Unpack(&results)
