@@ -113,6 +113,12 @@ services:
     container_name: "zgrab_http_h2c"
     hostname: "http.h2c.target"
 
+  http-fail-to-https:
+    build:
+      context: ./http/http_fail_to_https_test/container
+    container_name: "zgrab_http_fail_to_https"
+    hostname: "target"
+
   ipp-cups:
     build:
       context: ./ipp/container-cups
