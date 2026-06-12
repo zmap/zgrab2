@@ -39,6 +39,13 @@ var (
 	// MaxRedirects.
 	ErrTooManyRedirects = errors.New("too many redirects")
 	ErrDoNotRedirect    = errors.New("no redirects configured")
+
+	// ErrHTTPSProtocolMismatch is returned by Grab() when --fail-http-to-https is
+	// set and the server's response shows it is an HTTPS server that received a
+	// plaintext HTTP request (Apache/NGINX HTTP/400 protocol-mismatch responses).
+	// It is a sentinel so Scan() can distinguish this specific, retry-worthy
+	// failure from every other SCAN_PROTOCOL_ERROR.
+	ErrHTTPSProtocolMismatch = errors.New("NGINX or Apache HTTP over HTTPS failure")
 )
 
 // Flags holds the command-line configuration for the HTTP scan module.
@@ -571,7 +578,7 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 			strings.Contains(sliceBuf, "You're speaking plain HTTP") ||
 			strings.Contains(sliceBuf, "combination of host and port requires TLS") ||
 			strings.Contains(sliceBuf, "Client sent an HTTP request to an HTTPS server") {
-			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, errors.New("NGINX or Apache HTTP over HTTPS failure"))
+			return zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, ErrHTTPSProtocolMismatch)
 		}
 	}
 
@@ -606,6 +613,29 @@ func (scan *scan) Grab() *zgrab2.ScanError {
 	return nil
 }
 
+// shouldRetryOverHTTPS decides whether a failed plaintext-HTTP scan should be
+// re-attempted over HTTPS, given the configured flags and the error Grab()
+// returned. Two flags can independently justify an HTTPS retry:
+//
+//   - RetryHTTPS: retry on ANY initial failure. Broad and connection-expensive,
+//     since every failed HTTP scan triggers a second TLS attempt.
+//   - FailHTTPToHTTPS: retry ONLY when we have positive evidence the server is
+//     actually speaking HTTPS -- i.e. Grab() returned ErrHTTPSProtocolMismatch
+//     for a known Apache/NGINX HTTP/400 protocol-mismatch response.
+//
+// In all cases there is nothing to upgrade to if we already connected over TLS.
+func (scanner *Scanner) shouldRetryOverHTTPS(err *zgrab2.ScanError) bool {
+	if scanner.config.UseHTTPS {
+		return false
+	}
+	// RetryHTTPS retries on any initial failure.
+	if scanner.config.RetryHTTPS {
+		return true
+	}
+	// FailHTTPToHTTPS stays targeted: retry only on the proven protocol mismatch.
+	return scanner.config.FailHTTPToHTTPS && errors.Is(err.Err, ErrHTTPSProtocolMismatch)
+}
+
 // Scan implements the zgrab2.Scanner interface and performs the full scan of
 // the target. If the scanner is configured to follow redirects, this may entail
 // multiple TCP connections to hosts other than target.
@@ -617,7 +647,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	defer scan.Cleanup()
 	err := scan.Grab()
 	if err != nil {
-		if scanner.config.RetryHTTPS && !scanner.config.UseHTTPS {
+		if scanner.shouldRetryOverHTTPS(err) {
 			scan.Cleanup()
 			retry := scanner.newHTTPScan(ctx, target, true, dialGroup)
 			defer retry.Cleanup()
