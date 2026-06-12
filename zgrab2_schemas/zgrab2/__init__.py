@@ -12,6 +12,7 @@ from . import mssql
 from . import mysql
 from . import mysql_errors
 from . import ntp
+from . import omronfins
 from . import oracle
 from . import pop3
 from . import postgres
