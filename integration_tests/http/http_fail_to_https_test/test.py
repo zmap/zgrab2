@@ -14,6 +14,7 @@ response as a successfully read HTTP reply and returns nil.  The body-check
 that raises ErrHTTPSProtocolMismatch is only active when --fail-http-to-https
 is set, so --retry-https has no effect against this server.
 """
+
 import os
 import json
 import subprocess
@@ -88,14 +89,14 @@ def test_no_flag_returns_400():
     scan = result.get("data", {}).get("http", {})
 
     status = scan.get("status")
-    assert status == "success", (
-        f"Expected scan status 'success' (HTTP transaction completed), got '{status}'"
-    )
+    assert (
+        status == "success"
+    ), f"Expected scan status 'success' (HTTP transaction completed), got '{status}'"
 
     status_code = scan.get("result", {}).get("response", {}).get("status_code")
-    assert status_code == 400, (
-        f"Expected HTTP 400 mismatch response without retry flag, got {status_code}"
-    )
+    assert (
+        status_code == 400
+    ), f"Expected HTTP 400 mismatch response without retry flag, got {status_code}"
 
     print("PASS: plain HTTP without flag returned scan status 'success' with HTTP 400")
 
