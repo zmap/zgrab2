@@ -14,6 +14,8 @@
 
 package telnet
 
+import "github.com/zmap/zgrab2"
+
 // TelnetLog is the output of the telnet grab.
 type TelnetLog struct {
 	// Banner is the telnet banner returned by the server.
@@ -30,6 +32,8 @@ type TelnetLog struct {
 
 	// Dont is the list of options that the server requests the client *not* use.
 	Dont []TelnetOption `json:"dont,omitempty"`
+
+	TLSLog *zgrab2.TLSLog `json:"tls,omitempty"`
 }
 
 // isTelnet checks if this struct represents having actually detected a Telnet service.
