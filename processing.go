@@ -106,8 +106,17 @@ func GetDefaultTCPDialer(flags *BaseFlags) func(ctx context.Context, t *ScanTarg
 			return nil, err
 		}
 		if castConn, ok := conn.(*TimeoutConnection); ok {
-			// Reset the context on the connection to the main one, not the handshake one
-			castConn.ctx = ctx
+			// Re-root the connection's context at the main context rather than the
+			// handshake context, but preserve the per-target SessionTimeout so the
+			// target timeout is still enforced after the dial completes.
+			if castConn.Cancel != nil {
+				castConn.Cancel()
+			}
+			if castConn.SessionTimeout > 0 {
+				castConn.ctx, castConn.Cancel = context.WithTimeout(ctx, castConn.SessionTimeout)
+			} else {
+				castConn.ctx, castConn.Cancel = context.WithCancel(ctx)
+			}
 
 			if err = castConn.SaturateTimeoutsToReadAndWriteTimeouts(); err != nil {
 				return nil, err
@@ -154,7 +163,7 @@ func GetDefaultTLSWrapper(baseFlags *BaseFlags, tlsFlags *TLSFlags) func(ctx con
 			flags: tlsFlags,
 		}
 		handshakeCtx := ctx
-		if baseFlags.ConnectTimeout > 0 {
+		if tlsFlags.TLSHandshakeTimeout > 0 {
 			var cancel context.CancelFunc
 			handshakeCtx, cancel = context.WithTimeout(ctx, tlsFlags.TLSHandshakeTimeout)
 			defer cancel()
@@ -257,18 +266,25 @@ func grabTarget(ctx context.Context, input ScanTarget, m *Monitor) *Grab {
 		if input.Tag != trigger {
 			continue
 		}
-		defer func(name string) {
-			if e := recover(); e != nil {
-				log.Errorf("Panic on scanner %s when scanning target %s: %#v\n%s", name, input.String(), e, debug.Stack())
-				errMsg := fmt.Sprintf("panic: %v", e)
-				moduleResult[name] = ScanResponse{
-					Status:   SCAN_UNKNOWN_ERROR,
-					Protocol: name,
-					Error:    &errMsg,
+		// Run each scanner in a closure with its own panic recovery so a panic in
+		// one scanner is recorded as an error result and the loop still continues
+		// to BuildGrabFromInputResponse, rather than unwinding grabTarget and
+		// discarding all results.
+		name, res := func() (name string, res ScanResponse) {
+			defer func() {
+				if e := recover(); e != nil {
+					log.Errorf("Panic on scanner %s when scanning target %s: %#v\n%s", scannerName, input.String(), e, debug.Stack())
+					errMsg := fmt.Sprintf("panic: %v", e)
+					name = scannerName
+					res = ScanResponse{
+						Status:   SCAN_UNKNOWN_ERROR,
+						Protocol: scannerName,
+						Error:    &errMsg,
+					}
 				}
-			}
-		}(scannerName)
-		name, res := RunScanner(ctx, *scanner, m, input)
+			}()
+			return RunScanner(ctx, *scanner, m, input)
+		}()
 		moduleResult[name] = res
 		if res.Error != nil && !config.Multiple.ContinueOnError {
 			break
