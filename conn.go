@@ -318,6 +318,8 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	}
 	ret, err := NewTimeoutConnection(ctx, conn, d.SessionTimeout, d.ReadTimeout, d.WriteTimeout, d.BytesReadLimit)
 	if err != nil {
+		// Avoid leaking the established connection if wrapping it fails.
+		_ = conn.Close()
 		return nil, err
 	}
 	ret.BytesReadLimit = d.BytesReadLimit
