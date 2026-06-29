@@ -16,7 +16,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Check fuzz test coverage
         run: scripts/check-fuzz-coverage.sh
@@ -28,7 +28,7 @@ jobs:
       packages: ${{ steps.find.outputs.packages }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Find packages with fuzz tests
         id: find
@@ -51,7 +51,7 @@ jobs:
         package: ${{ fromJson(needs.discover.outputs.packages) }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Read go version
         id: go_version
