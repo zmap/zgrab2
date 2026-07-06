@@ -74,14 +74,6 @@ services:
       CHECKPOINT_HOST: "fw1.example.com"
       CHECKPOINT_DOMAIN: "example.com"
 
-  drda:
-    build:
-      context: ./drda/container
-    container_name: "zgrab_drda"
-    networks:
-      - drda-network
-    hostname: "target"
-
   ftp:
     build:
       context: ./ftp/container
@@ -796,8 +788,3 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.192/30
-  drda-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 100.64.0.200/30
