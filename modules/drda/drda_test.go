@@ -40,7 +40,7 @@ func makeEXCSATRD(params ...[]byte) []byte {
 		body = append(body, p...)
 	}
 	total := ddmHeaderLen + len(body)
-	ddm := make([]byte, ddmHeaderLen)
+	ddm := make([]byte, ddmHeaderLen, total)
 	binary.BigEndian.PutUint16(ddm[0:2], uint16(total))
 	ddm[2] = ddmMagic
 	ddm[3] = 0x41

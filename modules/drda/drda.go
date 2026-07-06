@@ -84,7 +84,7 @@ func buildEXCSAT() []byte {
 	appendParam(cpSRVCLSNM, nil)
 
 	total := ddmHeaderLen + len(params)
-	ddm := make([]byte, ddmHeaderLen)
+	ddm := make([]byte, ddmHeaderLen, total)
 	binary.BigEndian.PutUint16(ddm[0:2], uint16(total))   // Length
 	ddm[2] = ddmMagic                                     // Magic (0xD0)
 	ddm[3] = 0x01                                         // Format (no CHAINED bit: this is a lone request)

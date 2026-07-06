@@ -30,9 +30,9 @@ CP_SRVRLSLV = 0x115A
 
 # Deterministic attributes served to the scanner. These mirror what Shodan/nmap
 # surface for a real IBM DB2 11.1 server, minus any per-connection token.
-SERVER_CLASS = "QDB2/NT64"   # SRVCLSNM: server platform
-INSTANCE_NAME = "DB2"        # SRVNAM: instance name
-RELEASE_LEVEL = "SQL11013"   # SRVRLSLV: -> version 11.01.3
+SERVER_CLASS = "QDB2/NT64"  # SRVCLSNM: server platform
+INSTANCE_NAME = "DB2"  # SRVNAM: instance name
+RELEASE_LEVEL = "SQL11013"  # SRVRLSLV: -> version 11.01.3
 EXTERNAL_NAME = "DB2     db2sysc 00000000%FED%Y00"  # EXTNAM
 
 # EBCDIC (code page 500) translation table, ASCII index -> EBCDIC byte. This is

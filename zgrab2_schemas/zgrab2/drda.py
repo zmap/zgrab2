@@ -22,9 +22,7 @@ drda_scan_response = SubRecord(
                 "version": String(
                     doc="The human-readable version derived from release_level, e.g. '11.01.3'."
                 ),
-                "external_name": String(
-                    doc="The DRDA EXTNAM external name attribute."
-                ),
+                "external_name": String(doc="The DRDA EXTNAM external name attribute."),
                 "product_id": String(
                     doc="The DRDA PRDID product ID attribute, when present."
                 ),
