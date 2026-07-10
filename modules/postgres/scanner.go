@@ -166,6 +166,18 @@ func decodeAuthMode(buf []byte) *AuthenticationMode {
 	}
 }
 
+// isValidPostgresError checks that a decoded PostgresError contains the minimum
+// fields expected from a real PostgreSQL server: severity (or severity_v), code,
+// and message. This guards against false-positive detections where a non-Postgres
+// service happens to return data that superficially looks like a Postgres packet.
+func isValidPostgresError(e *PostgresError) bool {
+	if e == nil {
+		return false
+	}
+	hasSeverity := (*e)["severity"] != "" || (*e)["severity_v"] != ""
+	return hasSeverity && (*e)["code"] != "" && (*e)["message"] != ""
+}
+
 // decodeError() decodes an 'E'-type tag into a map of friendly name -> value; see https://www.postgresql.org/docs/10/static/protocol-error-fields.html
 func decodeError(buf []byte) *PostgresError {
 	partMap := map[byte]string{
@@ -411,12 +423,20 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 
 		if response.Type != 'E' {
-			// No server should be allowing a 0.0 client...but if it does allow it, don't bail out
-			log.Debugf("Unexpected response from server: %s", response.ToString())
-			results.SupportedVersions = response.OutputValue()
-		} else {
-			results.SupportedVersions = strings.Trim(string(response.Body), "\x00\r\n ")
+			// A real Postgres server always returns an 'E' error for an unsupported
+			// protocol version. If we get anything else, this is not Postgres.
+			return zgrab2.SCAN_PROTOCOL_ERROR, &results, fmt.Errorf("expected Postgres error response to version probe, got message type '%c'", response.Type)
 		}
+		if response.Length > 0 {
+			// Standard structured error packet — validate it has real Postgres fields.
+			decoded := decodeError(response.Body)
+			if !isValidPostgresError(decoded) {
+				return zgrab2.SCAN_PROTOCOL_ERROR, &results, errors.New("server returned an 'E' packet without valid Postgres error fields")
+			}
+		}
+		// Length == 0 means a pre-startup error (raw \n\0-terminated string),
+		// which older Postgres versions use. Still a valid detection.
+		results.SupportedVersions = strings.Trim(string(response.Body), "\x00\r\n ")
 
 		if _, err := sql.ReadAll(); err != nil {
 			return err.Unpack(&results)
@@ -443,11 +463,19 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		}
 
 		if response.Type != 'E' {
-			// No server should be allowing a 255.255 client...but if it does allow it, don't bail out
-			log.Debugf("Unexpected response from server: %s", response.ToString())
-			results.ProtocolError = response.ToError()
+			return zgrab2.SCAN_PROTOCOL_ERROR, &results, fmt.Errorf("expected Postgres error response to high-version probe, got message type '%c'", response.Type)
+		}
+		if response.Length > 0 {
+			decoded := decodeError(response.Body)
+			if !isValidPostgresError(decoded) {
+				return zgrab2.SCAN_PROTOCOL_ERROR, &results, errors.New("server returned an 'E' packet without valid Postgres error fields")
+			}
+			results.ProtocolError = decoded
 		} else {
-			results.ProtocolError = decodeError(response.Body)
+			// Pre-startup raw error string from older Postgres versions
+			results.ProtocolError = &PostgresError{
+				"message": strings.Trim(string(response.Body), "\x00\r\n "),
+			}
 		}
 
 		if _, err := sql.ReadAll(); err != nil {
