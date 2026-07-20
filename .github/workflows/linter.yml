@@ -27,7 +27,7 @@ jobs:
           # Set the variable as an output
           echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Run go fmt
@@ -64,7 +64,7 @@ jobs:
           # Set the variable as an output
           echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Other lint
