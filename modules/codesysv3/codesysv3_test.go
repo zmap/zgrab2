@@ -20,10 +20,18 @@ func utf16leEncode(s string) []byte {
 // datagram (without TCP block-driver framing) matching the layout decoded by
 // ParseResponse, so the decoder can be exercised without a live device.
 func buildFakeIdentificationResponse() []byte {
+	nodeName := utf16leEncode("Node1")
+	deviceName := utf16leEncode("MyPLC")
+	vendorName := utf16leEncode("Acme Automation")
+	serial := []byte("SN12345")
+
 	// 8-byte fixed NameService header: magic, hopinfo (header_length=4 words
 	// in the low 3 bits), packetinfo (unused by the parser), service_id,
 	// message_id, address_lengths=0 (no address words), broadcast_id.
-	buf := []byte{nsMagic, 0x04, 0x00, nsResponse, 0x00, 0x00, 0x00, 0x00}
+	const headerLen, pkgHdrLen, bodyLen, trailerLen = 8, 8, 28, 3 + 9
+	buf := make([]byte, 0, headerLen+pkgHdrLen+bodyLen+trailerLen+
+		len(nodeName)+2+len(deviceName)+2+len(vendorName)+2+len(serial)+1)
+	buf = append(buf, nsMagic, 0x04, 0x00, nsResponse, 0x00, 0x00, 0x00, 0x00)
 
 	// 8-byte package header: package_type, version, request_id (all LE).
 	pkgHdr := make([]byte, 8)
@@ -31,11 +39,6 @@ func buildFakeIdentificationResponse() []byte {
 	binary.LittleEndian.PutUint16(pkgHdr[2:4], nodeInfoVersion)
 	binary.LittleEndian.PutUint32(pkgHdr[4:8], 0xDEADBEEF)
 	buf = append(buf, pkgHdr...)
-
-	nodeName := utf16leEncode("Node1")
-	deviceName := utf16leEncode("MyPLC")
-	vendorName := utf16leEncode("Acme Automation")
-	serial := []byte("SN12345")
 
 	// 28-byte fixed body: max_channels, intel_byte_order, addr_difference,
 	// parent_addr_size, {node,device,vendor}_name_len, target_type/id/version, flags.

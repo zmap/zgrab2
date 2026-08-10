@@ -125,13 +125,13 @@ func TestScanHandshakeOnlySucceedsWithEmptyIdentity(t *testing.T) {
 	}
 	defer listener.Close()
 	go func() {
-		sock, err := listener.Accept()
-		if err != nil {
+		sock, acceptErr := listener.Accept()
+		if acceptErr != nil {
 			return
 		}
 		defer sock.Close()
 		buf := make([]byte, 1024)
-		if _, err := sock.Read(buf); err != nil && err != io.EOF {
+		if _, readErr := sock.Read(buf); readErr != nil && readErr != io.EOF {
 			return
 		}
 		_, _ = sock.Write(buildFakeHandshakeResponse(0x01))

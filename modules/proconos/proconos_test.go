@@ -27,7 +27,8 @@ func getScanner(t *testing.T, port int) *Scanner {
 // matching the layout decoded by parseResponse, so the decoder can be
 // exercised without a live PLC.
 func buildFakeDeviceInfoResponse(osVersion, version, plc, projectA, projectB, source string) []byte {
-	buf := []byte{0xcc, 0x01, 0x00, 0x0b, 0x40, 0x02, 0x92, 0x00, 'V'}
+	buf := make([]byte, 0, 9+len(osVersion)+10+len(version)+12+2+len(plc)+1+len(projectA)+1+len(projectB)+1+len(source)+1)
+	buf = append(buf, 0xcc, 0x01, 0x00, 0x0b, 0x40, 0x02, 0x92, 0x00, 'V')
 	buf = append(buf, []byte(osVersion)...)
 	buf = append(buf, []byte("ProConOS V")...)
 	buf = append(buf, []byte(version)...)

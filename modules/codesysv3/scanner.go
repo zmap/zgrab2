@@ -96,7 +96,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	if err != nil {
 		return zgrab2.SCAN_APPLICATION_ERROR, nil, err
 	}
-	if _, err := conn.Write(req); err != nil {
+	if _, err = conn.Write(req); err != nil {
 		return zgrab2.TryGetScanStatus(err), nil, err
 	}
 

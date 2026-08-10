@@ -26,7 +26,7 @@ func getScanner(t *testing.T, port int) *Scanner {
 // buildFakeCR3Response hand-builds a CR3 "get property" response: a 6-byte
 // header (ignored by the parser) followed by a NUL-terminated ASCII string.
 func buildFakeCR3Response(s string) []byte {
-	buf := make([]byte, headerSize)
+	buf := make([]byte, headerSize, headerSize+len(s)+1)
 	buf = append(buf, []byte(s)...)
 	buf = append(buf, 0x00)
 	return buf
@@ -40,8 +40,8 @@ func runFakeServer(t *testing.T, port int, responses ...[]byte) net.Listener {
 		t.Fatalf("failed to listen: %v", err)
 	}
 	go func() {
-		sock, err := listener.Accept()
-		if err != nil {
+		sock, acceptErr := listener.Accept()
+		if acceptErr != nil {
 			return
 		}
 		defer sock.Close()
@@ -103,8 +103,8 @@ func TestScanNoResponse(t *testing.T) {
 	}
 	defer listener.Close()
 	go func() {
-		sock, err := listener.Accept()
-		if err != nil {
+		sock, acceptErr := listener.Accept()
+		if acceptErr != nil {
 			return
 		}
 		defer sock.Close()
