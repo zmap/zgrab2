@@ -175,7 +175,7 @@ func buildBind(callID uint32, maxFrag uint16, abstractUUID [16]byte, abstractVer
 	body = appendSyntaxID(body, abstractUUID, abstractVerMajor, abstractVerMinor)
 	body = appendSyntaxID(body, transferUUID, ndrVersionMajor, ndrVersionMinor)
 
-	header := make([]byte, commonHeaderLen)
+	header := make([]byte, commonHeaderLen, commonHeaderLen+len(body))
 	header[0] = rpcVersionMajor
 	header[1] = rpcVersionMinor
 	header[2] = ptypeBind

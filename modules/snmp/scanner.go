@@ -17,7 +17,7 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 
 	Community string `long:"community" default:"public" description:"SNMP community string to use for the read-only GET request."`
-	Version   string `long:"version" default:"auto" choice:"auto" choice:"1" choice:"2c" choice:"3" description:"SNMP probe version to use. auto tries SNMPv3 discovery, then v1/v2c GET."`
+	Version   string `long:"version" default:"auto" choice:"auto,1,2c,3" description:"SNMP probe version to use. auto tries SNMPv3 discovery, then v1/v2c GET."`
 }
 
 func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {

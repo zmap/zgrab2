@@ -40,7 +40,7 @@ func makeBindAck(callID uint32, maxXmit, maxRecv uint16, assocGroup uint32, secA
 	body = append(body, b2[:]...)
 	body = appendSyntaxID(body, transferUUID, verMajor, verMinor)
 
-	header := make([]byte, commonHeaderLen)
+	header := make([]byte, commonHeaderLen, commonHeaderLen+len(body))
 	header[0] = rpcVersionMajor
 	header[1] = rpcVersionMinor
 	header[2] = ptypeBindAck
@@ -55,7 +55,7 @@ func makeBindNak(callID uint32, reason uint16) []byte {
 	body := make([]byte, 2)
 	binary.LittleEndian.PutUint16(body, reason)
 
-	header := make([]byte, commonHeaderLen)
+	header := make([]byte, commonHeaderLen, commonHeaderLen+len(body))
 	header[0] = rpcVersionMajor
 	header[1] = rpcVersionMinor
 	header[2] = ptypeBindNak

@@ -20,12 +20,12 @@ func makeInitResponse(valid bool) []byte {
 }
 
 func makeControllerTypeResponse(svcEcho byte, deviceIndicator byte, plcName string) []byte {
-	header := make([]byte, headerLen)
 	payload := make([]byte, ctrlPayloadMaxLen)
 	payload[ctrlSvcEchoOffset] = svcEcho
 	payload[ctrlDeviceIndicatorOffset] = deviceIndicator
 	copy(payload[ctrlPLCNameOffset:ctrlPLCNameOffset+ctrlPLCNameLen], plcName)
 
+	header := make([]byte, headerLen, headerLen+len(payload))
 	binary.LittleEndian.PutUint16(header[textLengthOffset:textLengthOffset+2], uint16(len(payload)))
 	return append(header, payload...)
 }

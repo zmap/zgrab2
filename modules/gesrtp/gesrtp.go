@@ -49,11 +49,6 @@ const (
 	// response header, of any payload trailing the fixed 56-byte header.
 	textLengthOffset = 4
 
-	// svcCodeOffset is the byte offset of the Service Request Code within
-	// a request header (also used for context here, though this module
-	// only ever sends the two fixed requests below).
-	svcCodeOffset = 42
-
 	svcSCADAEnable          = 0x4F
 	svcReturnControllerType = 0x43
 
