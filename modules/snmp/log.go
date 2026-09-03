@@ -16,17 +16,17 @@ type Log struct {
 	EngineID        string `json:"engine_id,omitempty"`
 	EngineIDFormat  string `json:"engine_id_format,omitempty"`
 	EngineIDData    string `json:"engine_id_data,omitempty"`
-	EnterpriseID   uint32 `json:"enterprise_id,omitempty"`
-	EnterpriseName string `json:"enterprise_name,omitempty"`
+	EnterpriseID    uint32 `json:"enterprise_id,omitempty"`
+	EnterpriseName  string `json:"enterprise_name,omitempty"`
 	SNMPEngineBoots int    `json:"snmp_engine_boots,omitempty"`
 	SNMPEngineTime  int    `json:"snmp_engine_time,omitempty"`
 	ReportOID       string `json:"report_oid,omitempty"`
 	ReportValue     string `json:"report_value,omitempty"`
-	SysDescr    string `json:"sys_descr,omitempty"`
-	SysObjectID string `json:"sys_object_id,omitempty"`
-	SysUpTime   string `json:"sys_uptime,omitempty"`
-	SysContact  string `json:"sys_contact,omitempty"`
-	SysName     string `json:"sys_name,omitempty"`
-	SysLocation string `json:"sys_location,omitempty"`
-	SysServices int    `json:"sys_services,omitempty"`
+	SysDescr        string `json:"sys_descr,omitempty"`
+	SysObjectID     string `json:"sys_object_id,omitempty"`
+	SysUpTime       string `json:"sys_uptime,omitempty"`
+	SysContact      string `json:"sys_contact,omitempty"`
+	SysName         string `json:"sys_name,omitempty"`
+	SysLocation     string `json:"sys_location,omitempty"`
+	SysServices     int    `json:"sys_services,omitempty"`
 }

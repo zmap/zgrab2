@@ -10,22 +10,22 @@ import (
 )
 
 const (
-	tagInteger      = 0x02
-	tagOctetString  = 0x04
-	tagNull         = 0x05
-	tagObjectID     = 0x06
-	tagSequence     = 0x30
-	tagGetRequest   = 0xa0
-	tagGetResponse  = 0xa2
-	tagReport       = 0xa8
-	tagIPAddress    = 0x40
-	tagCounter32    = 0x41
-	tagGauge32      = 0x42
-	tagTimeTicks    = 0x43
-	tagOpaque       = 0x44
-	tagNoSuchObject = 0x80
-	tagNoSuchInst   = 0x81
-	tagEndOfMIBView = 0x82
+	tagInteger       = 0x02
+	tagOctetString   = 0x04
+	tagNull          = 0x05
+	tagObjectID      = 0x06
+	tagSequence      = 0x30
+	tagGetRequest    = 0xa0
+	tagGetResponse   = 0xa2
+	tagReport        = 0xa8
+	tagIPAddress     = 0x40
+	tagCounter32     = 0x41
+	tagGauge32       = 0x42
+	tagTimeTicks     = 0x43
+	tagOpaque        = 0x44
+	tagNoSuchObject  = 0x80
+	tagNoSuchInst    = 0x81
+	tagEndOfMIBView  = 0x82
 	tagTrapV2        = 0xa7
 	tagInformRequest = 0xa6
 )
@@ -581,7 +581,7 @@ func formatEngineID(engineID []byte) (string, string, uint32, string) {
 				enterpriseName
 		case 2:
 			return "ipv6",
-				"0x"+hex.EncodeToString(data),
+				"0x" + hex.EncodeToString(data),
 				enterpriseID,
 				enterpriseName
 		case 4:
@@ -597,19 +597,19 @@ func formatEngineID(engineID []byte) (string, string, uint32, string) {
 				enterpriseName
 		case 5:
 			return "octets",
-				"0x"+hex.EncodeToString(data),
+				"0x" + hex.EncodeToString(data),
 				enterpriseID,
 				enterpriseName
 		default:
 			return fmt.Sprintf("format-%d", format),
-				"0x"+hex.EncodeToString(data),
+				"0x" + hex.EncodeToString(data),
 				enterpriseID,
 				enterpriseName
 		}
 	}
 
 	return "raw",
-		"0x"+hex.EncodeToString(engineID),
+		"0x" + hex.EncodeToString(engineID),
 		enterpriseID,
 		enterpriseName
 }
