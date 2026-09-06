@@ -54,41 +54,29 @@ func (err errTotalTimeout) Temporary() bool {
 // ReadAvailableWithOptions reads whatever can be read (up to maxReadSize) from
 // conn without blocking for longer than readTimeout per read, or totalTimeout
 // for the entire session. A totalTimeout of 0 means attempt to use the
-// connection's timeout (or, failing that, 1 second).
+// connection's timeout (or, failing that, DefaultSessionTimeout).
 // On failure, returns anything it was able to read along with the error.
 func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Duration, totalTimeout time.Duration, maxReadSize int) ([]byte, error) {
-	if timeoutConn, ok := conn.(*TimeoutConnection); ok {
-		// Our custom conn type has internal timeouts it applies on each read, set those
-		if readTimeout > 0 {
-			timeoutConn.ReadTimeout = readTimeout
-		}
-		if totalTimeout > 0 {
-			timeoutConn.SessionTimeout = totalTimeout
-		}
-	} else {
-		// Not our custom timeout, attempt to set the connections ReadDeadline
-		timeout := time.Duration(0)
-		if readTimeout > 0 && totalTimeout > 0 {
-			timeout = min(totalTimeout, readTimeout)
-		} else if readTimeout > 0 {
-			timeout = readTimeout
-		} else if totalTimeout > 0 {
-			timeout = totalTimeout
-		}
-		if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			return nil, err
+	// A 0 totalTimeout falls back to the conn's session timeout, or
+	// DefaultSessionTimeout when the conn carries none.
+	if totalTimeout == 0 {
+		totalTimeout = DefaultSessionTimeout
+		tc, ok := conn.(*TimeoutConnection)
+		if ok && tc.SessionTimeout > 0 {
+			totalTimeout = tc.SessionTimeout
 		}
 	}
-
-	var totalDeadline time.Time
-	if totalTimeout > 0 {
-		totalDeadline = time.Now().Add(totalTimeout)
+	// The first read must wait for the peer's reply, so bound it by
+	// totalTimeout; readTimeout applies only to the drain reads below.
+	err := conn.SetReadDeadline(time.Now().Add(totalTimeout))
+	if err != nil {
+		return nil, err
 	}
+	totalDeadline := time.Now().Add(totalTimeout)
 
 	buf := make([]byte, bufferSize)
 	ret := make([]byte, 0)
 
-	// The first read will use any pre-assigned deadlines.
 	n, err := conn.Read(buf[0:min(bufferSize, maxReadSize)])
 	ret = append(ret, buf[0:n]...)
 	if err != nil || n >= maxReadSize {
@@ -96,11 +84,10 @@ func ReadAvailableWithOptions(conn net.Conn, bufferSize int, readTimeout time.Du
 	}
 	maxReadSize -= n
 
-	// If there were more than bufSize -1 bytes available, read whatever is
-	// available without blocking longer than timeout, and do not treat timeouts
-	// as an error.
-	// Keep reading until we time out or get an error.
-	for totalDeadline.IsZero() || totalDeadline.After(time.Now()) {
+	// Drain any remaining buffered data, not blocking longer than readTimeout
+	// per read, and treat those per-read timeouts as "done", not errors. If
+	// we hit the totalTimeout, that still counts as a timeout error.
+	for totalDeadline.After(time.Now()) {
 		deadline := time.Now().Add(readTimeout)
 		err = conn.SetReadDeadline(deadline)
 		if err != nil {
