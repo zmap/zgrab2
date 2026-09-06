@@ -90,6 +90,12 @@ type Flags struct {
 
 	// SMTPSecure indicates that the entire transaction should be wrapped in a TLS session.
 	SMTPSecure bool `long:"smtps" description:"Perform a TLS handshake immediately upon connecting."`
+
+	// EHLODomain is the client domain sent with EHLO; empty falls back to the target domain.
+	EHLODomain string `long:"ehlo-domain" description:"Client domain to send with the EHLO command (default: target domain)"`
+
+	// HELODomain is the client domain sent with HELO; empty falls back to the target domain.
+	HELODomain string `long:"helo-domain" description:"Client domain to send with the HELO command (default: target domain)"`
 }
 
 func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
@@ -254,7 +260,11 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	shouldSendEHLO := !scanner.config.SendHELOOverride && (serverSupportsEHLO || scanner.config.SendEHLOOverride)
 	if shouldSendEHLO {
 		// server supports EHLO, use Extended Hello
-		ret, err := smtpConn.SendCommand(getCommand("EHLO", target.Domain))
+		domain := scanner.config.EHLODomain
+		if domain == "" {
+			domain = target.Domain
+		}
+		ret, err := smtpConn.SendCommand(getCommand("EHLO", domain))
 		if err != nil {
 			return appErrStatus(), result, fmt.Errorf("could not send EHLO command: %w", err)
 		}
@@ -262,7 +272,11 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		moduleMetadata.incrementHostsSupportingEHLO() // mark that we found a host that supports EHLO
 	} else {
 		// send a HELO msg since server doesn't support EHLO
-		ret, err := smtpConn.SendCommand(getCommand("HELO", target.Domain))
+		domain := scanner.config.HELODomain
+		if domain == "" {
+			domain = target.Domain
+		}
+		ret, err := smtpConn.SendCommand(getCommand("HELO", domain))
 		if err != nil {
 			return appErrStatus(), result, fmt.Errorf("could not send HELO command: %w", err)
 		}
