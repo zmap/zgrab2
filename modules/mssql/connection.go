@@ -443,16 +443,20 @@ func decodePreloginOptions(body []byte) (result *PreloginOptions, rest []byte, e
 			return nil, nil, ErrInvalidData
 		}
 		token := PreloginOptionToken(cursor[0])
-		offset := binary.BigEndian.Uint16(cursor[1:3])
-		length := binary.BigEndian.Uint16(cursor[3:5])
-		if len(body) < int(offset+length) {
+		// Widen to int before adding: offset and length are attacker-controlled
+		// uint16s, so offset+length can overflow uint16 and wrap to a small
+		// value, defeating the bounds check below and causing an out-of-range
+		// slice panic on the following line.
+		offset := int(binary.BigEndian.Uint16(cursor[1:3]))
+		length := int(binary.BigEndian.Uint16(cursor[3:5]))
+		if len(body) < offset+length {
 			return nil, nil, ErrInvalidData
 		}
 		options[token] = body[offset : offset+length]
 
-		if int(offset+length) > max {
+		if offset+length > max {
 			// max points to the byte after the last byte consumed in body
-			max = int(offset + length)
+			max = offset + length
 		}
 		cursor = cursor[5:]
 	}
