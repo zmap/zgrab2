@@ -10,7 +10,7 @@ require (
 	github.com/hdm/jarm-go v0.0.8
 	github.com/prometheus/client_golang v1.24.1
 	github.com/rabbitmq/amqp091-go v1.13.0
-	github.com/rogpeppe/go-internal v1.15.0
+	github.com/rogpeppe/go-internal v1.16.0
 	github.com/sirupsen/logrus v1.10.2
 	github.com/zmap/zcrypto v0.0.0-20260605180650-cdd78957abdf
 	github.com/zmap/zflags v1.4.0-beta.1.0.20251126025438-ec78c6d2f8e9
@@ -34,7 +34,6 @@ require (
 	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/weppos/publicsuffix-go v0.50.4-0.20260529064242-164fc2a0e798 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
