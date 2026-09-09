@@ -16,26 +16,26 @@ import (
 
 const maxTemplateFieldLength = 1472
 
-type templateFieldType uint8
+type templateFieldType string
 
 const (
-	templateLiteral templateFieldType = iota
-	templateSourceAddressNetwork
-	templateSourceAddress
-	templateDestinationAddressNetwork
-	templateDestinationAddress
-	templateSourcePortNetwork
-	templateSourcePort
-	templateDestinationPortNetwork
-	templateDestinationPort
-	templateRandomBytes
-	templateRandomDigits
-	templateRandomAlpha
-	templateRandomAlphanumeric
-	templateHex
-	templateUnixTimeSeconds
-	templateUnixTimeMicroseconds
-	templateNTPTimestamp
+	templateLiteral      templateFieldType = ""
+	templateSADDRN       templateFieldType = "SADDR_N"
+	templateSADDR        templateFieldType = "SADDR"
+	templateDADDRN       templateFieldType = "DADDR_N"
+	templateDADDR        templateFieldType = "DADDR"
+	templateSPORTN       templateFieldType = "SPORT_N"
+	templateSPORT        templateFieldType = "SPORT"
+	templateDPORTN       templateFieldType = "DPORT_N"
+	templateDPORT        templateFieldType = "DPORT"
+	templateRANDByte     templateFieldType = "RAND_BYTE"
+	templateRANDDigit    templateFieldType = "RAND_DIGIT"
+	templateRANDAlpha    templateFieldType = "RAND_ALPHA"
+	templateRANDAlphaNum templateFieldType = "RAND_ALPHANUM"
+	templateHEX          templateFieldType = "HEX"
+	templateUnixTimeSec  templateFieldType = "UNIXTIME_SEC"
+	templateUnixTimeUsec templateFieldType = "UNIXTIME_USEC"
+	templateNTPTimestamp templateFieldType = "NTP_TIMESTAMP"
 )
 
 type templateField struct {
@@ -106,14 +106,10 @@ func (template *probeTemplate) addLiteral(data []byte) {
 
 func parseTemplateField(spec string) (templateField, bool, error) {
 	name, parameter, hasParameter := strings.Cut(spec, "=")
-	fieldType, recognized := templateFieldTypes[name]
-	if !recognized {
-		return templateField{}, false, nil
-	}
-
+	fieldType := templateFieldType(name)
 	field := templateField{fieldType: fieldType}
 	switch fieldType {
-	case templateHex:
+	case templateHEX:
 		if !hasParameter || parameter == "" {
 			return templateField{}, true, errors.New("template field HEX requires a hex value")
 		}
@@ -128,7 +124,7 @@ func parseTemplateField(spec string) (templateField, bool, error) {
 			return templateField{}, true, fmt.Errorf("template field HEX exceeds maximum length %d", maxTemplateFieldLength)
 		}
 		field.data = decoded
-	case templateRandomBytes, templateRandomDigits, templateRandomAlpha, templateRandomAlphanumeric:
+	case templateRANDByte, templateRANDDigit, templateRANDAlpha, templateRANDAlphaNum:
 		if !hasParameter {
 			field.length = 0
 			return field, true, nil
@@ -144,7 +140,9 @@ func parseTemplateField(spec string) (templateField, bool, error) {
 			return templateField{}, true, fmt.Errorf("template field %s length must be between 0 and %d", name, maxTemplateFieldLength)
 		}
 		field.length = length
-	default:
+	case templateSADDRN, templateSADDR, templateDADDRN, templateDADDR,
+		templateSPORTN, templateSPORT, templateDPORTN, templateDPORT,
+		templateUnixTimeSec, templateUnixTimeUsec, templateNTPTimestamp:
 		if hasParameter {
 			if parameter == "" {
 				return templateField{}, true, fmt.Errorf("template field %s has an empty parameter", name)
@@ -154,27 +152,10 @@ func parseTemplateField(spec string) (templateField, bool, error) {
 				return templateField{}, true, fmt.Errorf("template field %s has invalid parameter %q", name, parameter)
 			}
 		}
+	default:
+		return templateField{}, false, nil
 	}
 	return field, true, nil
-}
-
-var templateFieldTypes = map[string]templateFieldType{
-	"SADDR_N":       templateSourceAddressNetwork,
-	"SADDR":         templateSourceAddress,
-	"DADDR_N":       templateDestinationAddressNetwork,
-	"DADDR":         templateDestinationAddress,
-	"SPORT_N":       templateSourcePortNetwork,
-	"SPORT":         templateSourcePort,
-	"DPORT_N":       templateDestinationPortNetwork,
-	"DPORT":         templateDestinationPort,
-	"RAND_BYTE":     templateRandomBytes,
-	"RAND_DIGIT":    templateRandomDigits,
-	"RAND_ALPHA":    templateRandomAlpha,
-	"RAND_ALPHANUM": templateRandomAlphanumeric,
-	"HEX":           templateHex,
-	"UNIXTIME_SEC":  templateUnixTimeSeconds,
-	"UNIXTIME_USEC": templateUnixTimeMicroseconds,
-	"NTP_TIMESTAMP": templateNTPTimestamp,
 }
 
 func newProbeTemplateContext(conn net.Conn) (*probeTemplateContext, error) {
@@ -241,25 +222,25 @@ func (template *probeTemplate) expand(context *probeTemplateContext) ([]byte, er
 
 func expandTemplateField(output []byte, field templateField, context *probeTemplateContext) ([]byte, error) {
 	switch field.fieldType {
-	case templateLiteral, templateHex:
+	case templateLiteral, templateHEX:
 		output = append(output, field.data...)
-	case templateSourceAddressNetwork:
-		return writeIPv4(output, context.sourceIP, "SADDR_N")
-	case templateSourceAddress:
+	case templateSADDRN:
+		return writeIPv4(output, context.sourceIP, string(field.fieldType))
+	case templateSADDR:
 		output = append(output, context.sourceIP.String()...)
-	case templateDestinationAddressNetwork:
-		return writeIPv4(output, context.destinationIP, "DADDR_N")
-	case templateDestinationAddress:
+	case templateDADDRN:
+		return writeIPv4(output, context.destinationIP, string(field.fieldType))
+	case templateDADDR:
 		output = append(output, context.destinationIP.String()...)
-	case templateSourcePortNetwork:
+	case templateSPORTN:
 		output = binary.BigEndian.AppendUint16(output, context.sourcePort)
-	case templateSourcePort:
+	case templateSPORT:
 		output = strconv.AppendUint(output, uint64(context.sourcePort), 10)
-	case templateDestinationPortNetwork:
+	case templateDPORTN:
 		output = binary.BigEndian.AppendUint16(output, context.destinationPort)
-	case templateDestinationPort:
+	case templateDPORT:
 		output = strconv.AppendUint(output, uint64(context.destinationPort), 10)
-	case templateRandomBytes:
+	case templateRANDByte:
 		value := make([]byte, field.length)
 		if _, err := io.ReadFull(context.random, value); err != nil {
 			return nil, fmt.Errorf("generate RAND_BYTE value: %w", err)
@@ -268,15 +249,15 @@ func expandTemplateField(output []byte, field templateField, context *probeTempl
 			value[i]++
 		}
 		output = append(output, value...)
-	case templateRandomDigits:
+	case templateRANDDigit:
 		return writeRandomText(output, context.random, field.length, "0123456789")
-	case templateRandomAlpha:
+	case templateRANDAlpha:
 		return writeRandomText(output, context.random, field.length, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	case templateRandomAlphanumeric:
+	case templateRANDAlphaNum:
 		return writeRandomText(output, context.random, field.length, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-	case templateUnixTimeSeconds:
+	case templateUnixTimeSec:
 		output = binary.BigEndian.AppendUint32(output, uint32(context.now.Unix()))
-	case templateUnixTimeMicroseconds:
+	case templateUnixTimeUsec:
 		output = binary.BigEndian.AppendUint32(output, uint32(context.now.Nanosecond()/1000))
 	case templateNTPTimestamp:
 		const ntpEpochOffset = 2208988800
@@ -284,7 +265,7 @@ func expandTemplateField(output []byte, field templateField, context *probeTempl
 		fraction := uint32((uint64(context.now.Nanosecond()) << 32) / 1_000_000_000)
 		output = binary.BigEndian.AppendUint32(output, fraction)
 	default:
-		return nil, fmt.Errorf("unsupported probe template field type %d", field.fieldType)
+		return nil, fmt.Errorf("unsupported probe template field type %q", field.fieldType)
 	}
 	return output, nil
 }
