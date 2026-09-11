@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -413,10 +414,10 @@ func encodeOID(s string) ([]byte, error) {
 		}
 		nums[i] = n
 	}
-	if nums[0] > 2 || nums[1] > 39 {
+	if nums[0] > 2 || (nums[0] < 2 && nums[1] > 39) {
 		return nil, fmt.Errorf("invalid oid %q", s)
 	}
-	out := []byte{byte(nums[0]*40 + nums[1])}
+	out := encodeBase128(nums[0]*40 + nums[1])
 	for _, n := range nums[2:] {
 		out = append(out, encodeBase128(n)...)
 	}
@@ -442,18 +443,37 @@ func decodeOID(b []byte) (string, error) {
 	if len(b) == 0 {
 		return "", errInvalidSNMP
 	}
-	parts := []int{int(b[0]) / 40, int(b[0]) % 40}
+	var subIDs []int
 	var value int
-	for _, v := range b[1:] {
-		value = (value << 7) | int(v&0x7f)
-		if v&0x80 == 0 {
-			parts = append(parts, value)
-			value = 0
+	unterminated := false
+	for _, v := range b {
+		if value > math.MaxInt>>7 {
+			return "", errInvalidSNMP
 		}
+		value = (value << 7) | int(v&0x7f)
+		unterminated = v&0x80 != 0
+		if unterminated {
+			continue
+		}
+		subIDs = append(subIDs, value)
+		value = 0
 	}
-	if value != 0 {
+	if unterminated || len(subIDs) == 0 {
 		return "", errInvalidSNMP
 	}
+
+	first := subIDs[0]
+	var parts []int
+	switch {
+	case first < 40:
+		parts = []int{0, first}
+	case first < 80:
+		parts = []int{1, first - 40}
+	default:
+		parts = []int{2, first - 80}
+	}
+	parts = append(parts, subIDs[1:]...)
+
 	strs := make([]string, len(parts))
 	for i, part := range parts {
 		strs[i] = strconv.Itoa(part)
