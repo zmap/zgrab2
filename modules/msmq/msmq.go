@@ -57,15 +57,32 @@ const (
 	// acceptor is refusing the connection.
 	internalFlagsCS = 0x0010
 
-	// ecOSReserved is EstablishConnectionHeader.OperatingSystem's reserved
-	// high byte ([MS-MQQB] 2.2.3.1): "This field is reserved. MUST be set to
-	// 0x10."
+	// EstablishConnectionHeader.OperatingSystem ([MS-MQQB] 2.2.3.1) is a
+	// little-endian uint16 whose LOW byte (the first byte transmitted) is the
+	// fixed Reserved constant, and whose HIGH byte (the second byte
+	// transmitted) carries the SE/OS/QS/X11-X15 flag bits -- confirmed against
+	// a live packet capture in Microsoft's own worked example ([MS-MQQB]
+	// "FRAME 4: Establish Connection Response"), where the field's low byte is
+	// 0x10 in every real response. The masks below are expressed against the
+	// full 16-bit value (post binary.LittleEndian.Uint16), not against either
+	// individual byte in isolation.
+
+	// ecOSReserved is OperatingSystem's low-byte Reserved constant: "This
+	// field is reserved. MUST be set to 0x10."
 	ecOSReserved = 0x10
-	// ecOSFlagSE is the SE (session/ping) bit of
-	// EstablishConnectionHeader.OperatingSystem's low byte. Setting it tells
-	// the acceptor that no separate Ping Request will follow, keeping this
-	// module's probe to a single packet.
-	ecOSFlagSE = 0x80
+	// ecOSFlagSE is the SE (session/ping) bit of OperatingSystem's high byte
+	// (bit 15 of the full value). Setting it tells the acceptor that no
+	// separate Ping Request will follow, keeping this module's probe to a
+	// single packet.
+	ecOSFlagSE = 0x8000
+	// ecOSFlagServerOS is the OS bit ([MS-MQQB] 2.2.3.1, field B, bit 14 of
+	// the full value): in a response, the sender's OS type -- "1" means the
+	// acceptor's operating system is a server-class OS.
+	ecOSFlagServerOS = 0x4000
+	// ecOSFlagGQoS is the QS bit ([MS-MQQB] 2.2.3.1, field C, bit 13 of the
+	// full value): "1" means the sender's underlying transport supports
+	// Guaranteed Quality of Service (GQoS, [RFC2212]).
+	ecOSFlagGQoS = 0x2000
 
 	// responsePaddingByte is the fixed fill value MS-MQQB mandates for
 	// EstablishConnectionHeader.Padding "when part of a response packet from
@@ -102,7 +119,7 @@ func buildEstablishConnection(clientGUID, serverGUID [16]byte, timeStamp uint32)
 	off += 16
 	binary.LittleEndian.PutUint32(pkt[off:off+4], timeStamp)
 	off += 4
-	osField := uint16(ecOSReserved)<<8 | uint16(ecOSFlagSE)
+	osField := uint16(ecOSReserved) | ecOSFlagSE
 	binary.LittleEndian.PutUint16(pkt[off:off+2], osField)
 	off += 2
 	binary.LittleEndian.PutUint16(pkt[off:off+2], 0) // Reserved
@@ -116,11 +133,16 @@ func buildEstablishConnection(clientGUID, serverGUID [16]byte, timeStamp uint32)
 // establishConnectionResponse holds the fields parsed out of an
 // EstablishConnection Packet sent back by an acceptor.
 type establishConnectionResponse struct {
-	ClientGUID             [16]byte
-	ServerGUID             [16]byte
-	TimeStamp              uint32
-	Refused                bool
-	OperatingSystem        uint16 // low byte: SE(bit7), NP(bit4); high byte: reserved (0x10)
+	ClientGUID      [16]byte
+	ServerGUID      [16]byte
+	TimeStamp       uint32
+	Refused         bool
+	OperatingSystem uint16 // low byte: reserved (0x10); high byte: SE(0x80), OS(0x40), QS(0x20), X11-X15(0x1F, unused)
+	// IsServerOS and SupportsGQoS decode the OS and QS bits of
+	// OperatingSystem's high byte, describing the acceptor (the sender of
+	// this response packet).
+	IsServerOS             bool
+	SupportsGQoS           bool
 	PaddingMatchesResponse bool
 }
 
@@ -153,6 +175,8 @@ func parseEstablishConnection(pkt []byte) (*establishConnectionResponse, error) 
 	res.TimeStamp = binary.LittleEndian.Uint32(pkt[off : off+4])
 	off += 4
 	res.OperatingSystem = binary.LittleEndian.Uint16(pkt[off : off+2])
+	res.IsServerOS = res.OperatingSystem&ecOSFlagServerOS != 0
+	res.SupportsGQoS = res.OperatingSystem&ecOSFlagGQoS != 0
 	off += 4 // OperatingSystem(2) + Reserved(2)
 
 	padding := pkt[off : off+512]
