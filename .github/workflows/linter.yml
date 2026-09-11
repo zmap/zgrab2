@@ -69,7 +69,12 @@ jobs:
           go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Other lint
         run: |
-          go install golang.org/x/tools/cmd/goimports@latest
+          # Pinned, not @latest: x/tools v0.50.0 bumped its go.mod
+          # requirement to go 1.26.0, but this workflow (and go.mod) pins Go
+          # 1.25.0, and GOTOOLCHAIN=local means `go install ...@latest`
+          # can't self-select a newer toolchain to satisfy it. v0.49.0 is
+          # the last release requiring exactly go 1.25.0.
+          go install golang.org/x/tools/cmd/goimports@v0.49.0
           output=$(goimports -d -local "github.com/zmap/zdns" ./)
           if [ -n "$output" ]; then
             echo "goimports found issues:"
