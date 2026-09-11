@@ -517,6 +517,14 @@ services:
       - socks5-network
     hostname: "target"
 
+  snmp:
+    build:
+      context: ./snmp
+    container_name: "zgrab_snmp"
+    networks:
+      - snmp-network
+    hostname: "target"
+
   ssh:
     container_name: "zgrab_ssh"
     build:
@@ -753,6 +761,11 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.168/30
+  snmp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.200/30
   ssh-network:
     driver: bridge
     ipam:
