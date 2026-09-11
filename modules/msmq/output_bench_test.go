@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/hex"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/zmap/zgrab2/lib/attribution"
@@ -143,12 +144,20 @@ func marshalCompact(r *Results) (full, withoutRaw []byte, rawLen int) {
 // contribution, and a repeated-string estimate (raw - gzip-compressed size,
 // since compression ratio approximates how much of the payload is
 // templated/repeated content vs. genuine per-host information) across all
-// three output modes at N ∈ {32, 1000, 100000, 1000000}. The two largest
-// sizes are skipped under `go test -short` for fast local iteration.
+// three output modes. Runs N ∈ {32, 1000} by default; set
+// MSMQ_FULL_SIZE_REPORT=1 to also run N ∈ {100000, 1000000} (takes ~30s).
 func TestOutputSizeReport(t *testing.T) {
-	sizes := []int{32, 1_000, 100_000, 1_000_000}
-	if testing.Short() {
-		sizes = []int{32, 1_000}
+	// Default to the small sizes: this test runs as part of any plain
+	// `go test ./modules/msmq/...` invocation, including ones this package
+	// doesn't control -- e.g. this repo's CI "Fuzz ./modules/msmq/..." job
+	// runs `go test -fuzz=... -timeout=120s ./modules/msmq/...`, which runs
+	// every non-fuzz test in the package first, all within that single
+	// 120s budget, before fuzzing starts. Relying on -short being passed
+	// isn't safe (that workflow doesn't pass it), so the 100K/1M sizes
+	// require explicit opt-in instead of opt-out.
+	sizes := []int{32, 1_000}
+	if os.Getenv("MSMQ_FULL_SIZE_REPORT") == "1" {
+		sizes = []int{32, 1_000, 100_000, 1_000_000}
 	}
 	modes := []struct {
 		name    string
