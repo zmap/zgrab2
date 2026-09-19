@@ -5,6 +5,8 @@ import (
 	"github.com/zmap/zgrab2/modules"
 	"github.com/zmap/zgrab2/modules/bacnet"
 	"github.com/zmap/zgrab2/modules/banner"
+	"github.com/zmap/zgrab2/modules/codesysv3"
+	"github.com/zmap/zgrab2/modules/crimson"
 	"github.com/zmap/zgrab2/modules/dnp3"
 	"github.com/zmap/zgrab2/modules/fox"
 	"github.com/zmap/zgrab2/modules/ftp"
@@ -18,8 +20,10 @@ import (
 	"github.com/zmap/zgrab2/modules/mysql"
 	"github.com/zmap/zgrab2/modules/ntp"
 	"github.com/zmap/zgrab2/modules/oracle"
+	"github.com/zmap/zgrab2/modules/pcworx"
 	"github.com/zmap/zgrab2/modules/pop3"
 	"github.com/zmap/zgrab2/modules/postgres"
+	"github.com/zmap/zgrab2/modules/proconos"
 	"github.com/zmap/zgrab2/modules/redis"
 	"github.com/zmap/zgrab2/modules/siemens"
 	"github.com/zmap/zgrab2/modules/smb"
@@ -33,6 +37,8 @@ func init() {
 	defaultModules = map[string]zgrab2.Module{
 		"bacnet":    bacnet.NewModule(),
 		"banner":    banner.NewModule(),
+		"codesys3":  codesysv3.NewModule(),
+		"crimson":   crimson.NewModule(),
 		"dnp3":      dnp3.NewModule(),
 		"fox":       fox.NewModule(),
 		"ftp":       ftp.NewModule(),
@@ -46,8 +52,10 @@ func init() {
 		"mysql":     mysql.NewModule(),
 		"ntp":       ntp.NewModule(),
 		"oracle":    oracle.NewModule(),
+		"pcworx":    pcworx.NewModule(),
 		"pop3":      pop3.NewModule(),
 		"postgres":  postgres.NewModule(),
+		"proconos":  proconos.NewModule(),
 		"redis":     redis.NewModule(),
 		"siemens":   siemens.NewModule(),
 		"smb":       smb.NewModule(),

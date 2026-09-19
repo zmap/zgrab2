@@ -30,4 +30,8 @@ from . import socks5
 from . import mqtt
 from . import pptp
 from . import checkpoint
+from . import codesys3
+from . import crimson
+from . import pcworx
+from . import proconos
 from . import drda
