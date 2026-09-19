@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	stdtls "crypto/tls"
+	"encoding/binary"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/zmap/zgrab2"
@@ -99,5 +101,224 @@ func TestPostgresHandshakeCompletedSuccessfully(t *testing.T) {
 	}
 	if !pgResult.TLSLog.HandshakeCompletedSuccessfully {
 		t.Error("expected HandshakeCompletedSuccessfully = true")
+	}
+}
+
+func TestIsValidPostgresError(t *testing.T) {
+	tests := []struct {
+		name  string
+		err   *PostgresError
+		valid bool
+	}{
+		{"nil error", nil, false},
+		{"empty error", &PostgresError{}, false},
+		{"severity only", &PostgresError{"severity": "FATAL"}, false},
+		{"severity and code", &PostgresError{"severity": "FATAL", "code": "08P01"}, false},
+		{"severity_v and code and message", &PostgresError{"severity_v": "FATAL", "code": "08P01", "message": "unsupported version"}, true},
+		{"full valid error", &PostgresError{"severity": "FATAL", "code": "08P01", "message": "unsupported version"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isValidPostgresError(tt.err); got != tt.valid {
+				t.Errorf("isValidPostgresError() = %v, want %v", got, tt.valid)
+			}
+		})
+	}
+}
+
+// makePostgresErrorPacket builds a raw Postgres 'E'-type response packet from
+// a map of field tag -> value. The packet format is:
+// byte 'E' | uint32 length | (byte tag + string value + \0)... | \0
+func makePostgresErrorPacket(fields map[byte]string) []byte {
+	var body []byte
+	for tag, val := range fields {
+		body = append(body, tag)
+		body = append(body, []byte(val)...)
+		body = append(body, 0)
+	}
+	body = append(body, 0) // terminator
+
+	length := uint32(len(body) + 4) // length includes itself
+	pkt := make([]byte, 1+4+len(body))
+	pkt[0] = 'E'
+	binary.BigEndian.PutUint32(pkt[1:5], length)
+	copy(pkt[5:], body)
+	return pkt
+}
+
+// validPostgresError is a reusable valid Postgres error packet
+var validPostgresError = makePostgresErrorPacket(map[byte]string{
+	'S': "FATAL",
+	'V': "FATAL",
+	'C': "08P01",
+	'M': "unsupported frontend protocol",
+})
+
+// makeConnPairFunc returns a function that, on each call, returns a new
+// client-side net.Conn and starts a goroutine running serverFn on the server side.
+func makeConnPairFunc(serverFn func(net.Conn)) func() net.Conn {
+	return func() net.Conn {
+		client, server := net.Pipe()
+		go serverFn(server)
+		return client
+	}
+}
+
+// makeMultiL4Dialer returns an L4Dialer that calls newConn() for each dial,
+// allowing the postgres scanner to open multiple sequential connections.
+func makeMultiL4Dialer(newConn func() net.Conn) func(*zgrab2.ScanTarget) func(context.Context, string, string) (net.Conn, error) {
+	return func(*zgrab2.ScanTarget) func(context.Context, string, string) (net.Conn, error) {
+		return func(context.Context, string, string) (net.Conn, error) {
+			return newConn(), nil
+		}
+	}
+}
+
+// drainAndRespond reads one request from conn, writes response, then closes.
+func drainAndRespond(conn net.Conn, response []byte) {
+	defer conn.Close()
+	buf := make([]byte, 4096)
+	conn.Read(buf) //nolint:errcheck
+	if len(response) > 0 {
+		conn.Write(response) //nolint:errcheck
+	}
+}
+
+func newTestScanner() *Scanner {
+	return &Scanner{Config: &Flags{SkipSSL: true, ProtocolVersion: "3.0"}}
+}
+
+func TestFalsePositiveDetection_NonPostgresServer(t *testing.T) {
+	// Simulates a non-Postgres service that responds 'N' to any request.
+	// The scanner should bail with SCAN_PROTOCOL_ERROR since 'N' is not a
+	// valid Postgres 'E' error response.
+	newConn := makeConnPairFunc(func(conn net.Conn) {
+		drainAndRespond(conn, []byte{'N'})
+	})
+	scanner := newTestScanner()
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 5432}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer: makeMultiL4Dialer(newConn),
+	}
+
+	status, _, err := scanner.Scan(context.Background(), dialGroup, target)
+	if status == zgrab2.SCAN_SUCCESS {
+		t.Errorf("expected non-success status for non-Postgres server, got %s", status)
+	}
+	if status != zgrab2.SCAN_PROTOCOL_ERROR {
+		t.Errorf("expected SCAN_PROTOCOL_ERROR, got %s (err: %v)", status, err)
+	}
+}
+
+func TestFalsePositiveDetection_InvalidErrorFields(t *testing.T) {
+	// Server returns an 'E'-type packet but with no structured fields — just
+	// garbage data. Should fail isValidPostgresError.
+	badErrorPkt := makePostgresErrorPacket(map[byte]string{
+		'X': "unknown",
+	})
+	newConn := makeConnPairFunc(func(conn net.Conn) {
+		drainAndRespond(conn, badErrorPkt)
+	})
+	scanner := newTestScanner()
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 5432}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer: makeMultiL4Dialer(newConn),
+	}
+
+	status, _, _ := scanner.Scan(context.Background(), dialGroup, target)
+	if status == zgrab2.SCAN_SUCCESS {
+		t.Errorf("expected non-success for invalid error fields, got %s", status)
+	}
+	if status != zgrab2.SCAN_PROTOCOL_ERROR {
+		t.Errorf("expected SCAN_PROTOCOL_ERROR, got %s", status)
+	}
+}
+
+func TestValidPostgresServer_PassesVersionProbe(t *testing.T) {
+	// Server returns a valid Postgres error for the version 0.0 probe.
+	// The scanner should accept it and populate SupportedVersions.
+	newConn := makeConnPairFunc(func(conn net.Conn) {
+		drainAndRespond(conn, validPostgresError)
+	})
+	scanner := newTestScanner()
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 5432}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer: makeMultiL4Dialer(newConn),
+	}
+
+	status, result, _ := scanner.Scan(context.Background(), dialGroup, target)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	pgResult, ok := result.(*Results)
+	if !ok {
+		t.Fatal("expected *Results")
+	}
+	if pgResult.SupportedVersions == "" {
+		t.Error("expected SupportedVersions to be populated after valid error response")
+	}
+	// The scan may fail on subsequent connections (our fake server only handles
+	// one exchange per connection), but the first probe should pass validation.
+	// SCAN_PROTOCOL_ERROR from the detection check would be a regression.
+	if status == zgrab2.SCAN_PROTOCOL_ERROR && strings.Contains(pgResult.SupportedVersions, "unsupported") {
+		t.Error("valid Postgres error was rejected by detection check")
+	}
+}
+
+func TestFalsePositive_ServerClosesImmediately(t *testing.T) {
+	// Server accepts the connection but closes immediately without sending
+	// any data. Should not result in SCAN_SUCCESS.
+	newConn := makeConnPairFunc(func(conn net.Conn) {
+		conn.Close()
+	})
+	scanner := newTestScanner()
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 5432}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer: makeMultiL4Dialer(newConn),
+	}
+
+	status, _, _ := scanner.Scan(context.Background(), dialGroup, target)
+	if status == zgrab2.SCAN_SUCCESS {
+		t.Errorf("expected non-success for immediately-closing server, got %s", status)
+	}
+}
+
+func TestPreStartupError_OlderPostgres(t *testing.T) {
+	// Older Postgres versions (pre-9.6 in some configurations) respond to
+	// bogus version probes with a pre-startup error: a raw \n\0-terminated
+	// string rather than a structured 'E' packet with tagged fields.
+	// The scanner must accept these as valid detections.
+	preStartupError := []byte("FATAL:  unsupported frontend protocol 0.0: server supports 1.0 to 3.0\n\x00")
+
+	newConn := makeConnPairFunc(func(conn net.Conn) {
+		defer conn.Close()
+		buf := make([]byte, 4096)
+		conn.Read(buf) //nolint:errcheck
+		// Send 'E' header byte followed by the raw error string.
+		// tryReadPacket sees length[0] > 0x00 and reads as pre-startup format.
+		response := append([]byte{'E'}, preStartupError...)
+		conn.Write(response) //nolint:errcheck
+	})
+	scanner := newTestScanner()
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 5432}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer: makeMultiL4Dialer(newConn),
+	}
+
+	status, result, scanErr := scanner.Scan(context.Background(), dialGroup, target)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	pgResult, ok := result.(*Results)
+	if !ok {
+		t.Fatal("expected *Results")
+	}
+	if pgResult.SupportedVersions == "" {
+		t.Error("expected SupportedVersions to be populated for pre-startup error")
+	}
+	// The scan will fail on subsequent connections, but the first probe must
+	// NOT fail with SCAN_PROTOCOL_ERROR from our detection check.
+	if status == zgrab2.SCAN_PROTOCOL_ERROR {
+		t.Errorf("pre-startup error from older Postgres was incorrectly rejected: %v", scanErr)
 	}
 }
