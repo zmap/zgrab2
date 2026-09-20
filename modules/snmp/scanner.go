@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/zmap/zgrab2"
 )
@@ -17,7 +18,7 @@ type Flags struct {
 	zgrab2.BaseFlags `group:"Basic Options"`
 
 	Community string `long:"community" default:"public" description:"SNMP community string to use for the read-only GET request."`
-	Version   string `long:"version" default:"auto" choice:"auto,1,2c,3" description:"SNMP probe version to use. auto tries SNMPv3 discovery, then v1/v2c GET."`
+	Version   string `long:"version" default:"auto" description:"SNMP probe version to use: auto, 1, 2c, or 3. auto tries SNMPv3 discovery, then v2c/v1 GET."`
 }
 
 func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
@@ -36,6 +37,11 @@ type Scanner struct {
 
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	f, _ := flags.(*Flags)
+	switch strings.ToLower(f.Version) {
+	case "auto", "1", "2c", "3":
+	default:
+		return fmt.Errorf("unsupported SNMP version %q", f.Version)
+	}
 	scanner.config = f
 	scanner.SetBaseFlags(&f.BaseFlags)
 	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
@@ -52,11 +58,15 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		// agent on 162. With --version auto, try agent first and only fall
 		// back to the trap-receiver probe if the agent scan fails.
 		if strings.ToLower(scanner.config.Version) == "auto" {
-			if status, result, err := scanner.scanAgent(ctx, dialGroup, target); err == nil {
+			agentCtx, cancel := splitAttemptContext(ctx, 2)
+			status, result, err := scanner.scanAgent(agentCtx, dialGroup, target)
+			cancel()
+			if err == nil {
 				return status, result, nil
 			}
+			return scanner.scanTrapReceiver(ctx, dialGroup, target)
 		}
-		return scanner.scanTrapReceiver(ctx, dialGroup, target)
+		return scanner.scanAgent(ctx, dialGroup, target)
 	default:
 		return scanner.scanAgent(ctx, dialGroup, target)
 	}
@@ -70,7 +80,9 @@ func (scanner *Scanner) scanAgent(ctx context.Context, dialGroup *zgrab2.DialerG
 	case "1", "2c":
 		return scanner.scanCommunity(ctx, dialGroup, target, version)
 	case "auto":
-		v3Status, v3Any, v3Err := scanner.scanV3(ctx, dialGroup, target)
+		v3Ctx, cancelV3 := splitAttemptContext(ctx, 3)
+		v3Status, v3Any, v3Err := scanner.scanV3(v3Ctx, dialGroup, target)
+		cancelV3()
 		if v3Err == nil {
 			// v3 discovery succeeded — enrich with community GET to populate sys* fields.
 			if v3Log, ok := v3Any.(*Log); ok {
@@ -78,14 +90,32 @@ func (scanner *Scanner) scanAgent(ctx context.Context, dialGroup *zgrab2.DialerG
 			}
 			return v3Status, v3Any, nil
 		}
-		commStatus, commAny, commErr := scanner.scanCommunity(ctx, dialGroup, target, "2c")
-		if commErr == nil {
-			return commStatus, commAny, nil
+		v2cCtx, cancelV2c := splitAttemptContext(ctx, 2)
+		v2cStatus, v2cAny, v2cErr := scanner.scanCommunity(v2cCtx, dialGroup, target, "2c")
+		cancelV2c()
+		if v2cErr == nil {
+			return v2cStatus, v2cAny, nil
 		}
-		return zgrab2.TryGetScanStatus(v3Err), nil, fmt.Errorf("SNMPv3 discovery failed: %w; SNMPv2c GET failed: %w", v3Err, commErr)
+		v1Status, v1Any, v1Err := scanner.scanCommunity(ctx, dialGroup, target, "1")
+		if v1Err == nil {
+			return v1Status, v1Any, nil
+		}
+		return zgrab2.TryGetScanStatus(v3Err), nil, fmt.Errorf("SNMPv3 discovery failed: %w; SNMPv2c GET failed: %v; SNMPv1 GET failed: %v", v3Err, v2cErr, v1Err)
 	default:
 		return zgrab2.SCAN_APPLICATION_ERROR, nil, fmt.Errorf("unsupported SNMP version %q", scanner.config.Version)
 	}
+}
+
+func splitAttemptContext(ctx context.Context, remainingAttempts int) (context.Context, context.CancelFunc) {
+	deadline, ok := ctx.Deadline()
+	if !ok || remainingAttempts <= 1 {
+		return context.WithCancel(ctx)
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, remaining/time.Duration(remainingAttempts))
 }
 
 // enrichWithSysInfo attempts a SNMPv2c community GET after v3 discovery so
@@ -246,7 +276,7 @@ func (scanner *Scanner) scanTrapReceiver(ctx context.Context, dialGroup *zgrab2.
 		if errors.Is(err, io.EOF) {
 			return zgrab2.SCAN_CONNECTION_CLOSED, inconclusiveResult, nil
 		}
-		return zgrab2.TryGetScanStatus(err), inconclusiveResult, err
+		return zgrab2.TryGetScanStatus(err), inconclusiveResult, nil
 	}
 
 	raw := buf[:n]

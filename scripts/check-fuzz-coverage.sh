@@ -14,7 +14,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Patterns that indicate binary parsing of untrusted input
-PARSE_PATTERNS='binary\.Read|binary\.BigEndian|binary\.LittleEndian|io\.ReadFull|\.UnMarshal|\.Unmarshal|\.Decode\b'
+PARSE_PATTERNS='binary\.Read|binary\.BigEndian|binary\.LittleEndian|io\.ReadFull|\.UnMarshal|\.Unmarshal|\.Decode\b|readTLV\(|decodeOID\('
 
 # Packages to exclude (vendored/forked stdlib or thin wrappers)
 EXCLUDE_PATTERN='lib/http|lib/http2|lib/ssh|lib/smb/gss|lib/smb/ntlmssp|lib/smb/smb$|internal/'
