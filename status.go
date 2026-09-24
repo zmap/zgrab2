@@ -45,6 +45,11 @@ func (err *ScanError) Error() string {
 	return err.Err.Error()
 }
 
+// Unwrap returns the wrapped error, so that errors.Is and errors.As can inspect it.
+func (err *ScanError) Unwrap() error {
+	return err.Err
+}
+
 func (err *ScanError) Unpack(results any) (ScanStatus, any, error) {
 	return err.Status, results, err.Err
 }
