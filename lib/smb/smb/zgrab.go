@@ -220,7 +220,7 @@ func GetSMBLog(conn net.Conn, session bool, v1 bool, debug bool) (smbLog *SMBLog
 	}
 
 	if v1 {
-		err := s.LoggedNegotiateProtocolv1(session)
+		err = s.LoggedNegotiateProtocolv1(session)
 		if err == nil && session {
 			s.LoggedSessionSetupV1()
 		}
