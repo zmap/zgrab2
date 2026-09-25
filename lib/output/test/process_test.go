@@ -15,7 +15,7 @@ import (
 
 	"strings"
 
-	"io/ioutil"
+	"os"
 	"os/exec"
 
 	"github.com/sirupsen/logrus"
@@ -66,22 +66,6 @@ func mapPath(theMap any, keys ...string) (any, error) {
 		theMap = next
 	}
 	return theMap, nil
-}
-
-// Set theMap[key0][key1]...[keyN] = value, or return error if any values along
-// the way are nil / not present / not maps.
-func setMapValue(theMap map[string]any, value any, keys ...string) error {
-	lastIndex := len(keys) - 1
-	out, err := mapPath(theMap, keys[0:lastIndex]...)
-	if err != nil {
-		return err
-	}
-	cast, ok := out.(map[string]any)
-	if !ok {
-		return fmt.Errorf("%s in map is not a map", strings.Join(keys[0:lastIndex], "."))
-	}
-	cast[keys[lastIndex]] = value
-	return nil
 }
 
 // delete the value at theMap[key0][key1]...[keyN], or return an error if any
@@ -775,8 +759,8 @@ func (deep *DeepAnon) GetStripped() *StrippedDeepAnon {
 		DeepAnon:          deep,
 		StrippedDeepAnon0: deep.DeepAnon0.GetStripped(),
 		StrippedDeepAnon1: deep.DeepAnon1.GetStripped(),
-		OverrideAnon0ID:   deep.DeepAnon0.Anon0ID,
-		OverrideAnon1ID:   deep.DeepAnon1.Anon1ID,
+		OverrideAnon0ID:   deep.Anon0ID,
+		OverrideAnon1ID:   deep.Anon1ID,
 	}
 	if deep.Child != nil {
 		temp.OverrideChild = deep.Child.GetStripped()
@@ -831,11 +815,11 @@ func getDeepAnon(id string, depth int) *DeepAnon {
 func fail(t *testing.T, id string, expected string, actual string) {
 	t.Logf("%s: mismatch: expected %s, got %s", id, expected, actual)
 	if doFailDiffs {
-		ioutil.WriteFile(id+"-expected.json", []byte(expected), 0)
-		ioutil.WriteFile(id+"-actual.json", []byte(actual), 0)
+		os.WriteFile(id+"-expected.json", []byte(expected), 0)
+		os.WriteFile(id+"-actual.json", []byte(actual), 0)
 		cmd := exec.Command("diff", "-u", id+"-expected.json", id+"-actual.json")
 		ret, _ := cmd.Output()
-		ioutil.WriteFile(id+".diff", ret, 0)
+		os.WriteFile(id+".diff", ret, 0)
 	}
 	t.Errorf("%s mismatch", id)
 }

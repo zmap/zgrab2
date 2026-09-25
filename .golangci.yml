@@ -38,7 +38,11 @@ linters:
       - third_party$
       - builtin$
       - examples$
-      - lib/*
+      - lib/http/*
+      - lib/http2/*
+      - lib/mysql/*
+      - lib/smb/*
+      - lib/ssh/*
 issues:
   max-issues-per-linter: 50
 formatters:
