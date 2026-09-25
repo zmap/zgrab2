@@ -120,7 +120,7 @@ func (processor *Processor) popPath() *pathEntry {
 // Helper to check if a value is nil. Non-nillable values are by definition
 // not nil (though they may be "zero").
 func isNil(v reflect.Value) bool {
-	return (v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface || v.Kind() == reflect.Slice) && v.IsNil()
+	return (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface || v.Kind() == reflect.Slice) && v.IsNil()
 }
 
 // Check if a field should be copied over to the return value.
@@ -283,7 +283,7 @@ func (processor *Processor) process(v reflect.Value) reflect.Value {
 	switch t.Kind() {
 	case reflect.Struct:
 		return processor.processStruct(v)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return processor.processPtr(v)
 	case reflect.Slice:
 		return processor.processSlice(v)

@@ -55,7 +55,7 @@ func TestReadNulString_EmptyInput(t *testing.T) {
 
 // buildMinimalHandshake creates a minimal valid MySQL handshake packet body.
 func buildMinimalHandshake(serverVersion string) []byte {
-	var buf []byte
+	buf := make([]byte, 0, 1+len(serverVersion)+1+4+8+1+2)
 	buf = append(buf, 0x0a) // protocol version
 	buf = append(buf, []byte(serverVersion)...)
 	buf = append(buf, 0x00) // NUL terminator
@@ -84,7 +84,8 @@ func TestReadHandshakePacket_EmptyBody(t *testing.T) {
 
 func TestReadHandshakePacket_NoNulInServerVersion(t *testing.T) {
 	// ProtocolVersion byte followed by a string with no NUL
-	body := []byte{0x0a}
+	body := make([]byte, 0, 1+len("no-nul-terminator"))
+	body = append(body, 0x0a)
 	body = append(body, []byte("no-nul-terminator")...)
 	c := &Connection{}
 	_, err := c.readHandshakePacket(body)
@@ -95,7 +96,8 @@ func TestReadHandshakePacket_NoNulInServerVersion(t *testing.T) {
 
 func TestReadHandshakePacket_TruncatedAfterServerVersion(t *testing.T) {
 	// Valid protocol version and NUL-terminated server version, but rest is too short
-	body := []byte{0x0a}
+	body := make([]byte, 0, 1+len("5.7.0\x00")+2)
+	body = append(body, 0x0a)
 	body = append(body, []byte("5.7.0\x00")...)
 	body = append(body, 0x01, 0x02) // only 2 bytes of rest, need 15
 	c := &Connection{}
@@ -127,10 +129,22 @@ func TestReadHandshakePacket_MinimalValid(t *testing.T) {
 	}
 }
 
+func TestGetHandshake_InvalidParsedValue(t *testing.T) {
+	c := &Connection{
+		ConnectionLog: ConnectionLog{
+			Handshake: &ConnectionLogEntry{Parsed: &ERRPacket{}},
+		},
+	}
+	if handshake := c.GetHandshake(); handshake != nil {
+		t.Fatalf("expected nil handshake for invalid parsed value, got %#v", handshake)
+	}
+}
+
 func TestReadHandshakePacket_LongServerVersionTruncatesRest(t *testing.T) {
 	// A very long server version string that leaves rest too short
 	longVersion := strings.Repeat("x", 200)
-	body := []byte{0x0a}
+	body := make([]byte, 0, 1+len(longVersion)+1+1)
+	body = append(body, 0x0a)
 	body = append(body, []byte(longVersion)...)
 	body = append(body, 0x00) // NUL terminator
 	body = append(body, 0x01) // only 1 byte of rest
@@ -179,7 +193,8 @@ func TestReadERRPacket_TooShort(t *testing.T) {
 }
 
 func TestReadERRPacket_MinimalValid(t *testing.T) {
-	body := []byte{0xff, 0x48, 0x04} // header + error code 1096
+	body := make([]byte, 0, 16) // header + error code 1096
+	body = append(body, 0xff, 0x48, 0x04)
 	body = append(body, []byte("Access denied")...)
 	c := &Connection{}
 	pkt, err := c.readERRPacket(body)
@@ -274,7 +289,8 @@ func TestReadLenInt_Empty(t *testing.T) {
 
 func TestReadLenString_Valid(t *testing.T) {
 	// length=5, then "hello", then "extra"
-	body := []byte{5}
+	body := make([]byte, 0, 11)
+	body = append(body, 5)
 	body = append(body, []byte("hello")...)
 	body = append(body, []byte("extra")...)
 	str, rest, err := readLenString(body)
