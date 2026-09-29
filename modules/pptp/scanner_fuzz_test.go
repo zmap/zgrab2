@@ -31,17 +31,18 @@ func FuzzReadResponse(f *testing.F) {
 			serverConn.Close()
 		}()
 
-		_, _, _ = conn.readResponse()
+		_, _ = conn.readResponse()
 	})
 }
 
-func FuzzValidateMagicCookie(f *testing.F) {
+func FuzzParseSCCRP(f *testing.F) {
+	f.Add(testReply())
 	// Seed: 16+ bytes with PPTP magic cookie bytes
 	f.Add([]byte{0x00, 0x10, 0x00, 0x01, 0x1A, 0x2B, 0x3C, 0x4D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 	f.Add([]byte{0xff, 0xff, 0xff, 0xff, 0x1A, 0x2B, 0x3C, 0x4D})
 	f.Add([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_ = validateMagicCookie(data)
+		_, _ = parseSCCRP(data)
 	})
 }

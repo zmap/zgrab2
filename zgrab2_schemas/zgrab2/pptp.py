@@ -11,6 +11,15 @@ pptp_scan_response = SubRecord(
     {
         "banner": String(),
         "control_message": String(),
+        "protocol_version": Unsigned16BitInteger(),
+        "result_code": Unsigned8BitInteger(),
+        "error_code": Unsigned8BitInteger(),
+        "framing_capability": Unsigned32BitInteger(),
+        "bearer_capability": Unsigned32BitInteger(),
+        "maximum_channels": Unsigned16BitInteger(),
+        "firmware_revision": Unsigned16BitInteger(),
+        "hostname": String(),
+        "vendor": String(),
     }
 )
 

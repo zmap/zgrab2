@@ -2,9 +2,12 @@
 package pptp
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -13,11 +16,26 @@ import (
 
 // ScanResults is the output of the scan.
 type ScanResults struct {
-	// Banner is the initial data banner sent by the server.
+	// Banner is the Start-Control-Connection-Request sent to the server.
 	Banner string `json:"banner,omitempty"`
 
 	// ControlMessage is the received PPTP control message.
 	ControlMessage string `json:"control_message,omitempty"`
+
+	*SCCRP
+}
+
+// SCCRP contains the fields of a Start-Control-Connection-Reply.
+type SCCRP struct {
+	ProtocolVersion   uint16 `json:"protocol_version"`
+	ResultCode        uint8  `json:"result_code"`
+	ErrorCode         uint8  `json:"error_code"`
+	FramingCapability uint32 `json:"framing_capability"`
+	BearerCapability  uint32 `json:"bearer_capability"`
+	MaximumChannels   uint16 `json:"maximum_channels"`
+	FirmwareRevision  uint16 `json:"firmware_revision"`
+	Hostname          string `json:"hostname"`
+	Vendor            string `json:"vendor"`
 }
 
 // Flags are the PPTP-specific command-line flags.
@@ -53,7 +71,9 @@ const (
 	PPTP_MAGIC_COOKIE       = 0x1A2B3C4D // PPTP Magic Cookie in bytes, see RFC 2637 section 1.4
 	PPTP_CONTROL_MESSAGE    = 1
 	PPTP_START_CONN_REQUEST = 1
-	PPTP_PROTOCOL_VERSION   = 0x0100 // Split into two 16-bit values for binary.BigEndian.PutUint16
+	PPTP_START_CONN_REPLY   = 2
+	PPTP_PROTOCOL_VERSION   = 0x0100
+	pptpSCCRLength          = 156
 )
 
 // Connection holds the state for a single connection to the PPTP server.
@@ -65,42 +85,61 @@ type Connection struct {
 
 // Create the Start-Control-Connection-Request message
 func createSCCRMessage() []byte {
-	message := make([]byte, 156)
-	binary.BigEndian.PutUint16(message[0:2], 156)                                    // Length
-	binary.BigEndian.PutUint16(message[2:4], PPTP_CONTROL_MESSAGE)                   // PPTP Message Type
-	binary.BigEndian.PutUint32(message[4:8], PPTP_MAGIC_COOKIE)                      // Magic Cookie
-	binary.BigEndian.PutUint16(message[8:10], PPTP_START_CONN_REQUEST)               // Control Message Type
-	binary.BigEndian.PutUint16(message[10:12], uint16(PPTP_PROTOCOL_VERSION>>16))    // Protocol Version (high 16 bits)
-	binary.BigEndian.PutUint16(message[12:14], uint16(PPTP_PROTOCOL_VERSION&0xFFFF)) // Protocol Version (low 16 bits)
-	binary.BigEndian.PutUint32(message[14:18], 0)                                    // Framing Capabilities
-	binary.BigEndian.PutUint32(message[18:22], 0)                                    // Bearer Capabilities
-	binary.BigEndian.PutUint16(message[22:24], 0)                                    // Maximum Channels
-	binary.BigEndian.PutUint16(message[24:26], 0)                                    // Firmware Revision
-	copy(message[26:90], "ZGRAB2-SCANNER")                                           // Host Name
-	copy(message[90:], "ZGRAB2")                                                     // Vendor Name
+	message := make([]byte, pptpSCCRLength)
+	binary.BigEndian.PutUint16(message[0:2], pptpSCCRLength)
+	binary.BigEndian.PutUint16(message[2:4], PPTP_CONTROL_MESSAGE)     // PPTP Message Type
+	binary.BigEndian.PutUint32(message[4:8], PPTP_MAGIC_COOKIE)        // Magic Cookie
+	binary.BigEndian.PutUint16(message[8:10], PPTP_START_CONN_REQUEST) // Control Message Type
+	binary.BigEndian.PutUint16(message[12:14], PPTP_PROTOCOL_VERSION)
+	copy(message[28:92], "ZGRAB2-SCANNER")
+	copy(message[92:156], "ZGRAB2")
 	return message
 }
 
-// Read response from the PPTP server
-func (pptp *Connection) readResponse() (string, []byte, error) {
-	buffer := make([]byte, 1024)
+// readResponse reads one complete, length-prefixed PPTP control message.
+func (pptp *Connection) readResponse() ([]byte, error) {
 	if err := pptp.conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		return "", nil, fmt.Errorf("could not set read deadline: %w", err)
+		return nil, fmt.Errorf("could not set read deadline: %w", err)
 	}
-	n, err := pptp.conn.Read(buffer)
-	if err != nil {
-		return "", nil, fmt.Errorf("could not read response: %w", err)
+	response := make([]byte, pptpSCCRLength)
+	if _, err := io.ReadFull(pptp.conn, response[:2]); err != nil {
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("incomplete PPTP response length: %w", err))
+		}
+		return nil, fmt.Errorf("could not read PPTP response length: %w", err)
 	}
-	return string(buffer[:n]), buffer[:n], nil
+	if length := binary.BigEndian.Uint16(response[:2]); length != pptpSCCRLength {
+		return response[:2], zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("invalid PPTP SCCRP length %d", length))
+	}
+	if _, err := io.ReadFull(pptp.conn, response[2:]); err != nil {
+		if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+			return nil, zgrab2.NewScanError(zgrab2.SCAN_PROTOCOL_ERROR, fmt.Errorf("incomplete PPTP response body: %w", err))
+		}
+		return nil, fmt.Errorf("could not read PPTP response body: %w", err)
+	}
+	return response, nil
 }
 
-// Validate that the response contains the correct PPTP magic cookie
-func validateMagicCookie(response []byte) bool {
-	if len(response) < 8 {
-		return false
+func parseSCCRP(response []byte) (*SCCRP, error) {
+	if len(response) != pptpSCCRLength || binary.BigEndian.Uint16(response[:2]) != pptpSCCRLength {
+		return nil, fmt.Errorf("invalid PPTP SCCRP length %d", len(response))
 	}
-	receivedMagicCookie := binary.BigEndian.Uint32(response[4:8])
-	return receivedMagicCookie == PPTP_MAGIC_COOKIE
+	if binary.BigEndian.Uint16(response[2:4]) != PPTP_CONTROL_MESSAGE ||
+		binary.BigEndian.Uint32(response[4:8]) != PPTP_MAGIC_COOKIE ||
+		binary.BigEndian.Uint16(response[8:10]) != PPTP_START_CONN_REPLY {
+		return nil, errors.New("invalid PPTP SCCRP header")
+	}
+	return &SCCRP{
+		ProtocolVersion:   binary.BigEndian.Uint16(response[12:14]),
+		ResultCode:        response[14],
+		ErrorCode:         response[15],
+		FramingCapability: binary.BigEndian.Uint32(response[16:20]),
+		BearerCapability:  binary.BigEndian.Uint32(response[20:24]),
+		MaximumChannels:   binary.BigEndian.Uint16(response[24:26]),
+		FirmwareRevision:  binary.BigEndian.Uint16(response[26:28]),
+		Hostname:          string(bytes.TrimRight(response[28:92], "\x00")),
+		Vendor:            string(bytes.TrimRight(response[92:156], "\x00")),
+	}, nil
 }
 
 // Scan performs the configured scan on the PPTP server
@@ -118,23 +157,27 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	// Send Start-Control-Connection-Request message
 	request := createSCCRMessage()
-	_, err = pptp.conn.Write(request)
+	_, err = io.Copy(pptp.conn, bytes.NewReader(request))
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error sending PPTP SCCR message to target %s: %w", target.String(), err)
 	}
 
 	// Read the response
-	respStr, respBytes, err := pptp.readResponse()
+	respBytes, err := pptp.readResponse()
 	if err != nil {
 		return zgrab2.TryGetScanStatus(err), &pptp.results, fmt.Errorf("error reading PPTP response from target %s: %w", target.String(), err)
 	}
 
-	// Store the banner and control message
+	// Preserve the existing raw fields for clients that use them.
 	pptp.results.Banner = string(request)
-	pptp.results.ControlMessage = respStr
+	pptp.results.ControlMessage = string(respBytes)
 
-	if !validateMagicCookie(respBytes) {
-		return zgrab2.SCAN_PROTOCOL_ERROR, &pptp.results, fmt.Errorf("invalid PPTP magic cookie in response from target %s", target.String())
+	pptp.results.SCCRP, err = parseSCCRP(respBytes)
+	if err != nil {
+		return zgrab2.SCAN_PROTOCOL_ERROR, &pptp.results, fmt.Errorf("invalid PPTP response from target %s: %w", target.String(), err)
+	}
+	if pptp.results.ResultCode != 1 {
+		return zgrab2.SCAN_PROTOCOL_ERROR, &pptp.results, fmt.Errorf("PPTP control connection rejected by target %s (result code %d, error code %d)", target.String(), pptp.results.ResultCode, pptp.results.ErrorCode)
 	}
 
 	return zgrab2.SCAN_SUCCESS, &pptp.results, nil
