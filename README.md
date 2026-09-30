@@ -19,15 +19,6 @@ ZGrab offers modules for a variety of protocols. Currently, we offer:
 
 More details are available in the Modules [section](https://github.com/zmap/zgrab2/#single-module-usage) below.
 
-The PPTP module sends a Start-Control-Connection-Request and reports the server's
-Start-Control-Connection-Reply in `result`. Alongside the existing raw `banner`
-(the outgoing request) and `control_message` (the incoming reply), it exposes
-`protocol_version`, `result_code`, `error_code`, `framing_capability`,
-`bearer_capability`, `maximum_channels`, `firmware_revision`, `hostname`, and
-`vendor`. Empty hostname and vendor fields are reported as empty strings. A
-rejected or malformed reply is reported as a protocol error, not a successful
-handshake.
-
 For default behavior, you can pipe a list of target IPs or hostnames (one per line) into ZGrab2 via stdin to check out a modules' output.
 ```shell
 echo "pool.ntp.org" | zgrab2 ntp
