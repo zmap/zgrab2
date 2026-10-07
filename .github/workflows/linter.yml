@@ -19,17 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Read go version
-        id: go_version
-        run: |
-          # Read the variable from the file
-          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
-          # Set the variable as an output
-          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
+          go-version-file: go.mod
       - name: Run go fmt
         run: |
           NON_COMPLIANT_FILES=$(gofmt -s -l $(find . -type f -name '*.go'| grep -v "/.template/"))
@@ -56,17 +49,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Read go version
-        id: go_version
-        run: |
-          # Read the variable from the file
-          GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
-          # Set the variable as an output
-          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
+          go-version-file: go.mod
       - name: Other lint
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
