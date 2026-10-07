@@ -111,3 +111,52 @@ func TestMySQLHandshakeCompletedSuccessfully(t *testing.T) {
 		t.Error("expected HandshakeCompletedSuccessfully = true")
 	}
 }
+
+// mysqlHostNotPrivilegedERR returns the ERR packet a server sends instead of
+// a handshake when it refuses the client's host (ER_HOST_NOT_PRIVILEGED,
+// 1130). No capabilities are negotiated yet, so there is no SQL state.
+func mysqlHostNotPrivilegedERR(msg string) []byte {
+	payload := append([]byte{0xff, 0x6a, 0x04}, msg...) // header, 1130 (LE)
+	return append([]byte{byte(len(payload)), 0x00, 0x00, 0x00}, payload...)
+}
+
+// TestMySQLConnectERRPreservesError checks that an ERR packet received in
+// place of the server handshake is returned in the result rather than
+// discarded along with the connect error.
+func TestMySQLConnectERRPreservesError(t *testing.T) {
+	const msg = "Host '192.0.2.1' is not allowed to connect to this MySQL server"
+	clientConn, serverConn := net.Pipe()
+
+	go func() {
+		defer serverConn.Close()
+		serverConn.Write(mysqlHostNotPrivilegedERR(msg))
+	}()
+
+	scanner := &Scanner{config: &Flags{}}
+	target := &zgrab2.ScanTarget{IP: net.ParseIP("127.0.0.1"), Port: 3306}
+	dialGroup := &zgrab2.DialerGroup{
+		L4Dialer:   testhelpers.MakeL4Dialer(clientConn),
+		TLSWrapper: testhelpers.MakeFailingTLSWrapper(),
+	}
+
+	status, result, err := scanner.Scan(context.Background(), dialGroup, target)
+	if err == nil {
+		t.Fatal("expected a connect error")
+	}
+	if status != zgrab2.SCAN_APPLICATION_ERROR {
+		t.Errorf("expected SCAN_APPLICATION_ERROR, got %s", status)
+	}
+	mysqlResult, ok := result.(*ScanResults)
+	if !ok || mysqlResult == nil {
+		t.Fatalf("expected non-nil *ScanResults, got %T", result)
+	}
+	if mysqlResult.ErrorCode == nil || *mysqlResult.ErrorCode != 1130 {
+		t.Errorf("error code = %v, want 1130", mysqlResult.ErrorCode)
+	}
+	if mysqlResult.ErrorID != "ER_HOST_NOT_PRIVILEGED" {
+		t.Errorf("error ID = %q, want ER_HOST_NOT_PRIVILEGED", mysqlResult.ErrorID)
+	}
+	if mysqlResult.ErrorMessage != msg {
+		t.Errorf("error message = %q, want %q", mysqlResult.ErrorMessage, msg)
+	}
+}

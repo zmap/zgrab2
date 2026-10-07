@@ -191,15 +191,26 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error dialing target %s: %w", target.String(), err)
 	}
 	if err = sql.Connect(conn); err != nil {
-		return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error connecting to target %s: %w", target.String(), err)
+		// Preserve any partial data captured during connect (e.g. the server
+		// handshake, or an ERR packet such as ER_HOST_NOT_PRIVILEGED when the
+		// host blocks the scanner's source IP). readResultsFromConnectionLog
+		// returns nil when nothing was captured, matching the old behavior;
+		// returning nil unconditionally here dropped the identifying data.
+		result := readResultsFromConnectionLog(&sql.ConnectionLog)
+		return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error connecting to target %s: %w", target.String(), err)
 	}
 	if sql.SupportsTLS() {
 		if err = sql.NegotiateTLS(); err != nil {
-			return zgrab2.TryGetScanStatus(err), nil, fmt.Errorf("error negotiating TLS for target %s: %w", target.String(), err)
+			// The handshake already succeeded, so the ConnectionLog holds the
+			// server version/capabilities; preserve them (mirrors the
+			// TLS-wrap error path below).
+			result := readResultsFromConnectionLog(&sql.ConnectionLog)
+			return zgrab2.TryGetScanStatus(err), result, fmt.Errorf("error negotiating TLS for target %s: %w", target.String(), err)
 		}
 		tlsWrapper := dialGroup.TLSWrapper
 		if tlsWrapper == nil {
-			return zgrab2.SCAN_PROTOCOL_ERROR, nil, errors.New("TLS wrapper required for mysql")
+			result := readResultsFromConnectionLog(&sql.ConnectionLog)
+			return zgrab2.SCAN_PROTOCOL_ERROR, result, errors.New("TLS wrapper required for mysql")
 		}
 		tlsConn, err = tlsWrapper(ctx, target, conn)
 		if tlsConn != nil {

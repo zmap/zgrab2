@@ -274,7 +274,12 @@ func (s *SSHScanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup, ta
 	}
 	c, chans, reqs, err := ssh.NewClientConn(conn, rhost, sshConfig)
 	if err != nil {
-		return zgrab2.SCAN_HANDSHAKE_ERROR, nil, fmt.Errorf("failed to create SSH client connection: %w", err)
+		// `data` (the HandshakeLog) is populated as the handshake proceeds —
+		// banner, kexInit, server host key — so return it even on failure
+		// rather than discarding it. The pre-DialerGroups module preserved
+		// this partial data; returning nil here loses the SSH fingerprint
+		// (HASSH) inputs on any host whose handshake fails.
+		return zgrab2.SCAN_HANDSHAKE_ERROR, data, fmt.Errorf("failed to create SSH client connection: %w", err)
 	}
 	sshClient := ssh.NewClient(c, chans, reqs)
 	defer func() {
