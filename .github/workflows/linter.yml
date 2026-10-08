@@ -19,10 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Read go version
+        id: go_version
+        run: |
+          GO_VERSION=$(awk '$1 == "go" { version = $2 } $1 == "toolchain" && $2 != "default" { toolchain = substr($2, 3) } END { print (toolchain != "" ? toolchain : version) }' go.mod)
+          echo "GO_VERSION=$GO_VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Run go fmt
         run: |
           NON_COMPLIANT_FILES=$(gofmt -s -l $(find . -type f -name '*.go'| grep -v "/.template/"))
@@ -49,10 +54,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Read go version
+        id: go_version
+        run: |
+          GO_VERSION=$(awk '$1 == "go" { version = $2 } $1 == "toolchain" && $2 != "default" { toolchain = substr($2, 3) } END { print (toolchain != "" ? toolchain : version) }' go.mod)
+          echo "GO_VERSION=$GO_VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ steps.go_version.outputs.GO_VERSION }}
       - name: Other lint
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
