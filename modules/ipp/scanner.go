@@ -504,7 +504,7 @@ func (scanner *Scanner) Grab(scan *scan, target *zgrab2.ScanTarget, version *ver
 	//Store response regardless of error in request, because we may have gotten something back
 	scan.results.Response = resp
 	if scanErr != nil {
-		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not send request: %v", scanErr))
+		return zgrab2.NewScanError(scanErr.Status, fmt.Errorf("could not send request: %w", scanErr))
 	}
 	if err := storeBody(resp, scanner); err != nil {
 		return zgrab2.NewScanError(zgrab2.SCAN_UNKNOWN_ERROR, fmt.Errorf("could not store body: %w", err))
