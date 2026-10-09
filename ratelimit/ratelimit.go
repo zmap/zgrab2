@@ -32,11 +32,10 @@ func (l *PerObjectRateLimiter[K]) WaitOrCreate(ctx context.Context, key K, rateL
 	l.Lock()
 	limiter, ok := l.limitLRU.Get(key)
 	if !ok {
-		l.limitLRU.Add(key, rate.NewLimiter(rateLimit, burstRate)) // ensure limiter exists for the key
-		limiter, ok = l.limitLRU.Get(key)
-		if !ok {
-			panic("unexpected error: rate limiter for key not found after adding it")
-		}
+		// Use the limiter we just created rather than reading it back: the
+		// cache entry can expire (or be evicted) before a second Get.
+		limiter = rate.NewLimiter(rateLimit, burstRate)
+		l.limitLRU.Add(key, limiter)
 	}
 	l.Unlock() // Unlock before waiting to avoid deadlocks
 	if err := limiter.Wait(ctx); err != nil {
