@@ -69,5 +69,9 @@ jobs:
           FUZZ_FUNCS=$(go test -list 'Fuzz.*' ${{ matrix.package }} 2>/dev/null | grep '^Fuzz' || true)
           for func in $FUZZ_FUNCS; do
             echo "=== Fuzzing $func ==="
-            go test -fuzz="^${func}$" -fuzztime=15s -timeout=120s ${{ matrix.package }}
+            # -parallel is capped below GOMAXPROCS: with one worker per core, the
+            # coordinator goroutine can get starved for CPU when it tries to signal
+            # workers to stop at the fuzztime deadline, which surfaces as a spurious
+            # "context deadline exceeded" failure on busy/shared runners.
+            go test -fuzz="^${func}$" -fuzztime=15s -timeout=120s -parallel=2 ${{ matrix.package }}
           done
