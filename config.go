@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -97,6 +98,17 @@ func SetInputFunc(f InputTargetsFunc) {
 // SetOutputFunc sets the result output function to the provided function.
 func SetOutputFunc(f OutputResultsFunc) {
 	config.outputResults = f
+}
+
+// serverRateLimitDisabled skips the per-IP rate limit; see
+// DisableServerRateLimit.
+var serverRateLimitDisabled atomic.Bool
+
+// DisableServerRateLimit turns off the per-IP limit on connections to
+// targets (--server-rate-limit), for callers that pace connections
+// themselves.
+func DisableServerRateLimit() {
+	serverRateLimitDisabled.Store(true)
 }
 
 func init() {
