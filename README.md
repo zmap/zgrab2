@@ -42,7 +42,7 @@ echo "pool.ntp.org" | zgrab2 ntp
 We recommend installing ZGrab2 from source to ensure you have the latest version.
 
 #### Prerequisites
-If you do not already have Go installed, follow the instructions on the [Go installation page](https://go.dev/doc/install) to install Go 1.23 or later.
+If you do not already have Go installed, follow the instructions on the [Go installation page](https://go.dev/doc/install) to install Go 1.26.0 or later. The recommended toolchain is Go 1.26.8, as specified in `go.mod`.
 
 #### Clone and Build ZGrab2
 ```shell
