@@ -152,7 +152,7 @@ func getFieldLengthByName(fieldName string, meta *Metadata) (uint64, error) {
 		return uint64(len(buf)), nil
 	}
 
-	if field.Kind() == reflect.Ptr {
+	if field.Kind() == reflect.Pointer {
 		field = field.Elem()
 	}
 
@@ -206,7 +206,7 @@ func marshal(v any, meta *Metadata) ([]byte, error) {
 		return buf, nil
 	}
 
-	if tf.Kind() == reflect.Ptr {
+	if tf.Kind() == reflect.Pointer {
 		vf = reflect.Indirect(reflect.ValueOf(v))
 		tf = vf.Type()
 	}
@@ -326,7 +326,7 @@ func unmarshal(buf []byte, v any, meta *Metadata) (any, error) {
 		return bm, nil
 	}
 
-	if tf.Kind() == reflect.Ptr {
+	if tf.Kind() == reflect.Pointer {
 		vf = reflect.ValueOf(v).Elem()
 		tf = vf.Type()
 	}

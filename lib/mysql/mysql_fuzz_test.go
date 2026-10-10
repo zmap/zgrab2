@@ -63,7 +63,8 @@ func FuzzReadLenString(f *testing.F) {
 	f.Add([]byte{0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f}) // 0x05 + "hello"
 
 	// Seed: 0xFC + 2-byte length + string
-	seed2 := []byte{0xfc, 0x05, 0x00} // length = 5
+	seed2 := make([]byte, 0, 8)
+	seed2 = append(seed2, 0xfc, 0x05, 0x00) // length = 5
 	seed2 = append(seed2, []byte("world")...)
 	f.Add(seed2)
 

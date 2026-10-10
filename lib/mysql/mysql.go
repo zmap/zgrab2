@@ -504,8 +504,6 @@ func (c *Connection) readERRPacket(body []byte) (*ERRPacket, error) {
 	flags := uint32(0)
 	if handshake := c.GetHandshake(); handshake != nil {
 		flags = handshake.CapabilityFlags
-	} else {
-		// This is a valid case -- e.g. client hostname not allowed
 	}
 	if flags&CLIENT_PROTOCOL_41 != 0 {
 		if len(rest) < 6 {
@@ -692,23 +690,25 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 	if packetSize > 0x00080000 {
 		var temp [32]byte
 		// try to read up to 32 bytes, or whatever we can in 5ms, to give context for the error.
-		c.Connection.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
-		n, _ := reader.Read(temp[:])
-		err := fmt.Errorf("packet too large (0x%08x bytes): header=%x, next %d bytes=%x", packetSize, header, n, temp[:n])
-		log.Debugf("Received suspiciously large packet: %s", err.Error())
+		if deadlineErr := c.Connection.SetReadDeadline(time.Now().Add(5 * time.Millisecond)); deadlineErr != nil {
+			log.Debugf("Unable to set read deadline for oversized packet: %s", deadlineErr)
+		}
+		n, _ = reader.Read(temp[:])
+		packetErr := fmt.Errorf("packet too large (0x%08x bytes): header=%x, next %d bytes=%x", packetSize, header, n, temp[:n])
+		log.Debugf("Received suspiciously large packet: %s", packetErr.Error())
 		status := zgrab2.SCAN_UNKNOWN_ERROR
 		if n > 1 && temp[0] == 0xff {
 			// it looks like an ERRPacket: return SCAN_APPLICATION_ERROR
 			status = zgrab2.SCAN_APPLICATION_ERROR
 		}
-		return nil, zgrab2.NewScanError(status, err)
+		return nil, zgrab2.NewScanError(status, packetErr)
 	}
 	packet := ConnectionLogEntry{
 		Length:         packetSize,
 		SequenceNumber: seq,
 	}
 
-	var body = make([]byte, packetSize, packetSize)
+	body := make([]byte, packetSize)
 	n, err = io.ReadFull(reader, body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading %d bytes (sequence number = %d, partial body=%s): %s", packetSize, c.SequenceNumber, trunc(body, n), err)
@@ -734,7 +734,9 @@ func (c *Connection) readPacket() (*ConnectionLogEntry, error) {
 // ConnectionLog; if none is present, returns nil.
 func (c *Connection) GetHandshake() *HandshakePacket {
 	if entry := c.ConnectionLog.Handshake; entry != nil {
-		return entry.Parsed.(*HandshakePacket)
+		if handshake, ok := entry.Parsed.(*HandshakePacket); ok {
+			return handshake
+		}
 	}
 	return nil
 }
