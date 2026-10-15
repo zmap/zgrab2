@@ -6,6 +6,7 @@ toolchain go1.25.8
 
 require (
 	github.com/censys/cidranger v1.1.3
+	github.com/go-asn1-ber/asn1-ber v1.5.7
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hdm/jarm-go v0.0.8
 	github.com/prometheus/client_golang v1.24.1
