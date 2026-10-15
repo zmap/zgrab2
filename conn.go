@@ -299,14 +299,16 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		if !ok {
 			return nil, fmt.Errorf("invalid IP address: %s", host)
 		}
-		if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return nil, &ScanError{
-					Status: SCAN_CONNECTION_TIMEOUT,
-					Err:    fmt.Errorf("dialing IP %s timed out or was cancelled while waiting for rate limit token", host),
+		if !serverRateLimitDisabled.Load() {
+			if err = ipRateLimiter.WaitOrCreate(ctx, ipAddr, rate.Limit(config.ServerRateLimit), config.ServerRateLimit); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return nil, &ScanError{
+						Status: SCAN_CONNECTION_TIMEOUT,
+						Err:    fmt.Errorf("dialing IP %s timed out or was cancelled while waiting for rate limit token", host),
+					}
 				}
+				return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
 			}
-			return nil, fmt.Errorf("failed to wait for rate limiter for IP %s: %w", host, err)
 		}
 
 		// can proceed with dialing the IP address, not blocklisted
