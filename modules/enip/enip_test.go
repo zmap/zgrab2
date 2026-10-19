@@ -3,9 +3,9 @@ package enip
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"testing"
@@ -61,7 +61,6 @@ func hexDecode(s string) []byte {
 
 var EnipConfigs = map[string]EnipTestConfig{
 	"Rockwell": {
-		port:     44818,
 		response: hexDecode("63003700000000000000000000000000000000000000000001000c00310001000002af12dfc8d20700000000000000002f000c000e0003033400b904b0010f434a31572d454950323128434a322903"),
 		expectedResult: EnipDeviceInfo{
 			VendorID:     0x2f,
@@ -86,15 +85,20 @@ func getResult(result any) EnipDeviceInfo {
 
 // Start a local server that sends responds after two following packets
 func (cfg *EnipTestConfig) runFakeEnipServer(t *testing.T) net.Listener {
-	endpoint := fmt.Sprintf("127.0.0.1:%d", cfg.port)
-	listener, err := net.Listen("tcp", endpoint)
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { listener.Close() })
+	cfg.port = listener.Addr().(*net.TCPAddr).Port
 	go func() {
 		sock, err := listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			if !errors.Is(err, net.ErrClosed) {
+				t.Errorf("Accept failed: %v", err)
+			}
+			return
 		}
 		defer sock.Close()
 
@@ -102,11 +106,12 @@ func (cfg *EnipTestConfig) runFakeEnipServer(t *testing.T) net.Listener {
 		r1, err := sock.Read(buf)
 		if err != nil && err != io.EOF && r1 > 0 {
 			// Read will return an EOF when it's done reading
-			log.Fatalf("1 Unexpected error reading from client: %v", err)
+			t.Errorf("Unexpected error reading from client: %v", err)
+			return
 		}
 		// The client should ignore this packet but it will wait for it
 		if err := _write(sock, cfg.response); err != nil {
-			log.Printf("Failed writing body to client: %v", err)
+			t.Errorf("Failed writing body to client: %v", err)
 			return
 		}
 
@@ -114,12 +119,13 @@ func (cfg *EnipTestConfig) runFakeEnipServer(t *testing.T) net.Listener {
 	return listener
 }
 
-func (cfg *EnipTestConfig) runTest(t *testing.T, testName string) {
+func (cfg *EnipTestConfig) runTest(t *testing.T) {
+	t.Helper()
+	cfg.runFakeEnipServer(t)
 	scanner := cfg.getScanner(t)
-	server := cfg.runFakeEnipServer(t)
 	target := zgrab2.ScanTarget{
 		IP:   net.ParseIP("127.0.0.1"),
-		Port: 44818,
+		Port: uint(cfg.port),
 	}
 	dialerGroup, err := scanner.GetDialerGroupConfig().GetDefaultDialerGroupFromConfig()
 	if err != nil {
@@ -184,12 +190,45 @@ func (cfg *EnipTestConfig) runTest(t *testing.T, testName string) {
 				cfg.expectedResult.VendorID,
 			)
 		}
-		server.Close()
 	}
 }
 
 func TestEnip(t *testing.T) {
 	for testName, cfg := range EnipConfigs {
-		cfg.runTest(t, testName)
+		t.Run(testName, func(t *testing.T) {
+			cfg.runTest(t)
+		})
+	}
+}
+
+func TestEnipConcurrent(t *testing.T) {
+	for i := range 2 {
+		t.Run(fmt.Sprintf("scan-%d", i), func(t *testing.T) {
+			t.Parallel()
+			cfg := EnipConfigs["Rockwell"]
+			cfg.runTest(t)
+		})
+	}
+}
+
+func TestEnipServerIsolation(t *testing.T) {
+	var listeners []net.Listener
+	t.Run("servers", func(t *testing.T) {
+		for range 2 {
+			cfg := EnipConfigs["Rockwell"]
+			listener := cfg.runFakeEnipServer(t)
+			listeners = append(listeners, listener)
+			if cfg.port == 0 || cfg.port != listener.Addr().(*net.TCPAddr).Port {
+				t.Fatalf("Server port was not propagated: %d", cfg.port)
+			}
+		}
+		if listeners[0].Addr().String() == listeners[1].Addr().String() {
+			t.Fatal("Servers must listen on distinct ports")
+		}
+	})
+	for _, listener := range listeners {
+		if err := listener.Close(); !errors.Is(err, net.ErrClosed) {
+			t.Errorf("Listener was not closed by test cleanup: %v", err)
+		}
 	}
 }
