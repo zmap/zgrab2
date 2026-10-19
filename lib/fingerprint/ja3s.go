@@ -3,6 +3,7 @@ package fingerprint
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/zmap/zcrypto/tls"
@@ -30,5 +31,5 @@ func JA3S(log *tls.ServerHandshake) string {
 	h := md5.New()
 	h.Write(prehash.Bytes())
 
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil))
 }
