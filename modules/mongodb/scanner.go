@@ -319,7 +319,7 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 
 	err = scan.conn.Write(query)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to write buildInfo message to target %s: %w", target.String(), err)
+		return zgrab2.TryGetScanStatus(err), &result, fmt.Errorf("failed to write buildInfo message to target %s: %w", target.String(), err)
 	}
 	msg, err := scan.conn.ReadMsg()
 	if err != nil {
