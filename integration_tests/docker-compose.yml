@@ -415,6 +415,11 @@ services:
   pptp:
     container_name: zgrab_pptp
     image: "mobtitude/vpn-pptp"
+    # The image's entrypoint sets up NAT with legacy iptables, which fails
+    # (and exits) on kernels built without it, e.g. Ubuntu 26 runners. The
+    # scan only needs the PPTP control channel, so run pptpd directly.
+    entrypoint: ["pptpd"]
+    command: ["--fg"]
     networks:
       - pptp-network
     volumes:
