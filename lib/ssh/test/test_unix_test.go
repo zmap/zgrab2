@@ -145,6 +145,9 @@ func clientConfig() *ssh.ClientConfig {
 			ssh.KeyAlgoED25519,
 		},
 	}
+	// Advertise ext-info-c so sshd sends server-sig-algs and RSA keys sign
+	// with rsa-sha2-*; modern sshd rejects SHA-1 ssh-rsa signatures.
+	config.CollectExtensions = true
 	return config
 }
 
