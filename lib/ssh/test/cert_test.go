@@ -46,6 +46,8 @@ func TestCertLogin(t *testing.T) {
 			},
 		}).CheckHostKey,
 	}
+	// Needed so the RSA cert signs with rsa-sha2-* rather than SHA-1.
+	conf.CollectExtensions = true
 	conf.Auth = append(conf.Auth, ssh.PublicKeys(certSigner))
 
 	for _, test := range []struct {

@@ -442,11 +442,19 @@ func TestClientAuthAlgorithms(t *testing.T) {
 			conn, err := server.TryDial(conf)
 			if err == nil {
 				conn.Close()
-			} else {
-				t.Errorf("failed for key %q", key)
+				server.Shutdown()
+				return
 			}
 
+			// Shutdown waits for sshd to exit, so its output is complete.
+			// OpenSSH 9.8+ may be built without DSA support at all.
 			server.Shutdown()
+			if key == "dsa" && strings.Contains(server.output.String(),
+				"unsupported public key algorithm: ssh-dss") {
+				t.Skip("sshd does not support ssh-dss")
+			}
+			t.Errorf("failed for key %q: %v\nsshd: %s", key, err,
+				server.output.String())
 		})
 	}
 }
