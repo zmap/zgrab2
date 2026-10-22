@@ -34,6 +34,7 @@ type Flags struct {
 	MaxReadSize       int    `long:"max-read-size" default:"512" description:"Maximum amount of data to read in KiB (1024 bytes)"`
 	Probe             string `long:"probe" default:"\\n" description:"Probe to send to the server. Use triple slashes to escape, for example \\\\\\n is literal \\n. Mutually exclusive with --probe-file."`
 	ProbeFile         string `long:"probe-file" description:"Read probe from file as byte array (hex). Mutually exclusive with --probe."`
+	ExpandProbe       bool   `long:"expand-probe" description:"Expand ZMap-compatible ${...} template fields in the probe after connecting."`
 	Pattern           string `long:"pattern" description:"Pattern to match, must be valid regexp."`
 	UseTLS            bool   `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options."`
 	AllowTLSDowngrade bool   `long:"allow-tls-downgrade" description:"If --tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --tls."`
@@ -50,7 +51,7 @@ func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
 	return zgrab2.NewTypedModule[Flags, Scanner, *Scanner](
 		"banner",
 		"Fetch a raw banner from a server with optional regex matching",
-		"Fetch a raw banner by sending a static probe and checking the result against an optional regular expression",
+		"Fetch a raw banner by sending a static or ZMap-compatible templated probe and checking the result against an optional regular expression",
 		80,
 	)
 }
@@ -58,9 +59,10 @@ func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
 // Scanner is the implementation of the zgrab2.Scanner interface.
 type Scanner struct {
 	zgrab2.BaseScanner
-	config *Flags
-	regex  *regexp.Regexp
-	probe  []byte
+	config   *Flags
+	regex    *regexp.Regexp
+	probe    []byte
+	template *probeTemplate
 }
 
 // ScanResults instances are returned by the module's Scan function.
@@ -88,6 +90,11 @@ func (f Flags) Validate(_ []string) error {
 	return nil
 }
 
+// Help returns additional help text for the flags.
+func (f Flags) Help() string {
+	return "With --expand-probe, probes use ZMap UDP template fields: ${SADDR_N}, ${SADDR}, ${DADDR_N}, ${DADDR}, ${SPORT_N}, ${SPORT}, ${DPORT_N}, ${DPORT}, ${RAND_BYTE=n}, ${RAND_DIGIT=n}, ${RAND_ALPHA=n}, ${RAND_ALPHANUM=n}, ${HEX=...}, ${UNIXTIME_SEC}, ${UNIXTIME_USEC}, and ${NTP_TIMESTAMP}. Unknown fields remain unchanged."
+}
+
 // Init initializes the Scanner with the command-line flags.
 func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	var err error
@@ -104,11 +111,17 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 			return zgrab2.ErrInvalidArguments
 		}
 	} else {
-		strProbe, err := strconv.Unquote(fmt.Sprintf(`"%s"`, scanner.config.Probe))
-		if err != nil {
+		strProbe, unquoteErr := strconv.Unquote(fmt.Sprintf(`"%s"`, scanner.config.Probe))
+		if unquoteErr != nil {
 			panic("Probe error")
 		}
 		scanner.probe = []byte(strProbe)
+	}
+	if f.ExpandProbe {
+		scanner.template, err = parseProbeTemplate(scanner.probe)
+		if err != nil {
+			return fmt.Errorf("invalid probe template: %w", err)
+		}
 	}
 	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
@@ -158,9 +171,20 @@ func (scanner *Scanner) Scan(ctx context.Context, dialGroup *zgrab2.DialerGroup,
 	}()
 
 	var data []byte
+	probe := scanner.probe
+	if scanner.template != nil {
+		templateContext, templateErr := newProbeTemplateContext(conn)
+		if templateErr != nil {
+			return zgrab2.SCAN_UNKNOWN_ERROR, nil, templateErr
+		}
+		probe, templateErr = scanner.template.expand(templateContext)
+		if templateErr != nil {
+			return zgrab2.SCAN_UNKNOWN_ERROR, nil, templateErr
+		}
+	}
 
 	for try := 0; try < scanner.config.MaxTries; try++ {
-		_, err = conn.Write(scanner.probe)
+		_, err = conn.Write(probe)
 		data, readErr = zgrab2.ReadAvailableWithOptions(conn,
 			scanner.config.BufferSize,
 			time.Duration(scanner.config.ReadTimeout)*time.Millisecond,
