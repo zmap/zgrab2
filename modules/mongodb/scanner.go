@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/mgo.v2/bson"
@@ -19,7 +20,17 @@ func NewModule() *zgrab2.TypedModule[Flags, Scanner, *Scanner] {
 
 // Flags contains mongodb-specific command-line flags.
 type Flags struct {
-	zgrab2.BaseFlags `group:"Basic Options"`
+	zgrab2.BaseFlags  `group:"Basic Options"`
+	zgrab2.TLSFlags   `group:"TLS Options"`
+	UseTLS            bool `long:"tls" description:"Sends probe with TLS connection. Loads TLS module command options."`
+	AllowTLSDowngrade bool `long:"allow-tls-downgrade" description:"If --tls is enabled and the TLS handshake fails, fall back to plaintext instead of aborting. Requires --tls."`
+}
+
+func (f Flags) Validate(_ []string) error {
+	if f.AllowTLSDowngrade && !f.UseTLS {
+		return errors.New("--allow-tls-downgrade requires --tls")
+	}
+	return nil
 }
 
 // Scanner implements the zgrab2.Scanner interface
@@ -44,6 +55,9 @@ type scan struct {
 // Close cleans up the scanner.
 func (scan *scan) Close() {
 	defer scan.close()
+	if tlsConn, ok := scan.conn.conn.(*zgrab2.TLSConnection); ok {
+		scan.result.TLSLog = tlsConn.GetLog()
+	}
 }
 
 // getIsMasterMsg returns a mongodb message containing isMaster command.
@@ -122,7 +136,7 @@ func getOpMsg(section []byte) []byte {
 // getBuildInfoOpMsg returns a mongodb "OP" message containing query to retrieve MongoDB build info.
 func getBuildInfoOpMsg() []byte {
 	// gleaned from tshark
-	section_payload, err := bson.Marshal(bson.M{"buildinfo": 1, "$db": "admin"})
+	section_payload, err := bson.Marshal(bson.D{{Name: "buildinfo", Value: 1}, {Name: "$db", Value: "admin"}})
 	if err != nil {
 		// programmer error
 		log.Fatalf("Invalid BSON: %v", err)
@@ -190,6 +204,7 @@ type Result struct {
 	IsMaster     *IsMaster_t      `json:"is_master,omitempty"`
 	BuildInfo    *BuildInfo_t     `json:"build_info,omitempty"`
 	DatabaseInfo *ListDatabases_t `json:"database_info,omitempty"`
+	TLSLog       *zgrab2.TLSLog   `json:"tls,omitempty"`
 }
 
 // Init initializes the scanner
@@ -203,14 +218,27 @@ func (scanner *Scanner) Init(flags zgrab2.ScanFlags) error {
 	scanner.listDatabasesMsg = getListDatabasesMsg()
 	scanner.DialerGroupConfig = &zgrab2.DialerGroupConfig{
 		TransportAgnosticDialerProtocol: zgrab2.TransportTCP,
+		TLSEnabled:                      f.UseTLS,
 		BaseFlags:                       &f.BaseFlags,
+		NeedSeparateL4Dialer:            f.AllowTLSDowngrade,
+	}
+	if f.UseTLS {
+		scanner.DialerGroupConfig.TLSFlags = &f.TLSFlags
 	}
 	return nil
 }
 
 // StartScan opens a connection to the target and sets up a scan instance for it.
 func (scanner *Scanner) StartScan(ctx context.Context, target *zgrab2.ScanTarget, dialGroup *zgrab2.DialerGroup) (*scan, error) {
-	conn, err := dialGroup.Dial(ctx, target)
+	var (
+		conn net.Conn
+		err  error
+	)
+	if scanner.config.AllowTLSDowngrade {
+		conn, _, err = dialGroup.DialTLSDowngrade(ctx, target, true)
+	} else {
+		conn, err = dialGroup.Dial(ctx, target)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %s: %w", target.String(), err)
 	}

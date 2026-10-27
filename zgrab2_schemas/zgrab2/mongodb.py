@@ -11,6 +11,7 @@ mongodb_scan_response = SubRecord(
     {
         "result": SubRecord(
             {
+                "tls": zgrab2.tls_log,
                 "build_info": SubRecord(
                     {
                         "version": String(doc="Version of mongodb server"),

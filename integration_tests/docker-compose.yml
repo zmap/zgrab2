@@ -192,6 +192,19 @@ services:
         - mongodb-4.1.2-network
     hostname: "target"
 
+  mongodb-4.0.1-tls:
+    build:
+      context: ./mongodb/container
+    container_name: "zgrab_mongodb-4.0.1-tls"
+    networks:
+      - mongodb-4.0.1-tls-network
+    hostname: "target"
+    healthcheck:
+      test: ["CMD", "mongo", "--ssl", "--sslAllowInvalidCertificates", "--quiet", "--eval", "assert.commandWorked(db.adminCommand({ping: 1}))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
   mongodb-8.0:
     image: "mongo:8.0"
     container_name: "zgrab_mongodb-8.0"
@@ -618,6 +631,11 @@ networks:
     ipam:
       config:
         - subnet: 100.64.0.56/30
+  mongodb-4.0.1-tls-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.200/30
   mqtt-network:
     driver: bridge
     ipam:
