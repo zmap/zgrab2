@@ -37,12 +37,12 @@ func TestKexes(t *testing.T) {
 					var magics handshakeMagics
 					config := Config{GexMinBits: 1024, GexPreferredBits: 2048, GexMaxBits: 8192}
 					go func() {
-						r, e := kex.Client(a, rand.Reader, &magics, &config)
+						r, e := kex.GetNew(name).Client(a, rand.Reader, &magics, &config)
 						a.Close()
 						c <- kexResultErr{r, e}
 					}()
 					go func() {
-						r, e := kex.Server(b, rand.Reader, &magics, testSigners["ecdsa"].(AlgorithmSigner), testSigners["ecdsa"].PublicKey().Type(), &config)
+						r, e := kex.GetNew(name).Server(b, rand.Reader, &magics, testSigners["ecdsa"].(AlgorithmSigner), testSigners["ecdsa"].PublicKey().Type(), &config)
 						b.Close()
 						s <- kexResultErr{r, e}
 					}()

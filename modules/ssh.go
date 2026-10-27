@@ -29,7 +29,7 @@ type SSHFlags struct {
 	GexMaxBits            uint   `long:"gex-max-bits" description:"The maximum number of bits for the DH GEX prime." default:"8192"`
 	GexPreferredBits      uint   `long:"gex-preferred-bits" description:"The preferred number of bits for the DH GEX prime." default:"2048"`
 	HelloOnly             bool   `long:"hello-only" description:"Limit scan to the initial hello message."`
-	OfferUnsupported      bool   `long:"offer-unsupported" description:"Offer unsupported connection algorithms during algorithm negotiation to maximize compatibility. With this flag active and no further algorithm choices, the SSH_MSG_KEXINIT message will increase by 63% in size (from 1200 bytes to 1952 bytes), causing fragmentation. This flag is mutually exclusive with flags that do not abort the connection before establishing the encrypted channel such as --extensions or --userauth."`
+	OfferUnsupported      bool   `long:"offer-unsupported" description:"Offer unsupported connection algorithms during algorithm negotiation to maximize compatibility. This increases the SSH_MSG_KEXINIT message size and may cause fragmentation. This flag is mutually exclusive with flags that do not abort the connection before establishing the encrypted channel such as --extensions or --userauth."`
 }
 
 var defaultKexAlgorithms = []string{
@@ -42,9 +42,11 @@ var defaultKexAlgorithms = []string{
 	"diffie-hellman-group1-sha1",
 	"diffie-hellman-group14-sha256",
 	"diffie-hellman-group14-sha1",
-	// Group exchange requires 2 RTT rather than 1 RTT, therefore consider it last resort
+	// Group exchange requires 2 RTT rather than 1 RTT, so prefer other classical exchanges.
 	"diffie-hellman-group-exchange-sha256",
 	"diffie-hellman-group-exchange-sha1",
+	// Keep the larger hybrid exchange as a fallback for PQ-only servers.
+	"mlkem768x25519-sha256",
 }
 
 var defaultHostKeyAlgorithms = []string{

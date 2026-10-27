@@ -110,6 +110,22 @@ This will display the module-specific options, as well as the application-wide o
 
 Module specific options must be included after the module. Application specific options can be specified at any time.
 
+### SSH key exchange
+
+The SSH module supports the hybrid post-quantum `mlkem768x25519-sha256` key
+exchange, ported from Go's `golang.org/x/crypto/ssh`. It is offered by default
+after the existing classical algorithms to preserve their preference and avoid
+larger exchanges when a smaller one is available. To offer only the hybrid
+algorithm:
+
+```shell
+echo "127.0.0.1" | ./zgrab2 ssh --kex-algorithms=mlkem768x25519-sha256
+```
+
+Results retain the server host key, signature, and hybrid server public value
+under `key_exchange`. With `--verbose`, the hybrid client public value is also
+included in `mlkem768x25519_sha256_params`.
+
 ## Input Format
 
 Targets are specified with input files or from `stdin`, in CSV format.  Each input line has up to four fields:

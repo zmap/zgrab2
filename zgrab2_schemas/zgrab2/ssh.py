@@ -25,6 +25,7 @@ KexAlgorithm = String.with_args(
         "curve25519-sha256@libssh.org",
         "diffie-hellman-group-exchange-sha1",
         "diffie-hellman-group-exchange-sha256",
+        "mlkem768x25519-sha256",
     ],
 )
 
@@ -155,6 +156,14 @@ Curve25519SHA256Params = SubRecordType(
     }
 )
 
+# zgrab2/lib/ssh/mlkem.go: mlkem768WithCurve25519sha256JsonLogParameters
+MLKEM768X25519SHA256Params = SubRecordType(
+    {
+        "client_public": Binary(required=False),
+        "server_public": Binary(required=False),
+    }
+)
+
 # zgrab2/lib/ssh/certs.go: JsonSignature
 Signature = SubRecordType(
     {
@@ -280,9 +289,11 @@ DirectionAlgorithms = SubRecordType(
 #   - ecdh: ecdh_params, server_signature, server_host_key
 #   - curve25519sha256: curve25519_sha256_params, server_signature, server_host_key
 #   - dhGEXSHA: dh_params, server_signature, server_host_key
+#   - mlkem768WithCurve25519sha256: mlkem768x25519_sha256_params, server_signature, server_host_key
 KeyExchange = SubRecordType(
     {
         "curve25519_sha256_params": Curve25519SHA256Params(),
+        "mlkem768x25519_sha256_params": MLKEM768X25519SHA256Params(),
         "ecdh_params": zcrypto.ECDHParams(),
         "dh_params": zcrypto.DHParams(),
         "server_signature": Signature(),

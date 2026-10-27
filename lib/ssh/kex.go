@@ -33,6 +33,7 @@ const (
 	kexAlgoECDH521                = "ecdh-sha2-nistp521"
 	kexAlgoCurve25519SHA256LibSSH = "curve25519-sha256@libssh.org"
 	kexAlgoCurve25519SHA256       = "curve25519-sha256"
+	kexAlgoMLKEM768X25519SHA256   = "mlkem768x25519-sha256"
 
 	// For the following kex only the client half contains a production
 	// ready implementation. The server half only consists of a minimal
@@ -640,6 +641,7 @@ func init() {
 	kexAlgoMap[kexAlgoECDH256] = &ecdh{curve: elliptic.P256()}
 	kexAlgoMap[kexAlgoCurve25519SHA256] = &curve25519sha256{}
 	kexAlgoMap[kexAlgoCurve25519SHA256LibSSH] = &curve25519sha256{}
+	kexAlgoMap[kexAlgoMLKEM768X25519SHA256] = &mlkem768WithCurve25519sha256{}
 	kexAlgoMap[kexAlgoDHGEXSHA1] = &dhGEXSHA{hashFunc: crypto.SHA1}
 	kexAlgoMap[kexAlgoDHGEXSHA256] = &dhGEXSHA{hashFunc: crypto.SHA256}
 }
